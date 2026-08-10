@@ -57,6 +57,16 @@ docs/
 
 The exact folders may evolve. Clear ownership and boundaries matter more than matching this tree perfectly.
 
+## Current Handoff Status
+
+- The original `Leaper-Hexapod.html` prototype was replaced by the Vite entry point and the modules under `src/`.
+- Three.js is intentionally pinned to `0.128.0` to preserve the prototype's rendering behavior during the first refactor.
+- `pnpm install` and `pnpm build` have completed successfully. The current production build has a non-blocking bundle-size warning because Three.js is included in the main bundle.
+- Python syntax validation has passed for `rl_environment.py` and `train_rl.py` using the available bundled Python runtime.
+- A manual browser play-through is still required. Verify visual parity, all three camera modes, keyboard and touch movement, jumping, obstacle blocking, pink-target selection/movement, and resizing before treating the refactor as behaviorally complete.
+- `rl_environment.py` and `train_rl.py` predate the JavaScript modularization. Do not assume their simulation rules match the browser implementation, and do not describe them as having been created by the modularization work.
+- The next architectural decision should define how browser simulation state and Python RL actions/observations communicate. Avoid expanding both implementations independently until that boundary is agreed.
+
 ## Working With the Project Owner
 
 The project owner comes from an art and game-design background and is not a programmer or otherwise highly technical. Communicate accordingly:
