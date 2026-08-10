@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>LEAPER — Hexapod Field Sim</title>
+<style>
+  :root{
+    --ink:#d8dbe2; --dim:#6c7280; --accent:#ff4a26; --bg:#0a0b0f;
+  }
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
+    font-family:ui-monospace,'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;
+    -webkit-user-select:none;user-select:none;touch-action:none;color:var(--ink)}
+  #app{position:fixed;inset:0}
+  canvas{display:block;touch-action:none}
+
+  .hud{position:fixed;left:16px;top:14px;z-index:5;pointer-events:none;
+    text-shadow:0 1px 6px rgba(0,0,0,.8)}
+  .hud h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.42em;color:var(--accent)}
+  .hud .sub{margin-top:3px;font-size:9px;letter-spacing:.24em;color:var(--dim)}
+  .hud .rule{width:188px;height:1px;background:linear-gradient(90deg,var(--accent),transparent);
+    margin:8px 0 7px;opacity:.7}
+  .hud .keys{font-size:9.5px;letter-spacing:.14em;color:#9aa0ad;line-height:1.8}
+  .hud .keys b{color:var(--ink);font-weight:700}
+
+  #status{position:fixed;left:16px;bottom:14px;z-index:5;pointer-events:none;
+    font-size:10px;letter-spacing:.2em;color:var(--accent);
+    text-shadow:0 1px 6px rgba(0,0,0,.8)}
+  #status::before{content:"▮ ";animation:blink 1.2s steps(2) infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  #cameraToggle{position:fixed;right:16px;top:16px;z-index:8;padding:10px 13px;
+    border:1px solid rgba(255,74,38,.65);border-radius:3px;background:rgba(10,11,15,.72);
+    color:var(--ink);font:700 10px/1 ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+    letter-spacing:.15em;cursor:pointer;backdrop-filter:blur(5px)}
+  #cameraToggle:hover,#cameraToggle.on{background:rgba(255,74,38,.28);border-color:var(--accent)}
+  #cuboidToggle{position:fixed;right:16px;top:58px;z-index:8;padding:10px 13px;
+    border:1px solid rgba(255,79,163,.75);border-radius:3px;background:rgba(10,11,15,.72);
+    color:#ff8fc5;font:700 10px/1 ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+    letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(5px)}
+  #cuboidToggle:hover,#cuboidToggle.on{background:rgba(255,79,163,.3);border-color:#ff4fa3;color:#fff}
+
+  /* touch controls */
+  #touch{display:none}
+  #touch.show{display:block}
+  #joyBase{position:fixed;left:26px;bottom:64px;width:118px;height:118px;border-radius:50%;
+    border:1px solid rgba(216,219,226,.28);background:rgba(20,22,28,.35);z-index:6;touch-action:none}
+  #joyKnob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;
+    border-radius:50%;background:rgba(255,74,38,.85);box-shadow:0 0 14px rgba(255,74,38,.5)}
+  .tbtn{position:fixed;z-index:6;width:74px;height:74px;border-radius:50%;
+    border:1px solid rgba(216,219,226,.3);background:rgba(20,22,28,.4);
+    color:var(--ink);font-size:10px;letter-spacing:.18em;display:flex;
+    align-items:center;justify-content:center;touch-action:none}
+  .tbtn:active,.tbtn.on{background:rgba(255,74,38,.55)}
+  #btnJump{right:26px;bottom:64px}
+  #btnSprint{right:116px;bottom:132px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="hud">
+  <h1>LEAPER</h1>
+  <div class="sub">ARC-CLASS HEXAPOD // FIELD SIMULATION</div>
+  <div class="rule"></div>
+  <div class="keys"><b>W A S D</b> MOVE &nbsp;·&nbsp; <b>SHIFT</b> SPRINT<br>
+  <b>SPACE</b> JUMP &nbsp;·&nbsp; <b>DRAG</b> ORBIT / LOOK &nbsp;·&nbsp; <b>VIEW</b> TOGGLE<br>
+  <b>P</b> SELECT PINK CUBOID &nbsp;·&nbsp; <b>I J K L</b> MOVE IT</div>
+</div>
+<div id="status">UNIT-04 // BOOT</div>
+<button id="cameraToggle" type="button">VIEW: CHASE</button>
+<button id="cuboidToggle" type="button">PINK: SELECT</button>
+
+<div id="touch">
+  <div id="joyBase"><div id="joyKnob"></div></div>
+  <div id="btnSprint" class="tbtn">SPRINT</div>
+  <div id="btnJump" class="tbtn">JUMP</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ============================================================
+   LEAPER — procedural hexapod (ARC Raiders inspired)
+   Body: spherical core, red sensor eye, 6 IK-driven legs.
+   Gait: alternating-tripod stepping with predictive foot targets.
+   ============================================================ */
+
+/* ---------- renderer / scene ---------- */
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+renderer.domElement.style.touchAction = 'none';
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0b0f);
+scene.fog = new THREE.Fog(0x0a0b0f, 18, 64);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 220);
+
+/* ---------- lights ---------- */
+scene.add(new THREE.HemisphereLight(0x8a93a8, 0x101216, 0.5));
+const key = new THREE.DirectionalLight(0xffffff, 1.05);
+key.position.set(8, 15, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -13; key.shadow.camera.right = 13;
+key.shadow.camera.top = 13;  key.shadow.camera.bottom = -13;
+key.shadow.camera.near = 2;  key.shadow.camera.far = 48;
+key.shadow.bias = -0.0004;
+scene.add(key); scene.add(key.target);
+const rim = new THREE.DirectionalLight(0x4a63ff, 0.22);
+rim.position.set(-7, 9, -9);
+scene.add(rim);
+
+/* ---------- ground + obstacle field ---------- */
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(95, 72),
+  new THREE.MeshStandardMaterial({ color: 0x16171c, roughness: 0.95, metalness: 0.05 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const grid = new THREE.GridHelper(180, 90, 0x3a3e4a, 0x20232b);
+grid.position.y = 0.02;
+grid.material.transparent = true;
+grid.material.opacity = 0.4;
+scene.add(grid);
+
+let seed = 11;
+const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x24262d, roughness: 0.96, metalness: 0.04, flatShading: true });
+const pyramidMat = new THREE.MeshStandardMaterial({ color: 0x29272a, roughness: 0.9, metalness: 0.12, flatShading: true });
+const obstacleField = new THREE.Group();
+const obstacleColliders = [];
+scene.add(obstacleField);
+const obstacleClusters = Array.from({ length: 17 }, () => {
+  const angle = rnd() * Math.PI * 2;
+  const distance = 13 + rnd() * 43;
+  return { x: Math.sin(angle) * distance, z: Math.cos(angle) * distance };
+});
+for (let i = 0; i < 84; i++) {
+  const cluster = obstacleClusters[Math.floor(i / 5) % obstacleClusters.length];
+  const scatterAngle = rnd() * Math.PI * 2;
+  const scatter = 0.35 + Math.pow(rnd(), 1.5) * 4.2;
+  let px = cluster.x + Math.sin(scatterAngle) * scatter;
+  let pz = cluster.z + Math.cos(scatterAngle) * scatter;
+  // Preserve a small deployment clearing while keeping the first clusters nearby.
+  const centerDist = Math.hypot(px, pz);
+  if (centerDist < 15) {
+    const push = 15 / Math.max(centerDist, 0.01);
+    px *= push; pz *= push;
+  }
+  const sizeRoll = rnd();
+  const size = sizeRoll < 0.42 ? 0.3 + rnd() * 1.15
+    : sizeRoll < 0.84 ? 1.45 + rnd() * 2.35
+    : 3.8 + rnd() * 2.5;
+  const isRock = rnd() < 0.62;
+  const geometry = isRock
+    ? new THREE.IcosahedronGeometry(size, 1)
+    : new THREE.ConeGeometry(size * 0.9, size * 1.65, 4, 1);
+  const obstacle = new THREE.Mesh(geometry, isRock ? rockMat : pyramidMat);
+  obstacle.scale.set(0.85 + rnd() * 0.45, 0.7 + rnd() * 0.65, 0.85 + rnd() * 0.45);
+  obstacle.position.set(px, size * obstacle.scale.y * (isRock ? 0.72 : 0.8) - 0.05, pz);
+  obstacle.rotation.set(isRock ? (rnd() - 0.5) * 0.35 : 0, rnd() * Math.PI * 2, isRock ? (rnd() - 0.5) * 0.35 : 0);
+  obstacle.castShadow = true;
+  obstacle.receiveShadow = true;
+  obstacleField.add(obstacle);
+  obstacleColliders.push({
+    x: obstacle.position.x,
+    z: obstacle.position.z,
+    r: size * (isRock ? 0.92 : 1.0) * Math.max(obstacle.scale.x, obstacle.scale.z)
+  });
+}
+
+/* ---------- movable field marker ---------- */
+const markerMat = new THREE.MeshStandardMaterial({
+  color: 0xff4fa3, emissive: 0xff167d, emissiveIntensity: 0.75,
+  roughness: 0.42, metalness: 0.18
+});
+const pinkCuboid = new THREE.Mesh(new THREE.BoxGeometry(1.0, 7.0, 1.0), markerMat);
+const markerObstacle = obstacleColliders.reduce((best, item) =>
+  Math.hypot(item.x, item.z) < Math.hypot(best.x, best.z) ? item : best,
+  obstacleColliders[0]
+);
+const markerDirection = new THREE.Vector2(markerObstacle.x, markerObstacle.z).normalize();
+const markerSide = new THREE.Vector2(-markerDirection.y, markerDirection.x);
+pinkCuboid.position.set(
+  markerObstacle.x + markerDirection.x * (markerObstacle.r + 1.5) + markerSide.x * 2.5,
+  3.5,
+  markerObstacle.z + markerDirection.y * (markerObstacle.r + 1.5) + markerSide.y * 2.5
+);
+pinkCuboid.castShadow = true;
+pinkCuboid.receiveShadow = true;
+const markerLight = new THREE.PointLight(0xff3f9d, 1.8, 12, 2);
+markerLight.position.y = 1.0;
+pinkCuboid.add(markerLight);
+scene.add(pinkCuboid);
+let markerSelected = false;
+const cuboidToggle = document.getElementById('cuboidToggle');
+function setMarkerSelected(selected) {
+  markerSelected = selected;
+  markerMat.emissive.setHex(selected ? 0xff0077 : 0xff167d);
+  markerMat.emissiveIntensity = selected ? 1.35 : 0.75;
+  cuboidToggle.textContent = selected ? 'PINK: SELECTED' : 'PINK: SELECT';
+  cuboidToggle.classList.toggle('on', selected);
+}
+cuboidToggle.addEventListener('pointerdown', e => e.stopPropagation());
+cuboidToggle.addEventListener('click', () => setMarkerSelected(!markerSelected));
+
+/* ---------- materials ---------- */
+const M = {
+  core:  new THREE.MeshStandardMaterial({ color: 0x121318, roughness: 0.38, metalness: 0.88 }),
+  leg:   new THREE.MeshStandardMaterial({ color: 0x121318, roughness: 0.46, metalness: 0.85, flatShading: true }),
+  plate: new THREE.MeshStandardMaterial({ color: 0x1e2027, roughness: 0.55, metalness: 0.8,  flatShading: true }),
+  joint: new THREE.MeshStandardMaterial({ color: 0x262a33, roughness: 0.32, metalness: 0.9 }),
+  dark:  new THREE.MeshStandardMaterial({ color: 0x08090b, roughness: 0.6,  metalness: 0.6 }),
+  lens:  new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.12, metalness: 0.5 }),
+  glow:  new THREE.MeshStandardMaterial({ color: 0x1a0402, emissive: 0xff2e10, emissiveIntensity: 2.0, roughness: 0.4 }),
+  glowSoft: new THREE.MeshStandardMaterial({ color: 0x1a0402, emissive: 0xff5a30, emissiveIntensity: 1.0, roughness: 0.4 })
+};
+
+/* ---------- proportions ---------- */
+const ROBOT_SCALE = 2.0; // 100% larger
+const LEG_LENGTH_SCALE = 1.2;
+const L1 = 1.05 * ROBOT_SCALE * LEG_LENGTH_SCALE;
+// Lower-leg proportions: the second section is 20% longer than the third.
+const CALF = (1.58 / 2.2) * ROBOT_SCALE * LEG_LENGTH_SCALE;
+const SHIN = CALF * 1.2;
+const CALF_ANGLE = THREE.MathUtils.degToRad(150);
+const LOWER_REACH = Math.sqrt(SHIN * SHIN + CALF * CALF - 2 * SHIN * CALF * Math.cos(CALF_ANGLE));
+const COXA = 0.26 * ROBOT_SCALE * LEG_LENGTH_SCALE;
+const STAND_H = 1.16 * ROBOT_SCALE, FOOT_Y = 0.05 * ROBOT_SCALE, HOME_R = 1.62 * ROBOT_SCALE;
+const WALK = 4.4, SPRINT = 9.0, ACCEL = 26, AIR_ACC = 7, GRAV = 20;
+const STEP_DIST = 0.5 * ROBOT_SCALE;
+// Covers the body, articulated legs, and stepping feet—not just the central shell.
+const BODY_COLLISION_RADIUS = HOME_R + 0.75;
+
+/* ---------- body ---------- */
+const robot = new THREE.Group();
+robot.rotation.order = 'YXZ';
+robot.scale.setScalar(ROBOT_SCALE);
+scene.add(robot);
+
+const core = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), M.core);
+core.scale.set(0.74, 0.70, 0.77);
+robot.add(core);
+
+const topCap = new THREE.Mesh(new THREE.SphereGeometry(0.525, 28, 14, 0, Math.PI * 2, 0, 0.82), M.plate);
+topCap.scale.set(0.74, 0.70, 0.77);
+robot.add(topCap);
+
+const band = new THREE.Mesh(new THREE.TorusGeometry(0.382, 0.018, 8, 48), M.dark);
+band.rotation.x = Math.PI / 2;
+band.position.y = 0.02;
+band.scale.set(1, 1.04, 1);
+robot.add(band);
+
+/* eye assembly (forward = +Z) */
+const socket = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.24, 0.14, 24), M.joint);
+socket.geometry.rotateX(Math.PI / 2);
+socket.position.set(0, 0.03, 0.46);
+robot.add(socket);
+const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.034, 10, 40), M.dark);
+bezel.position.set(0, 0.03, 0.525);
+robot.add(bezel);
+const eyeRing = new THREE.Mesh(new THREE.TorusGeometry(0.158, 0.02, 10, 40), M.glow);
+eyeRing.position.set(0, 0.03, 0.547);
+robot.add(eyeRing);
+const lensM = new THREE.Mesh(new THREE.CylinderGeometry(0.132, 0.15, 0.05, 24), M.lens);
+lensM.geometry.rotateX(Math.PI / 2);
+lensM.position.set(0, 0.03, 0.55);
+robot.add(lensM);
+const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.05, 16), M.glowSoft);
+pupil.position.set(0, 0.03, 0.578);
+robot.add(pupil);
+const eyePivot = new THREE.Group();
+eyePivot.position.set(0, 0.03, 0.43);
+eyePivot.rotation.order = 'YXZ';
+robot.add(eyePivot);
+[socket, bezel, eyeRing, lensM, pupil].forEach(part => eyePivot.add(part));
+socket.position.set(0, 0, 0.03);
+bezel.position.set(0, 0, 0.095);
+eyeRing.position.set(0, 0, 0.117);
+lensM.position.set(0, 0, 0.12);
+pupil.position.set(0, 0, 0.148);
+const brow = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.055, 0.13), M.plate);
+brow.position.set(0, 0.27, 0.42);
+brow.rotation.x = 0.55;
+robot.add(brow);
+
+const eyeLight = new THREE.PointLight(0xff3b1a, 1.1, 7, 2);
+eyeLight.position.set(0, 0.06, 0.95);
+robot.add(eyeLight);
+
+/* ---------- legs ---------- */
+function diamondSeg(rt, rb, len, mat) {
+  const g = new THREE.CylinderGeometry(rt, rb, len, 4, 1);
+  g.translate(0, len / 2, 0);
+  const m = new THREE.Mesh(g, mat);
+  m.castShadow = true;
+  return m;
+}
+
+function makeLegMeshes() {
+  const coxa = diamondSeg(0.085, 0.11, COXA, M.joint);
+
+  const femur = new THREE.Group();
+  femur.add(diamondSeg(0.072, 0.108, L1, M.leg));
+  const fArm = diamondSeg(0.128, 0.158, L1 * 0.6, M.plate);
+  fArm.position.y = L1 * 0.16;
+  femur.add(fArm);
+  const fGlow = new THREE.Mesh(new THREE.BoxGeometry(0.03, L1 * 0.46, 0.03), M.glow);
+  fGlow.position.set(0.105, L1 * 0.42, 0);
+  femur.add(fGlow);
+  const spike = diamondSeg(0.004, 0.052, 0.24, M.plate);   // knee spike, continues past joint
+  spike.position.y = L1 * 0.99;
+  femur.add(spike);
+
+  const tibia = new THREE.Group();
+  tibia.add(diamondSeg(0.092, 0.055, SHIN, M.leg));
+  const tArm = diamondSeg(0.132, 0.065, SHIN * 0.52, M.plate);
+  tArm.position.y = SHIN * 0.04;
+  tibia.add(tArm);
+  const tGlow = new THREE.Mesh(new THREE.BoxGeometry(0.026, SHIN * 0.34, 0.026), M.glow);
+  tGlow.position.set(0.098, SHIN * 0.14, 0);
+  tibia.add(tGlow);
+
+  const calf = new THREE.Group();
+  calf.add(diamondSeg(0.075, 0.026, CALF, M.leg));
+  const calfPlate = diamondSeg(0.105, 0.045, CALF * 0.58, M.plate);
+  calfPlate.position.y = CALF * 0.05;
+  calf.add(calfPlate);
+
+  const calfJoint = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), M.joint);
+  calfJoint.scale.set(1.15, 0.82, 1.15);
+  calfJoint.castShadow = true;
+  const calfRing = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.018, 8, 20), M.glowSoft);
+  calfRing.rotation.x = Math.PI / 2;
+  calfJoint.add(calfRing);
+
+  const footBall = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), M.dark);
+  footBall.castShadow = true;
+  footBall.position.y = CALF;
+  calf.add(footBall);
+
+  const knee = new THREE.Mesh(new THREE.SphereGeometry(0.095, 14, 12), M.joint);
+  knee.castShadow = true;
+  knee.add(new THREE.Mesh(new THREE.SphereGeometry(0.046, 8, 8), M.glow));
+
+  coxa.scale.set(ROBOT_SCALE, 1, ROBOT_SCALE);
+  femur.scale.set(ROBOT_SCALE, 1, ROBOT_SCALE);
+  tibia.scale.set(ROBOT_SCALE, 1, ROBOT_SCALE);
+  calf.scale.set(ROBOT_SCALE, 1, ROBOT_SCALE);
+  knee.scale.setScalar(ROBOT_SCALE);
+  calfJoint.scale.multiplyScalar(ROBOT_SCALE);
+
+  scene.add(coxa, femur, tibia, calf, knee, calfJoint);
+  return { coxa, femur, tibia, calf, knee, calfJoint };
+}
+
+/* Three legs per side; alternating tripods: LF+RM+LR and RF+LM+RR. */
+const legDefs = [
+  { a: -0.62, g: 0 }, { a: 0.62, g: 1 },
+  { a: -1.57, g: 1 }, { a: 1.57, g: 0 },
+  { a: -2.42, g: 0 }, { a: 2.42, g: 1 }
+];
+
+const legs = legDefs.map((d, i) => {
+  const out = new THREE.Vector3(Math.sin(d.a), 0, Math.cos(d.a));
+  return Object.assign({
+    i, g: d.g, out,
+    anchorLocal: new THREE.Vector3(out.x * 0.40, 0.245, out.z * 0.40),
+    homeLocal: new THREE.Vector3(out.x * HOME_R, 0, out.z * HOME_R),
+    foot: new THREE.Vector3(out.x * HOME_R, FOOT_Y, out.z * HOME_R),
+    stepping: false, t: 0, dur: 0.22, lift: 0.32, cool: 0, replant: -1,
+    from: new THREE.Vector3(), to: new THREE.Vector3()
+  }, makeLegMeshes());
+});
+
+/* hip mounts + shoulder fins on the body */
+legDefs.forEach(d => {
+  const out = new THREE.Vector3(Math.sin(d.a), 0, Math.cos(d.a));
+  const mnt = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.17, 0.2), M.joint);
+  mnt.position.set(out.x * 0.42, 0.25, out.z * 0.42);
+  mnt.rotation.y = d.a;
+  robot.add(mnt);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.2, 0.25), M.plate);
+  fin.position.set(out.x * 0.46, 0.41, out.z * 0.46);
+  fin.rotation.order = 'YXZ';
+  fin.rotation.y = d.a;
+  fin.rotation.x = -0.22;
+  robot.add(fin);
+});
+
+robot.traverse(o => { if (o.isMesh) o.castShadow = true; });
+
+/* ---------- state ---------- */
+const S = {
+  pos: new THREE.Vector3(0, 0, 0),
+  vel: new THREE.Vector3(),
+  pvel: new THREE.Vector3(),
+  yaw: 0, tp: 0, tr: 0,
+  jy: 0, vy: 0, grounded: true,
+  crouch: 0, phase: 0, alert: 0
+};
+
+/* ---------- input ---------- */
+const k = {};
+let jumpBuf = 0, sprintHold = false;
+window.addEventListener('keydown', e => {
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  k[e.code] = true;
+  if (e.code === 'Space' && !e.repeat) jumpBuf = 0.16;
+  if (e.code === 'KeyP' && !e.repeat) {
+    setMarkerSelected(!markerSelected);
+  }
+});
+window.addEventListener('keyup', e => { k[e.code] = false; });
+window.addEventListener('blur', () => { for (const c in k) k[c] = false; });
+
+/* chase camera + mobile lens view */
+let camYaw = Math.PI, camPitch = 0.42, camDist = 11.5, topCamHeight = 135;
+let cameraMode = 'CHASE', eyeView = false, eyeYaw = 0, eyePitch = 0;
+const EYE_YAW_LIMIT = THREE.MathUtils.degToRad(45); // 90-degree total horizontal sweep
+const EYE_PITCH_DOWN = THREE.MathUtils.degToRad(-70);
+const EYE_PITCH_UP = THREE.MathUtils.degToRad(80);
+const camT = new THREE.Vector3(0, 1, 0);
+let orbId = null, lx = 0, ly = 0;
+const cameraToggle = document.getElementById('cameraToggle');
+function toggleCamera() {
+  cameraMode = cameraMode === 'CHASE' ? 'LENS' : cameraMode === 'LENS' ? 'TOP' : 'CHASE';
+  eyeView = cameraMode === 'LENS';
+  cameraToggle.textContent = 'VIEW: ' + cameraMode;
+  cameraToggle.classList.toggle('on', cameraMode !== 'CHASE');
+  camera.fov = eyeView ? 60 : cameraMode === 'TOP' ? 75 : 55;
+  camera.up.set(0, 1, 0);
+  scene.fog.far = cameraMode === 'TOP' ? 220 : 64;
+  camera.updateProjectionMatrix();
+}
+cameraToggle.addEventListener('pointerdown', e => e.stopPropagation());
+cameraToggle.addEventListener('click', toggleCamera);
+renderer.domElement.addEventListener('pointerdown', e => {
+  orbId = e.pointerId; lx = e.clientX; ly = e.clientY;
+  window.focus();
+});
+window.addEventListener('pointermove', e => {
+  if (e.pointerId === orbId) {
+    if (eyeView) {
+      eyeYaw = THREE.MathUtils.clamp(eyeYaw + (e.clientX - lx) * 0.0055, -EYE_YAW_LIMIT, EYE_YAW_LIMIT);
+      eyePitch = THREE.MathUtils.clamp(eyePitch - (e.clientY - ly) * 0.005, EYE_PITCH_DOWN, EYE_PITCH_UP);
+    } else if (cameraMode === 'CHASE') {
+      camYaw -= (e.clientX - lx) * 0.0055;
+      camPitch = THREE.MathUtils.clamp(camPitch + (e.clientY - ly) * 0.005, 0.08, 1.25);
+    }
+    lx = e.clientX; ly = e.clientY;
+  }
+  joyMove(e);
+});
+window.addEventListener('pointerup', e => { if (e.pointerId === orbId) orbId = null; joyEnd(e); });
+window.addEventListener('pointercancel', e => { if (e.pointerId === orbId) orbId = null; joyEnd(e); });
+renderer.domElement.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (cameraMode === 'TOP') {
+    topCamHeight = THREE.MathUtils.clamp(topCamHeight * (1 + e.deltaY * 0.0012), 28, 180);
+  } else {
+    camDist = THREE.MathUtils.clamp(camDist * (1 + e.deltaY * 0.001), 6, 22);
+  }
+}, { passive: false });
+window.addEventListener('contextmenu', e => e.preventDefault());
+
+/* touch controls */
+const joy = { active: false, id: null, f: 0, s: 0 };
+const touchUI = document.getElementById('touch');
+const joyBase = document.getElementById('joyBase');
+const joyKnob = document.getElementById('joyKnob');
+if (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
+  touchUI.classList.add('show');
+}
+joyBase.addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  joy.active = true; joy.id = e.pointerId;
+  joyMove(e);
+});
+function joyMove(e) {
+  if (!joy.active || e.pointerId !== joy.id) return;
+  const r = joyBase.getBoundingClientRect();
+  let dx = e.clientX - (r.left + r.width / 2);
+  let dy = e.clientY - (r.top + r.height / 2);
+  const len = Math.hypot(dx, dy), max = r.width / 2 - 8;
+  if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+  joyKnob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  joy.f = -dy / max; joy.s = dx / max;
+}
+function joyEnd(e) {
+  if (e.pointerId !== joy.id) return;
+  joy.active = false; joy.id = null; joy.f = 0; joy.s = 0;
+  joyKnob.style.transform = 'translate(0,0)';
+}
+const btnJump = document.getElementById('btnJump');
+const btnSprint = document.getElementById('btnSprint');
+btnJump.addEventListener('pointerdown', e => { e.stopPropagation(); jumpBuf = 0.16; });
+btnSprint.addEventListener('pointerdown', e => { e.stopPropagation(); sprintHold = true; btnSprint.classList.add('on'); });
+btnSprint.addEventListener('pointerup', () => { sprintHold = false; btnSprint.classList.remove('on'); });
+btnSprint.addEventListener('pointercancel', () => { sprintHold = false; btnSprint.classList.remove('on'); });
+
+/* ---------- helpers ---------- */
+const UP = new THREE.Vector3(0, 1, 0);
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(),
+      _v4 = new THREE.Vector3(), _v5 = new THREE.Vector3(), _v6 = new THREE.Vector3(),
+      _a = new THREE.Vector3(), _d1 = new THREE.Vector3(), _d2 = new THREE.Vector3(),
+      _anchor = new THREE.Vector3(), _dir = new THREE.Vector3(), _hip = new THREE.Vector3(),
+      _seg = new THREE.Vector3(), _axis = new THREE.Vector3(), _ftgt = new THREE.Vector3(),
+      _out2 = new THREE.Vector3(), _pole = new THREE.Vector3(), _bend = new THREE.Vector3(),
+      _knee = new THREE.Vector3(), _calf = new THREE.Vector3(), _lowerAxis = new THREE.Vector3(),
+      _calfBend = new THREE.Vector3(), _pd = new THREE.Vector3(), _lead = new THREE.Vector3();
+
+function angTo(a, b, maxStep) {
+  let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  return a + THREE.MathUtils.clamp(d, -maxStep, maxStep);
+}
+
+function place(o, a, b) {
+  o.position.copy(a);
+  _pd.subVectors(b, a).normalize();
+  o.quaternion.setFromUnitVectors(UP, _pd);
+}
+
+function startStep(L, target, speed, forceDur) {
+  L.stepping = true; L.t = 0;
+  L.from.copy(L.foot);
+  L.to.copy(target);
+  if (speed > 0.2) {
+    _v6.copy(S.vel).setLength(Math.min(0.22, speed * 0.04));
+    L.to.add(_v6);
+  }
+  L.to.y = FOOT_Y;
+  L.dur = forceDur || THREE.MathUtils.clamp(0.245 - speed * 0.012, 0.125, 0.24);
+  L.lift = (0.28 + Math.min(speed / SPRINT, 1) * 0.18) * ROBOT_SCALE;
+  L.replant = -1;
+}
+
+/* two-bone IK + mesh placement */
+function solveAndPlace(L) {
+  _anchor.copy(L.anchorLocal);
+  robot.localToWorld(_anchor);
+
+  _dir.subVectors(L.foot, _anchor);
+  _dir.y *= 0.2;
+  if (_dir.lengthSq() < 1e-6) _dir.set(L.out.x, 0, L.out.z);
+  _dir.normalize();
+  _hip.copy(_anchor).addScaledVector(_dir, COXA);
+  place(L.coxa, _anchor, _hip);
+
+  _seg.subVectors(L.foot, _hip);
+  const d = _seg.length();
+  const dc = THREE.MathUtils.clamp(d, Math.abs(L1 - LOWER_REACH) + 0.05, L1 + LOWER_REACH - 0.02);
+  _axis.copy(_seg).multiplyScalar(1 / Math.max(d, 1e-6));
+  _ftgt.copy(_hip).addScaledVector(_axis, dc);
+
+  const a = (L1 * L1 - LOWER_REACH * LOWER_REACH + dc * dc) / (2 * dc);
+  const h = Math.sqrt(Math.max(1e-4, L1 * L1 - a * a));
+
+  _out2.set(L.foot.x - S.pos.x, 0, L.foot.z - S.pos.z);
+  if (_out2.lengthSq() < 1e-6) _out2.set(1, 0, 0);
+  _out2.normalize();
+  _pole.copy(UP).addScaledVector(_out2, 0.42).normalize();
+  _bend.copy(_pole).addScaledVector(_axis, -_pole.dot(_axis));
+  if (_bend.lengthSq() < 1e-6) _bend.copy(UP);
+  _bend.normalize();
+
+  _knee.copy(_hip).addScaledVector(_axis, a).addScaledVector(_bend, h);
+  _lowerAxis.subVectors(_ftgt, _knee).normalize();
+  const lowerD = _ftgt.distanceTo(_knee);
+  const calfAlong = (SHIN * SHIN - CALF * CALF + lowerD * lowerD) / (2 * lowerD);
+  const calfOffset = Math.sqrt(Math.max(1e-4, SHIN * SHIN - calfAlong * calfAlong));
+  _calfBend.copy(_out2).addScaledVector(_lowerAxis, -_out2.dot(_lowerAxis));
+  if (_calfBend.lengthSq() < 1e-6) _calfBend.copy(UP);
+  _calfBend.normalize();
+  _calf.copy(_knee).addScaledVector(_lowerAxis, calfAlong).addScaledVector(_calfBend, calfOffset);
+
+  place(L.femur, _hip, _knee);
+  place(L.tibia, _knee, _calf);
+  place(L.calf, _calf, _ftgt);
+  L.knee.position.copy(_knee);
+  L.calfJoint.position.copy(_calf);
+}
+
+/* ---------- main update ---------- */
+const statusEl = document.getElementById('status');
+let tt = 0;
+
+function update(dt) {
+  tt += dt;
+
+  /* input → camera-relative move vector */
+  let inF = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0);
+  let inS = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0);
+  if (joy.active) { inF = joy.f; inS = joy.s; }
+  const sprint = !!(k.ShiftLeft || k.ShiftRight || sprintHold);
+
+  const moveHeading = eyeView ? S.yaw + eyeYaw : camYaw + Math.PI;
+  const fwd = _v1.set(Math.sin(moveHeading), 0, Math.cos(moveHeading));
+  const right = _v2.set(-fwd.z, 0, fwd.x);
+  const move = _v3.set(0, 0, 0).addScaledVector(fwd, inF).addScaledVector(right, inS);
+  if (move.lengthSq() > 1) move.normalize();
+  const hasInput = move.lengthSq() > 1e-4;
+
+  if (markerSelected) {
+    const markerF = (k.KeyI ? 1 : 0) - (k.KeyK ? 1 : 0);
+    const markerS = (k.KeyL ? 1 : 0) - (k.KeyJ ? 1 : 0);
+    _v6.set(0, 0, 0).addScaledVector(fwd, markerF).addScaledVector(right, markerS);
+    if (_v6.lengthSq() > 1) _v6.normalize();
+    pinkCuboid.position.addScaledVector(_v6, (sprint ? 8 : 4.5) * dt);
+  }
+
+  const maxSp = sprint ? SPRINT : WALK;
+  const desired = _v4.copy(move).multiplyScalar(maxSp);
+  _v5.subVectors(desired, S.vel);
+  const dl = _v5.length();
+  const acc = (S.grounded ? ACCEL : AIR_ACC) * dt;
+  if (dl > 1e-6) S.vel.addScaledVector(_v5.multiplyScalar(1 / dl), Math.min(dl, acc));
+  const speed = S.vel.length();
+  const previousX = S.pos.x, previousZ = S.pos.z;
+  S.pos.addScaledVector(S.vel, dt);
+
+  // Reject blocked movement instead of pushing out of overlapping colliders.
+  function positionBlocked(x, z) {
+    for (const obstacle of obstacleColliders) {
+      const minDist = obstacle.r + BODY_COLLISION_RADIUS;
+      const dx = x - obstacle.x, dz = z - obstacle.z;
+      if (dx * dx + dz * dz < minDist * minDist) return true;
+    }
+    return false;
+  }
+  if (positionBlocked(S.pos.x, S.pos.z)) {
+    const attemptedX = S.pos.x, attemptedZ = S.pos.z;
+    S.pos.set(previousX, S.pos.y, previousZ);
+    if (!positionBlocked(attemptedX, previousZ)) S.pos.x = attemptedX;
+    else S.vel.x = 0;
+    if (!positionBlocked(S.pos.x, attemptedZ)) S.pos.z = attemptedZ;
+    else S.vel.z = 0;
+  }
+
+  /* jump + gravity */
+  if (jumpBuf > 0) jumpBuf -= dt;
+  if (S.grounded && jumpBuf > 0) {
+    jumpBuf = 0;
+    S.vy = sprint ? 8.6 : 7.4;
+    S.grounded = false;
+    S.crouch = Math.min(S.crouch + 0.12, 0.3);
+  }
+  if (!S.grounded) {
+    S.vy -= GRAV * dt;
+    S.jy += S.vy * dt;
+    if (S.jy <= 0 && S.vy < 0) {
+      S.jy = 0; S.vy = 0; S.grounded = true;
+      S.crouch = 0.34;
+      legs.forEach((L, i) => { L.replant = 0.02 + i * 0.05; });
+    }
+  }
+  S.crouch += (0 - S.crouch) * Math.min(1, 9 * dt);
+
+  /* heading */
+  if (speed > 0.5) {
+    const ty = Math.atan2(S.vel.x, S.vel.z);
+    const rate = (S.grounded ? 8 : 3.5) * (0.4 + Math.min(speed / WALK, 1) * 0.8);
+    const previousYaw = S.yaw;
+    S.yaw = angTo(S.yaw, ty, rate * dt);
+    // In lens view, keep the world-space gaze stable while the body turns toward it.
+    if (eyeView) {
+      eyeYaw = THREE.MathUtils.clamp(eyeYaw - (S.yaw - previousYaw), -EYE_YAW_LIMIT, EYE_YAW_LIMIT);
+    }
+  }
+
+  /* lean into acceleration */
+  _a.copy(S.vel).sub(S.pvel).multiplyScalar(1 / Math.max(dt, 1e-4));
+  S.pvel.copy(S.vel);
+  const fb = _v1.set(Math.sin(S.yaw), 0, Math.cos(S.yaw));
+  const rb = _v2.set(-fb.z, 0, fb.x);
+  const aF = THREE.MathUtils.clamp(_a.dot(fb), -30, 30);
+  const aR = THREE.MathUtils.clamp(_a.dot(rb), -30, 30);
+  let tp = THREE.MathUtils.clamp(aF * 0.0065 + Math.min(speed / SPRINT, 1) * 0.05, -0.16, 0.2);
+  let tr = THREE.MathUtils.clamp(-aR * 0.007, -0.16, 0.16);
+  if (speed < 0.3 && S.grounded) tr += Math.sin(tt * 0.8) * 0.012;
+  S.tp += (tp - S.tp) * Math.min(1, 7 * dt);
+  S.tr += (tr - S.tr) * Math.min(1, 7 * dt);
+
+  /* body transform */
+  S.phase += dt * (2.0 + speed * 2.1);
+  const spdN = Math.min(speed / WALK, 1);
+  const bob = S.grounded
+    ? -Math.abs(Math.sin(S.phase)) * 0.045 * spdN + (1 - spdN) * Math.sin(tt * 1.7) * 0.014
+    : 0;
+  const bodyY = STAND_H + S.jy + bob - S.crouch * 0.5;
+  robot.position.set(S.pos.x, bodyY, S.pos.z);
+  robot.rotation.set(S.tp, S.yaw, S.tr);
+  eyePivot.rotation.set(-eyePitch, eyeYaw, 0);
+  robot.updateMatrixWorld(true);
+
+  /* ---- gait ---- */
+  const stepCount = [0, 0];
+  legs.forEach(L => { if (L.stepping) stepCount[L.g]++; });
+  const cy = Math.cos(S.yaw), sy = Math.sin(S.yaw);
+
+  for (const L of legs) {
+    /* desired foothold: rotated home + velocity lead */
+    const ox = L.homeLocal.x * cy + L.homeLocal.z * sy;
+    const oz = -L.homeLocal.x * sy + L.homeLocal.z * cy;
+    _d1.set(S.pos.x + ox, FOOT_Y, S.pos.z + oz);
+    _lead.copy(S.vel).multiplyScalar(0.16);
+    if (_lead.length() > 0.55) _lead.setLength(0.55);
+    _d1.x += _lead.x; _d1.z += _lead.z;
+
+    if (L.cool > 0) L.cool -= dt;
+
+    if (S.grounded) {
+      if (L.replant >= 0) {
+        L.replant -= dt;
+        if (L.replant < 0 && !L.stepping) startStep(L, _d1, speed, 0.13);
+      }
+      if (L.stepping) {
+        L.t += dt / L.dur;
+        L.to.lerp(_d1, Math.min(1, 10 * dt));  /* track moving target */
+        if (L.t >= 1) {
+          L.stepping = false;
+          L.foot.copy(L.to); L.foot.y = FOOT_Y;
+          L.cool = 0.06;
+        } else {
+          const e = L.t * L.t * (3 - 2 * L.t);
+          L.foot.lerpVectors(L.from, L.to, e);
+          L.foot.y = FOOT_Y + Math.sin(L.t * Math.PI) * L.lift;
+        }
+      } else {
+        const dx = _d1.x - L.foot.x, dz = _d1.z - L.foot.z;
+        const drift = Math.hypot(dx, dz);
+        const other = L.g === 0 ? 1 : 0;
+        if (drift > 1.05 || (drift > STEP_DIST && stepCount[other] === 0 && L.cool <= 0)) {
+          startStep(L, _d1, speed, 0);
+          stepCount[L.g]++;
+        }
+      }
+    } else {
+      /* airborne: tuck on the way up, reach down before landing */
+      const reach = S.vy < -1.5;
+      const rad = reach ? 1.3 : 0.95;
+      const yo = reach ? -1.05 : -0.5;
+      _d2.set(
+        S.pos.x + (ox / HOME_R) * rad,
+        Math.max(FOOT_Y, bodyY + yo),
+        S.pos.z + (oz / HOME_R) * rad
+      );
+      L.foot.lerp(_d2, Math.min(1, 9 * dt));
+      L.stepping = false;
+    }
+
+    solveAndPlace(L);
+  }
+
+  /* glow + lights */
+  const alertT = sprint && hasInput ? 1 : 0;
+  S.alert += (alertT - S.alert) * Math.min(1, 5 * dt);
+  eyeLight.intensity = 1.0 + S.alert * 0.9 + Math.sin(tt * 4.2) * 0.15;
+  M.glow.emissiveIntensity = 1.9 + S.alert * 1.4 + Math.sin(tt * 4.2) * 0.25;
+
+  /* camera + shadow frustum follow */
+  if (eyeView) {
+    _v1.set(0, 0, 0.19);
+    eyePivot.localToWorld(_v1);
+    camera.position.copy(_v1);
+    const lookHeading = S.yaw + eyeYaw;
+    _v2.set(
+      Math.sin(lookHeading) * Math.cos(eyePitch),
+      Math.sin(eyePitch),
+      Math.cos(lookHeading) * Math.cos(eyePitch)
+    );
+    camera.lookAt(_v3.copy(camera.position).add(_v2));
+  } else if (cameraMode === 'TOP') {
+    camera.up.set(0, 0, -1);
+    camera.position.set(0, topCamHeight, 0.01);
+    camera.lookAt(0, 0, 0);
+  } else {
+    camera.up.set(0, 1, 0);
+    _v1.set(S.pos.x, STAND_H * 0.75 + S.jy * 0.9, S.pos.z);
+    camT.lerp(_v1, Math.min(1, 6 * dt));
+    _v2.set(
+      Math.sin(camYaw) * Math.cos(camPitch),
+      Math.sin(camPitch),
+      Math.cos(camYaw) * Math.cos(camPitch)
+    ).multiplyScalar(camDist).add(camT);
+    camera.position.copy(_v2);
+    camera.lookAt(camT.x, camT.y + 0.35, camT.z);
+  }
+
+  key.position.set(S.pos.x + 8, 15, S.pos.z + 6);
+  key.target.position.set(S.pos.x, 0, S.pos.z);
+
+  /* telemetry */
+  const mode = !S.grounded ? 'AIRBORNE' : speed > WALK + 0.6 ? 'SPRINT' : speed > 0.4 ? 'WALK' : 'IDLE';
+  statusEl.textContent = 'UNIT-04 // ' + mode + ' // ' + speed.toFixed(1) + ' M/S // ' +
+    cameraMode + (markerSelected ? ' // PINK SELECTED' : '');
+}
+
+/* ---------- loop ---------- */
+let last = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.033, (now - last) / 1000);
+  last = now;
+  update(dt);
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(loop);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
