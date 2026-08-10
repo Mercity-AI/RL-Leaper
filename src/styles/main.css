@@ -1,0 +1,185 @@
+:root {
+  --ink: #d8dbe2;
+  --dim: #6c7280;
+  --accent: #ff4a26;
+  --bg: #0a0b0f;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  color: var(--ink);
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+.hud {
+  position: fixed;
+  left: 16px;
+  top: 14px;
+  z-index: 5;
+  pointer-events: none;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+
+.hud h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  color: var(--accent);
+}
+
+.hud .sub {
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: var(--dim);
+}
+
+.hud .rule {
+  width: 188px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+  margin: 8px 0 7px;
+  opacity: 0.7;
+}
+
+.hud .keys {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: #9aa0ad;
+  line-height: 1.8;
+}
+
+.hud .keys b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+#status {
+  position: fixed;
+  left: 16px;
+  bottom: 14px;
+  z-index: 5;
+  pointer-events: none;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+
+#status::before {
+  content: "▮ ";
+  animation: blink 1.2s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0.25; }
+}
+
+#cameraToggle,
+#cuboidToggle {
+  position: fixed;
+  right: 16px;
+  z-index: 8;
+  padding: 10px 13px;
+  border-radius: 3px;
+  background: rgba(10, 11, 15, 0.72);
+  font: 700 10px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  cursor: pointer;
+  backdrop-filter: blur(5px);
+}
+
+#cameraToggle {
+  top: 16px;
+  border: 1px solid rgba(255, 74, 38, 0.65);
+  color: var(--ink);
+  letter-spacing: 0.15em;
+}
+
+#cameraToggle:hover,
+#cameraToggle.on {
+  background: rgba(255, 74, 38, 0.28);
+  border-color: var(--accent);
+}
+
+#cuboidToggle {
+  top: 58px;
+  border: 1px solid rgba(255, 79, 163, 0.75);
+  color: #ff8fc5;
+  letter-spacing: 0.12em;
+}
+
+#cuboidToggle:hover,
+#cuboidToggle.on {
+  background: rgba(255, 79, 163, 0.3);
+  border-color: #ff4fa3;
+  color: #fff;
+}
+
+#touch { display: none; }
+#touch.show { display: block; }
+
+#joyBase {
+  position: fixed;
+  left: 26px;
+  bottom: 64px;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 219, 226, 0.28);
+  background: rgba(20, 22, 28, 0.35);
+  z-index: 6;
+  touch-action: none;
+}
+
+#joyKnob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 50%;
+  background: rgba(255, 74, 38, 0.85);
+  box-shadow: 0 0 14px rgba(255, 74, 38, 0.5);
+}
+
+.tbtn {
+  position: fixed;
+  z-index: 6;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 219, 226, 0.3);
+  background: rgba(20, 22, 28, 0.4);
+  color: var(--ink);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.tbtn:active,
+.tbtn.on { background: rgba(255, 74, 38, 0.55); }
+
+#btnJump { right: 26px; bottom: 64px; }
+#btnSprint { right: 116px; bottom: 132px; }

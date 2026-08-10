@@ -4,6 +4,10 @@ __pycache__/
 .venv/
 venv/
 
+# JavaScript dependencies and production builds
+node_modules/
+dist/
+
 # RL training output and generated models
 rl_artifacts/
 *.zip

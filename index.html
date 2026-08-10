@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="theme-color" content="#0a0b0f" />
+    <title>LEAPER — Hexapod Field Sim</title>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div class="hud">
+      <h1>LEAPER</h1>
+      <div class="sub">ARC-CLASS HEXAPOD // FIELD SIMULATION</div>
+      <div class="rule"></div>
+      <div class="keys"><b>W A S D</b> MOVE &nbsp;·&nbsp; <b>SHIFT</b> SPRINT<br />
+        <b>SPACE</b> JUMP &nbsp;·&nbsp; <b>DRAG</b> ORBIT / LOOK &nbsp;·&nbsp; <b>VIEW</b> TOGGLE<br />
+        <b>P</b> SELECT PINK CUBOID &nbsp;·&nbsp; <b>I J K L</b> MOVE IT
+      </div>
+    </div>
+
+    <div id="status">UNIT-04 // BOOT</div>
+    <button id="cameraToggle" type="button">VIEW: CHASE</button>
+    <button id="cuboidToggle" type="button">PINK: SELECT</button>
+
+    <div id="touch">
+      <div id="joyBase"><div id="joyKnob"></div></div>
+      <div id="btnSprint" class="tbtn">SPRINT</div>
+      <div id="btnJump" class="tbtn">JUMP</div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

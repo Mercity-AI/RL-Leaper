@@ -4,21 +4,29 @@
 
 This repository is a compact Leaper simulation and reinforcement-learning proof of concept. The long-term goal is to turn it into a maintainable game/simulation project without losing the speed and clarity of the current prototype.
 
-- `Leaper-Hexapod.html`: complete Three.js scene, procedural hexapod, controls, cameras, obstacles, collisions, and pink target.
+- `index.html`: small browser entry point containing the HUD and control markup.
+- `src/main.js`: creates and connects the scene, world, target, robot, controls, camera, and simulation.
+- `src/core/`: renderer, scene, lighting, and resize setup.
+- `src/robot/`: procedural hexapod construction; keep visual model-building here.
+- `src/world/`: terrain, obstacle generation, collision data, and target objects.
+- `src/controls/` and `src/camera/`: keyboard, touch, pointer, and camera behavior.
+- `src/simulation/`: movement, jumping, collision response, gait, inverse kinematics, and telemetry.
+- `src/config/`: shared tuning values such as robot proportions and movement speeds.
+- `src/styles/`: HUD and touch-control presentation.
 - `rl_environment.py`: Gymnasium environment defining observations, continuous movement actions, rewards, collisions, and episode termination.
 - `train_rl.py`: Stable-Baselines3 PPO training, evaluation, reward logging, plots, and model export.
 - `requirements-rl.txt`: Python RL and visualization dependencies.
 - `README-RL.md`: setup, training, TensorBoard, and playback instructions.
 - `rl_artifacts/`: generated models, CSV logs, plots, and TensorBoard data; do not commit large or transient outputs.
 
-There is currently no separate asset directory or automated test suite.
+There is currently no asset directory or automated test suite. Add `assets/` when external models, textures, audio, or other media are introduced.
 
 ## Project Direction
 
-Treat the single HTML file as a working prototype, not the final architecture. Refactor it gradually while keeping a runnable version after every meaningful change. The intended direction is:
+The original single-file prototype has been split into native JavaScript modules. Continue evolving it gradually while keeping a runnable version after every meaningful change. The intended direction is:
 
-- Keep a small HTML entry point and move styling into `src/styles/`.
-- Put scene setup, rendering, lighting, and cameras in focused JavaScript modules under `src/`.
+- Keep `index.html` small and styling under `src/styles/`.
+- Keep scene setup, rendering, lighting, and cameras in focused JavaScript modules under `src/`.
 - Separate the hexapod model, joints, locomotion, controls, collisions, terrain, obstacles, targets, and UI into modules with clear responsibilities.
 - Store reusable models, textures, audio, and other media under `assets/` rather than embedding them in application logic.
 - Keep Python RL code under an `rl/` package, separating the environment, reward design, training, evaluation, configuration, and model playback.
@@ -26,19 +34,22 @@ Treat the single HTML file as a working prototype, not the final architecture. R
 - Add automated tests as modules are extracted, especially for movement math, collisions, observations, actions, rewards, and episode termination.
 - Prefer small, reversible refactors over a full rewrite. Preserve behavior first, then improve it.
 
-Suggested future layout:
+Current layout and intended expansion points:
 
 ```text
 index.html
+package.json
 src/
   main.js
-  simulation/
-  robot/
-  world/
+  camera/
+  config/
   controls/
-  ui/
+  core/
+  robot/
+  simulation/
+  world/
   styles/
-assets/
+assets/        # add when external media is introduced
 rl/
 tests/
 docs/
@@ -60,13 +71,19 @@ The project owner comes from an art and game-design background and is not a prog
 
 ## Build, Test, and Development Commands
 
-Serve the simulator locally:
+Install Node.js 20 or newer, then install the JavaScript dependencies and start the simulator:
 
 ```powershell
-python -m http.server 8000
+corepack enable
+pnpm install
+pnpm dev
 ```
 
-Then open `http://localhost:8000/Leaper-Hexapod.html`. Install and run the RL tooling with:
+Open the local address printed by Vite, normally `http://localhost:5173`. Create a production build with `pnpm build` and preview it with `pnpm preview`.
+
+If the owner already uses npm, `npm install`, `npm run dev`, and `npm run build` are equivalent. Do not introduce React unless a future editor or complex application UI demonstrates a real need for it.
+
+Install and run the RL tooling separately with:
 
 ```powershell
 python -m pip install -r requirements-rl.txt
@@ -83,7 +100,7 @@ Use four spaces in Python and two spaces in HTML, CSS, and JavaScript. Follow PE
 
 ## Testing Guidelines
 
-For simulator changes, verify chase, lens, and top cameras; keyboard/touch controls; obstacle collision; target selection; jumping; and window resizing. For RL changes, run the 20,000-step smoke test and confirm episode rewards appear, `training_progress.csv` is populated, and evaluation completes without NaN values.
+For simulator changes, run `pnpm build`, then verify chase, lens, and top cameras; keyboard/touch controls; obstacle collision; target selection; jumping; and window resizing in `pnpm dev`. For RL changes, run the 20,000-step smoke test and confirm episode rewards appear, `training_progress.csv` is populated, and evaluation completes without NaN values.
 
 ## Commit & Pull Request Guidelines
 
