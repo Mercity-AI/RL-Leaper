@@ -11,13 +11,16 @@ This repository is a compact Leaper simulation and reinforcement-learning proof 
 - `src/world/`: terrain, obstacle generation, collision data, and target objects.
 - `src/controls/` and `src/camera/`: keyboard, touch, pointer, and camera behavior.
 - `src/simulation/`: movement, jumping, collision response, gait, inverse kinematics, and telemetry.
+- `src/simulation/TrainingVisualizer.js`: replays recorded RL rollouts in the Three.js hexapod view and owns playback, rollout, checkpoint, live-feed, and log-import controls.
 - `src/config/`: shared tuning values such as robot proportions and movement speeds.
 - `src/styles/`: HUD and touch-control presentation.
+- `src/world/createTrainingWorld.js`: browser representation of the Python RL arena, including its fixed obstacles, boundary, and target position.
 - `rl_environment.py`: Gymnasium environment defining observations, continuous movement actions, rewards, collisions, and episode termination.
-- `train_rl.py`: Stable-Baselines3 PPO training, evaluation, reward logging, plots, and model export.
+- `train_rl.py`: Stable-Baselines3 PPO training, evaluation, reward logging, plots, model export, and atomic browser-replay JSON publishing.
 - `requirements-rl.txt`: Python RL and visualization dependencies.
 - `README-RL.md`: setup, training, TensorBoard, and playback instructions.
 - `rl_artifacts/`: generated models, CSV logs, plots, and TensorBoard data; do not commit large or transient outputs.
+- `public/rl_live_state.json`: generated replay bridge consumed by the browser visualizer; it is ignored by Git and exists only after training publishes it.
 
 There is currently no asset directory or automated test suite. Add `assets/` when external models, textures, audio, or other media are introduced.
 
@@ -63,9 +66,15 @@ The exact folders may evolve. Clear ownership and boundaries matter more than ma
 - Three.js is intentionally pinned to `0.128.0` to preserve the prototype's rendering behavior during the first refactor.
 - `pnpm install` and `pnpm build` have completed successfully. The current production build has a non-blocking bundle-size warning because Three.js is included in the main bundle.
 - Python syntax validation has passed for `rl_environment.py` and `train_rl.py` using the available bundled Python runtime.
-- A manual browser play-through is still required. Verify visual parity, all three camera modes, keyboard and touch movement, jumping, obstacle blocking, pink-target selection/movement, and resizing before treating the refactor as behaviorally complete.
-- `rl_environment.py` and `train_rl.py` predate the JavaScript modularization. Do not assume their simulation rules match the browser implementation, and do not describe them as having been created by the modularization work.
-- The next architectural decision should define how browser simulation state and Python RL actions/observations communicate. Avoid expanding both implementations independently until that boundary is agreed.
+- The browser now has a dedicated training view at `/?training=1`. It uses the real procedural hexapod, the fixed Python RL arena, animated gait, a light visual theme, draggable/zoomable top view, and a full-width media-style playback dock.
+- The playback dock supports play/pause, frame scrubbing, explicit selection among the five recorded rollouts at each checkpoint, earlier/later checkpoint navigation, JSON replay-log import, and return to the current live feed.
+- `train_rl.py` publishes `public/rl_live_state.json` atomically every 10,000 steps. Each checkpoint contains deterministic evaluation metrics and five exploratory rollout recordings. This file bridge is the current explicit Python-to-browser interface; it is for replay/monitoring, not browser-controlled training.
+- The RL collision model checks the body plus three sample points along each of six legs (19 points total). Translation and rotation are rejected when any checked point intersects an obstacle or the world boundary. This is a planar approximation of the visual articulated legs, not mesh-level physics.
+- Reward shaping now includes target-facing alignment and an inactivity penalty to discourage the policy from learning to freeze. Reward or collision changes invalidate prior trained policies and must be called out explicitly.
+- Local TensorBoard history identifies `PPO_2` as the strong 300,000-step body-only run: 60% deterministic evaluation success, 9.89 mean evaluation reward, about 41.2 best rolling training reward, and about 135 steps per episode near the end. It used the same PPO hyperparameters as `PPO_1`, but trained longer and did not include leg collisions. The later 19-point collision runs are substantially harder; the completed shaped-reward run reached 4% deterministic success at 300,000 steps.
+- Generated body-only and diagnostic replay archives may exist locally under ignored `rl_artifacts/` folders. Do not commit them. The visualizer imports replay JSON files containing a non-empty `checkpoints` array with episodes and frame arrays.
+- Manual browser verification has covered the light training scene, chase and top views, natural top-view panning, wheel zoom, media controls, rollout selection, checkpoint selection, live/imported feed switching, and import of the archived `PPO_2` replay. A complete manual play-through of the normal player-controlled simulator is still required: verify all three camera modes, keyboard/touch movement, jumping, obstacle blocking, pink-target selection/movement, and resizing.
+- No local development or TensorBoard server should be assumed to be running. Start them explicitly when needed.
 
 ## Working With the Project Owner
 

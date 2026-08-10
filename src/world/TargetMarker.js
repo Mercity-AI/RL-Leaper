@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 export class TargetMarker {
-  constructor(scene, colliders, toggleButton) {
+  constructor(scene, colliders, toggleButton, initialPosition = null) {
     this.selected = false;
     this.toggleButton = toggleButton;
     this.material = new THREE.MeshStandardMaterial({
@@ -24,11 +24,15 @@ export class TargetMarker {
     );
     const direction = new THREE.Vector2(nearest.x, nearest.z).normalize();
     const side = new THREE.Vector2(-direction.y, direction.x);
-    this.mesh.position.set(
-      nearest.x + direction.x * (nearest.radius + 1.5) + side.x * 2.5,
-      3.5,
-      nearest.z + direction.y * (nearest.radius + 1.5) + side.y * 2.5,
-    );
+    if (initialPosition) {
+      this.mesh.position.set(initialPosition.x, 3.5, initialPosition.z);
+    } else {
+      this.mesh.position.set(
+        nearest.x + direction.x * (nearest.radius + 1.5) + side.x * 2.5,
+        3.5,
+        nearest.z + direction.y * (nearest.radius + 1.5) + side.y * 2.5,
+      );
+    }
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
 

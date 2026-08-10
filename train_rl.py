@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 from pathlib import Path
+from datetime import datetime, timezone
 
 import matplotlib
 import numpy as np
@@ -19,6 +21,15 @@ from rl_environment import LeaperReachEnv
 
 ROOT = Path(__file__).resolve().parent
 ARTIFACTS = ROOT / "rl_artifacts"
+LIVE_STATE = ROOT / "public" / "rl_live_state.json"
+
+
+def write_live_state(payload: dict) -> None:
+    """Publish one complete snapshot for the browser training visualizer."""
+    LIVE_STATE.parent.mkdir(exist_ok=True)
+    temporary = LIVE_STATE.with_suffix(".tmp")
+    temporary.write_text(json.dumps(payload), encoding="utf-8")
+    temporary.replace(LIVE_STATE)
 
 
 class ProgressCallback(BaseCallback):
@@ -27,15 +38,29 @@ class ProgressCallback(BaseCallback):
         self.eval_every = eval_every
         self.episode_rewards: list[float] = []
         self.eval_rows: list[tuple[int, float, float]] = []
+        self.visualizer_checkpoints: list[dict] = []
 
     def _on_step(self) -> bool:
         for info in self.locals.get("infos", []):
             if "episode" in info:
                 self.episode_rewards.append(float(info["episode"]["r"]))
         if self.num_timesteps % self.eval_every == 0:
-            mean_reward, success_rate = evaluate(self.model, episodes=25)
+            mean_reward, success_rate, recordings = evaluate_with_recordings(
+                self.model,
+                episodes=25,
+                record_episodes=5,
+            )
             self.eval_rows.append((self.num_timesteps, mean_reward, success_rate))
+            self.visualizer_checkpoints.append(
+                {
+                    "step": self.num_timesteps,
+                    "mean_reward": mean_reward,
+                    "success_rate": success_rate,
+                    "episodes": recordings,
+                }
+            )
             self._save_progress()
+            self._save_live_state("training")
             if self.verbose:
                 print(
                     f"\nEvaluation at {self.num_timesteps:,} steps: "
@@ -72,6 +97,17 @@ class ProgressCallback(BaseCallback):
         fig.savefig(ARTIFACTS / "training_progress.png", dpi=150)
         plt.close(fig)
 
+    def _save_live_state(self, status: str, final_result: tuple[float, float] | None = None) -> None:
+        payload = {
+            "status": status,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "checkpoints": self.visualizer_checkpoints,
+        }
+        if final_result is not None:
+            payload["final_mean_reward"] = final_result[0]
+            payload["final_success_rate"] = final_result[1]
+        write_live_state(payload)
+
 
 def evaluate(model: PPO, episodes: int = 25) -> tuple[float, float]:
     env = LeaperReachEnv()
@@ -89,6 +125,63 @@ def evaluate(model: PPO, episodes: int = 25) -> tuple[float, float]:
         successes += int(info["is_success"])
     env.close()
     return float(np.mean(rewards)), successes / episodes
+
+
+def evaluate_with_recordings(
+    model: PPO,
+    episodes: int = 25,
+    record_episodes: int = 5,
+) -> tuple[float, float, list[dict]]:
+    """Score deterministically and record exploratory 3D replay attempts."""
+    mean_reward, success_rate = evaluate(model, episodes=episodes)
+    env = LeaperReachEnv()
+    recordings = []
+    for episode in range(record_episodes):
+        observation, info = env.reset(seed=20_000 + episode)
+        total = 0.0
+        done = False
+        path_length = 0.0
+        previous_position = env.position.copy()
+        frames = [
+            {
+                "x": float(env.position[0]),
+                "z": float(env.position[1]),
+                "yaw": env.yaw,
+                "distance": info["distance"],
+                "collision": False,
+                "collision_part": None,
+            }
+        ]
+        while not done:
+            action, _ = model.predict(observation, deterministic=False)
+            observation, reward, terminated, truncated, info = env.step(action)
+            total += reward
+            done = terminated or truncated
+            path_length += float(np.linalg.norm(env.position - previous_position))
+            previous_position = env.position.copy()
+            frames.append(
+                {
+                    "x": float(env.position[0]),
+                    "z": float(env.position[1]),
+                    "yaw": env.yaw,
+                    "distance": info["distance"],
+                    "collision": info["collision"],
+                    "collision_part": info["collision_part"],
+                }
+            )
+        recordings.append(
+            {
+                "episode": episode + 1,
+                "reward": total,
+                "success": bool(info["is_success"]),
+                "path_length": path_length,
+                "exploratory": True,
+                "frames": frames,
+            }
+        )
+    env.close()
+    recordings.sort(key=lambda recording: recording["path_length"], reverse=True)
+    return mean_reward, success_rate, recordings
 
 
 def watch(model: PPO, episodes: int = 5) -> None:
@@ -111,6 +204,13 @@ def main() -> None:
     args = parser.parse_args()
 
     ARTIFACTS.mkdir(exist_ok=True)
+    write_live_state(
+        {
+            "status": "starting",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "checkpoints": [],
+        }
+    )
     check_env(LeaperReachEnv(), warn=True)
     env = DummyVecEnv([lambda: Monitor(LeaperReachEnv()) for _ in range(8)])
     model = PPO(
@@ -133,6 +233,7 @@ def main() -> None:
     model.save(ARTIFACTS / "leaper_ppo")
     callback._save_progress()
     mean_reward, success_rate = evaluate(model, episodes=100)
+    callback._save_live_state("complete", (mean_reward, success_rate))
     print(f"Final evaluation: mean reward={mean_reward:.2f}, success={success_rate:.0%}")
     if args.watch:
         watch(model)

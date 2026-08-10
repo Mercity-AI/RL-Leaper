@@ -19,6 +19,9 @@ class LeaperReachEnv(gym.Env):
     TARGET = np.array([18.0, 18.0], dtype=np.float32)
     TARGET_RADIUS = 1.4
     AGENT_RADIUS = 0.75
+    LEG_COLLISION_RADIUS = 0.24
+    LEG_SEGMENT_RADII = (1.2, 2.2, 3.24)
+    LEG_ANGLES = (-0.62, 0.62, -1.57, 1.57, -2.42, 2.42)
     MOVE_SPEED = 0.75
     TURN_SPEED = math.radians(18.0)
     MAX_STEPS = 400
@@ -49,16 +52,34 @@ class LeaperReachEnv(gym.Env):
         self.trajectory: list[np.ndarray] = []
         self._figure = None
 
-    def _is_free(self, position: np.ndarray) -> bool:
-        limit = self.WORLD_LIMIT - self.AGENT_RADIUS
-        if np.any(np.abs(position) > limit):
-            return False
+    def _collision_points(self, position: np.ndarray, yaw: float):
+        yield position, self.AGENT_RADIUS, "body"
+        for angle in self.LEG_ANGLES:
+            direction = np.array(
+                [math.sin(yaw + angle), math.cos(yaw + angle)],
+                dtype=np.float32,
+            )
+            for segment_index, radius in enumerate(self.LEG_SEGMENT_RADII, start=1):
+                yield (
+                    position + direction * radius,
+                    self.LEG_COLLISION_RADIUS,
+                    f"leg-{segment_index}",
+                )
+
+    def _collision_for_pose(self, position: np.ndarray, yaw: float) -> str | None:
+        for point, point_radius, part in self._collision_points(position, yaw):
+            limit = self.WORLD_LIMIT - point_radius
+            if np.any(np.abs(point) > limit):
+                return part
+            for ox, oz, obstacle_radius in self.OBSTACLES:
+                if math.hypot(point[0] - ox, point[1] - oz) < obstacle_radius + point_radius:
+                    return part
+        return None
+
+    def _is_free(self, position: np.ndarray, yaw: float) -> bool:
         if np.linalg.norm(position - self.TARGET) < self.TARGET_RADIUS + 2.0:
             return False
-        return all(
-            math.hypot(position[0] - ox, position[1] - oz) >= radius + self.AGENT_RADIUS
-            for ox, oz, radius in self.OBSTACLES
-        )
+        return self._collision_for_pose(position, yaw) is None
 
     def _observation(self) -> np.ndarray:
         delta = self.TARGET - self.position
@@ -84,12 +105,13 @@ class LeaperReachEnv(gym.Env):
         super().reset(seed=seed)
         for _ in range(10_000):
             candidate = self.np_random.uniform(-21.0, 21.0, size=2).astype(np.float32)
-            if self._is_free(candidate):
+            candidate_yaw = float(self.np_random.uniform(-math.pi, math.pi))
+            if self._is_free(candidate, candidate_yaw):
                 self.position = candidate
+                self.yaw = candidate_yaw
                 break
         else:
             raise RuntimeError("Could not sample a valid start position")
-        self.yaw = float(self.np_random.uniform(-math.pi, math.pi))
         self.steps = 0
         self.trajectory = [self.position.copy()]
         return self._observation(), {"distance": self._distance()}
@@ -100,20 +122,29 @@ class LeaperReachEnv(gym.Env):
     def step(self, action: np.ndarray):
         action = np.clip(np.asarray(action, dtype=np.float32), self.action_space.low, self.action_space.high)
         previous_distance = self._distance()
-        self.yaw = (self.yaw + float(action[1]) * self.TURN_SPEED + math.pi) % (2 * math.pi) - math.pi
-        heading = np.array([math.sin(self.yaw), math.cos(self.yaw)], dtype=np.float32)
+        candidate_yaw = (
+            self.yaw + float(action[1]) * self.TURN_SPEED + math.pi
+        ) % (2 * math.pi) - math.pi
+        heading = np.array([math.sin(candidate_yaw), math.cos(candidate_yaw)], dtype=np.float32)
         candidate = self.position + heading * float(action[0]) * self.MOVE_SPEED
 
-        collided = not self._is_free_for_motion(candidate)
+        collision_part = self._collision_for_pose(candidate, candidate_yaw)
+        collided = collision_part is not None
         if not collided:
             self.position = candidate
+            self.yaw = candidate_yaw
 
         self.steps += 1
         distance = self._distance()
         reached = distance <= self.TARGET_RADIUS + self.AGENT_RADIUS
         truncated = self.steps >= self.MAX_STEPS
 
+        target_direction = (self.TARGET - self.position) / max(distance, 1e-6)
+        alignment = float(np.dot(heading, target_direction))
+        throttle = float(action[0])
         reward = (previous_distance - distance) * 1.25 - 0.01
+        reward += alignment * 0.03
+        reward -= (1.0 - throttle) * 0.05
         if collided:
             reward -= 0.18
         if reached:
@@ -124,19 +155,11 @@ class LeaperReachEnv(gym.Env):
             "distance": distance,
             "is_success": reached,
             "collision": collided,
+            "collision_part": collision_part,
         }
         if self.render_mode == "human":
             self.render()
         return self._observation(), float(reward), reached, truncated, info
-
-    def _is_free_for_motion(self, position: np.ndarray) -> bool:
-        limit = self.WORLD_LIMIT - self.AGENT_RADIUS
-        if np.any(np.abs(position) > limit):
-            return False
-        return all(
-            math.hypot(position[0] - ox, position[1] - oz) >= radius + self.AGENT_RADIUS
-            for ox, oz, radius in self.OBSTACLES
-        )
 
     def render(self):
         import matplotlib.pyplot as plt
@@ -161,6 +184,9 @@ class LeaperReachEnv(gym.Env):
         direction = np.array([math.sin(self.yaw), math.cos(self.yaw)])
         ax.arrow(*self.position, *(direction * 1.8), color="#ff4a26", width=0.2, head_width=0.9)
         ax.add_patch(Circle(self.position, self.AGENT_RADIUS, color="#d8dbe2"))
+        for point, radius, part in self._collision_points(self.position, self.yaw):
+            if part != "body":
+                ax.add_patch(Circle(point, radius, color="#ff8b3d", alpha=0.8))
         ax.set_title(f"Leaper PPO evaluation — step {self.steps}", color="#d8dbe2")
         self._figure.canvas.draw_idle()
         self._figure.canvas.flush_events()

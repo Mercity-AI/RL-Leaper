@@ -13,8 +13,8 @@ export function createScene(container) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0b0f);
-  scene.fog = new THREE.Fog(0x0a0b0f, 18, 64);
+  scene.background = new THREE.Color(0xe4f0f7);
+  scene.fog = new THREE.Fog(0xe4f0f7, 24, 78);
 
   const camera = new THREE.PerspectiveCamera(
     55,
@@ -23,8 +23,8 @@ export function createScene(container) {
     220,
   );
 
-  scene.add(new THREE.HemisphereLight(0x8a93a8, 0x101216, 0.5));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.05);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9ca7b2, 0.95));
+  const sun = new THREE.DirectionalLight(0xfff7ea, 1.25);
   sun.position.set(8, 15, 6);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -37,7 +37,7 @@ export function createScene(container) {
   sun.shadow.bias = -0.0004;
   scene.add(sun, sun.target);
 
-  const rim = new THREE.DirectionalLight(0x4a63ff, 0.22);
+  const rim = new THREE.DirectionalLight(0x7f9dff, 0.16);
   rim.position.set(-7, 9, -9);
   scene.add(rim);
 

@@ -13,7 +13,8 @@ export class CameraController {
     this.yaw = Math.PI;
     this.pitch = 0.42;
     this.distance = 11.5;
-    this.topHeight = 135;
+    this.topHeight = 75;
+    this.topCenter = new THREE.Vector2(0, 0);
     this.eyeYaw = 0;
     this.eyePitch = 0;
     this.target = new THREE.Vector3(0, 1, 0);
@@ -24,6 +25,7 @@ export class CameraController {
     this.tempB = new THREE.Vector3();
     this.tempC = new THREE.Vector3();
     this.toggleButton = toggleButton;
+    this.canvas = canvas;
 
     toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
     toggleButton.addEventListener('click', () => this.toggle());
@@ -31,6 +33,7 @@ export class CameraController {
       this.pointerId = event.pointerId;
       this.lastX = event.clientX;
       this.lastY = event.clientY;
+      if (this.mode === 'TOP') canvas.style.cursor = 'grabbing';
       window.focus();
     });
     window.addEventListener('pointermove', (event) => this.onPointerMove(event));
@@ -63,6 +66,8 @@ export class CameraController {
     this.mode = this.mode === 'CHASE' ? 'LENS' : this.mode === 'LENS' ? 'TOP' : 'CHASE';
     this.toggleButton.textContent = `VIEW: ${this.mode}`;
     this.toggleButton.classList.toggle('on', this.mode !== 'CHASE');
+    document.body.classList.toggle('top-view', this.mode === 'TOP');
+    this.canvas.style.cursor = this.mode === 'TOP' ? 'grab' : 'default';
     this.camera.fov = this.eyeView ? 60 : this.mode === 'TOP' ? 75 : 55;
     this.camera.up.set(0, 1, 0);
     this.scene.fog.far = this.mode === 'TOP' ? 220 : 64;
@@ -71,23 +76,39 @@ export class CameraController {
 
   onPointerMove(event) {
     if (event.pointerId !== this.pointerId) return;
+    const deltaX = event.clientX - this.lastX;
+    const deltaY = event.clientY - this.lastY;
     if (this.eyeView) {
       this.eyeYaw = THREE.MathUtils.clamp(
-        this.eyeYaw + (event.clientX - this.lastX) * 0.0055,
+        this.eyeYaw + deltaX * 0.0055,
         -EYE_YAW_LIMIT,
         EYE_YAW_LIMIT,
       );
       this.eyePitch = THREE.MathUtils.clamp(
-        this.eyePitch - (event.clientY - this.lastY) * 0.005,
+        this.eyePitch - deltaY * 0.005,
         EYE_PITCH_DOWN,
         EYE_PITCH_UP,
       );
     } else if (this.mode === 'CHASE') {
-      this.yaw -= (event.clientX - this.lastX) * 0.0055;
+      this.yaw -= deltaX * 0.0055;
       this.pitch = THREE.MathUtils.clamp(
-        this.pitch + (event.clientY - this.lastY) * 0.005,
+        this.pitch + deltaY * 0.005,
         0.08,
         1.25,
+      );
+    } else if (this.mode === 'TOP') {
+      const visibleHeight = 2 * this.topHeight
+        * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
+      const worldUnitsPerPixel = visibleHeight / Math.max(this.canvas.clientHeight, 1);
+      this.topCenter.x = THREE.MathUtils.clamp(
+        this.topCenter.x - deltaX * worldUnitsPerPixel,
+        -75,
+        75,
+      );
+      this.topCenter.y = THREE.MathUtils.clamp(
+        this.topCenter.y - deltaY * worldUnitsPerPixel,
+        -75,
+        75,
       );
     }
     this.lastX = event.clientX;
@@ -95,7 +116,10 @@ export class CameraController {
   }
 
   endPointer(event) {
-    if (event.pointerId === this.pointerId) this.pointerId = null;
+    if (event.pointerId === this.pointerId) {
+      this.pointerId = null;
+      if (this.mode === 'TOP') this.canvas.style.cursor = 'grab';
+    }
   }
 
   compensateForBodyTurn(yawDelta) {
@@ -128,8 +152,8 @@ export class CameraController {
 
     if (this.mode === 'TOP') {
       this.camera.up.set(0, 0, -1);
-      this.camera.position.set(0, this.topHeight, 0.01);
-      this.camera.lookAt(0, 0, 0);
+      this.camera.position.set(this.topCenter.x, this.topHeight, this.topCenter.y + 0.01);
+      this.camera.lookAt(this.topCenter.x, 0, this.topCenter.y);
       return;
     }
 

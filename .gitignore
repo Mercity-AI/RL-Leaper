@@ -10,6 +10,7 @@ dist/
 
 # RL training output and generated models
 rl_artifacts/
+public/rl_live_state.json
 *.zip
 
 # Test, coverage, and tool caches

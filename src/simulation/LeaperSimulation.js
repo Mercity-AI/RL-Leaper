@@ -89,6 +89,32 @@ export class LeaperSimulation {
     this.updateStatus(speed);
   }
 
+  updateExternal(frame, deltaTime, replay) {
+    this.elapsed += deltaTime;
+    const state = this.state;
+    state.velocity.set(
+      (frame.x - state.position.x) / Math.max(deltaTime, 1e-4),
+      0,
+      (frame.z - state.position.z) / Math.max(deltaTime, 1e-4),
+    );
+    if (state.velocity.length() > MOVEMENT.sprintSpeed) {
+      state.velocity.setLength(MOVEMENT.sprintSpeed);
+    }
+    state.position.set(frame.x, 0, frame.z);
+    state.yaw = frame.yaw;
+    const speed = state.velocity.length();
+    this.updateBody(speed, deltaTime);
+    this.updateGait(speed, deltaTime);
+    this.updateEffects(frame.collision, speed, deltaTime);
+    this.cameraController.update(state, this.rig.eyePivot, deltaTime);
+    this.sun.position.set(state.position.x + 8, 15, state.position.z + 6);
+    this.sun.target.position.set(state.position.x, 0, state.position.z);
+    const collisionLabel = frame.collision
+      ? `${frame.collisionPart?.startsWith('leg') ? 'LEG' : 'BODY'} COLLISION`
+      : 'MOVING';
+    this.statusElement.textContent = `TRAINING // ${replay.checkpoint.step.toLocaleString()} STEPS // DISTANCE ${frame.distance.toFixed(1)} M // ${collisionLabel}`;
+  }
+
   updateHorizontalMovement(move, sprinting, deltaTime) {
     const state = this.state;
     const maximumSpeed = sprinting ? MOVEMENT.sprintSpeed : MOVEMENT.walkSpeed;

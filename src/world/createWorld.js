@@ -12,7 +12,7 @@ export function createWorld(scene) {
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(95, 72),
     new THREE.MeshStandardMaterial({
-      color: 0x16171c,
+      color: 0xbecdd3,
       roughness: 0.95,
       metalness: 0.05,
     }),
@@ -21,7 +21,7 @@ export function createWorld(scene) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const grid = new THREE.GridHelper(180, 90, 0x3a3e4a, 0x20232b);
+  const grid = new THREE.GridHelper(180, 90, 0x6f8791, 0xa7bac1);
   grid.position.y = 0.02;
   grid.material.transparent = true;
   grid.material.opacity = 0.4;
@@ -29,13 +29,13 @@ export function createWorld(scene) {
 
   const random = createSeededRandom(11);
   const rockMaterial = new THREE.MeshStandardMaterial({
-    color: 0x24262d,
+    color: 0xde8952,
     roughness: 0.96,
     metalness: 0.04,
     flatShading: true,
   });
   const pyramidMaterial = new THREE.MeshStandardMaterial({
-    color: 0x29272a,
+    color: 0x829fac,
     roughness: 0.9,
     metalness: 0.12,
     flatShading: true,
