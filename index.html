@@ -36,6 +36,10 @@
       </div>
 
       <div class="feed-playback">
+        <div class="replay-mode" aria-label="Replay data source">
+          <button type="button" data-action="training-mode" class="on">ACTUAL PPO ROLLOUT</button>
+          <button type="button" data-action="evaluation-mode">CHECKPOINT REPLAYS</button>
+        </div>
         <div class="transport-row">
           <div class="replay-picker" aria-label="Select rollout">
             <button type="button" data-action="previous-replay" aria-label="Previous rollout">‹</button>
@@ -64,6 +68,12 @@
         <div class="training-actions">
           <button type="button" data-action="previous">‹ EARLIER</button>
           <button type="button" data-action="next">LATER ›</button>
+        </div>
+        <div class="checkpoint-label">PARALLEL WORKER</div>
+        <div class="worker-actions">
+          <button type="button" data-action="previous-worker" aria-label="Previous worker">PREV</button>
+          <strong data-field="worker">WORKER 1 / 8</strong>
+          <button type="button" data-action="next-worker" aria-label="Next worker">NEXT</button>
         </div>
       </div>
     </section>

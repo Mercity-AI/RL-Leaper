@@ -25,6 +25,10 @@ class LeaperReachEnv(gym.Env):
     MOVE_SPEED = 0.75
     TURN_SPEED = math.radians(18.0)
     MAX_STEPS = 400
+    DISTANCE_REWARD_SCALE = 0.2
+    STEP_PENALTY = 0.01
+    COLLISION_PENALTY = 0.18
+    GOAL_REWARD = 25.0
 
     # x, z, collision radius; these are static for every episode.
     OBSTACLES = (
@@ -44,10 +48,13 @@ class LeaperReachEnv(gym.Env):
             high=np.array([1.0, 1.0], dtype=np.float32),
             dtype=np.float32,
         )
-        # normalized position, target direction, distance, and facing vector
-        self.observation_space = spaces.Box(-1.0, 1.0, shape=(7,), dtype=np.float32)
+        # Position, target direction, distance, facing, and previous collision/action.
+        self.observation_space = spaces.Box(-1.0, 1.0, shape=(10,), dtype=np.float32)
         self.position = np.zeros(2, dtype=np.float32)
         self.yaw = 0.0
+        self.prev_distance = 0.0
+        self.last_collision = 0.0
+        self.previous_action = np.zeros(2, dtype=np.float32)
         self.steps = 0
         self.trajectory: list[np.ndarray] = []
         self._figure = None
@@ -95,6 +102,9 @@ class LeaperReachEnv(gym.Env):
                 np.clip(distance / max_distance, 0.0, 1.0),
                 math.sin(self.yaw),
                 math.cos(self.yaw),
+                self.last_collision,
+                self.previous_action[0],
+                self.previous_action[1],
             ],
             dtype=np.float32,
         )
@@ -113,15 +123,20 @@ class LeaperReachEnv(gym.Env):
         else:
             raise RuntimeError("Could not sample a valid start position")
         self.steps = 0
+        self.prev_distance = self._distance()
+        self.last_collision = 0.0
+        self.previous_action.fill(0.0)
         self.trajectory = [self.position.copy()]
-        return self._observation(), {"distance": self._distance()}
+        return self._observation(), {"distance": self.prev_distance}
 
     def _distance(self) -> float:
         return float(np.linalg.norm(self.TARGET - self.position))
 
+    def _progress_reward(self, previous_distance: float, distance: float) -> float:
+        return (previous_distance - distance) * self.DISTANCE_REWARD_SCALE
+
     def step(self, action: np.ndarray):
         action = np.clip(np.asarray(action, dtype=np.float32), self.action_space.low, self.action_space.high)
-        previous_distance = self._distance()
         candidate_yaw = (
             self.yaw + float(action[1]) * self.TURN_SPEED + math.pi
         ) % (2 * math.pi) - math.pi
@@ -139,23 +154,37 @@ class LeaperReachEnv(gym.Env):
         reached = distance <= self.TARGET_RADIUS + self.AGENT_RADIUS
         truncated = self.steps >= self.MAX_STEPS
 
-        target_direction = (self.TARGET - self.position) / max(distance, 1e-6)
-        alignment = float(np.dot(heading, target_direction))
-        throttle = float(action[0])
-        reward = (previous_distance - distance) * 1.25 - 0.01
-        reward += alignment * 0.03
-        reward -= (1.0 - throttle) * 0.05
-        if collided:
-            reward -= 0.18
-        if reached:
-            reward += 25.0
+        progress_reward = self._progress_reward(self.prev_distance, distance)
+        time_penalty = -self.STEP_PENALTY
+        collision_penalty = -self.COLLISION_PENALTY if collided else 0.0
+        goal_reward = self.GOAL_REWARD if reached else 0.0
+        reward = (
+            progress_reward
+            + time_penalty
+            + collision_penalty
+            + goal_reward
+        )
+        self.prev_distance = distance
+        self.last_collision = float(collided)
+        self.previous_action = action.copy()
 
         self.trajectory.append(self.position.copy())
         info = {
             "distance": distance,
             "is_success": reached,
+            "is_fallen": False,
             "collision": collided,
             "collision_part": collision_part,
+            "x": float(self.position[0]),
+            "z": float(self.position[1]),
+            "yaw": self.yaw,
+            "episode_step": self.steps,
+            "reward_terms": {
+                "progress": progress_reward,
+                "time": time_penalty,
+                "collision": collision_penalty,
+                "goal": goal_reward,
+            },
         }
         if self.render_mode == "human":
             self.render()

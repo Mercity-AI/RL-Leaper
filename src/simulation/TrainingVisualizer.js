@@ -11,10 +11,12 @@ export class TrainingVisualizer {
     this.target = target;
     this.panel = panel;
     this.data = null;
-    this.checkpointIndex = -1;
+    this.replayMode = 'training';
+    this.dataIndex = -1;
+    this.workerIndex = 0;
     this.episodeIndex = 0;
     this.playbackTime = 0;
-    this.lastFetch = -Infinity;
+    this.lastFetch = 0;
     this.followLatest = true;
     this.loading = false;
     this.playing = true;
@@ -23,15 +25,17 @@ export class TrainingVisualizer {
     this.playButton = panel.querySelector('[data-action="play"]');
     this.logInput = panel.querySelector('[data-field="log-input"]');
     this.liveButton = panel.querySelector('[data-action="live-log"]');
+    this.trainingModeButton = panel.querySelector('[data-action="training-mode"]');
+    this.evaluationModeButton = panel.querySelector('[data-action="evaluation-mode"]');
 
     panel.querySelector('[data-action="previous"]').addEventListener('click', () => {
       this.followLatest = false;
-      this.selectCheckpoint(this.checkpointIndex - 1);
+      this.selectCollection(this.dataIndex - 1);
     });
     panel.querySelector('[data-action="next"]').addEventListener('click', () => {
-      const isAtLatest = this.checkpointIndex >= (this.data?.checkpoints.length ?? 0) - 2;
+      const isAtLatest = this.dataIndex >= this.collections().length - 2;
       this.followLatest = isAtLatest;
-      this.selectCheckpoint(this.checkpointIndex + 1);
+      this.selectCollection(this.dataIndex + 1);
     });
     this.playButton.addEventListener('click', () => this.setPlaying(!this.playing));
     panel.querySelector('[data-action="previous-replay"]').addEventListener('click', () => {
@@ -40,6 +44,14 @@ export class TrainingVisualizer {
     panel.querySelector('[data-action="next-replay"]').addEventListener('click', () => {
       this.selectEpisode(this.episodeIndex + 1);
     });
+    panel.querySelector('[data-action="previous-worker"]').addEventListener('click', () => {
+      this.selectWorker(this.workerIndex - 1);
+    });
+    panel.querySelector('[data-action="next-worker"]').addEventListener('click', () => {
+      this.selectWorker(this.workerIndex + 1);
+    });
+    this.trainingModeButton.addEventListener('click', () => this.selectMode('training'));
+    this.evaluationModeButton.addEventListener('click', () => this.selectMode('evaluation'));
     this.timeline.addEventListener('input', () => {
       this.setPlaying(false);
       this.playbackTime = Number(this.timeline.value) / 30;
@@ -50,6 +62,50 @@ export class TrainingVisualizer {
     });
     this.logInput.addEventListener('change', () => this.importLog());
     this.liveButton.addEventListener('click', () => this.useLiveFeed());
+    this.selectMode('training');
+  }
+
+  collections() {
+    return this.replayMode === 'training'
+      ? (this.data?.training_rollouts ?? [])
+      : (this.data?.checkpoints ?? []);
+  }
+
+  currentContext() {
+    const record = this.collections()[this.dataIndex];
+    if (!record) return null;
+    if (this.replayMode === 'training') {
+      const workers = record.workers ?? [];
+      const worker = workers[this.workerIndex];
+      return {
+        record,
+        worker,
+        episodes: worker?.episodes ?? [],
+        checkpoint: { step: record.end_step },
+      };
+    }
+    return {
+      record,
+      worker: null,
+      episodes: record.episodes ?? [],
+      checkpoint: record,
+    };
+  }
+
+  currentEpisode() {
+    return this.currentContext()?.episodes[this.episodeIndex];
+  }
+
+  selectMode(mode) {
+    this.replayMode = mode;
+    this.panel.classList.toggle('training-rollout-mode', mode === 'training');
+    this.trainingModeButton.classList.toggle('on', mode === 'training');
+    this.evaluationModeButton.classList.toggle('on', mode === 'evaluation');
+    this.workerIndex = 0;
+    this.episodeIndex = 0;
+    this.playbackTime = 0;
+    this.followLatest = true;
+    this.selectCollection(this.collections().length - 1);
   }
 
   async importLog() {
@@ -57,19 +113,23 @@ export class TrainingVisualizer {
     if (!file) return;
     try {
       const imported = JSON.parse(await file.text());
-      if (!Array.isArray(imported.checkpoints) || imported.checkpoints.length === 0) {
-        throw new Error('This file has no replay checkpoints');
-      }
-      const hasFrames = imported.checkpoints.some((checkpoint) => (
+      const hasCheckpoints = imported.checkpoints?.some((checkpoint) => (
         checkpoint.episodes?.some((episode) => Array.isArray(episode.frames))
       ));
-      if (!hasFrames) throw new Error('This file has no replay frames');
+      const hasTrainingRollouts = imported.training_rollouts?.some((rollout) => (
+        rollout.workers?.some((worker) => (
+          worker.episodes?.some((episode) => Array.isArray(episode.frames))
+        ))
+      ));
+      if (!hasCheckpoints && !hasTrainingRollouts) {
+        throw new Error('This file has no replay frames');
+      }
       this.data = imported;
       this.liveMode = false;
       this.followLatest = false;
       this.liveButton.disabled = false;
       this.panel.querySelector('[data-field="source"]').textContent = `SOURCE: ${file.name}`;
-      this.selectCheckpoint(imported.checkpoints.length - 1);
+      this.selectMode(hasTrainingRollouts ? 'training' : 'evaluation');
     } catch (error) {
       this.panel.querySelector('[data-field="source"]').textContent = `IMPORT FAILED: ${error.message}`;
     } finally {
@@ -92,14 +152,21 @@ export class TrainingVisualizer {
     this.playButton.setAttribute('aria-label', playing ? 'Pause replay' : 'Play replay');
   }
 
-  currentEpisode() {
-    return this.data?.checkpoints[this.checkpointIndex]?.episodes[this.episodeIndex];
-  }
-
   selectEpisode(index) {
-    const episodes = this.data?.checkpoints[this.checkpointIndex]?.episodes ?? [];
+    const episodes = this.currentContext()?.episodes ?? [];
     if (!episodes.length) return;
     this.episodeIndex = (index + episodes.length) % episodes.length;
+    this.playbackTime = 0;
+    this.setPlaying(true);
+    this.updatePanel();
+  }
+
+  selectWorker(index) {
+    if (this.replayMode !== 'training') return;
+    const workers = this.collections()[this.dataIndex]?.workers ?? [];
+    if (!workers.length) return;
+    this.workerIndex = (index + workers.length) % workers.length;
+    this.episodeIndex = 0;
     this.playbackTime = 0;
     this.setPlaying(true);
     this.updatePanel();
@@ -109,13 +176,15 @@ export class TrainingVisualizer {
     if (this.loading || !this.liveMode) return;
     this.loading = true;
     try {
+      const previousLatest = this.collections().at(-1);
+      const previousStep = previousLatest?.end_step ?? previousLatest?.step;
       const response = await fetch(`/rl_live_state.json?t=${Date.now()}`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const nextData = await response.json();
-      const previousCount = this.data?.checkpoints.length ?? 0;
-      this.data = nextData;
-      if (this.followLatest && nextData.checkpoints.length !== previousCount) {
-        this.selectCheckpoint(nextData.checkpoints.length - 1);
+      this.data = await response.json();
+      const latest = this.collections().at(-1);
+      const latestStep = latest?.end_step ?? latest?.step;
+      if (this.followLatest && (this.dataIndex < 0 || latestStep !== previousStep)) {
+        this.selectCollection(this.collections().length - 1);
       }
       this.updatePanel();
     } catch (error) {
@@ -125,10 +194,15 @@ export class TrainingVisualizer {
     }
   }
 
-  selectCheckpoint(index) {
-    const count = this.data?.checkpoints.length ?? 0;
-    if (!count) return;
-    this.checkpointIndex = THREE.MathUtils.clamp(index, 0, count - 1);
+  selectCollection(index) {
+    const count = this.collections().length;
+    if (!count) {
+      this.dataIndex = -1;
+      this.updatePanel();
+      return;
+    }
+    this.dataIndex = THREE.MathUtils.clamp(index, 0, count - 1);
+    this.workerIndex = 0;
     this.episodeIndex = 0;
     this.playbackTime = 0;
     this.setPlaying(true);
@@ -142,20 +216,18 @@ export class TrainingVisualizer {
       this.refresh();
     }
 
-    const checkpoint = this.data?.checkpoints[this.checkpointIndex];
+    const context = this.currentContext();
     const episode = this.currentEpisode();
     if (!episode?.frames.length) return;
 
     if (this.playing) this.playbackTime += deltaTime;
     const framePosition = this.playbackTime * 30;
     const frameIndex = Math.min(Math.floor(framePosition), episode.frames.length - 1);
-    if (frameIndex >= episode.frames.length - 1) {
-      if (this.playing) {
-        this.episodeIndex = (this.episodeIndex + 1) % checkpoint.episodes.length;
-        this.playbackTime = 0;
-        this.updatePanel();
-        return;
-      }
+    if (frameIndex >= episode.frames.length - 1 && this.playing) {
+      this.episodeIndex = (this.episodeIndex + 1) % context.episodes.length;
+      this.playbackTime = 0;
+      this.updatePanel();
+      return;
     }
 
     const amount = framePosition - frameIndex;
@@ -172,7 +244,7 @@ export class TrainingVisualizer {
       },
       deltaTime,
       {
-        checkpoint,
+        checkpoint: context.checkpoint,
         episode,
         frame: frameIndex,
       },
@@ -191,23 +263,45 @@ export class TrainingVisualizer {
   }
 
   updatePanel() {
-    const checkpoint = this.data?.checkpoints[this.checkpointIndex];
-    const episode = checkpoint?.episodes[this.episodeIndex];
+    const context = this.currentContext();
+    const episode = this.currentEpisode();
+    const record = context?.record;
+    const episodes = context?.episodes ?? [];
     this.panel.querySelector('[data-field="state"]').textContent = this.liveMode
       ? (this.data?.status ?? 'waiting').toUpperCase()
       : 'IMPORTED';
-    this.panel.querySelector('[data-field="checkpoint"]').textContent = checkpoint
-      ? `${checkpoint.step.toLocaleString()} STEPS`
-      : 'NO CHECKPOINT YET';
-    this.panel.querySelector('[data-field="metrics"]').textContent = checkpoint
-      ? `MEAN REWARD ${checkpoint.mean_reward.toFixed(2)}  ·  SUCCESS ${(checkpoint.success_rate * 100).toFixed(0)}%`
-      : 'THE FIRST REPLAY APPEARS AT 10,000 STEPS';
-    this.panel.querySelector('[data-field="episode"]').textContent = episode
-      ? `${episode.exploratory ? 'EXPLORATORY ' : ''}REPLAY ${this.episodeIndex + 1}/${checkpoint.episodes.length}  ·  ${episode.success ? 'TARGET REACHED' : 'MISSED'}  ·  REWARD ${episode.reward.toFixed(2)}`
-      : 'WAITING FOR TRAINING DATA';
-    this.panel.querySelector('[data-field="replay"]').textContent = checkpoint
-      ? `ROLLOUT ${this.episodeIndex + 1} / ${checkpoint.episodes.length}`
-      : 'NO ROLLOUTS';
+
+    if (this.replayMode === 'training') {
+      const metrics = record?.metrics;
+      this.panel.querySelector('[data-field="checkpoint"]').textContent = record
+        ? `ROLLOUT ${record.rollout} · ${record.transition_count.toLocaleString()} TRANSITIONS`
+        : 'NO TRAINING ROLLOUT YET';
+      this.panel.querySelector('[data-field="metrics"]').textContent = metrics
+        ? `COLLISIONS ${(metrics.collision_step_percentage * 100).toFixed(1)}% · ZERO THROTTLE ${(metrics.zero_throttle_percentage * 100).toFixed(1)}% · GOALS ${metrics.successes}`
+        : 'THE FIRST ACTUAL ROLLOUT APPEARS AFTER 8,192 STEPS';
+      const partial = episode?.starts_before_rollout || episode?.continues_after_rollout;
+      this.panel.querySelector('[data-field="episode"]').textContent = episode
+        ? `WORKER ${context.worker.worker} · EPISODE ${episode.episode}${partial ? ' SEGMENT' : ''} · ${episode.success ? 'TARGET REACHED' : episode.timeout ? 'TIMEOUT' : 'CONTINUES'} · REWARD ${episode.reward.toFixed(2)}`
+        : 'WAITING FOR ACTUAL TRAINING EXPERIENCE';
+      this.panel.querySelector('[data-field="worker"]').textContent = record
+        ? `WORKER ${this.workerIndex + 1} / ${record.workers.length}`
+        : 'NO WORKERS';
+    } else {
+      this.panel.querySelector('[data-field="checkpoint"]').textContent = record
+        ? `${record.step.toLocaleString()} STEPS`
+        : 'NO CHECKPOINT YET';
+      this.panel.querySelector('[data-field="metrics"]').textContent = record
+        ? `MEAN REWARD ${record.mean_reward.toFixed(2)} · SUCCESS ${(record.success_rate * 100).toFixed(0)}%`
+        : 'THE FIRST REPLAY APPEARS AT 10,000 STEPS';
+      this.panel.querySelector('[data-field="episode"]').textContent = episode
+        ? `${episode.exploratory ? 'EXPLORATORY ' : ''}REPLAY ${this.episodeIndex + 1}/${episodes.length} · ${episode.success ? 'TARGET REACHED' : 'MISSED'} · REWARD ${episode.reward.toFixed(2)}`
+        : 'WAITING FOR CHECKPOINT DATA';
+      this.panel.querySelector('[data-field="worker"]').textContent = 'EVALUATION MODE';
+    }
+
+    this.panel.querySelector('[data-field="replay"]').textContent = episodes.length
+      ? `${this.replayMode === 'training' ? 'EPISODE' : 'REPLAY'} ${this.episodeIndex + 1} / ${episodes.length}`
+      : 'NO EPISODES';
     this.updateTimelineLabel();
   }
 }
