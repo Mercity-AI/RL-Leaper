@@ -277,7 +277,7 @@ export class TrainingVisualizer {
         ? `ROLLOUT ${record.rollout} · ${record.transition_count.toLocaleString()} TRANSITIONS`
         : 'NO TRAINING ROLLOUT YET';
       this.panel.querySelector('[data-field="metrics"]').textContent = metrics
-        ? `COLLISIONS ${(metrics.collision_step_percentage * 100).toFixed(1)}% · ZERO THROTTLE ${(metrics.zero_throttle_percentage * 100).toFixed(1)}% · GOALS ${metrics.successes}`
+        ? `COLLISIONS ${(metrics.collision_step_percentage * 100).toFixed(1)}% · STOPPED ${((metrics.stopped_step_percentage ?? metrics.zero_throttle_percentage ?? 0) * 100).toFixed(1)}% · FORWARD ${((metrics.forward_step_percentage ?? 0) * 100).toFixed(1)}% · REVERSE ${((metrics.reverse_step_percentage ?? 0) * 100).toFixed(1)}% · GOALS ${metrics.successes}`
         : 'THE FIRST ACTUAL ROLLOUT APPEARS AFTER 8,192 STEPS';
       const partial = episode?.starts_before_rollout || episode?.continues_after_rollout;
       this.panel.querySelector('[data-field="episode"]').textContent = episode

@@ -5,9 +5,14 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+ARTIFACTS_ROOT = ROOT / "rl_artifacts"
+os.environ.setdefault("MPLCONFIGDIR", str(ARTIFACTS_ROOT / ".matplotlib"))
 
 import matplotlib
 import numpy as np
@@ -20,10 +25,16 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from rl_environment import LeaperReachEnv
 
 
-ROOT = Path(__file__).resolve().parent
-ARTIFACTS = ROOT / "rl_artifacts"
 LIVE_STATE = ROOT / "public" / "rl_live_state.json"
 MAX_TRAINING_ROLLOUTS = 3
+THROTTLE_EPSILON = 1e-8
+
+
+def classify_throttle(throttle: float) -> str:
+    """Classify a signed throttle without counting reverse as stopped."""
+    if abs(throttle) <= THROTTLE_EPSILON:
+        return "stopped"
+    return "forward" if throttle > 0.0 else "reverse"
 
 
 def write_live_state(payload: dict) -> None:
@@ -42,9 +53,16 @@ def write_live_state(payload: dict) -> None:
 
 
 class ProgressCallback(BaseCallback):
-    def __init__(self, run_name: str, eval_every: int = 10_000, verbose: int = 1):
+    def __init__(
+        self,
+        run_name: str,
+        artifact_directory: Path,
+        eval_every: int = 10_000,
+        verbose: int = 1,
+    ):
         super().__init__(verbose)
         self.run_name = run_name
+        self.artifact_directory = artifact_directory
         self.eval_every = eval_every
         self.episode_rewards: list[float] = []
         self.eval_rows: list[tuple[int, float, float]] = []
@@ -65,8 +83,11 @@ class ProgressCallback(BaseCallback):
             "collisions": 0,
             "collision_streak": 0,
             "longest_collision_streak": 0,
-            "zero_throttle_steps": 0,
+            "forward_throttle_steps": 0,
+            "reverse_throttle_steps": 0,
+            "stopped_throttle_steps": 0,
             "throttle_total": 0.0,
+            "absolute_throttle_total": 0.0,
             "start_distance": None,
             "reward_terms": {
                 "progress": 0.0,
@@ -124,8 +145,11 @@ class ProgressCallback(BaseCallback):
         self.current_rollout_stats = {
             "transitions": 0,
             "collision_steps": 0,
-            "zero_throttle_steps": 0,
+            "forward_throttle_steps": 0,
+            "reverse_throttle_steps": 0,
+            "stopped_throttle_steps": 0,
             "throttle_total": 0.0,
+            "absolute_throttle_total": 0.0,
             "completed_episodes": 0,
             "successes": 0,
             "timeouts": 0,
@@ -157,6 +181,7 @@ class ProgressCallback(BaseCallback):
             reward = float(rewards[worker])
             collided = bool(info["collision"])
             throttle = float(action[0])
+            throttle_class = classify_throttle(throttle)
             accumulator = self.episode_accumulators[worker]
 
             if self.current_segments[worker] is None:
@@ -185,8 +210,9 @@ class ProgressCallback(BaseCallback):
                 )
             accumulator["steps"] += 1
             accumulator["collisions"] += int(collided)
-            accumulator["zero_throttle_steps"] += int(throttle <= 1e-8)
+            accumulator[f"{throttle_class}_throttle_steps"] += 1
             accumulator["throttle_total"] += throttle
+            accumulator["absolute_throttle_total"] += abs(throttle)
             if collided:
                 accumulator["collision_streak"] += 1
                 accumulator["longest_collision_streak"] = max(
@@ -201,8 +227,9 @@ class ProgressCallback(BaseCallback):
 
             self.current_rollout_stats["transitions"] += 1
             self.current_rollout_stats["collision_steps"] += int(collided)
-            self.current_rollout_stats["zero_throttle_steps"] += int(throttle <= 1e-8)
+            self.current_rollout_stats[f"{throttle_class}_throttle_steps"] += 1
             self.current_rollout_stats["throttle_total"] += throttle
+            self.current_rollout_stats["absolute_throttle_total"] += abs(throttle)
 
             if dones[worker]:
                 success = bool(info["is_success"])
@@ -221,8 +248,11 @@ class ProgressCallback(BaseCallback):
                         "collision_steps": accumulator["collisions"],
                         "collision_step_percentage": accumulator["collisions"] / steps,
                         "longest_collision_streak": accumulator["longest_collision_streak"],
-                        "zero_throttle_percentage": accumulator["zero_throttle_steps"] / steps,
-                        "mean_throttle": accumulator["throttle_total"] / steps,
+                        "forward_step_percentage": accumulator["forward_throttle_steps"] / steps,
+                        "reverse_step_percentage": accumulator["reverse_throttle_steps"] / steps,
+                        "stopped_step_percentage": accumulator["stopped_throttle_steps"] / steps,
+                        "mean_signed_throttle": accumulator["throttle_total"] / steps,
+                        "mean_absolute_throttle": accumulator["absolute_throttle_total"] / steps,
                         "start_distance": accumulator["start_distance"],
                         "final_distance": info["distance"],
                         "net_target_progress": accumulator["start_distance"] - info["distance"],
@@ -255,7 +285,7 @@ class ProgressCallback(BaseCallback):
                     "episodes": recordings,
                 }
             )
-            checkpoint_directory = ARTIFACTS / "checkpoints"
+            checkpoint_directory = self.artifact_directory / "checkpoints"
             checkpoint_directory.mkdir(exist_ok=True)
             self.model.save(
                 checkpoint_directory / f"leaper_ppo_{self.num_timesteps}"
@@ -288,8 +318,11 @@ class ProgressCallback(BaseCallback):
                 "timeouts": stats["timeouts"],
                 "collision_steps": stats["collision_steps"],
                 "collision_step_percentage": stats["collision_steps"] / transitions,
-                "zero_throttle_percentage": stats["zero_throttle_steps"] / transitions,
-                "mean_throttle": stats["throttle_total"] / transitions,
+                "forward_step_percentage": stats["forward_throttle_steps"] / transitions,
+                "reverse_step_percentage": stats["reverse_throttle_steps"] / transitions,
+                "stopped_step_percentage": stats["stopped_throttle_steps"] / transitions,
+                "mean_signed_throttle": stats["throttle_total"] / transitions,
+                "mean_absolute_throttle": stats["absolute_throttle_total"] / transitions,
                 "reward_terms": stats["reward_terms"],
             },
         }
@@ -299,8 +332,10 @@ class ProgressCallback(BaseCallback):
         self._save_live_state("training")
 
     def _save_progress(self) -> None:
-        ARTIFACTS.mkdir(exist_ok=True)
-        with (ARTIFACTS / "training_progress.csv").open("w", newline="", encoding="utf-8") as handle:
+        self.artifact_directory.mkdir(parents=True, exist_ok=True)
+        with (self.artifact_directory / "training_progress.csv").open(
+            "w", newline="", encoding="utf-8"
+        ) as handle:
             writer = csv.writer(handle)
             writer.writerow(["episode", "reward"])
             writer.writerows(enumerate(self.episode_rewards, start=1))
@@ -324,7 +359,7 @@ class ProgressCallback(BaseCallback):
             success_axis.set_ylim(0, 1.05)
             success_axis.set_ylabel("Success rate")
         axes[1].set(title="Deterministic evaluation", xlabel="Training steps", ylabel="Mean reward")
-        fig.savefig(ARTIFACTS / "training_progress.png", dpi=150)
+        fig.savefig(self.artifact_directory / "training_progress.png", dpi=150)
         plt.close(fig)
         self._save_diagnostics()
 
@@ -332,7 +367,7 @@ class ProgressCallback(BaseCallback):
         if not self.episode_diagnostics:
             return
         fields = list(self.episode_diagnostics[0])
-        with (ARTIFACTS / "training_diagnostics.csv").open(
+        with (self.artifact_directory / "training_diagnostics.csv").open(
             "w", newline="", encoding="utf-8"
         ) as handle:
             writer = csv.DictWriter(handle, fieldnames=fields)
@@ -351,6 +386,9 @@ class ProgressCallback(BaseCallback):
             payload["final_mean_reward"] = final_result[0]
             payload["final_success_rate"] = final_result[1]
         write_live_state(payload)
+        (self.artifact_directory / "browser_replay.json").write_text(
+            json.dumps(payload), encoding="utf-8"
+        )
 
 
 def evaluate(model: PPO, episodes: int = 25) -> tuple[float, float]:
@@ -369,6 +407,126 @@ def evaluate(model: PPO, episodes: int = 25) -> tuple[float, float]:
         successes += int(info["is_success"])
     env.close()
     return float(np.mean(rewards)), successes / episodes
+
+
+def evaluate_diagnostics(model: PPO, episodes: int = 100) -> dict:
+    """Run the fixed-seed deterministic comparison and aggregate diagnostics."""
+    env = LeaperReachEnv()
+    episode_rows = []
+    action_counts = {"forward": 0, "reverse": 0, "stopped": 0}
+    throttle_total = 0.0
+    absolute_throttle_total = 0.0
+    collision_steps = 0
+    total_steps = 0
+
+    for episode in range(episodes):
+        observation, reset_info = env.reset(seed=10_000 + episode)
+        start_distance = float(reset_info["distance"])
+        total_reward = 0.0
+        reward_terms = {"progress": 0.0, "time": 0.0, "collision": 0.0, "goal": 0.0}
+        collision_streak = 0
+        longest_collision_streak = 0
+        done = False
+
+        while not done:
+            action, _ = model.predict(observation, deterministic=True)
+            throttle = float(action[0])
+            action_counts[classify_throttle(throttle)] += 1
+            throttle_total += throttle
+            absolute_throttle_total += abs(throttle)
+            observation, reward, terminated, truncated, info = env.step(action)
+            total_reward += float(reward)
+            total_steps += 1
+            collided = bool(info["collision"])
+            collision_steps += int(collided)
+            collision_streak = collision_streak + 1 if collided else 0
+            longest_collision_streak = max(longest_collision_streak, collision_streak)
+            for term, value in info["reward_terms"].items():
+                reward_terms[term] += float(value)
+            done = terminated or truncated
+
+        episode_rows.append(
+            {
+                "success": int(info["is_success"]),
+                "timeout": int(not info["is_success"]),
+                "steps": int(info["episode_step"]),
+                "reward": total_reward,
+                "net_target_progress": start_distance - float(info["distance"]),
+                "longest_collision_streak": longest_collision_streak,
+                "reward_terms": reward_terms,
+            }
+        )
+
+    env.close()
+    denominator = max(total_steps, 1)
+    reward_breakdown = {
+        term: float(np.mean([row["reward_terms"][term] for row in episode_rows]))
+        for term in ("progress", "time", "collision", "goal")
+    }
+    return {
+        "episodes": episodes,
+        "seed_start": 10_000,
+        "deterministic": True,
+        "success_rate": float(np.mean([row["success"] for row in episode_rows])),
+        "timeout_rate": float(np.mean([row["timeout"] for row in episode_rows])),
+        "mean_reward": float(np.mean([row["reward"] for row in episode_rows])),
+        "mean_net_target_progress": float(
+            np.mean([row["net_target_progress"] for row in episode_rows])
+        ),
+        "forward_step_percentage": action_counts["forward"] / denominator,
+        "reverse_step_percentage": action_counts["reverse"] / denominator,
+        "stopped_step_percentage": action_counts["stopped"] / denominator,
+        "mean_signed_throttle": throttle_total / denominator,
+        "mean_absolute_throttle": absolute_throttle_total / denominator,
+        "collision_step_percentage": collision_steps / denominator,
+        "mean_longest_collision_streak": float(
+            np.mean([row["longest_collision_streak"] for row in episode_rows])
+        ),
+        "worst_collision_streak": int(
+            max(row["longest_collision_streak"] for row in episode_rows)
+        ),
+        "average_episode_length": float(np.mean([row["steps"] for row in episode_rows])),
+        "reward_breakdown": reward_breakdown,
+    }
+
+
+def summarize_training_episodes(rows: list[dict], limit: int = 100) -> dict:
+    """Summarize the latest stochastic on-policy training episodes."""
+    selected = rows[-limit:]
+    if not selected:
+        return {"episodes": 0}
+    total_steps = sum(row["steps"] for row in selected)
+    weighted_fields = (
+        "forward_step_percentage",
+        "reverse_step_percentage",
+        "stopped_step_percentage",
+        "mean_signed_throttle",
+        "mean_absolute_throttle",
+        "collision_step_percentage",
+    )
+    summary = {
+        "episodes": len(selected),
+        "success_rate": float(np.mean([row["success"] for row in selected])),
+        "timeout_rate": float(np.mean([row["timeout"] for row in selected])),
+        "mean_reward": float(np.mean([row["total_reward"] for row in selected])),
+        "mean_net_target_progress": float(
+            np.mean([row["net_target_progress"] for row in selected])
+        ),
+        "average_episode_length": float(np.mean([row["steps"] for row in selected])),
+        "mean_longest_collision_streak": float(
+            np.mean([row["longest_collision_streak"] for row in selected])
+        ),
+        "worst_collision_streak": int(max(row["longest_collision_streak"] for row in selected)),
+    }
+    for field in weighted_fields:
+        summary[field] = sum(row[field] * row["steps"] for row in selected) / total_steps
+    summary["reward_breakdown"] = {
+        "progress": float(np.mean([row["distance_reward"] for row in selected])),
+        "time": float(np.mean([row["time_reward"] for row in selected])),
+        "collision": float(np.mean([row["collision_reward"] for row in selected])),
+        "goal": float(np.mean([row["goal_reward"] for row in selected])),
+    }
+    return summary
 
 
 def evaluate_with_recordings(
@@ -446,11 +604,41 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--timesteps", type=int, default=300_000)
     parser.add_argument("--seed", type=int, default=7)
-    parser.add_argument("--run-name", default="PPO_9")
+    parser.add_argument("--run-name", default="PPO_10")
+    parser.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=ARTIFACTS_ROOT,
+        help="isolated output directory for this run",
+    )
     parser.add_argument("--watch", action="store_true", help="animate trained evaluation episodes")
     args = parser.parse_args()
 
-    ARTIFACTS.mkdir(exist_ok=True)
+    artifact_directory = args.artifact_dir
+    if not artifact_directory.is_absolute():
+        artifact_directory = ROOT / artifact_directory
+    artifact_directory.mkdir(parents=True, exist_ok=True)
+    configuration = {
+        "run_name": args.run_name,
+        "requested_timesteps": args.timesteps,
+        "seed": args.seed,
+        "parallel_environments": 8,
+        "learning_rate": 3e-4,
+        "n_steps": 1024,
+        "rollout_transitions": 8192,
+        "batch_size": 256,
+        "n_epochs": 10,
+        "gamma": 0.995,
+        "gae_lambda": 0.95,
+        "entropy_coefficient": 0.01,
+        "evaluation_interval": 10_000,
+        "action_low": [-1.0, -1.0],
+        "action_high": [1.0, 1.0],
+        "observation_size": 10,
+    }
+    (artifact_directory / "training_config.json").write_text(
+        json.dumps(configuration, indent=2), encoding="utf-8"
+    )
     write_live_state(
         {
             "run": args.run_name,
@@ -474,16 +662,46 @@ def main() -> None:
         ent_coef=0.01,
         verbose=1,
         seed=args.seed,
-        tensorboard_log=str(ARTIFACTS / "tensorboard"),
+        tensorboard_log=str(artifact_directory / "tensorboard"),
         device="auto",
     )
-    callback = ProgressCallback(run_name=args.run_name, eval_every=10_000)
-    model.learn(total_timesteps=args.timesteps, callback=callback, progress_bar=True)
-    model.save(ARTIFACTS / "leaper_ppo")
+    callback = ProgressCallback(
+        run_name=args.run_name,
+        artifact_directory=artifact_directory,
+        eval_every=10_000,
+    )
+    model.learn(
+        total_timesteps=args.timesteps,
+        callback=callback,
+        progress_bar=True,
+        tb_log_name=args.run_name,
+    )
+    model.save(artifact_directory / "leaper_ppo")
     callback._save_progress()
-    mean_reward, success_rate = evaluate(model, episodes=100)
-    callback._save_live_state("complete", (mean_reward, success_rate))
-    print(f"Final evaluation: mean reward={mean_reward:.2f}, success={success_rate:.0%}")
+    deterministic_evaluation = evaluate_diagnostics(model, episodes=100)
+    final_report = {
+        "run_name": args.run_name,
+        "requested_timesteps": args.timesteps,
+        "collected_timesteps": callback.num_timesteps,
+        "seed": args.seed,
+        "deterministic_evaluation": deterministic_evaluation,
+        "latest_stochastic_training_episodes": summarize_training_episodes(
+            callback.episode_diagnostics
+        ),
+    }
+    (artifact_directory / "final_evaluation.json").write_text(
+        json.dumps(final_report, indent=2), encoding="utf-8"
+    )
+    callback._save_live_state(
+        "complete",
+        (
+            deterministic_evaluation["mean_reward"],
+            deterministic_evaluation["success_rate"],
+        ),
+    )
+    print("Final evaluation:")
+    print(json.dumps(final_report, indent=2))
+    env.close()
     if args.watch:
         watch(model)
 

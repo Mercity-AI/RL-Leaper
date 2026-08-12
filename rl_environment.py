@@ -42,9 +42,10 @@ class LeaperReachEnv(gym.Env):
     def __init__(self, render_mode: str | None = None):
         super().__init__()
         self.render_mode = render_mode
-        # action[0]: forward throttle [0, 1], action[1]: turn [-1, 1]
+        # action[0]: signed throttle [-1, 1], action[1]: turn [-1, 1]
+        # Negative throttle reverses along the candidate facing direction.
         self.action_space = spaces.Box(
-            low=np.array([0.0, -1.0], dtype=np.float32),
+            low=np.array([-1.0, -1.0], dtype=np.float32),
             high=np.array([1.0, 1.0], dtype=np.float32),
             dtype=np.float32,
         )
