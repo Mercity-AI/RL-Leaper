@@ -40,6 +40,7 @@ const trainingVisualizer = trainingMode
   ? new TrainingVisualizer({
       simulation,
       target,
+      world,
       panel: document.getElementById('trainingPanel'),
     })
   : null;

@@ -77,6 +77,33 @@ PPO_10 uses signed forward throttle: `-1` is full reverse, `0` is stopped, and
 `+1` is full forward. Turning remains `[-1, 1]`. This action-space change makes
 all older trained policies incompatible with PPO_10.
 
+PPO_11 keeps that signed throttle and adds eight obstacle-clearance rays to the
+observation, growing it from 10 to 18 values. Indices 0-9 are the exact PPO_10
+observation; indices 10-17 are rangefinders spaced every 45 degrees around the
+current facing (ray 0 straight ahead), each reporting the clear distance to the
+nearest obstacle or wall divided by `RAY_MAX_RANGE = 12.0` and clipped to
+`[0, 1]`, where `1.0` means nothing within range. The policy is never told to
+avoid obstacles; it only receives the ray readings and the unchanged `-0.18`
+collision penalty, and learns avoidance from them. Because the observation size
+changes, every 10-value policy (PPO_9, PPO_10) is incompatible with PPO_11.
+
+PPO_12 keeps PPO_11's rays and observation and changes only the collision
+response. When a step's combined turn-and-move is blocked, rotation and
+translation are now resolved independently: the robot rotates in place if the
+turned pose alone is clear, then translates along the resolved facing if that
+alone is clear. This lets a touching robot turn or reverse out of contact instead
+of freezing. The collision flag and its `-0.18` penalty still reflect the full
+intended move, so reward semantics are unchanged. From PPO_12 onward, training
+uses a fresh natural random seed (recorded in each run's `training_config.json`)
+rather than a fixed seed; the 100-episode deterministic evaluation still uses
+fixed seeds from 10,000 so runs stay comparable.
+
+Standalone replay viewers live at `rl_artifacts/leaper_arena_replay.html`
+(top-down, shows the eight rays) and `rl_artifacts/leaper_training_theatre.html`
+(full 3D hexapod with chase, Leaper first-person, top, and cinematic cameras, rays
+drawn as beams). Both are self-contained HTML files; double-click to open, no
+server required. They are regenerated to show the most recent completed run.
+
 To train and then watch five deterministic Matplotlib evaluation episodes:
 
 ```powershell

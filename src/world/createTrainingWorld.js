@@ -1,18 +1,11 @@
 import * as THREE from 'three';
 
-export const TRAINING_TARGET = { x: 18, z: 18 };
-
-const TRAINING_OBSTACLES = [
-  { x: -10, z: -5, radius: 3.2 },
-  { x: 1, z: 4, radius: 3 },
-  { x: 10, z: 11, radius: 2.8 },
-  { x: -7, z: 13, radius: 2.6 },
-  { x: 12, z: -8, radius: 3.4 },
-];
+export const TRAINING_TARGET = { x: -40, z: -10 };
+export const TRAINING_WORLD_LIMIT = 93.75;
 
 export function createTrainingWorld(scene) {
   const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(35, 72),
+    new THREE.PlaneGeometry(TRAINING_WORLD_LIMIT * 2, TRAINING_WORLD_LIMIT * 2),
     new THREE.MeshStandardMaterial({
       color: 0xbecdd3,
       roughness: 0.95,
@@ -23,7 +16,12 @@ export function createTrainingWorld(scene) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const grid = new THREE.GridHelper(50, 50, 0x6f8791, 0xa7bac1);
+  const grid = new THREE.GridHelper(
+    TRAINING_WORLD_LIMIT * 2,
+    75,
+    0x6f8791,
+    0xa7bac1,
+  );
   grid.position.y = 0.02;
   grid.material.transparent = true;
   grid.material.opacity = 0.55;
@@ -36,31 +34,40 @@ export function createTrainingWorld(scene) {
     metalness: 0.12,
     flatShading: true,
   });
-  TRAINING_OBSTACLES.forEach((obstacle, index) => {
-    const mesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        obstacle.radius * 0.9,
-        obstacle.radius,
-        2.6 + index * 0.24,
-        9,
-      ),
-      obstacleMaterial,
-    );
-    mesh.position.set(obstacle.x, mesh.geometry.parameters.height / 2, obstacle.z);
-    mesh.rotation.y = index * 0.7;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    obstacleGroup.add(mesh);
-  });
   scene.add(obstacleGroup);
+
+  const colliders = [];
+  const setObstacles = (obstacles = []) => {
+    while (obstacleGroup.children.length) {
+      const mesh = obstacleGroup.children.pop();
+      mesh.geometry.dispose();
+    }
+    colliders.length = 0;
+    obstacles.forEach((entry, index) => {
+      const [x, z, radius] = Array.isArray(entry)
+        ? entry
+        : [entry.x, entry.z, entry.radius];
+      const height = 2.6 + (index % 7) * 0.24;
+      const mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 0.9, radius, height, 9),
+        obstacleMaterial,
+      );
+      mesh.position.set(x, height / 2, z);
+      mesh.rotation.y = index * 0.7;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      obstacleGroup.add(mesh);
+      colliders.push({ x, z, radius });
+    });
+  };
 
   const boundaryMaterial = new THREE.LineBasicMaterial({ color: 0xff4a26 });
   const boundaryPoints = [
-    new THREE.Vector3(-25, 0.05, -25),
-    new THREE.Vector3(25, 0.05, -25),
-    new THREE.Vector3(25, 0.05, 25),
-    new THREE.Vector3(-25, 0.05, 25),
-    new THREE.Vector3(-25, 0.05, -25),
+    new THREE.Vector3(-TRAINING_WORLD_LIMIT, 0.05, -TRAINING_WORLD_LIMIT),
+    new THREE.Vector3(TRAINING_WORLD_LIMIT, 0.05, -TRAINING_WORLD_LIMIT),
+    new THREE.Vector3(TRAINING_WORLD_LIMIT, 0.05, TRAINING_WORLD_LIMIT),
+    new THREE.Vector3(-TRAINING_WORLD_LIMIT, 0.05, TRAINING_WORLD_LIMIT),
+    new THREE.Vector3(-TRAINING_WORLD_LIMIT, 0.05, -TRAINING_WORLD_LIMIT),
   ];
   scene.add(new THREE.Line(
     new THREE.BufferGeometry().setFromPoints(boundaryPoints),
@@ -71,6 +78,7 @@ export function createTrainingWorld(scene) {
     ground,
     grid,
     obstacleGroup,
-    colliders: TRAINING_OBSTACLES.map((obstacle) => ({ ...obstacle })),
+    colliders,
+    setObstacles,
   };
 }

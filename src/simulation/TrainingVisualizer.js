@@ -5,10 +5,15 @@ function interpolateAngle(from, to, amount) {
   return from + difference * amount;
 }
 
+const VISION_FOV = THREE.MathUtils.degToRad(200);
+const VISION_SECTORS = 8;
+const VISION_RANGE = 12;
+
 export class TrainingVisualizer {
-  constructor({ simulation, target, panel }) {
+  constructor({ simulation, target, world, panel }) {
     this.simulation = simulation;
     this.target = target;
+    this.world = world;
     this.panel = panel;
     this.data = null;
     this.replayMode = 'training';
@@ -21,6 +26,8 @@ export class TrainingVisualizer {
     this.loading = false;
     this.playing = true;
     this.liveMode = true;
+    this.syncedEpisode = null;
+    this.createVisionDisplay();
     this.timeline = panel.querySelector('[data-field="timeline"]');
     this.playButton = panel.querySelector('[data-action="play"]');
     this.logInput = panel.querySelector('[data-field="log-input"]');
@@ -63,6 +70,83 @@ export class TrainingVisualizer {
     this.logInput.addEventListener('change', () => this.importLog());
     this.liveButton.addEventListener('click', () => this.useLiveFeed());
     this.selectMode('training');
+  }
+
+  createVisionDisplay() {
+    const scene = this.simulation.rig.robot.parent;
+    this.visionGroup = new THREE.Group();
+    this.visionGroup.position.y = 0.16;
+    scene.add(this.visionGroup);
+
+    const guidePositions = [];
+    for (let edge = 0; edge <= VISION_SECTORS; edge += 1) {
+      const angle = -VISION_FOV / 2 + edge * VISION_FOV / VISION_SECTORS;
+      guidePositions.push(
+        0, 0, 0,
+        Math.sin(angle) * VISION_RANGE, 0, Math.cos(angle) * VISION_RANGE,
+      );
+    }
+    const guideGeometry = new THREE.BufferGeometry();
+    guideGeometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(guidePositions, 3),
+    );
+    this.visionGroup.add(new THREE.LineSegments(
+      guideGeometry,
+      new THREE.LineBasicMaterial({
+        color: 0x4e8fa8,
+        transparent: true,
+        opacity: 0.28,
+      }),
+    ));
+
+    this.clearanceLines = Array.from({ length: VISION_SECTORS }, (_, index) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3),
+      );
+      const line = new THREE.Line(
+        geometry,
+        new THREE.LineBasicMaterial({ color: 0x55dd88 }),
+      );
+      line.userData.relativeAngle = -VISION_FOV / 2
+        + (index + 0.5) * VISION_FOV / VISION_SECTORS;
+      this.visionGroup.add(line);
+      return line;
+    });
+  }
+
+  updateVisionDisplay(frame) {
+    const readings = frame.vision ?? [];
+    this.visionGroup.visible = readings.length === VISION_SECTORS;
+    if (!this.visionGroup.visible) return;
+    this.visionGroup.position.x = frame.x;
+    this.visionGroup.position.z = frame.z;
+    this.visionGroup.rotation.y = frame.yaw;
+    readings.forEach((reading, index) => {
+      const line = this.clearanceLines[index];
+      const distance = THREE.MathUtils.clamp(reading, 0, 1) * VISION_RANGE;
+      const positions = line.geometry.attributes.position;
+      positions.setXYZ(
+        1,
+        Math.sin(line.userData.relativeAngle) * distance,
+        0,
+        Math.cos(line.userData.relativeAngle) * distance,
+      );
+      positions.needsUpdate = true;
+      line.material.color.setHSL(
+        THREE.MathUtils.lerp(0, 0.34, reading),
+        0.78,
+        0.5,
+      );
+    });
+  }
+
+  syncEpisodeWorld(episode) {
+    if (!episode || episode === this.syncedEpisode) return;
+    this.syncedEpisode = episode;
+    this.world.setObstacles?.(episode.obstacles ?? []);
   }
 
   collections() {
@@ -219,6 +303,7 @@ export class TrainingVisualizer {
     const context = this.currentContext();
     const episode = this.currentEpisode();
     if (!episode?.frames.length) return;
+    this.syncEpisodeWorld(episode);
 
     if (this.playing) this.playbackTime += deltaTime;
     const framePosition = this.playbackTime * 30;
@@ -233,6 +318,7 @@ export class TrainingVisualizer {
     const amount = framePosition - frameIndex;
     const from = episode.frames[frameIndex];
     const to = episode.frames[Math.min(frameIndex + 1, episode.frames.length - 1)];
+    this.updateVisionDisplay(from);
     this.simulation.updateExternal(
       {
         x: THREE.MathUtils.lerp(from.x, to.x, amount),
@@ -265,6 +351,7 @@ export class TrainingVisualizer {
   updatePanel() {
     const context = this.currentContext();
     const episode = this.currentEpisode();
+    this.syncEpisodeWorld(episode);
     const record = context?.record;
     const episodes = context?.episodes ?? [];
     this.panel.querySelector('[data-field="state"]').textContent = this.liveMode

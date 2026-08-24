@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
+import secrets
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,18 +40,28 @@ def classify_throttle(throttle: float) -> str:
 
 
 def write_live_state(payload: dict) -> None:
-    """Publish one complete snapshot for the browser training visualizer."""
+    """Publish a snapshot without allowing a viewer lock to stop training."""
     LIVE_STATE.parent.mkdir(exist_ok=True)
-    temporary = LIVE_STATE.with_suffix(".tmp")
+    temporary = LIVE_STATE.with_name(
+        f"{LIVE_STATE.stem}.{os.getpid()}.tmp"
+    )
     temporary.write_text(json.dumps(payload), encoding="utf-8")
     for attempt in range(20):
         try:
             temporary.replace(LIVE_STATE)
             return
         except PermissionError:
-            if attempt == 19:
-                raise
-            time.sleep(0.05)
+            if attempt < 19:
+                time.sleep(0.1)
+
+    # Replay publishing is monitoring only. A browser or virus scanner can
+    # briefly hold the destination open on Windows; losing one visualizer
+    # refresh must never destroy a training run.
+    temporary.unlink(missing_ok=True)
+    print(
+        "Warning: skipped one live-state update because the viewer kept "
+        "the replay file locked.",
+    )
 
 
 class ProgressCallback(BaseCallback):
@@ -109,6 +121,7 @@ class ProgressCallback(BaseCallback):
             "collision_part": None,
             "forward_action": float(observation[8]),
             "turn_action": float(observation[9]),
+            "vision": [float(value) for value in observation[10:]],
             "reward": 0.0,
         }
 
@@ -123,6 +136,7 @@ class ProgressCallback(BaseCallback):
             "collision_part": info["collision_part"],
             "forward_action": float(action[0]),
             "turn_action": float(action[1]),
+            "vision": list(info.get("vision", ())),
             "reward": float(reward),
             "reward_terms": info["reward_terms"],
         }
@@ -192,6 +206,7 @@ class ProgressCallback(BaseCallback):
                     "success": False,
                     "timeout": False,
                     "reward": 0.0,
+                    "obstacles": [list(obstacle) for obstacle in info.get("obstacles", ())],
                     "frames": [self._frame_from_observation(observations[worker])],
                 }
                 self.current_segments[worker] = segment
@@ -381,6 +396,13 @@ class ProgressCallback(BaseCallback):
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "checkpoints": self.visualizer_checkpoints,
             "training_rollouts": self.training_rollouts,
+            "vision": {
+                "field_of_view_degrees": math.degrees(LeaperReachEnv.VISION_FOV),
+                "sector_count": LeaperReachEnv.RAY_COUNT,
+                "samples_per_sector": LeaperReachEnv.VISION_SAMPLES_PER_SECTOR,
+                "max_range": LeaperReachEnv.RAY_MAX_RANGE,
+                "collision_aware": True,
+            },
         }
         if final_result is not None:
             payload["final_mean_reward"] = final_result[0]
@@ -553,6 +575,7 @@ def evaluate_with_recordings(
                 "collision": False,
                 "collision_part": None,
                 "fallen": False,
+                "vision": list(info.get("vision", ())),
             }
         ]
         while not done:
@@ -571,6 +594,7 @@ def evaluate_with_recordings(
                     "collision": info["collision"],
                     "collision_part": info["collision_part"],
                     "fallen": info["is_fallen"],
+                    "vision": list(info.get("vision", ())),
                 }
             )
         recordings.append(
@@ -580,6 +604,7 @@ def evaluate_with_recordings(
                 "success": bool(info["is_success"]),
                 "path_length": path_length,
                 "exploratory": True,
+                "obstacles": [list(obstacle) for obstacle in env.obstacles],
                 "frames": frames,
             }
         )
@@ -603,8 +628,8 @@ def watch(model: PPO, episodes: int = 5) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--timesteps", type=int, default=300_000)
-    parser.add_argument("--seed", type=int, default=7)
-    parser.add_argument("--run-name", default="PPO_10")
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--run-name", default="PPO_17_SMOKE")
     parser.add_argument(
         "--artifact-dir",
         type=Path,
@@ -613,6 +638,8 @@ def main() -> None:
     )
     parser.add_argument("--watch", action="store_true", help="animate trained evaluation episodes")
     args = parser.parse_args()
+    if args.seed is None:
+        args.seed = secrets.randbelow(1_000_000)
 
     artifact_directory = args.artifact_dir
     if not artifact_directory.is_absolute():
@@ -634,7 +661,12 @@ def main() -> None:
         "evaluation_interval": 10_000,
         "action_low": [-1.0, -1.0],
         "action_high": [1.0, 1.0],
-        "observation_size": 10,
+        "observation_size": 10 + LeaperReachEnv.RAY_COUNT,
+        "ray_count": LeaperReachEnv.RAY_COUNT,
+        "ray_max_range": LeaperReachEnv.RAY_MAX_RANGE,
+        "vision_field_of_view_degrees": math.degrees(LeaperReachEnv.VISION_FOV),
+        "vision_samples_per_sector": LeaperReachEnv.VISION_SAMPLES_PER_SECTOR,
+        "vision_collision_aware": True,
     }
     (artifact_directory / "training_config.json").write_text(
         json.dumps(configuration, indent=2), encoding="utf-8"

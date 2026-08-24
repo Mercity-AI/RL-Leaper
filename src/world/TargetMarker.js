@@ -16,17 +16,17 @@ export class TargetMarker {
       this.material,
     );
 
-    const nearest = colliders.reduce(
-      (best, item) => (
-        Math.hypot(item.x, item.z) < Math.hypot(best.x, best.z) ? item : best
-      ),
-      colliders[0],
-    );
-    const direction = new THREE.Vector2(nearest.x, nearest.z).normalize();
-    const side = new THREE.Vector2(-direction.y, direction.x);
     if (initialPosition) {
       this.mesh.position.set(initialPosition.x, 3.5, initialPosition.z);
     } else {
+      const nearest = colliders.reduce(
+        (best, item) => (
+          Math.hypot(item.x, item.z) < Math.hypot(best.x, best.z) ? item : best
+        ),
+        colliders[0],
+      );
+      const direction = new THREE.Vector2(nearest.x, nearest.z).normalize();
+      const side = new THREE.Vector2(-direction.y, direction.x);
       this.mesh.position.set(
         nearest.x + direction.x * (nearest.radius + 1.5) + side.x * 2.5,
         3.5,

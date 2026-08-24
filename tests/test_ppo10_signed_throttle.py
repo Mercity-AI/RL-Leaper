@@ -75,7 +75,7 @@ class SignedThrottleTests(unittest.TestCase):
 
     def test_observation_remains_valid_after_reverse(self):
         observation, _ = self.env.reset(seed=7)
-        self.assertEqual(observation.shape, (10,))
+        self.assertEqual(observation.shape, (10 + self.env.RAY_COUNT,))
         self.assertTrue(self.env.observation_space.contains(observation))
         observation, _, _, _, _ = self.env.step(
             np.array([-0.5, 0.25], dtype=np.float32)
