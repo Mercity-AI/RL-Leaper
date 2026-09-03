@@ -1,8 +1,18 @@
-# Leaper PPO Target-Reaching Environment
+# Leaper PPO Seeker Environment
 
-This standalone Gymnasium environment trains a continuous-control PPO policy to
-steer the planar Leaper around five static obstacles toward a fixed target.
-Starts and headings are randomized every episode.
+This Gymnasium environment trains Leaper to search for, discover, remember, and
+reach a semantically tagged target while avoiding randomized obstacles. Target
+coordinates are hidden until unobstructed sight; the policy uses 16 forward
+obstacle rays plus target visibility/memory channels.
+
+> Current handoff (2026-09-02): PPO_28 slow seeker is complete at 71%
+> deterministic success. The approved next experiment is PPO_29: normalized
+> `[-1,1]` policy throttle mapped to forward-only `[0,1]` physical movement, plus
+> a terminal `-10` failure after 60 consecutive no-translation steps. This change
+> is documented but not implemented. Start with `CLAUDE.md`, then read
+> `AGENTS.md`, `TRAINING.md`, and `RL_SPEC.md`. Do not extend PPO_28 unchanged to
+> 800k. Display only deterministic checkpoint replays, and include TensorBoard,
+> the live viewer, and automatic completion monitoring with every training launch.
 
 ## Setup
 

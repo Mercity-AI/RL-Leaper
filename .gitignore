@@ -15,6 +15,7 @@ public/rl_live_state.tmp
 *.zip
 
 # Test, coverage, and tool caches
+tmp/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

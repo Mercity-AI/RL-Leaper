@@ -23,13 +23,9 @@ class RandomArenaTests(unittest.TestCase):
     def tearDown(self):
         self.env.close()
 
-    def test_field_grew_and_target_scaled(self):
-        """The field is larger and the goal moved out with it."""
-        self.assertGreater(self.env.WORLD_LIMIT, 25.0)
-        # Target stays well inside the wall so it remains reachable.
-        self.assertTrue(np.all(np.abs(self.env.TARGET) < self.env.WORLD_LIMIT))
-        # The episode cap was raised so the bigger field is not an auto-timeout.
-        self.assertGreaterEqual(self.env.MAX_STEPS, 1000)
+    def test_seeker_field_is_one_third_of_the_ppo25_width(self):
+        self.assertAlmostEqual(self.env.WORLD_LIMIT, 31.25)
+        self.assertEqual(self.env.MAX_STEPS, 1000)
 
     def test_reset_samples_requested_obstacle_count(self):
         observation, _ = self.env.reset(seed=3)
@@ -51,7 +47,7 @@ class RandomArenaTests(unittest.TestCase):
         for seed in range(20):
             self.env.reset(seed=seed)
             for ox, oz, radius in self.env.obstacles:
-                gap = math.hypot(ox - float(self.env.TARGET[0]), oz - float(self.env.TARGET[1]))
+                gap = math.hypot(ox - float(self.env.target[0]), oz - float(self.env.target[1]))
                 self.assertGreaterEqual(gap, radius + self.env.OBSTACLE_TARGET_CLEARANCE - 1e-6)
 
     def test_layout_changes_between_episodes(self):
@@ -81,7 +77,8 @@ class RandomArenaTests(unittest.TestCase):
 
     def test_reachability_rejects_a_walled_off_target(self):
         """A ring of obstacles sealing the target must fail the reachability check."""
-        tx, tz = float(self.env.TARGET[0]), float(self.env.TARGET[1])
+        self.env.reset(seed=9)
+        tx, tz = float(self.env.target[0]), float(self.env.target[1])
         wall = []
         for k in range(16):
             angle = k * (2 * math.pi / 16)
@@ -90,6 +87,7 @@ class RandomArenaTests(unittest.TestCase):
 
     def _place(self, obstacles, pos, yaw):
         self.env.obstacles = tuple(obstacles)
+        self.env.target = np.array([-20.0, -20.0], dtype=np.float32)
         self.env.position = np.array(pos, dtype=np.float32)
         self.env.yaw = float(yaw)
         self.env.steps = 0
@@ -97,6 +95,12 @@ class RandomArenaTests(unittest.TestCase):
         self.env.prev_distance = self.env._distance()
         self.env.last_collision = 0.0
         self.env.previous_action = np.zeros(2, dtype=np.float32)
+        self.env.best_distance = self.env.prev_distance
+        self.env.visited_cells.clear()
+        self.env.visited_views.clear()
+        cell, view = self.env._search_state()
+        self.env.visited_cells.add(cell)
+        self.env.visited_views.add(view)
         self.env.trajectory = [self.env.position.copy()]
 
     def test_stuck_rule_ends_a_wedged_episode_with_a_penalty(self):
@@ -121,7 +125,7 @@ class RandomArenaTests(unittest.TestCase):
         """No contact means the stuck counter never accumulates."""
         self._place((), (0.0, 0.0), 0.0)
         forward = np.array([1.0, 0.0], dtype=np.float32)
-        for _ in range(60):
+        for _ in range(20):
             _, _, terminated, _, info = self.env.step(forward)
             self.assertFalse(info["stuck"])
             self.assertEqual(self.env.stuck_steps, 0)

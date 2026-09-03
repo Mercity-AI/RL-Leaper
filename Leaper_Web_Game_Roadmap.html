@@ -1,0 +1,708 @@
+<style>
+  :root{
+    --paper:#FBFAF7; --ink:#1F2328; --soft:#3E434B; --muted:#6E747C; --faint:#9AA0A8;
+    --line:#E4E1D9; --panel:#F3F1EA; --panel-2:#ECE9E0;
+    --accent:#3E5C76; --accent-soft:#E9EDF1;
+    --serif:Georgia,"Cambria","Times New Roman",serif;
+    --sans:"Segoe UI",system-ui,-apple-system,sans-serif;
+    --mono:"Consolas","Cascadia Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:var(--paper);color:var(--ink);font-family:var(--serif);
+    font-size:18.5px;line-height:1.72;margin:0;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:70px 34px 110px}
+  p{margin:0 0 1.15em}
+  .lede,p,li{max-width:68ch}
+
+  /* headings & labels use the clean sans for contrast against serif body */
+  h1,h2,h3{font-family:var(--sans);color:var(--ink);text-wrap:balance}
+  h1{font-weight:700;font-size:clamp(36px,6vw,52px);line-height:1.08;letter-spacing:-.01em;margin:.1em 0 .3em}
+  h2{font-weight:700;font-size:clamp(25px,4vw,31px);line-height:1.15;margin:0 0 .35em;letter-spacing:-.005em}
+  h3{font-weight:600;font-size:20px;margin:1.6em 0 .3em}
+  .eyebrow{font-family:var(--sans);font-weight:600;font-size:12.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 12px}
+  .lede{font-size:21px;line-height:1.6;color:var(--soft);font-style:italic;margin:0 0 1em}
+  a{color:var(--accent)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel);padding:.08em .4em;
+    border-radius:4px;color:var(--soft)}
+  strong{font-weight:700}
+  em{font-style:italic}
+
+  header.hero{border-bottom:2px solid var(--ink);padding-bottom:34px;margin-bottom:14px}
+  .subtitle{font-family:var(--sans);color:var(--muted);font-size:16px;margin-top:4px}
+
+  section{margin:46px 0}
+  .rule{border:0;border-top:1px solid var(--line);margin:0}
+
+  /* figures */
+  figure{margin:34px 0;padding:0}
+  .figscroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;
+    background:#fff;padding:22px 20px}
+  figure svg{display:block;width:100%;height:auto;color:var(--ink)}
+  figcaption{font-family:var(--sans);font-size:14px;line-height:1.55;color:var(--muted);
+    margin-top:12px;padding-left:14px;border-left:2px solid var(--line)}
+  figcaption b{color:var(--soft)}
+
+  /* glossary list */
+  dl.gloss{margin:0}
+  dl.gloss div{padding:16px 0;border-top:1px solid var(--line)}
+  dl.gloss div:last-child{border-bottom:1px solid var(--line)}
+  dl.gloss dt{font-family:var(--sans);font-weight:700;font-size:17px;margin-bottom:2px}
+  dl.gloss dt span{font-weight:400;color:var(--accent);font-size:14px;letter-spacing:.02em}
+  dl.gloss dd{margin:0;color:var(--soft)}
+
+  /* callout — quiet, no loud color */
+  .note{background:var(--panel);border-left:3px solid var(--accent);
+    padding:16px 20px;margin:26px 0;border-radius:0 8px 8px 0}
+  .note p{margin:0;max-width:none}
+  .note .lbl{font-family:var(--sans);font-weight:700;font-size:12.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--accent);display:block;margin-bottom:5px}
+
+  /* performance stats */
+  .stats{display:flex;flex-wrap:wrap;gap:14px;margin:24px 0}
+  .stat{flex:1 1 150px;border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#fff}
+  .stat .n{font-family:var(--sans);font-weight:700;font-size:28px;line-height:1;color:var(--ink)}
+  .stat .l{font-family:var(--sans);font-size:13px;color:var(--muted);margin-top:6px;line-height:1.4}
+
+  ul.clean,ol.clean{margin:0 0 1.15em;padding-left:1.3em}
+  ul.clean li,ol.clean li{margin:.4em 0}
+
+  /* roadmap */
+  .phase{padding:22px 0;border-top:1px solid var(--line)}
+  .phase:last-of-type{border-bottom:1px solid var(--line)}
+  .phase .head{display:flex;align-items:baseline;gap:14px}
+  .phase .n{font-family:var(--sans);font-weight:700;font-size:15px;color:#fff;background:var(--accent);
+    width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .phase h3{margin:0}
+  .phase .body{margin-top:8px;padding-left:44px;color:var(--soft)}
+  .phase .meta{font-family:var(--sans);font-size:13px;color:var(--muted);margin-top:8px}
+  .phase .meta b{color:var(--accent);font-weight:600}
+
+  .footer{margin-top:64px;padding-top:20px;border-top:2px solid var(--ink);
+    font-family:var(--sans);color:var(--faint);font-size:13px}
+
+  @media print{
+    body{font-size:12pt;line-height:1.6}
+    .wrap{max-width:none;padding:0}
+    section{margin:26px 0}
+    figure,.phase,.note,.stat,dl.gloss div{break-inside:avoid}
+    h2{break-after:avoid}
+    .figscroll{overflow:visible}
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Leaper Project · A Plain-Language Guide</p>
+    <h1>From Brain to Browser</h1>
+    <p class="subtitle">Turning the trained Leaper brain into a real web game you can play —
+      how it works, what to expect, and the full roadmap, explained for a maker who is learning
+      as they go.</p>
+  </header>
+
+  <section>
+    <p class="lede">You have spent months teaching a six-legged robot how to move. That work is
+      done and it works. This guide is about the next chapter: giving that robot a game to live
+      in — one where it chases, shoots, dodges, and can be shot back — all inside a web page,
+      all in JavaScript.</p>
+    <p>Nothing here assumes you are a programmer. Every technical word is explained the first
+      time it appears, and the short forms are always spelled out. Read it straight through and
+      you should come away understanding the whole shape of the project: what we already have,
+      what we are building, in what order, and how each piece fits with the others. Take your
+      time — there is no rush, and every phase in the roadmap is something you will be able to
+      see and play with your own hands.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 1. WHERE WE ARE -->
+  <section>
+    <p class="eyebrow">Part One · Where we are today</p>
+    <h2>What we already have</h2>
+    <p>Everything inside your <code>E:\Leaper</code> folder is <em>already</em> a JavaScript web
+      project. It uses a tool called <strong>Three.js</strong>, which draws three-dimensional
+      graphics inside a normal web browser — that is what puts the robot, the ground, and the
+      world on screen. So there is nothing to "move to another language." The game is already
+      written in the language of the web. That is a real head start, and it means most of the
+      hard graphics work is behind you.</p>
+    <p>Python — the other language you have been using — was never the game. It was the
+      <em>workshop</em>. Python is where the brain was trained, using a method called
+      <strong>Reinforcement Learning (RL)</strong>: a way of teaching by trial and error, where
+      the robot tries something hundreds of thousands of times and slowly keeps whatever works.
+      The end result of all that training is a single small file — the brain — that takes in
+      "what the robot senses" and gives back "what the robot should do."</p>
+    <p>There is one honest catch about today's setup, and it is the reason this whole project
+      exists. Right now, the browser is not <em>running</em> the brain. It is playing back a
+      <strong>recording</strong> — a large file (about 42 megabytes) that Python made earlier,
+      like a video of the robot moving. A recording is perfect for studying training, but you
+      cannot fight a recording. It does not know you are there and it never reacts. The heart of
+      everything below is a single change: make the brain <strong>think live, in the browser,
+      many times a second,</strong> so it responds to a real human player.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 2. PERFORMANCE -->
+  <section>
+    <p class="eyebrow">Part Two · What the brain can actually do</p>
+    <h2>The brain's report card</h2>
+    <p>Before building on top of the brain, it helps to know exactly how good it is and where its
+      limits are — that way the game is designed around what it can genuinely do, not what we
+      wish it could do. These are the real numbers from your champion run, <strong>PPO_25</strong>,
+      measured over 100 fresh test attempts it had never seen.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="n">89%</div><div class="l">of targets reached successfully — nearly nine tries out of ten.</div></div>
+      <div class="stat"><div class="n">16</div><div class="l">vision rays sweeping a wide 270° arc — its whole sense of the world.</div></div>
+      <div class="stat"><div class="n">~6%</div><div class="l">of steps in collision — it mostly keeps itself clear of obstacles.</div></div>
+      <div class="stat"><div class="n">86%</div><div class="l">of steps moving forward — it is decisive, rarely dithering or reversing.</div></div>
+    </div>
+
+    <p>In plain terms: <strong>the brain is a confident, capable mover.</strong> It heads toward
+      its goal without hesitating, steers around most obstacles, and finishes the job the large
+      majority of the time. That is more than enough to make a lively, believable opponent in a
+      game.</p>
+    <p>Its honest limits are worth naming too. It "sees" only through those sixteen distance rays
+      — it has no memory of a moment ago, and it was trained to <em>reach a target</em>, not to
+      fight. That is completely fine, and in fact it shapes our whole plan: we let the trained
+      brain do the one thing it is excellent at — <strong>moving toward things and around
+      obstacles</strong> — and we add the fighting on top with simple hand-written rules, rather
+      than asking the brain to learn something it was never taught. More on that shortly.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 3. GLOSSARY -->
+  <section>
+    <p class="eyebrow">Part Three · The words we will use</p>
+    <h2>A plain-language glossary</h2>
+    <p>Read this once and the rest of the guide reads smoothly. Each short form is spelled out
+      here and then used freely.</p>
+
+    <dl class="gloss">
+      <div>
+        <dt>The Brain <span>· trained with PPO — Proximal Policy Optimization</span></dt>
+        <dd>The decision-maker you trained. <strong>PPO</strong> is just the name of the training
+          <em>method</em> — the trial-and-error recipe that taught it. What you are left with is a
+          small bundle of numbers that turns "what I see" into "what I do."</dd>
+      </div>
+      <div>
+        <dt>Its shape <span>· MLP — Multi-Layer Perceptron</span></dt>
+        <dd>The <em>type</em> of network inside the brain. An <strong>MLP</strong> is the simplest,
+          most standard kind — here just two small layers of 64. Being small and simple is a gift:
+          it runs instantly, even in a browser. Your file is labelled <code>MlpPolicy</code> for
+          exactly this reason.</dd>
+      </div>
+      <div>
+        <dt>No memory <span>· LSTM — Long Short-Term Memory</span></dt>
+        <dd>A memory add-on that some brains use to remember earlier moments. An <strong>LSTM</strong>
+          lets a network carry information forward in time. You tried it; it did not help, so the
+          champion has none. Good news for us — a memoryless brain is far simpler to run live,
+          because each frame stands entirely on its own.</dd>
+      </div>
+      <div>
+        <dt>What it senses <span>· the Observation — 26 numbers</span></dt>
+        <dd>Every frame, the brain is handed 26 numbers: <strong>16 vision rays</strong> (each the
+          distance to whatever it hits, spread across a 270° <strong>Field Of View, or FOV</strong>),
+          plus a few facts about the target's direction and the robot's own speed and body. Those
+          26 numbers are the brain's entire world.</dd>
+      </div>
+      <div>
+        <dt>What it decides <span>· the Action — 2 numbers</span></dt>
+        <dd>The brain answers with just two numbers: <strong>throttle</strong> (0 means stop, 1
+          means full speed ahead) and <strong>turn</strong> (−1 is hard left, +1 is hard right).
+          That is the brain's entire "muscle output" — everything else follows from those two.</dd>
+      </div>
+      <div>
+        <dt>The travel format <span>· ONNX — Open Neural Network Exchange</span></dt>
+        <dd>A universal save-file for brains that web browsers can read. We convert the Python
+          brain into an <strong>ONNX</strong> file <em>once</em>, and it becomes portable — ready
+          to travel out of Python and into the game.</dd>
+      </div>
+      <div>
+        <dt>The browser engine <span>· onnxruntime-web</span></dt>
+        <dd>A small, free JavaScript library that actually <em>runs</em> the ONNX brain inside the
+          web page — handing it the 26 numbers and reading back the 2, dozens of times a second.</dd>
+      </div>
+      <div>
+        <dt>The combat rules <span>· Behavior Tree, and its cousin the FSM — Finite State Machine</span></dt>
+        <dd>Hand-written "if this, then that" logic that decides <em>when to shoot or run</em> — no
+          training involved. A <strong>Behavior Tree</strong> is a checklist. An <strong>FSM</strong>
+          is its simpler cousin, where the leaper is in exactly one mode at a time. Both are
+          explained with pictures further on.</dd>
+      </div>
+    </dl>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 4. PIPELINE -->
+  <section>
+    <p class="eyebrow">Part Four · Getting the brain into the browser</p>
+    <h2>The brain's journey</h2>
+    <p>This is the single most important idea in the whole project, so it is worth slowing down
+      for. There are two very different worlds. On the left is a one-time step you do in Python,
+      on your own machine. On the right is the loop that runs forever inside the player's browser
+      while the game is being played.</p>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 860 330" role="img" aria-label="The brain's journey. On the left, a one-time offline step in Python: the trained brain file is exported to an ONNX file. On the right, the live browser loop that repeats every frame: build 26 observation numbers, run the brain, get 2 action numbers, move the legs, and look again.">
+          <defs>
+            <marker id="a1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="currentColor"/></marker>
+          </defs>
+          <text x="40" y="24" font-family="Consolas,monospace" font-size="12" letter-spacing="1.5" fill="#6E747C">DONE ONCE · IN PYTHON</text>
+          <text x="470" y="24" font-family="Consolas,monospace" font-size="12" letter-spacing="1.5" fill="#3E5C76">LIVE · EVERY FRAME · IN THE BROWSER</text>
+          <line x1="430" y1="40" x2="430" y2="310" stroke="#C9C4B8" stroke-dasharray="3 5"/>
+
+          <rect x="40" y="60" width="180" height="58" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="130" y="86" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">Trained brain</text>
+          <text x="130" y="105" text-anchor="middle" font-family="Consolas,monospace" font-size="11" fill="#6E747C">leaper_ppo.zip</text>
+
+          <line x1="130" y1="118" x2="130" y2="156" stroke="currentColor" marker-end="url(#a1)"/>
+          <text x="140" y="142" font-family="Consolas,monospace" font-size="11" fill="#6E747C">export</text>
+
+          <rect x="40" y="156" width="180" height="58" rx="10" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="130" y="182" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#28425a">Portable brain</text>
+          <text x="130" y="201" text-anchor="middle" font-family="Consolas,monospace" font-size="11" fill="#3E5C76">leaper.onnx</text>
+
+          <line x1="220" y1="185" x2="300" y2="185" stroke="currentColor" marker-end="url(#a1)"/>
+          <text x="228" y="176" font-family="Consolas,monospace" font-size="11" fill="#6E747C">ship in game</text>
+          <rect x="300" y="156" width="112" height="58" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="356" y="180" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="13" font-weight="700" fill="currentColor">Loaded by</text>
+          <text x="356" y="198" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#6E747C">onnxruntime-web</text>
+
+          <line x1="412" y1="185" x2="474" y2="185" stroke="#3E5C76" stroke-width="1.6" marker-end="url(#a1)"/>
+
+          <rect x="476" y="60" width="150" height="54" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="551" y="83" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="14" font-weight="700" fill="currentColor">Observation</text>
+          <text x="551" y="101" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#3E5C76">26 numbers in</text>
+
+          <rect x="676" y="156" width="150" height="58" rx="10" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="751" y="181" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="14" font-weight="700" fill="#28425a">The brain thinks</text>
+          <text x="751" y="199" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#3E5C76">the MLP runs</text>
+
+          <rect x="476" y="256" width="150" height="54" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="551" y="279" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="14" font-weight="700" fill="currentColor">Action</text>
+          <text x="551" y="297" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#3E5C76">2 numbers out</text>
+
+          <path d="M551,114 L551,132 L751,132 L751,156" fill="none" stroke="currentColor" marker-end="url(#a1)"/>
+          <path d="M751,214 L751,283 L626,283" fill="none" stroke="currentColor" marker-end="url(#a1)"/>
+          <path d="M476,283 L448,283 L448,240 L520,240" fill="none" stroke="currentColor" marker-end="url(#a1)"/>
+          <text x="560" y="128" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">feed in</text>
+          <text x="665" y="276" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">read out</text>
+          <text x="452" y="232" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">move legs → look again → repeat</text>
+        </svg>
+      </div>
+      <figcaption><b>Read it left to right.</b> The Python step happens once, on your machine.
+        Everything on the right repeats dozens of times a second inside the player's browser: build
+        the 26 numbers, run the brain, get 2 numbers back, move the legs, look again.</figcaption>
+    </figure>
+
+    <p>The beautiful part is how little needs to cross from Python into the game: just that one
+      <code>leaper.onnx</code> file. Once it is exported, you can build and change the game for
+      weeks without opening Python again. Python only comes back into the picture on the day you
+      decide you want a <em>smarter</em> brain — then you retrain, re-export, and drop in a new
+      file.</p>
+
+    <div class="note">
+      <span class="lbl">The one thing to get exactly right</span>
+      <p>The brain expects those 26 numbers to be built in JavaScript <strong>exactly</strong> the
+        way Python built them — the same order, the same scaling. If they are even slightly
+        different, the brain behaves as if it were dizzy. So the most important single task in this
+        whole plan is copying Python's "recipe" for the 26 numbers over to JavaScript, faithfully.
+        It is not difficult work; it simply has to be precise. This is the honest speed-bump of
+        using the real brain — worth it, but worth knowing about up front.</p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 5. GAME LOOP -->
+  <section>
+    <p class="eyebrow">Part Five · How a web game actually runs</p>
+    <h2>One loop, repeating forever</h2>
+    <p>Underneath every game — from the simplest phone game to the biggest console title — is a
+      single loop that repeats about sixty times every second. Each time around, it does three
+      things: it <strong>reads the player</strong>, it <strong>updates the world</strong>, and it
+      <strong>draws the new picture</strong>. Then it does it all again. When this happens sixty
+      times a second, your eye sees smooth, living motion.</p>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 800 230" role="img" aria-label="The game loop with three stages. Read the player's input, then update the world, then render the picture, then repeat. Inside the update stage sit the movement brain, the combat behavior tree, the bullets, and the hit checks.">
+          <defs><marker id="a2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="currentColor"/></marker></defs>
+          <rect x="20" y="64" width="150" height="66" rx="12" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="95" y="92" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">1 · Input</text>
+          <text x="95" y="112" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">read the player</text>
+
+          <rect x="325" y="38" width="150" height="66" rx="12" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="400" y="66" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#28425a">2 · Update</text>
+          <text x="400" y="86" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#3E5C76">move everything</text>
+
+          <rect x="630" y="64" width="150" height="66" rx="12" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="705" y="92" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">3 · Render</text>
+          <text x="705" y="112" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">Three.js draws it</text>
+
+          <line x1="170" y1="90" x2="322" y2="76" stroke="currentColor" marker-end="url(#a2)"/>
+          <line x1="475" y1="76" x2="627" y2="90" stroke="currentColor" marker-end="url(#a2)"/>
+          <path d="M705,130 L705,190 L95,190 L95,130" fill="none" stroke="currentColor" stroke-dasharray="4 4" marker-end="url(#a2)"/>
+          <text x="400" y="207" text-anchor="middle" font-family="Consolas,monospace" font-size="11" fill="#6E747C">…and immediately begin again, about 60 times per second</text>
+
+          <rect x="238" y="124" width="324" height="46" rx="9" fill="#fff" stroke="#3E5C76" stroke-dasharray="3 3"/>
+          <text x="400" y="142" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#3E5C76" font-weight="700">INSIDE UPDATE</text>
+          <text x="400" y="159" text-anchor="middle" font-family="Consolas,monospace" font-size="9.5" fill="#6E747C">brain → move · rules → aim &amp; shoot · bullets fly · check hits · apply damage</text>
+        </svg>
+      </div>
+      <figcaption><b>Where the thinking lives.</b> Both of the leaper's "brains" — the trained
+        <b>movement brain</b> and the hand-written <b>combat rules</b> — are simply steps inside the
+        Update stage. Everything the player finally sees comes out of the Render stage.</figcaption>
+    </figure>
+    <p>This is genuinely all a game is, at its core. Once you can picture this loop, the rest of
+      the project is just deciding what goes inside the "Update" step — and that is exactly where
+      our two brains and all the fun live.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 6. TECH MAP -->
+  <section>
+    <p class="eyebrow">Part Six · The whole toolbox, in one picture</p>
+    <h2>What does what</h2>
+    <p>This is the map you asked for — every tool and the exact job it holds. The important thing
+      to notice is that <strong>the whole game is one thing: JavaScript, running in the browser.</strong>
+      Inside it there are two "brains" with clearly separate jobs. Python sits off to the side,
+      not part of the game at all, quietly available for when you want to improve the brain.</p>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 800 420" role="img" aria-label="A layered map of the tools. Everything except Python lives inside one big box labelled the game, all JavaScript. At the top, Three.js and the browser draw the world and read the controls. Below sit two brains side by side: the movement brain, which is the trained network run by onnxruntime-web, and the combat brain, which is the hand-written behavior tree. Beneath them, an observation builder feeds the movement brain, and a game-state store holds health, positions and scores. Off to the right, separated, Python is the offline workshop that trains and exports the brain.">
+          <defs><marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="currentColor"/></marker></defs>
+
+          <rect x="16" y="40" width="540" height="366" rx="16" fill="none" stroke="#3E5C76" stroke-width="1.5"/>
+          <text x="34" y="64" font-family="Consolas,monospace" font-size="12" letter-spacing="1.2" fill="#3E5C76" font-weight="700">THE GAME · ALL JAVASCRIPT · RUNS IN THE BROWSER</text>
+
+          <rect x="40" y="78" width="492" height="56" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="56" y="101" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">Screen &amp; controls</text>
+          <text x="56" y="121" font-family="Consolas,monospace" font-size="11" fill="#6E747C">Three.js draws the arena, robot &amp; bullets · the browser reads keyboard &amp; mouse</text>
+
+          <rect x="40" y="150" width="240" height="92" rx="10" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="56" y="174" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#28425a">Movement brain</text>
+          <text x="56" y="194" font-family="Consolas,monospace" font-size="10.5" fill="#28425a">the trained MLP, run by</text>
+          <text x="56" y="209" font-family="Consolas,monospace" font-size="10.5" fill="#28425a">onnxruntime-web</text>
+          <text x="56" y="230" font-family="Consolas,monospace" font-size="10.5" fill="#3E5C76" font-style="italic">“where do I step?”</text>
+
+          <rect x="292" y="150" width="240" height="92" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="308" y="174" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">Combat brain</text>
+          <text x="308" y="194" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">behavior tree / FSM</text>
+          <text x="308" y="209" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">hand-written rules</text>
+          <text x="308" y="230" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C" font-style="italic">“shoot, or run away?”</text>
+
+          <rect x="40" y="258" width="240" height="56" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="56" y="281" font-family="Segoe UI,sans-serif" font-size="13.5" font-weight="700" fill="currentColor">Observation builder</text>
+          <text x="56" y="300" font-family="Consolas,monospace" font-size="10" fill="#6E747C">makes the 26 numbers, exactly like Python</text>
+
+          <rect x="292" y="258" width="240" height="56" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="308" y="281" font-family="Segoe UI,sans-serif" font-size="13.5" font-weight="700" fill="currentColor">Game state</text>
+          <text x="308" y="300" font-family="Consolas,monospace" font-size="10" fill="#6E747C">health · positions · bullets · scores</text>
+
+          <line x1="160" y1="258" x2="160" y2="244" stroke="#3E5C76" marker-end="url(#a3)"/>
+          <text x="168" y="255" font-family="Consolas,monospace" font-size="9.5" fill="#6E747C">feeds</text>
+          <text x="34" y="338" font-family="Consolas,monospace" font-size="10" fill="#6E747C">All four boxes are refreshed every frame by the game loop (Part Five).</text>
+
+          <rect x="590" y="78" width="196" height="164" rx="14" fill="none" stroke="#6E747C" stroke-dasharray="5 4"/>
+          <text x="604" y="102" font-family="Consolas,monospace" font-size="11.5" letter-spacing=".5" fill="#6E747C" font-weight="700">PYTHON · OFFLINE</text>
+          <text x="604" y="126" font-family="Segoe UI,sans-serif" font-size="14" font-weight="700" fill="currentColor">The workshop</text>
+          <text x="604" y="147" font-family="Consolas,monospace" font-size="10" fill="#6E747C">trains the brain (PPO)</text>
+          <text x="604" y="163" font-family="Consolas,monospace" font-size="10" fill="#6E747C">exports it to ONNX</text>
+          <text x="604" y="192" font-family="Consolas,monospace" font-size="10" fill="#6E747C">Not part of the game.</text>
+          <text x="604" y="208" font-family="Consolas,monospace" font-size="10" fill="#6E747C">Only opened when you</text>
+          <text x="604" y="224" font-family="Consolas,monospace" font-size="10" fill="#6E747C">want a better brain.</text>
+
+          <path d="M590,158 C572,158 556,200 535,196" fill="none" stroke="#6E747C" stroke-dasharray="4 4" marker-end="url(#a3)"/>
+          <text x="486" y="176" font-family="Consolas,monospace" font-size="9.5" fill="#6E747C">hands over leaper.onnx</text>
+        </svg>
+      </div>
+      <figcaption><b>The rule to carry with you:</b> the whole game is JavaScript, and Python only
+        ever hands over a single file. Two brains, clearly divided — one moves the body, one decides
+        the fighting — and everything is refreshed each frame by the loop from Part Five.</figcaption>
+    </figure>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 7. BT vs FSM -->
+  <section>
+    <p class="eyebrow">Part Seven · The fighting logic</p>
+    <h2>Behavior tree versus state machine</h2>
+    <p>Here is the good news you already sensed: you do <strong>not</strong> need reinforcement
+      learning to decide when the leaper shoots. Teaching a brain to fight would be an enormous,
+      painful effort for a web game. Instead we simply <em>write the rules</em> by hand, in plain
+      "if this, then that" form, and tune them by playing until they feel right. There are two
+      common ways to write those rules, and it helps to see both.</p>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 800 290" role="img" aria-label="Two ways to write the fighting rules. On the left, a state machine: three mode circles — chasing, shooting, and fleeing — with arrows that flip between them when conditions change. On the right, a behavior tree: a top-down priority checklist that each frame asks are you hurt, then is the player in range, then otherwise chase.">
+          <defs><marker id="a4" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="currentColor"/></marker></defs>
+          <line x1="400" y1="18" x2="400" y2="278" stroke="#C9C4B8"/>
+
+          <text x="24" y="30" font-family="Consolas,monospace" font-size="11.5" letter-spacing=".5" fill="#6E747C" font-weight="700">STATE MACHINE — one mode at a time</text>
+          <circle cx="105" cy="118" r="44" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="105" y="122" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="14" font-weight="700" fill="currentColor">Chasing</text>
+          <circle cx="290" cy="90" r="44" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="290" y="94" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="14" font-weight="700" fill="#28425a">Shooting</text>
+          <circle cx="230" cy="228" r="44" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="230" y="232" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="14" font-weight="700" fill="currentColor">Fleeing</text>
+          <path d="M148,106 C195,94 222,90 245,88" fill="none" stroke="currentColor" marker-end="url(#a4)"/>
+          <text x="160" y="84" font-family="Consolas,monospace" font-size="9.5" fill="#6E747C">in range</text>
+          <path d="M262,128 C244,150 236,162 238,182" fill="none" stroke="currentColor" marker-end="url(#a4)"/>
+          <text x="262" y="166" font-family="Consolas,monospace" font-size="9.5" fill="#6E747C">hurt</text>
+          <path d="M190,214 C154,196 134,178 122,159" fill="none" stroke="currentColor" marker-end="url(#a4)"/>
+          <text x="112" y="200" font-family="Consolas,monospace" font-size="9.5" fill="#6E747C">safe again</text>
+
+          <text x="432" y="30" font-family="Consolas,monospace" font-size="11.5" letter-spacing=".5" fill="#6E747C" font-weight="700">BEHAVIOR TREE — a priority checklist</text>
+          <rect x="556" y="46" width="150" height="30" rx="7" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="631" y="66" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">each frame, top-down ↓</text>
+          <rect x="452" y="104" width="316" height="38" rx="8" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="468" y="128" font-family="Consolas,monospace" font-size="12" fill="currentColor"><tspan font-weight="700">1. Am I hurt?</tspan>  → flee</text>
+          <rect x="452" y="150" width="316" height="38" rx="8" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="468" y="174" font-family="Consolas,monospace" font-size="12" fill="#28425a"><tspan font-weight="700">2. Player in range?</tspan>  → shoot</text>
+          <rect x="452" y="196" width="316" height="38" rx="8" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="468" y="220" font-family="Consolas,monospace" font-size="12" fill="currentColor"><tspan font-weight="700">3. Otherwise</tspan>  → chase (movement brain)</text>
+          <line x1="631" y1="76" x2="631" y2="104" stroke="currentColor" marker-end="url(#a4)"/>
+        </svg>
+      </div>
+      <figcaption><b>The difference in one line:</b> a <b>state machine</b> is a map of modes with
+        doors between them; a <b>behavior tree</b> is a priority list checked top to bottom every
+        frame, where the highest rule that is true wins. For the leaper, <b>start with the behavior
+        tree on the right</b> — it is the easiest to read, and the easiest to grow later.</figcaption>
+    </figure>
+    <p>Notice the lovely division of labour in that checklist: rules 1 and 2 handle the
+      <em>fighting</em> decisions, and rule 3 simply hands control back to the trained movement
+      brain to do the <em>chasing</em>. Your months of reinforcement-learning work power that last
+      line, while the fighting on top is just a few readable rules you can tune in an afternoon.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 8. DAMAGE -->
+  <section>
+    <p class="eyebrow">Part Eight · Making damage something you can see</p>
+    <h2>Health you can see and feel</h2>
+    <p>Your instinct here was exactly right, and it is a lovely one: a player should not need to
+      read a number to feel that they are winning. And you have a gift most games do not — your
+      robot is built from <em>six separate legs</em>. That means the robot's own body can be the
+      health bar. We do not just drain a number; we damage the machine itself.</p>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 800 260" role="img" aria-label="Four stages of damage to the six-legged robot. At full health it has all six legs and moves fast. At two-thirds health one leg has been blown off and it limps. At one-third health three legs are gone and it drags and sparks. At zero it collapses and is destroyed. A small bar above each stage shrinks from full to empty.">
+          <defs><marker id="a5" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="currentColor"/></marker></defs>
+
+          <g>
+            <rect x="40" y="24" width="120" height="8" rx="4" fill="#E7E3DA"/><rect x="40" y="24" width="120" height="8" rx="4" fill="#3E5C76"/>
+            <ellipse cx="100" cy="118" rx="28" ry="18" fill="#F3F1EA" stroke="currentColor" stroke-width="2"/>
+            <line x1="74" y1="110" x2="50" y2="96" stroke="currentColor" stroke-width="2.2"/><line x1="74" y1="118" x2="46" y2="118" stroke="currentColor" stroke-width="2.2"/><line x1="74" y1="126" x2="50" y2="140" stroke="currentColor" stroke-width="2.2"/>
+            <line x1="126" y1="110" x2="150" y2="96" stroke="currentColor" stroke-width="2.2"/><line x1="126" y1="118" x2="154" y2="118" stroke="currentColor" stroke-width="2.2"/><line x1="126" y1="126" x2="150" y2="140" stroke="currentColor" stroke-width="2.2"/>
+            <text x="100" y="175" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">Full</text>
+            <text x="100" y="194" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#6E747C">6 legs · fast</text>
+          </g>
+          <g>
+            <rect x="240" y="24" width="120" height="8" rx="4" fill="#E7E3DA"/><rect x="240" y="24" width="80" height="8" rx="4" fill="#3E5C76"/>
+            <ellipse cx="300" cy="118" rx="28" ry="18" fill="#F3F1EA" stroke="currentColor" stroke-width="2"/>
+            <line x1="274" y1="110" x2="250" y2="96" stroke="currentColor" stroke-width="2.2"/><line x1="274" y1="118" x2="246" y2="118" stroke="currentColor" stroke-width="2.2"/><line x1="274" y1="126" x2="250" y2="140" stroke="currentColor" stroke-width="2.2"/>
+            <line x1="326" y1="118" x2="354" y2="118" stroke="currentColor" stroke-width="2.2"/><line x1="326" y1="126" x2="350" y2="140" stroke="currentColor" stroke-width="2.2"/>
+            <line x1="326" y1="110" x2="336" y2="104" stroke="#9AA0A8" stroke-width="2.2" stroke-dasharray="2 3"/>
+            <text x="300" y="175" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">Two-thirds</text>
+            <text x="300" y="194" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#6E747C">1 leg gone · limps</text>
+          </g>
+          <g>
+            <rect x="440" y="24" width="120" height="8" rx="4" fill="#E7E3DA"/><rect x="440" y="24" width="40" height="8" rx="4" fill="#3E5C76"/>
+            <ellipse cx="500" cy="118" rx="28" ry="18" fill="#F3F1EA" stroke="currentColor" stroke-width="2"/>
+            <line x1="474" y1="118" x2="446" y2="118" stroke="currentColor" stroke-width="2.2"/><line x1="526" y1="126" x2="550" y2="140" stroke="currentColor" stroke-width="2.2"/><line x1="474" y1="126" x2="452" y2="140" stroke="currentColor" stroke-width="2.2"/>
+            <line x1="500" y1="100" x2="496" y2="88" stroke="#6E747C" stroke-width="1.8"/><line x1="510" y1="102" x2="518" y2="92" stroke="#6E747C" stroke-width="1.8"/><line x1="490" y1="102" x2="482" y2="94" stroke="#6E747C" stroke-width="1.8"/>
+            <text x="500" y="175" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">One-third</text>
+            <text x="500" y="194" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#6E747C">3 gone · drags, sparks</text>
+          </g>
+          <g>
+            <rect x="640" y="24" width="120" height="8" rx="4" fill="#E7E3DA"/>
+            <ellipse cx="700" cy="126" rx="30" ry="14" fill="none" stroke="#9AA0A8" stroke-width="2" transform="rotate(12 700 126)"/>
+            <line x1="678" y1="130" x2="658" y2="138" stroke="#9AA0A8" stroke-width="2"/><line x1="722" y1="124" x2="742" y2="118" stroke="#9AA0A8" stroke-width="2"/>
+            <text x="700" y="100" text-anchor="middle" font-family="Consolas,monospace" font-size="15" fill="#6E747C">✕</text>
+            <text x="700" y="175" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="currentColor">Empty</text>
+            <text x="700" y="194" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#6E747C">collapses · destroyed</text>
+          </g>
+          <line x1="164" y1="118" x2="236" y2="118" stroke="currentColor" stroke-dasharray="3 4" marker-end="url(#a5)" opacity=".55"/>
+          <line x1="364" y1="118" x2="436" y2="118" stroke="currentColor" stroke-dasharray="3 4" marker-end="url(#a5)" opacity=".55"/>
+          <line x1="564" y1="118" x2="636" y2="118" stroke="currentColor" stroke-dasharray="3 4" marker-end="url(#a5)" opacity=".55"/>
+          <text x="400" y="232" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">each solid hit breaks a piece of the machine — and it moves worse</text>
+        </svg>
+      </div>
+      <figcaption><b>The body <em>is</em> the health bar.</b> A small bar still shows the number, but
+        the real feedback is physical: legs blow off, the walk becomes a limp, sparks and smoke
+        appear. The player sees and feels the damage without reading a thing.</figcaption>
+    </figure>
+
+    <p>The trick to good "game feel" is to stack several of these cues at once, so a hit is
+      impossible to miss:</p>
+    <ul class="clean">
+      <li><strong>A floating health bar</strong> above the leaper that shrinks as it takes damage.</li>
+      <li><strong>A hit flash</strong> — the whole robot flashes bright for a split second on every
+        hit. This alone gives the instant, satisfying feeling of "I connected."</li>
+      <li><strong>Damage numbers</strong> — a small "−12" popping off the body, if you want an
+        arcade feel. Optional.</li>
+      <li><strong>Legs detaching</strong> — the strongest cue of all, and effectively free, because
+        you already built the robot from six separate legs.</li>
+      <li><strong>Movement getting worse</strong> — with fewer legs the robot moves slower and
+        limps. The brain still drives; it simply has weaker muscles now.</li>
+      <li><strong>Sound and a small screen shake</strong> on the final, killing blow.</li>
+    </ul>
+
+    <div class="note">
+      <span class="lbl">A quiet piece of magic</span>
+      <p>Because movement comes from the trained brain, and damage just <em>weakens the muscles</em>
+        (a lower top speed, a slower turn), you get believable "wounded" behavior for free — the
+        brain keeps trying its best plan with a broken body, exactly the way a real injured animal
+        would. You never have to program "limping." It simply emerges.</p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 9. TWO PLAYERS -->
+  <section>
+    <p class="eyebrow">Part Nine · Can two people play at once?</p>
+    <h2>Two players — the honest answer</h2>
+    <p>Yes — but <em>where</em> the two players sit changes the difficulty enormously, and it is
+      worth being honest about that from the start. There are two very different roads, and they
+      are not the same size of task at all.</p>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 800 240" role="img" aria-label="Two options for two-player. On the left, same-screen play: both players share one computer and one browser — easy. On the right, online play: two players on two computers connected over the internet through a server that constantly keeps them in sync — hard.">
+          <defs><marker id="a6" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="currentColor"/></marker></defs>
+          <line x1="400" y1="18" x2="400" y2="226" stroke="#C9C4B8"/>
+
+          <text x="24" y="30" font-family="Consolas,monospace" font-size="11.5" letter-spacing=".5" fill="#3E5C76" font-weight="700">A · SAME SCREEN — easy, start here</text>
+          <rect x="80" y="66" width="230" height="92" rx="12" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="195" y="94" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="15" font-weight="700" fill="#28425a">One computer</text>
+          <text x="195" y="116" text-anchor="middle" font-family="Consolas,monospace" font-size="11" fill="#28425a">P1: keyboard · P2: gamepad</text>
+          <text x="195" y="134" text-anchor="middle" font-family="Consolas,monospace" font-size="11" fill="#28425a">one browser, one game loop</text>
+          <text x="195" y="182" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">No internet, no server. Works today.</text>
+
+          <text x="432" y="30" font-family="Consolas,monospace" font-size="11.5" letter-spacing=".5" fill="#6E747C" font-weight="700">B · ONLINE — hard, much later</text>
+          <rect x="432" y="74" width="116" height="54" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="490" y="106" text-anchor="middle" font-family="Consolas,monospace" font-size="11" fill="currentColor">Player 1 PC</text>
+          <rect x="668" y="74" width="116" height="54" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="726" y="106" text-anchor="middle" font-family="Consolas,monospace" font-size="11" fill="currentColor">Player 2 PC</text>
+          <rect x="552" y="156" width="112" height="44" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="608" y="176" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="13" font-weight="700" fill="currentColor">Server</text>
+          <text x="608" y="192" text-anchor="middle" font-family="Consolas,monospace" font-size="9" fill="#6E747C">keeps them in sync</text>
+          <path d="M510,128 L588,156" stroke="currentColor" marker-end="url(#a6)"/>
+          <path d="M708,128 L628,156" stroke="currentColor" marker-end="url(#a6)"/>
+          <text x="576" y="146" font-family="Consolas,monospace" font-size="9" fill="#6E747C">internet</text>
+        </svg>
+      </div>
+      <figcaption><b>Same-screen is a weekend; online is a project of its own.</b> Online play needs
+        a server, a way to match players together, and constant syncing of two computers across the
+        internet — with all the lag, dropped connections and cheating that brings.</figcaption>
+    </figure>
+    <p><strong>My honest recommendation:</strong> ship <strong>one human versus the leaper</strong>
+      first. It is the simplest possible version, and — most importantly — it is the thing that
+      proves the trained brain really works in a live game. Add <strong>same-screen two-player</strong>
+      when you want a friend to join on the couch. Treat <strong>online play</strong> as a distant,
+      separate adventure for much later; it is a whole discipline in itself, not just another
+      feature to add.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- 10. ROADMAP -->
+  <section>
+    <p class="eyebrow">Part Ten · The build order</p>
+    <h2>The complete roadmap</h2>
+    <p>Here is the whole journey, in the order I would build it. The single most important
+      principle: <strong>every phase is something you can see and play.</strong> You never spend
+      weeks in the dark. Each step ends with a visible, working thing — which is exactly what keeps
+      a project alive when you are learning as you go.</p>
+
+    <div class="phase">
+      <div class="head"><span class="n">1</span><h3>Wake the brain up</h3></div>
+      <div class="body">
+        <p>Export <code>leaper_ppo.zip</code> into a <code>leaper.onnx</code> file in Python (one
+          small script, run once), then load it in the browser with onnxruntime-web. The real work
+          here is rebuilding Python's "26 numbers" recipe in JavaScript, exactly. When it is done,
+          the leaper chases a target <em>live</em>, reacting in real time — no more replaying a
+          recording. This is the moment your months of training first come alive on the web.</p>
+        <p class="meta"><b>The one genuinely hard step.</b> The "exact 26 numbers" gotcha lives here — get past this and the rest is downhill.</p>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="head"><span class="n">2</span><h3>Give the player a body and a gun</h3></div>
+      <div class="body">
+        <p>Let yourself move with the keys, aim with the mouse, and click to fire bullets into the
+          arena. No enemy behavior yet — just you, moving and shooting, learning how the controls
+          feel. Small and satisfying, and it involves no brain at all.</p>
+        <p class="meta"><b>Pure, ordinary JavaScript.</b> A gentle step after the hard one.</p>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="head"><span class="n">3</span><h3>Arm the leaper with the behavior tree</h3></div>
+      <div class="body">
+        <p>Add the chase → shoot → flee checklist from Part Seven. Now the leaper makes real combat
+          decisions layered on top of its brain-driven movement. It will start to feel like an
+          opponent with intentions, not just a wanderer.</p>
+        <p class="meta"><b>Hand-written rules,</b> tuned by playing until the leaper feels fair but dangerous.</p>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="head"><span class="n">4</span><h3>Bullets, hits and health</h3></div>
+      <div class="body">
+        <p>Make bullets actually check whether they hit; make hits deal damage; make damage trigger
+          the visible feedback from Part Eight — the flashes, the legs blowing off, the limp. This
+          is the phase where someone can finally win or lose. It becomes a game.</p>
+        <p class="meta"><b>The turning point,</b> where all the earlier pieces click together into something you play to win.</p>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="head"><span class="n">5</span><h3>Make it feel good</h3></div>
+      <div class="body">
+        <p>Add the finishing touches: health bars, a win-and-lose screen, a restart button, a score,
+          sound, a little screen shake. Then play it over and over and tune the numbers — firing
+          range, fire rate, damage, speed — until it is genuinely, honestly fun. This is usually
+          the longest and the most enjoyable phase.</p>
+        <p class="meta"><b>Polish and play-testing.</b> The part where a working prototype becomes a real little game.</p>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="head"><span class="n">6</span><h3>Later, only if you want it</h3></div>
+      <div class="body">
+        <p>Same-screen two-player from Part Nine. A smarter, retrained brain from the Python
+          workshop. And, someday far off, online play. None of these are needed to have a finished,
+          shareable game — they are optional adventures for when you are ready for them.</p>
+        <p class="meta"><b>Optional.</b> Your game is complete and worth sharing well before this point.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">In closing</p>
+    <p>The shape of the whole thing is simpler than it first looks. You already have the hardest,
+      most impressive part — a trained brain that moves well, and a 3D world to move it in. From
+      here it is one careful step (waking the brain up in the browser), then a series of small,
+      visible, satisfying additions on top. Take them one at a time, play with each before moving
+      on, and you will end up with a real game built around a real brain you taught yourself.
+      Whenever you are ready, the natural first move is Phase 1 — and we can take it together,
+      slowly, one piece at a time.</p>
+  </section>
+
+  <div class="footer">
+    Leaper · From Brain to Browser · a plain-language build guide<br>
+    Champion brain: PPO_25 · Multi-Layer Perceptron [64, 64] · 26 senses in, 2 actions out ·
+    no memory · 89% success · generated 2026-08-31
+  </div>
+
+</div>

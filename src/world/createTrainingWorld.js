@@ -69,10 +69,18 @@ export function createTrainingWorld(scene) {
     new THREE.Vector3(-TRAINING_WORLD_LIMIT, 0.05, TRAINING_WORLD_LIMIT),
     new THREE.Vector3(-TRAINING_WORLD_LIMIT, 0.05, -TRAINING_WORLD_LIMIT),
   ];
-  scene.add(new THREE.Line(
+  const boundary = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints(boundaryPoints),
     boundaryMaterial,
-  ));
+  );
+  scene.add(boundary);
+
+  const setArenaLimit = (limit = TRAINING_WORLD_LIMIT) => {
+    const scale = limit / TRAINING_WORLD_LIMIT;
+    ground.scale.set(scale, scale, scale);
+    grid.scale.set(scale, scale, scale);
+    boundary.scale.set(scale, scale, scale);
+  };
 
   return {
     ground,
@@ -80,5 +88,6 @@ export function createTrainingWorld(scene) {
     obstacleGroup,
     colliders,
     setObstacles,
+    setArenaLimit,
   };
 }

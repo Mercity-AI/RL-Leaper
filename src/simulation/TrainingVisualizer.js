@@ -5,9 +5,9 @@ function interpolateAngle(from, to, amount) {
   return from + difference * amount;
 }
 
-const VISION_FOV = THREE.MathUtils.degToRad(200);
-const VISION_SECTORS = 8;
-const VISION_RANGE = 12;
+const VISION_FOV = THREE.MathUtils.degToRad(270);
+const VISION_SECTORS = 16;
+const VISION_RANGE = 28;
 
 export class TrainingVisualizer {
   constructor({ simulation, target, world, panel }) {
@@ -16,7 +16,7 @@ export class TrainingVisualizer {
     this.world = world;
     this.panel = panel;
     this.data = null;
-    this.replayMode = 'training';
+    this.replayMode = 'evaluation';
     this.dataIndex = -1;
     this.workerIndex = 0;
     this.episodeIndex = 0;
@@ -69,7 +69,7 @@ export class TrainingVisualizer {
     });
     this.logInput.addEventListener('change', () => this.importLog());
     this.liveButton.addEventListener('click', () => this.useLiveFeed());
-    this.selectMode('training');
+    this.selectMode('evaluation');
   }
 
   createVisionDisplay() {
@@ -147,6 +147,10 @@ export class TrainingVisualizer {
     if (!episode || episode === this.syncedEpisode) return;
     this.syncedEpisode = episode;
     this.world.setObstacles?.(episode.obstacles ?? []);
+    this.world.setArenaLimit?.(episode.world_limit);
+    if (episode.target?.length >= 2) {
+      this.target.setPosition(episode.target[0], episode.target[1]);
+    }
   }
 
   collections() {
@@ -213,7 +217,7 @@ export class TrainingVisualizer {
       this.followLatest = false;
       this.liveButton.disabled = false;
       this.panel.querySelector('[data-field="source"]').textContent = `SOURCE: ${file.name}`;
-      this.selectMode(hasTrainingRollouts ? 'training' : 'evaluation');
+      this.selectMode(hasCheckpoints ? 'evaluation' : 'training');
     } catch (error) {
       this.panel.querySelector('[data-field="source"]').textContent = `IMPORT FAILED: ${error.message}`;
     } finally {
@@ -227,6 +231,7 @@ export class TrainingVisualizer {
     this.liveButton.disabled = true;
     this.panel.querySelector('[data-field="source"]').textContent = 'SOURCE: LIVE FEED';
     this.lastFetch = Infinity;
+    this.selectMode('evaluation');
     this.refresh();
   }
 
@@ -318,6 +323,12 @@ export class TrainingVisualizer {
     const amount = framePosition - frameIndex;
     const from = episode.frames[frameIndex];
     const to = episode.frames[Math.min(frameIndex + 1, episode.frames.length - 1)];
+    const targetState = from.target_visible
+      ? 'TARGET: VISIBLE'
+      : from.target_ever_seen
+        ? 'TARGET: REMEMBERED · CURRENTLY HIDDEN'
+        : 'TARGET: NOT DISCOVERED';
+    this.panel.querySelector('[data-field="target-state"]').textContent = targetState;
     this.updateVisionDisplay(from);
     this.simulation.updateExternal(
       {
@@ -381,7 +392,7 @@ export class TrainingVisualizer {
         ? `MEAN REWARD ${record.mean_reward.toFixed(2)} · SUCCESS ${(record.success_rate * 100).toFixed(0)}%`
         : 'THE FIRST REPLAY APPEARS AT 10,000 STEPS';
       this.panel.querySelector('[data-field="episode"]').textContent = episode
-        ? `${episode.exploratory ? 'EXPLORATORY ' : ''}REPLAY ${this.episodeIndex + 1}/${episodes.length} · ${episode.success ? 'TARGET REACHED' : 'MISSED'} · REWARD ${episode.reward.toFixed(2)}`
+        ? `DETERMINISTIC REPLAY ${this.episodeIndex + 1}/${episodes.length} · ${episode.success ? 'TARGET REACHED' : 'MISSED'} · REWARD ${episode.reward.toFixed(2)}`
         : 'WAITING FOR CHECKPOINT DATA';
       this.panel.querySelector('[data-field="worker"]').textContent = 'EVALUATION MODE';
     }

@@ -1,4 +1,10 @@
-"""Focused checks for the PPO_10 signed-throttle experiment."""
+"""Movement-contract checks for the throttle.
+
+Originally these pinned PPO_10's *signed* throttle (reverse allowed). PPO_18 makes
+movement forward-only (the robot turns to face where it walks), so the reverse
+cases are replaced with forward-only checks. The diagnostic classifier still
+recognizes a negative throttle as "reverse" and is exercised directly.
+"""
 
 import math
 import unittest
@@ -9,7 +15,7 @@ from rl_environment import LeaperReachEnv
 from train_rl import classify_throttle
 
 
-class SignedThrottleTests(unittest.TestCase):
+class ForwardOnlyThrottleTests(unittest.TestCase):
     def setUp(self):
         self.env = LeaperReachEnv()
 
@@ -26,9 +32,13 @@ class SignedThrottleTests(unittest.TestCase):
         self.env.trajectory = [self.env.position.copy()]
         self.assertIsNone(self.env._collision_for_pose(self.env.position, yaw))
 
-    def test_action_space_accepts_full_reverse(self):
-        self.assertTrue(
+    def test_action_space_is_forward_only(self):
+        self.assertEqual(float(self.env.action_space.low[0]), 0.0)
+        self.assertFalse(
             self.env.action_space.contains(np.array([-1.0, 0.0], dtype=np.float32))
+        )
+        self.assertTrue(
+            self.env.action_space.contains(np.array([1.0, 0.0], dtype=np.float32))
         )
 
     def test_positive_throttle_moves_forward(self):
@@ -42,15 +52,12 @@ class SignedThrottleTests(unittest.TestCase):
         )
         self.assertTrue(self.env.observation_space.contains(observation))
 
-    def test_negative_throttle_moves_backward(self):
+    def test_negative_throttle_clips_to_no_backward_move(self):
         self.set_pose()
         start = self.env.position.copy()
         self.env.step(np.array([-1.0, 0.0], dtype=np.float32))
-        np.testing.assert_allclose(
-            self.env.position - start,
-            np.array([0.0, -self.env.MOVE_SPEED]),
-            atol=1e-6,
-        )
+        # Reverse is disabled: a negative throttle clips to zero, so no translation.
+        np.testing.assert_allclose(self.env.position, start, atol=1e-6)
 
     def test_zero_throttle_does_not_translate(self):
         self.set_pose()
@@ -58,32 +65,33 @@ class SignedThrottleTests(unittest.TestCase):
         self.env.step(np.array([0.0, 0.0], dtype=np.float32))
         np.testing.assert_allclose(self.env.position, start, atol=1e-6)
 
-    def test_reverse_uses_candidate_facing_direction(self):
+    def test_forward_move_uses_candidate_facing_direction(self):
         self.set_pose()
         start = self.env.position.copy()
-        self.env.step(np.array([-1.0, 1.0], dtype=np.float32))
+        self.env.step(np.array([1.0, 1.0], dtype=np.float32))
         expected_yaw = self.env.TURN_SPEED
         expected_heading = np.array(
             [math.sin(expected_yaw), math.cos(expected_yaw)], dtype=np.float32
         )
         np.testing.assert_allclose(
             self.env.position - start,
-            -expected_heading * self.env.MOVE_SPEED,
+            expected_heading * self.env.MOVE_SPEED,
             atol=1e-6,
         )
         self.assertAlmostEqual(self.env.yaw, expected_yaw, places=6)
 
-    def test_observation_remains_valid_after_reverse(self):
+    def test_observation_remains_valid_after_step(self):
         observation, _ = self.env.reset(seed=7)
         self.assertEqual(observation.shape, (10 + self.env.RAY_COUNT,))
         self.assertTrue(self.env.observation_space.contains(observation))
         observation, _, _, _, _ = self.env.step(
-            np.array([-0.5, 0.25], dtype=np.float32)
+            np.array([0.5, 0.25], dtype=np.float32)
         )
         self.assertTrue(self.env.observation_space.contains(observation))
-        self.assertAlmostEqual(float(observation[8]), -0.5)
+        # previous-throttle channel echoes the (forward) action just taken.
+        self.assertAlmostEqual(float(observation[8]), 0.5)
 
-    def test_diagnostic_classifier_does_not_count_reverse_as_stopped(self):
+    def test_diagnostic_classifier_recognizes_reverse(self):
         self.assertEqual(classify_throttle(-0.25), "reverse")
         self.assertEqual(classify_throttle(0.25), "forward")
         self.assertEqual(classify_throttle(1e-9), "stopped")

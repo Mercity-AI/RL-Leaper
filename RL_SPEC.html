@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaper RL Specification</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a22;
+    --panel-2: #1d212b;
+    --border: #2a2f3a;
+    --text: #e6e8ee;
+    --muted: #9aa2b1;
+    --accent: #ff8b3d;
+    --accent-2: #ff4fa3;
+    --link: #6db3ff;
+    --code-bg: #12151c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 0 20px 120px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  header.page {
+    padding: 48px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  header.page h1 {
+    font-size: 2.1rem; margin: 0 0 10px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  header.page p { color: var(--muted); margin: 0; max-width: 62ch; }
+  h2 {
+    margin: 44px 0 14px; padding-top: 18px;
+    font-size: 1.4rem; border-top: 1px solid var(--border);
+  }
+  h2 .num { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 8px; }
+  h3 { margin: 28px 0 10px; font-size: 1.1rem; color: #cfd3dc; }
+  p { margin: 12px 0; }
+  a { color: var(--link); }
+  .callout {
+    background: var(--panel);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px; border-radius: 8px; margin: 18px 0;
+    color: #d6dae3;
+  }
+  .callout strong { color: #fff; }
+  ul { padding-left: 22px; }
+  li { margin: 6px 0; }
+  code {
+    background: var(--code-bg); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px;
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    font-size: 0.88em; color: #ffd7a8;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+    font-family: "Cascadia Code", "Consolas", ui-monospace, monospace;
+    font-size: 0.86rem; line-height: 1.5; color: #d3d8e2;
+  }
+  pre code { background: none; border: none; padding: 0; color: inherit; }
+  .table-scroll { overflow-x: auto; margin: 16px 0; border-radius: 10px; border: 1px solid var(--border); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  thead th { background: var(--panel-2); color: #cfd3dc; font-weight: 600; white-space: nowrap; }
+  tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+  td code { white-space: nowrap; }
+  .num-col { text-align: right; font-variant-numeric: tabular-nums; }
+  .tag {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 999px; padding: 2px 10px; margin-bottom: 10px;
+  }
+  footer.page { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; margin: 24px 0; }
+  .toc strong { display: block; margin-bottom: 6px; color: #cfd3dc; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc a { text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="page">
+  <h1>Leaper RL Specification</h1>
+  <p>A single-source technical reference for everything RL-specific about the Leaper:
+  sensors, action space, the underlying model, and the environment/experiment design.
+  All numbers are pulled directly from <code>rl_environment.py</code>, <code>train_rl.py</code>,
+  and a loaded PPO_12 policy. Reflects the current PPO_11/PPO_12 baseline.</p>
+</header>
+
+<div class="callout">
+  <strong>One framing note up front.</strong> The Leaper RL agent lives in a lightweight
+  <em>simulated</em> 2D world, not on physical hardware. There are no real hardware sensors
+  (no cameras, no IMU, no encoders). Every "sensor" below is a value the simulator
+  <em>computes from the known world state</em> each step and hands to the policy as part of
+  its observation vector. Where a value has a natural physical location on the body, that is given.
+</div>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#s1">Sensors (observation channels)</a></li>
+    <li><a href="#s2">Capabilities / Action space</a></li>
+    <li><a href="#s3">Underlying AI model</a></li>
+    <li><a href="#s4">Environment &amp; experiment design</a></li>
+  </ol>
+</div>
+
+<h2 id="s1"><span class="num">1.</span>Sensors (observation channels)</h2>
+<p>The policy receives an <strong>18-value observation</strong> every step, all <code>float32</code>.
+It splits into two groups: 10 navigation/proprioception values (indices 0–9) and 8 rangefinder
+values (indices 10–17). One reading is produced per environment step (sampling rate = control
+rate = 1 per step, 400 steps max per episode). Source: <code>LeaperReachEnv._observation</code>
+and <code>_ray_distances</code>.</p>
+
+<h3>Navigation &amp; proprioception (indices 0–9)</h3>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Idx</th><th>Name</th><th>Body location</th><th>What it measures</th><th>Formula</th><th>Format</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td>Position X</td><td>Body center</td><td>Robot's X position in the arena</td><td><code>x / 25</code></td><td>float ~[-1,1]</td></tr>
+    <tr><td>1</td><td>Position Z</td><td>Body center</td><td>Robot's Z (planar "y") position</td><td><code>z / 25</code></td><td>float ~[-1,1]</td></tr>
+    <tr><td>2</td><td>Target dir X</td><td>Body center</td><td>Unit vector toward goal, X part</td><td><code>Δx / ‖Δ‖</code></td><td>float [-1,1]</td></tr>
+    <tr><td>3</td><td>Target dir Z</td><td>Body center</td><td>Unit vector toward goal, Z part</td><td><code>Δz / ‖Δ‖</code></td><td>float [-1,1]</td></tr>
+    <tr><td>4</td><td>Normalized distance</td><td>Body center</td><td>Straight-line distance to goal</td><td><code>dist / (2√2·25)</code></td><td>float [0,1]</td></tr>
+    <tr><td>5</td><td>Facing (sin)</td><td>Body center</td><td>Heading angle, sine component</td><td><code>sin(yaw)</code></td><td>float [-1,1]</td></tr>
+    <tr><td>6</td><td>Facing (cos)</td><td>Body center</td><td>Heading angle, cosine component</td><td><code>cos(yaw)</code></td><td>float [-1,1]</td></tr>
+    <tr><td>7</td><td>Last collision flag</td><td>Whole body</td><td>Whether the <em>previous</em> step's move was blocked</td><td><code>1.0 / 0.0</code></td><td>float {0,1}</td></tr>
+    <tr><td>8</td><td>Previous throttle</td><td>action memory</td><td>Forward/back command issued last step</td><td>last <code>action[0]</code></td><td>float [-1,1]</td></tr>
+    <tr><td>9</td><td>Previous turn</td><td>action memory</td><td>Turn command issued last step</td><td>last <code>action[1]</code></td><td>float [-1,1]</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Indices 0–7 are ground-truth "GPS + compass + bump sensor"; indices 8–9 are short-term memory
+of the agent's own last command.</p>
+
+<h3>Obstacle-clearance rangefinders (indices 10–17) — "the eyes"</h3>
+<p>Eight rays cast <strong>from the body center</strong>, fanning out every <strong>45°</strong>
+around the current facing. Ray 0 points straight ahead; the other seven are spaced 45° apart
+around the full circle.</p>
+<ul>
+  <li><strong>Type:</strong> analytic ray-cast (ray–circle and ray–wall intersection), not a physical LIDAR. Computed in <code>_ray_distances</code>.</li>
+  <li><strong>Measures:</strong> clear distance along each ray to the nearest of the five obstacles or the four arena walls.</li>
+  <li><strong>Range / normalization:</strong> <code>RAY_MAX_RANGE = 12.0</code> units. Output = clear distance ÷ 12.0, clipped to <code>[0,1]</code>. <strong>1.0 = nothing within 12 units; near 0 = an obstacle/wall right against that ray.</strong></li>
+  <li><strong>Sampling rate:</strong> once per step.</li>
+  <li><strong>Output format:</strong> 8 × <code>float32</code> in <code>[0,1]</code>.</li>
+</ul>
+<p>Adding these eight rays (PPO_11) is the single change that took the project from 5% to 69%
+deterministic success — the policy went from blind to sighted.</p>
+
+<h3>Collision-sensing geometry (used internally, not a numeric channel)</h3>
+<p>Collisions are tested against <strong>19 sample points</strong> on the body (<code>_collision_points</code>):</p>
+<ul>
+  <li><strong>1 body point</strong> at the center, collision radius <code>AGENT_RADIUS = 0.75</code>.</li>
+  <li><strong>18 leg points:</strong> the hexapod's <strong>6 legs</strong> at fixed body-frame angles <code>LEG_ANGLES = (±0.62, ±1.57, ±2.42)</code> rad. Each leg has <strong>3 samples</strong> along its length at radii <code>1.2, 2.2, 3.24</code> units from center, each with collision radius <code>0.24</code>.</li>
+</ul>
+<p>A pose "collides" if any of the 19 points crosses a wall or an obstacle circle. This drives the
+<code>last_collision</code> flag (index 7) and the collision penalty, but the geometry itself is
+not fed to the policy as numbers.</p>
+
+<h2 id="s2"><span class="num">2.</span>Capabilities / Action space</h2>
+<p>The action space is a <strong>2-value continuous Box</strong>, each in <code>[-1, 1]</code>,
+<code>float32</code>. One action is applied per step; values outside <code>[-1,1]</code> are clipped.</p>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Action</th><th>Range</th><th>Meaning</th><th>Constraint (per step)</th></tr></thead>
+  <tbody>
+    <tr><td><code>action[0]</code> — throttle</td><td><code>[-1,1]</code></td><td>Signed forward/back. +1 = full forward, 0 = stop, -1 = full reverse</td><td>Max displacement <code>MOVE_SPEED = 0.75</code> units/step</td></tr>
+    <tr><td><code>action[1]</code> — turn</td><td><code>[-1,1]</code></td><td>Turn rate, either direction</td><td>Max rotation <code>TURN_SPEED = 18°</code>/step</td></tr>
+  </tbody>
+</table>
+</div>
+<p><strong>Behaviors supported:</strong> move forward, move backward (reverse), turn left, turn
+right, stop, and any blend (arc = throttle + turn together). The robot moves along its
+<em>facing</em> direction; there is no strafing and <strong>no jump</strong> — despite the name
+"Leaper," the RL agent is a planar navigator with no vertical axis.</p>
+<p><strong>Collision-response rule (PPO_12).</strong> Each step computes a candidate turn, then a
+candidate move along the new facing:</p>
+<ul>
+  <li>If the full combined turn-and-move pose is collision-free → apply both.</li>
+  <li>If blocked → resolve independently: rotate in place if the turned pose alone is clear, then translate along the resolved facing if that alone is clear.</li>
+</ul>
+<p>This lets a robot touching an obstacle still turn or reverse out of contact instead of freezing.
+The <strong>collision flag and its penalty still reflect the full intended move</strong>, so a
+robot sliding along an obstacle edge while still progressing registers a collision every step (a
+known quirk that inflates the reported collision rate).</p>
+
+<h2 id="s3"><span class="num">3.</span>Underlying AI model</h2>
+<p>Confirmed by loading the trained PPO_12 policy (<code>ppo_12_collision_recovery_100k/leaper_ppo.zip</code>).</p>
+<ul>
+  <li><strong>Algorithm:</strong> PPO (Proximal Policy Optimization), Stable-Baselines3.</li>
+  <li><strong>Policy class:</strong> <code>MlpPolicy</code> → <code>ActorCriticPolicy</code> (separate actor and critic networks; no shared trunk, no CNN, no RNN — flat 18-vector input).</li>
+  <li><strong>Total parameters:</strong> <strong>10,949</strong> (all trainable).</li>
+  <li><strong>Activation:</strong> Tanh throughout.</li>
+  <li><strong>Action distribution:</strong> diagonal Gaussian — <code>action_net</code> outputs the 2 means; a separate state-independent log-std vector (2 params) sets exploration spread.</li>
+</ul>
+<h3>Architecture (shape)</h3>
+<pre><code>Observation (18) ──► FlattenExtractor ──┬──► Policy net (actor)
+                                        │      Linear 18→64 ─ Tanh
+                                        │      Linear 64→64 ─ Tanh
+                                        │      action_net: Linear 64→2  (action means)
+                                        │      log_std: 2 (state-independent)
+                                        │
+                                        └──► Value net (critic)
+                                               Linear 18→64 ─ Tanh
+                                               Linear 64→64 ─ Tanh
+                                               value_net: Linear 64→1  (state value)</code></pre>
+<h3>Parameter breakdown (= 10,949)</h3>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Block</th><th>Layers</th><th class="num-col">Params</th></tr></thead>
+  <tbody>
+    <tr><td>Actor MLP</td><td>18→64, 64→64</td><td class="num-col">5,376</td></tr>
+    <tr><td>Actor head (<code>action_net</code>)</td><td>64→2</td><td class="num-col">130</td></tr>
+    <tr><td>Log-std (exploration)</td><td>2</td><td class="num-col">2</td></tr>
+    <tr><td>Critic MLP</td><td>18→64, 64→64</td><td class="num-col">5,376</td></tr>
+    <tr><td>Critic head (<code>value_net</code>)</td><td>64→1</td><td class="num-col">65</td></tr>
+    <tr><td><strong>Total</strong></td><td></td><td class="num-col"><strong>10,949</strong></td></tr>
+  </tbody>
+</table>
+</div>
+<p>A deliberately tiny network — the task is low-dimensional (18 inputs, 2 outputs), so a 2-layer
+64-wide MLP is ample.</p>
+
+<h2 id="s4"><span class="num">4.</span>Environment &amp; experiment design</h2>
+
+<h3>4.1 Environment (<code>LeaperReachEnv</code>, a Gymnasium <code>gym.Env</code>)</h3>
+<ul>
+  <li><strong>World:</strong> continuous 2D plane (X, Z), bounds <code>[-25, 25]</code> on both axes.</li>
+  <li><strong>Target:</strong> fixed at <code>(18, 18)</code>, radius 1.4. Reached when distance ≤ 1.4 + 0.75 = 2.15.</li>
+  <li><strong>Obstacles:</strong> 5 fixed circles (x, z, radius): (-10,-5,3.2), (1,4,3.0), (10,11,2.8), (-7,13,2.6), (12,-8,3.4).</li>
+  <li><strong>Spawn (per episode):</strong> random position in <code>[-21, 21]²</code> with random yaw in <code>[-π, π]</code>, re-sampled until collision-free and ≥ 2 units clear of the target. Starts and headings randomized every episode; arena, obstacles, and goal fixed.</li>
+  <li><strong>Episode length:</strong> up to 400 steps.</li>
+  <li><strong>Observation space:</strong> <code>Box(-1, 1, shape=(18,), float32)</code> — see §1.</li>
+  <li><strong>Action space:</strong> <code>Box(-1, 1, shape=(2,), float32)</code> — see §2.</li>
+</ul>
+
+<h3>4.2 Reward structure (per step)</h3>
+<pre><code>reward = progress + time + collision + goal
+
+progress   = 0.2 * (prev_distance - current_distance)   # DISTANCE_REWARD_SCALE
+time       = -0.01                                       # every step
+collision  = -0.18 if the intended move was blocked else 0
+goal       = +25.0 on the step the target is reached else 0</code></pre>
+<p>The only extra reward state is <code>prev_distance</code>, reset at episode start and updated each
+step. Progress reward is symmetric: closer is positive, away is negative. No other shaping terms.</p>
+
+<h3>4.3 Termination / truncation</h3>
+<ul>
+  <li><strong>Terminated (success):</strong> distance ≤ 2.15 → +25 and episode ends.</li>
+  <li><strong>Truncated (timeout):</strong> step count reaches 400.</li>
+  <li><strong>Collisions never end an episode</strong> — they only cost reward and block motion (why a stuck deterministic policy can loop to timeout, the failure PPO_12 addressed).</li>
+</ul>
+
+<h3>4.4 PPO hyperparameters (baseline)</h3>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Policy</td><td><code>MlpPolicy</code></td></tr>
+    <tr><td>Parallel environments</td><td>8</td></tr>
+    <tr><td>Learning rate</td><td>3e-4</td></tr>
+    <tr><td>n_steps (per env)</td><td>1024</td></tr>
+    <tr><td>Rollout buffer</td><td>8,192 transitions (1024 × 8)</td></tr>
+    <tr><td>Batch size</td><td>256 (32 minibatches/epoch)</td></tr>
+    <tr><td>Epochs per rollout</td><td>10 (320 gradient updates/rollout)</td></tr>
+    <tr><td>Gamma (discount)</td><td>0.995</td></tr>
+    <tr><td>GAE lambda</td><td>0.95</td></tr>
+    <tr><td>Entropy coefficient</td><td>0.01</td></tr>
+    <tr><td>Clip range, VF coef, etc.</td><td>SB3 defaults</td></tr>
+    <tr><td>Device</td><td>auto</td></tr>
+    <tr><td>Seed</td><td>natural random per run (recorded in <code>training_config.json</code>); no longer fixed at 7</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Because PPO completes whole 8,192-transition rollouts, a requested 100,000-step run actually
+collects <strong>106,496</strong> steps (300,000 → 303,104).</p>
+
+<h3>4.5 Evaluation setup</h3>
+<p>Two distinct measurements, kept separate on purpose:</p>
+<ul>
+  <li><strong>Periodic checkpoint eval</strong> — every 10,000 steps: 25 deterministic episodes (seeds <code>10,000 + i</code>) plus 5 exploratory episodes (seeds <code>20,000 + i</code>) recorded for the visualizer, and a checkpoint model saved.</li>
+  <li><strong>Final deterministic diagnostics</strong> — after training, 100 deterministic episodes on fixed seeds from 10,000. This is the canonical "exam" all runs are compared on: success rate, timeout rate, mean reward, net target progress, forward/reverse/stopped %, throttle stats, collision-step %, mean &amp; worst collision streak, average episode length, and reward breakdown.</li>
+</ul>
+<p>Fixed evaluation seeds are held constant across runs so cross-run comparison stays fair, even
+though training now uses natural random seeds. The latest 100 stochastic training episodes are
+also summarized separately and are <em>not</em> treated as evidence of deployment quality.</p>
+
+<h3>4.6 Experiment discipline</h3>
+<ul>
+  <li><strong>One controlled change per run.</strong> Change exactly one learning-relevant thing (observation, action, physics, or reward) per experiment; record it in <code>TRAINING.md</code>. Any such change invalidates older trained policies.</li>
+  <li><strong>Smoke first, then main.</strong> A 20k-step smoke test (collects 24,576) verifies the run is NaN-free and passes Gymnasium's <code>check_env</code> before the full run.</li>
+  <li><strong>Scale up only after replication.</strong> Increase total timesteps only once a change repeats across seeds and success/progress is still improving.</li>
+  <li><strong>Artifacts are per-run and git-ignored.</strong> Each run writes to its own <code>--artifact-dir</code> (model, checkpoints, CSVs, TensorBoard events, replay JSON, evaluation and config JSON).</li>
+</ul>
+
+<footer class="page">
+  <strong>Sources:</strong> <code>rl_environment.py</code> (environment, observation, action, physics, reward);
+  <code>train_rl.py</code> (PPO config, evaluation, diagnostics); loaded policy
+  <code>ppo_12_collision_recovery_100k/leaper_ppo.zip</code> (architecture &amp; 10,949 params);
+  <code>TRAINING.md</code> (run history); <code>src/config/robot.js</code> (physical hexapod geometry;
+  the RL collision model uses its own simplified 19-point geometry).
+</footer>
+
+</div>
+</body>
+</html>

@@ -13,7 +13,7 @@
       <h1>LEAPER</h1>
       <div class="sub">ARC-CLASS HEXAPOD // FIELD SIMULATION</div>
       <div class="rule"></div>
-      <div class="keys"><b>W A S D</b> MOVE &nbsp;·&nbsp; <b>SHIFT</b> SPRINT<br />
+      <div class="keys" id="controlHelp"><b>W A S D</b> MOVE &nbsp;·&nbsp; <b>SHIFT</b> SPRINT<br />
         <b>SPACE</b> JUMP &nbsp;·&nbsp; <b>DRAG</b> ORBIT / LOOK &nbsp;·&nbsp; <b>VIEW</b> TOGGLE<br />
         <b>P</b> SELECT PINK CUBOID &nbsp;·&nbsp; <b>I J K L</b> MOVE IT
       </div>
@@ -21,24 +21,25 @@
 
     <div id="status">UNIT-04 // BOOT</div>
     <button id="cameraToggle" type="button">VIEW: CHASE</button>
-    <button id="cuboidToggle" type="button">PINK: SELECT</button>
+    <button id="cuboidToggle" type="button">TARGET: SELECT</button>
     <div id="topViewHint">DRAG GROUND TO PAN&nbsp;&nbsp;·&nbsp;&nbsp;WHEEL TO ZOOM</div>
 
     <section id="trainingPanel" aria-label="RL training replay">
       <div class="feed-summary">
         <div class="feed-eyebrow">
-          <span class="training-label">PPO TRAINING REPLAY · 200° BODY-AWARE VISION</span>
+          <span class="training-label">PPO SEEKER TRAINING · 270° / 16-RAY VISION</span>
           <span class="training-state" data-field="state">CONNECTING</span>
         </div>
         <div class="training-checkpoint" data-field="checkpoint">NO CHECKPOINT YET</div>
         <div class="training-metrics" data-field="metrics">THE FIRST REPLAY APPEARS AT 10,000 STEPS</div>
+        <div class="target-state" data-field="target-state">TARGET: NOT DISCOVERED</div>
         <div class="episode-summary" data-field="episode">WAITING FOR TRAINING DATA</div>
       </div>
 
       <div class="feed-playback">
         <div class="replay-mode" aria-label="Replay data source">
-          <button type="button" data-action="training-mode" class="on">ACTUAL PPO ROLLOUT</button>
-          <button type="button" data-action="evaluation-mode">CHECKPOINT REPLAYS</button>
+          <button type="button" data-action="training-mode" hidden>ACTUAL PPO ROLLOUT</button>
+          <button type="button" data-action="evaluation-mode" class="on">DETERMINISTIC CHECKPOINT REPLAYS</button>
         </div>
         <div class="transport-row">
           <div class="replay-picker" aria-label="Select rollout">

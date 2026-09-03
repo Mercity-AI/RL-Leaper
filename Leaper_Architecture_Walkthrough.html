@@ -1,0 +1,362 @@
+<style>
+  :root{
+    --paper:#FBFAF7; --ink:#1F2328; --soft:#3E434B; --muted:#6E747C; --faint:#9AA0A8;
+    --line:#E4E1D9; --panel:#F3F1EA; --panel-2:#ECE9E0;
+    --accent:#3E5C76; --accent-soft:#E9EDF1;
+    --serif:Georgia,"Cambria","Times New Roman",serif;
+    --sans:"Segoe UI",system-ui,-apple-system,sans-serif;
+    --mono:"Consolas","Cascadia Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:var(--paper);color:var(--ink);font-family:var(--serif);
+    font-size:18.5px;line-height:1.72;margin:0;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:70px 34px 110px}
+  p{margin:0 0 1.15em}
+  .lede,p,li{max-width:68ch}
+  h1,h2,h3{font-family:var(--sans);color:var(--ink);text-wrap:balance}
+  h1{font-weight:700;font-size:clamp(36px,6vw,52px);line-height:1.08;letter-spacing:-.01em;margin:.1em 0 .3em}
+  h2{font-weight:700;font-size:clamp(25px,4vw,31px);line-height:1.15;margin:0 0 .35em;letter-spacing:-.005em}
+  h3{font-weight:600;font-size:20px;margin:1.6em 0 .3em}
+  .eyebrow{font-family:var(--sans);font-weight:600;font-size:12.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 12px}
+  .stage{font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--accent)}
+  .lede{font-size:21px;line-height:1.6;color:var(--soft);font-style:italic;margin:0 0 1em}
+  a{color:var(--accent)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel);padding:.08em .4em;border-radius:4px;color:var(--soft)}
+  strong{font-weight:700}
+  header.hero{border-bottom:2px solid var(--ink);padding-bottom:34px;margin-bottom:14px}
+  .subtitle{font-family:var(--sans);color:var(--muted);font-size:16px;margin-top:4px}
+  section{margin:46px 0}
+  .rule{border:0;border-top:1px solid var(--line);margin:0}
+
+  figure{margin:34px 0;padding:0}
+  .figscroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fff;padding:22px 20px}
+  figure svg{display:block;width:100%;height:auto;color:var(--ink)}
+  figcaption{font-family:var(--sans);font-size:14px;line-height:1.55;color:var(--muted);
+    margin-top:12px;padding-left:14px;border-left:2px solid var(--line)}
+  figcaption b{color:var(--soft)}
+
+  .gloss{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 22px;margin:26px 0}
+  .gloss div{padding:12px 0;border-top:1px solid var(--line);display:flex;gap:16px;align-items:baseline}
+  .gloss div:first-child{border-top:0}
+  .gloss .k{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--accent);flex:0 0 128px}
+  .gloss .v{font-family:var(--sans);font-size:15px;color:var(--soft);margin:0}
+  .gloss .v b{color:var(--ink);font-weight:700}
+
+  .note{background:var(--panel);border-left:3px solid var(--accent);padding:16px 20px;margin:26px 0;border-radius:0 8px 8px 0}
+  .note p{margin:0;max-width:none}
+  .note .lbl{font-family:var(--sans);font-weight:700;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:5px}
+
+  ul.clean{margin:0 0 1.15em;padding-left:1.3em}
+  ul.clean li{margin:.4em 0}
+
+  blockquote{margin:1.2em 0;padding:2px 0 2px 20px;border-left:3px solid var(--accent);
+    font-style:italic;color:var(--soft)}
+  blockquote p{margin:.3em 0}
+
+  .footer{margin-top:64px;padding-top:20px;border-top:2px solid var(--ink);font-family:var(--sans);color:var(--faint);font-size:13px}
+
+  @media print{
+    body{font-size:12pt;line-height:1.6}
+    .wrap{max-width:none;padding:0}
+    section{margin:26px 0}
+    figure,.note,.gloss{break-inside:avoid}
+    h2{break-after:avoid}
+    .figscroll{overflow:visible}
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">Leaper Project · Architecture Walkthrough</p>
+    <h1>From Maze to Arena</h1>
+    <p class="subtitle">The whole story in one read — where the Leaper began, where it stands today,
+      where we're taking it, and how the pieces of the game fit together.</p>
+  </header>
+
+  <section>
+    <p class="lede">This is not a list of answers. It's a walkthrough — a single, connected story
+      of a small robot that learned to move, and the game we're now going to build around it. Read
+      it start to finish and you'll hold the whole architecture in your head at once.</p>
+    <p>We'll move through four simple stages: <strong>where we started</strong>, <strong>where we
+      are now</strong>, <strong>where we're going</strong>, and <strong>how we'll actually do it</strong>.
+      By the end, every part of the game — the trained brain, the browser, the shooting, the
+      damage — should sit in one clear picture.</p>
+  </section>
+
+  <!-- Glossary first, as requested -->
+  <section>
+    <p class="eyebrow">First, the short words spelled out</p>
+    <p>A handful of short forms come up throughout. Here they are once, plainly, so the rest reads
+      smoothly:</p>
+    <div class="gloss">
+      <div><span class="k">RL</span><p class="v"><b>Reinforcement Learning</b> — teaching by trial and error over many thousands of attempts.</p></div>
+      <div><span class="k">PPO</span><p class="v"><b>Proximal Policy Optimization</b> — the specific RL method used to train the brain.</p></div>
+      <div><span class="k">MLP</span><p class="v"><b>Multi-Layer Perceptron</b> — the simple, standard kind of network the brain is made of.</p></div>
+      <div><span class="k">LSTM</span><p class="v"><b>Long Short-Term Memory</b> — an add-on that gives a network memory. We tried it; it didn't help.</p></div>
+      <div><span class="k">ONNX</span><p class="v"><b>Open Neural Network Exchange</b> — a universal brain file that web browsers can read.</p></div>
+      <div><span class="k">FOV</span><p class="v"><b>Field Of View</b> — how wide the robot can see; here a broad 270°.</p></div>
+      <div><span class="k">FSM</span><p class="v"><b>Finite State Machine</b> — a way of writing behavior where the robot is in one "mode" at a time.</p></div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- STAGE 1 -->
+  <section>
+    <p class="stage">Stage One</p>
+    <h2>Where we started</h2>
+    <p>The whole project began with a single, stubborn goal: teach a six-legged robot to
+      <strong>walk to a target on its own</strong> — through a cluttered space full of obstacles,
+      without being told the route. We didn't program the movement by hand. We used <strong>RL
+      (Reinforcement Learning)</strong>: the robot tried, failed, and slowly kept whatever worked,
+      hundreds of thousands of times over, until good movement emerged on its own.</p>
+    <p>That journey had a clear shape, and it's worth seeing all at once, because it's the reason
+      the brain is what it is today. We solved the easy problems first, then spent weeks chasing one
+      stubborn one — and the way we finally cracked it taught us the single most important lesson of
+      the whole project.</p>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 800 240" role="img" aria-label="The training journey as a timeline. First the robot learned to reach a target. Then it stopped crashing into walls, marked done. Then it stopped freezing in place, marked done. Then came the stubborn problem: it kept getting lost in dead-ends. Three fixes were tried: giving it memory, which failed; giving it a bigger brain, which failed; and giving it sharper eyes, which worked. Finally its confidence was steadied, giving the champion brain at 89 percent.">
+          <defs><marker id="t1" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="currentColor"/></marker></defs>
+          <line x1="40" y1="46" x2="760" y2="46" stroke="currentColor" opacity=".35"/>
+          <!-- solved milestones -->
+          <circle cx="90" cy="46" r="5" fill="#3E5C76"/>
+          <text x="90" y="30" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="12" font-weight="700" fill="currentColor">Learned to walk</text>
+          <text x="90" y="66" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#6E747C">to a target</text>
+          <circle cx="240" cy="46" r="5" fill="#3E5C76"/>
+          <text x="240" y="30" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="12" font-weight="700" fill="currentColor">Stopped crashing</text>
+          <text x="240" y="66" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#3E5C76">✓ solved</text>
+          <circle cx="390" cy="46" r="5" fill="#3E5C76"/>
+          <text x="390" y="30" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="12" font-weight="700" fill="currentColor">Stopped freezing</text>
+          <text x="390" y="66" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#3E5C76">✓ solved</text>
+          <!-- the hard one -->
+          <circle cx="560" cy="46" r="6" fill="#fff" stroke="#1F2328" stroke-width="2"/>
+          <text x="560" y="30" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="12" font-weight="700" fill="currentColor">Kept getting lost</text>
+          <text x="560" y="66" text-anchor="middle" font-family="Consolas,monospace" font-size="10" fill="#6E747C">the stubborn one</text>
+
+          <!-- three attempts under the hard one -->
+          <line x1="560" y1="76" x2="560" y2="96" stroke="currentColor" opacity=".4"/>
+          <rect x="450" y="98" width="150" height="26" rx="6" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="462" y="115" font-family="Consolas,monospace" font-size="11" fill="#6E747C">give it memory ✗</text>
+          <rect x="450" y="128" width="150" height="26" rx="6" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="462" y="145" font-family="Consolas,monospace" font-size="11" fill="#6E747C">bigger brain ✗</text>
+          <rect x="450" y="158" width="150" height="26" rx="6" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="462" y="175" font-family="Consolas,monospace" font-size="11" fill="#28425a" font-weight="700">sharper eyes ✓</text>
+
+          <!-- champion -->
+          <path d="M600,171 C660,171 690,120 706,58" fill="none" stroke="#3E5C76" marker-end="url(#t1)"/>
+          <circle cx="720" cy="46" r="6" fill="#3E5C76"/>
+          <text x="720" y="30" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="12" font-weight="700" fill="#28425a">Champion</text>
+          <text x="720" y="66" text-anchor="middle" font-family="Consolas,monospace" font-size="10.5" fill="#3E5C76" font-weight="700">89%</text>
+        </svg>
+      </div>
+      <figcaption><b>The road to the brain.</b> Crashing and freezing were solved early. Then one
+        problem held on for weeks — the robot getting lost in dead-ends. We tried making it
+        <em>think</em> harder (memory, then a bigger brain); neither helped. What finally worked was
+        letting it <em>see</em> better — sharper eyes. That, plus steadier confidence, gave us
+        today's champion.</figcaption>
+    </figure>
+
+    <p>The lesson buried in that timeline shapes everything ahead: <strong>the robot's limits came
+      from what it could <em>see</em>, not how hard it could think.</strong> We gave it memory (an
+      <strong>LSTM, Long Short-Term Memory</strong> add-on) three separate times, expecting it to
+      stop repeating dead-ends — and it never beat the simpler brain. It only broke through when we
+      doubled its eyesight. Keep that in your pocket; it explains why the game leans on the brain for
+      one job only, and hands everything else to simpler tools.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- STAGE 2 -->
+  <section>
+    <p class="stage">Stage Two</p>
+    <h2>Where we are now</h2>
+    <p>Today we hold two things. The first is a <strong>finished, capable brain</strong> — the
+      champion, an <strong>MLP (Multi-Layer Perceptron)</strong> trained with <strong>PPO</strong>
+      that reaches its target about <strong>89%</strong> of the time, steering confidently around
+      obstacles with a wide 270° <strong>FOV (Field Of View)</strong>. It is small, fast, and — by
+      design — has no memory, which turns out to make it much easier to carry into a browser.</p>
+    <p>The second is a <strong>web project already written in JavaScript</strong>, using a tool
+      called <strong>Three.js</strong> to draw the robot and its world in 3D inside an ordinary
+      browser. So the graphics foundation is already built. There is no "switch to another
+      language" ahead of us — the game is already in the language of the web.</p>
+    <p>But there's one honest gap, and naming it is the whole reason for the next stage. Right now,
+      the browser doesn't actually <em>run</em> the brain. It plays back a <strong>recording</strong>
+      — a large file that Python made earlier, like a video of the robot moving. It's perfect for
+      studying the training, but you can't play against a recording. It never reacts. That single
+      gap — <em>a recording that can't respond</em> — is exactly what we're about to close.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- STAGE 3 -->
+  <section>
+    <p class="stage">Stage Three</p>
+    <h2>Where we're going</h2>
+    <p>The destination is a <strong>real, playable game</strong>. You control a player in the arena.
+      The Leaper is your opponent: it chases you using its trained brain, it shoots at you, and when
+      it's badly hurt it turns and flees. You shoot back — and because the Leaper is built from six
+      separate legs, you can see it come apart as you damage it: a leg blows off, its walk turns to a
+      limp, sparks fly, until it finally collapses.</p>
+    <p>We're deliberately starting small and honest: <strong>one human versus one Leaper</strong>.
+      That's the version that proves the brain truly works in a live game, and it's genuinely fun on
+      its own. A friend joining on the same screen, and — much later — online play, are optional
+      adventures for once the core game feels good. We don't need them to have something worth
+      sharing.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- STAGE 4 -->
+  <section>
+    <p class="stage">Stage Four</p>
+    <h2>How the game fits together</h2>
+    <p>Here is the architecture — the shape of how all of it works. The trick that makes this
+      manageable is a clean division of labour: <strong>the trained brain does the one thing it's
+      brilliant at (moving), and simple hand-written rules do the fighting.</strong> Nothing is asked
+      to do a job it wasn't built for.</p>
+
+    <figure>
+      <div class="figscroll">
+        <svg viewBox="0 0 800 320" role="img" aria-label="The game architecture. On the left, Python offline turns the trained brain into an ONNX file, handed over once. On the right, the browser runs a loop sixty times a second. Inside that loop sit two brains: a movement brain, which is the ONNX network deciding where to step, and a combat brain, hand-written rules deciding whether to shoot or flee. Both feed into moving the robot and drawing the frame.">
+          <defs><marker id="h1" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="currentColor"/></marker></defs>
+
+          <!-- python -->
+          <rect x="20" y="110" width="150" height="96" rx="12" fill="none" stroke="#6E747C" stroke-dasharray="5 4"/>
+          <text x="34" y="134" font-family="Consolas,monospace" font-size="11" letter-spacing=".5" fill="#6E747C" font-weight="700">PYTHON · ONCE</text>
+          <text x="34" y="156" font-family="Segoe UI,sans-serif" font-size="13.5" font-weight="700" fill="currentColor">The workshop</text>
+          <text x="34" y="175" font-family="Consolas,monospace" font-size="10" fill="#6E747C">train (PPO) →</text>
+          <text x="34" y="190" font-family="Consolas,monospace" font-size="10" fill="#6E747C">export to ONNX</text>
+          <line x1="170" y1="158" x2="222" y2="158" stroke="#6E747C" marker-end="url(#h1)"/>
+          <text x="178" y="150" font-family="Consolas,monospace" font-size="9.5" fill="#6E747C">leaper.onnx</text>
+
+          <!-- browser box -->
+          <rect x="224" y="40" width="560" height="248" rx="16" fill="none" stroke="#3E5C76" stroke-width="1.5"/>
+          <text x="242" y="64" font-family="Consolas,monospace" font-size="11.5" letter-spacing="1" fill="#3E5C76" font-weight="700">THE BROWSER · GAME LOOP · ~60× PER SECOND</text>
+
+          <rect x="248" y="86" width="240" height="76" rx="10" fill="#E9EDF1" stroke="#3E5C76"/>
+          <text x="264" y="110" font-family="Segoe UI,sans-serif" font-size="14.5" font-weight="700" fill="#28425a">Movement brain</text>
+          <text x="264" y="130" font-family="Consolas,monospace" font-size="10.5" fill="#28425a">the trained MLP (via ONNX)</text>
+          <text x="264" y="149" font-family="Consolas,monospace" font-size="10.5" fill="#3E5C76" font-style="italic">“where do I step?”</text>
+
+          <rect x="520" y="86" width="240" height="76" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="536" y="110" font-family="Segoe UI,sans-serif" font-size="14.5" font-weight="700" fill="currentColor">Combat brain</text>
+          <text x="536" y="130" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">hand-written rules</text>
+          <text x="536" y="149" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C" font-style="italic">“shoot, or flee?”</text>
+
+          <rect x="248" y="186" width="512" height="76" rx="10" fill="#F3F1EA" stroke="currentColor"/>
+          <text x="264" y="210" font-family="Segoe UI,sans-serif" font-size="14.5" font-weight="700" fill="currentColor">Move the robot &amp; draw the frame</text>
+          <text x="264" y="230" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">apply the decisions · fly the bullets · check hits · Three.js renders it all</text>
+          <text x="264" y="249" font-family="Consolas,monospace" font-size="10.5" fill="#6E747C">…then start the loop over again</text>
+
+          <line x1="368" y1="162" x2="400" y2="184" stroke="currentColor" marker-end="url(#h1)"/>
+          <line x1="640" y1="162" x2="610" y2="184" stroke="currentColor" marker-end="url(#h1)"/>
+        </svg>
+      </div>
+      <figcaption><b>One picture of the whole thing.</b> Python hands over a single file, once. Then
+        the browser loops forever: the <b>movement brain</b> decides where to step, the <b>combat
+        brain</b> decides whether to shoot or flee, and the loop applies both, moves the bullets,
+        checks the hits, and draws the frame — sixty times a second.</figcaption>
+    </figure>
+
+    <h3>The one careful step: waking the brain up</h3>
+    <p>Getting the brain from Python into the browser is the crux. We export it once to an
+      <strong>ONNX (Open Neural Network Exchange)</strong> file — the universal brain-format browsers
+      can read — and run it live with a small library. The brain expects to be handed <strong>26
+      numbers</strong> each frame (16 vision-ray distances plus 10 facts about itself and its goal),
+      and it answers with <strong>2</strong> (how hard to go, how sharply to turn). The single
+      make-or-break detail is that those 26 numbers must be built in JavaScript in <em>exactly</em>
+      the same order and scale that Python used. Get that right and the live brain moves just like
+      the trained one; get it subtly wrong and it behaves as if dizzy. That faithfulness is the real
+      work of this step.</p>
+
+    <div class="note">
+      <span class="lbl">Why the split matters</span>
+      <p>Remember the lesson from Stage One — the brain is a brilliant <em>mover</em> but was never
+        taught to <em>fight</em>. So we don't ask it to. It handles movement; a few plain rules
+        handle combat. This is the same wisdom that ended the memory experiments: use each tool for
+        the job it's actually good at, and nothing for a job it isn't.</p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- COMBAT: BT then FSM -->
+  <section>
+    <p class="eyebrow">The combat brain, up close</p>
+    <h2>Start simple, upgrade only if needed</h2>
+    <p>The Leaper's fighting decisions need no training at all — we simply write them. And we'll
+      write them in the simplest form that works, reaching for something fancier only when the game
+      actually shows us we need it. This is a two-step plan on purpose.</p>
+
+    <h3>Step one — the behavior tree (a plain checklist)</h3>
+    <p>A <strong>behavior tree</strong> is exactly the "if this, then that" idea you already have. It
+      runs top-to-bottom every single frame and does the first thing that's true:</p>
+    <blockquote>
+      <p>1. Am I hurt? → flee.</p>
+      <p>2. Is the player in range? → shoot.</p>
+      <p>3. Otherwise → chase (hand control to the movement brain).</p>
+    </blockquote>
+    <p>That's the whole combat brain, and for most of the game it's all we'll ever need. Notice how
+      cleanly it hands off: the first two lines are the fighting; the last line simply gives the
+      wheel back to the trained brain to do the chasing. Your months of RL work power that final
+      line.</p>
+
+    <h3>Step two — the state machine (only if the checklist isn't enough)</h3>
+    <p>A plain checklist has one blind spot: it <strong>forgets what it was just doing</strong>. It
+      decides fresh every frame, with no sense of "I'm in the middle of something." Two situations
+      expose that, and both are where a <strong>state machine (FSM, Finite State Machine)</strong>
+      earns its place. The difference in one line: a checklist decides from scratch each frame; a
+      state machine puts the Leaper <em>in a mode</em> and makes it <em>stay there</em> until a
+      specific thing changes.</p>
+    <p><strong>The twitching problem.</strong> Imagine you dance right at the edge of shooting range,
+      stepping in and out. The plain checklist flickers — shoot, chase, shoot, chase — many times a
+      second, because each frame it forgets it was just shooting. A state machine fixes this by
+      committing: "I've entered <em>Shooting</em> mode, and I'll stay in it until the player is
+      <em>clearly</em> out of range" — so it stops flip-flopping over a tiny wobble.</p>
+    <p><strong>The longer-action problem — your example.</strong> This was the sharp point you made,
+      and it's the best reason of all. Some actions take <em>time</em> and must be allowed to play
+      out. Picture the Leaper <strong>reloading</strong>: once it starts, it should be locked into
+      reloading for a couple of seconds, even if you run at it. Or a <strong>charge attack</strong>
+      that goes wind-up → dash → recover, three phases in order. A checklist, deciding fresh every
+      frame, has no natural way to "stay committed to something that takes time." A state machine
+      does it effortlessly, because it simply remembers "I'm in <em>Reloading</em> mode right now,
+      and I don't leave until the timer's done."</p>
+
+    <div class="note">
+      <span class="lbl">The plan, in a sentence</span>
+      <p>Build the behavior-tree checklist first — it's the clearest place to start and handles most
+        of the game. The day the Leaper starts twitching at the edge of range, or the day we add an
+        action that takes time (a reload, a charge), that's our signal to give <em>that one
+        behavior</em> the small memory of a state machine. Not before. The two aren't rivals — the
+        common setup is a state machine for the big modes with a little checklist living inside each.</p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <p class="eyebrow">The shape of it all</p>
+    <p>So that's the full arc in one breath. We <strong>started</strong> by teaching a robot to move
+      with reinforcement learning, and learned — the hard way, through the memory experiments — that
+      its power is in <em>moving</em>, not thinking harder. We <strong>are</strong> now holding that
+      finished brain and a web project that only replays it. We're <strong>going</strong> to turn
+      that into a real one-on-one game where the Leaper hunts, shoots, and can be torn apart leg by
+      leg. And we'll <strong>do it</strong> by carrying the brain into the browser through a single
+      ONNX file, letting it drive movement inside a sixty-times-a-second loop, and layering plain
+      combat rules on top — a behavior-tree checklist first, a state machine only where the Leaper
+      needs to remember what it's doing. One careful step, then a series of small, visible, playable
+      ones. That's the road from maze to arena.</p>
+  </section>
+
+  <div class="footer">
+    Leaper · From Maze to Arena · an architecture walkthrough<br>
+    Champion brain: PPO_25 · Multi-Layer Perceptron · 89% success · no memory · generated 2026-08-31
+  </div>
+
+</div>

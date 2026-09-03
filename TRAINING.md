@@ -2,36 +2,285 @@
 
 This file is the human-readable history of reinforcement-learning runs. Generated models, raw logs, plots, checkpoints, and browser replay data stay under `rl_artifacts/` because they are large and ignored by Git. Update this ledger whenever a run is started, stopped, completed, or diagnosed.
 
+## PPO_27_SEEKER — completed first seeker run (2026-09-02)
+
+Goal: remove privileged target coordinates and teach Leaper to search for a
+semantically tagged target. The target is not recognized from pixels: the game
+knows which object is the target, but reveals it to the policy only when it lies
+inside the 270° / 28-unit sight cone with an unobstructed line of sight. Obstacles
+occlude it. A future mesh can replace the pink cuboid without retraining the
+recognizer as long as it keeps the target tag.
+
+- Arena width reduced from 187.5 to 62.5 (`WORLD_LIMIT 93.75 -> 31.25`) and the
+  obstacle count from 51 to 6 to preserve roughly comparable area density.
+- Target position is randomized each episode. Episode cap is 500 steps.
+- Observation remains 26 values to retain PPO_25's navigation weights. Channels
+  0-1 become target-visible and memory-age; channels 2-4 carry target direction
+  and distance only after sight (last-seen memory for 120 steps); channels 5-25
+  retain compatible facing/action/collision and 16-ray obstacle sensing.
+- Warm start: load `ppo_25_idle_s3/leaper_ppo.zip`, zero the first-layer weights
+  attached to repurposed channels 0-1, and clear old Adam state. This preserves
+  useful obstacle-avoidance locomotion without pretending the old policy is fully
+  compatible with the new search task.
+- Reward: visible clipped progress `0.2`; positive-only new-best progress `0.1`;
+  first sight/reacquisition `+0.5`; new cell `+0.01`; new heading-view `+0.002`;
+  time `-0.002`; repeated no-move/no-new-view after 15 steps `-0.04`; collision
+  `-0.18`; 40-step physical stuck failure `-10`; goal `+25`.
+- Exact-config smoke run after clearing inherited optimizer state:
+  `ppo_27_seeker_smoke_clean/`, natural seed 290911, 24,576 transitions.
+  Fixed-seed deterministic evaluation: **47% success**, 13.84 mean reward,
+  16.33 net progress, 9.51% collision steps, 96.25% forward steps, and 14.13 mean
+  longest collision streak (worst 44). Latest stochastic training episodes: 60%
+  success. This is a healthy pipeline result, not a final score. The earlier
+  transfer-pipeline smoke (`ppo_27_seeker_smoke/`) scored 49% but still carried
+  PPO_25's Adam moments, so it is retained only as engineering history.
+- Every full launch includes TensorBoard plus `/?training=1`, whose live mode,
+  worker/episode selection, five checkpoint rollouts, scrubbing, and replay import
+  are mandatory monitoring outputs.
+- Full run: `ppo_27_seeker_500k/`, natural seed 595018, 507,904 transitions.
+  Fixed-seed deterministic evaluation: **64% success**, 16.80 mean reward, 18.90
+  net progress, 3.79% collision steps, 44.10% stopped steps, and 5.68 mean longest
+  collision streak. Latest stochastic training episodes reached 77% success.
+  Diagnosis of a representative orbit failure: target visible for 232/318 frames,
+  15 reacquisitions, 84% throttle, no collision, and only one unit of net visible
+  progress. Repeated `+0.5` reacquisition bonuses accidentally made sight-boundary
+  circling profitable. PPO_27 is therefore a successful search proof of concept,
+  not the final seeker.
+
+### PPO_28_SLOW_SEEKER — confirmed next run
+
+Warm-start from the completed PPO_27 seeker with
+`MOVE_SPEED = 0.375` (half the current `0.75`) and `MAX_STEPS = 1000` (double the
+current 500) so the physical search horizon remains comparable. Halve `TURN_SPEED`
+from 18° to 9° as well, preserving turning radius. Close the PPO_27 orbit exploit:
+the `+0.5` sight bonus fires only on first-ever sight, exploration bonuses stop
+after discovery, and distance progress becomes symmetric after discovery so
+retreat is penalized even while the stationary target is temporarily occluded.
+All browser checkpoint recordings are deterministic; stochastic PPO experience
+continues internally but is not displayed. The viewer explicitly labels target
+state as NOT DISCOVERED, VISIBLE, or REMEMBERED/CURRENTLY HIDDEN.
+
+Smoke gate: `ppo_28_slow_seeker_smoke/`, natural seed 162127, 24,576
+transitions. Fixed-seed deterministic evaluation reached **62% success**, 8.71
+mean reward, 17.09 net progress, and 1.49% collision steps. The 20k checkpoint
+scored 64% across 25 deterministic episodes. This passes the pipeline gate;
+launch the isolated 500k run and judge it by the final 100-episode deterministic
+exam rather than stochastic training success.
+
+Full run complete: `ppo_28_slow_seeker_500k/`, natural seed 742698, 507,904
+transitions. Final fixed-seed 100-episode deterministic result: **71% success**,
+29% timeout, +14.31 mean reward, 20.99 mean net target progress, 1.90% collision
+steps, 4.84 mean longest collision streak (worst 41), and 260.23 mean episode
+length. The deterministic policy used burst-like movement: 43.27% moving and
+56.73% exactly stopped, with mean throttle 0.368. Latest stochastic training
+episodes reached 78% success. Versus PPO_27, deterministic success improved
+64% -> 71% and collisions fell 3.79% -> 1.90%, while stopped steps increased
+44.10% -> 56.73%. The final 25-episode checkpoint scored 64%; the 100-episode
+exam is the authoritative final comparison.
+
+Post-run deterministic freeze diagnosis (same 100 seeds): 14,762 / 26,023 steps
+(56.73%) had exactly zero throttle. Of those stopped steps, **89.76% occurred
+before first target sight**, 10.24% after sight, and only one step occurred while
+the target was remembered but currently hidden. Thus obstacle detouring after
+discovery is not the main aggregate failure. Only 34.93% of stopped steps still
+turned meaningfully; 65.07% were effectively frozen. Timeout episodes had a
+median longest zero-throttle streak of 388 steps and a worst streak of 980.
+
+Root cause: PPO uses an unsquashed Gaussian action mean while the throttle action
+space is asymmetric `[0,1]`. On a 30-episode probe, every deterministic stopped
+action had a negative raw throttle mean (mean -0.435, minimum -2.754); SB3 clips
+all of them to physical zero. Moving states were polarized the other way (raw
+mean 1.94, often clipped to full throttle). Stochastic sampling crosses above
+zero often enough to move, explaining the persistent stochastic-vs-deterministic
+gap. More unchanged training is unlikely to repair this boundary/clipping local
+optimum: the best 25-episode checkpoint was already 76% at 10k, later checkpoints
+plateaued around 64-72%, and the final 100-episode result was 71%.
+
+Recommended next controlled bundle: normalize the policy throttle to `[-1,1]`
+and map it internally to forward-only physical throttle `(action + 1) / 2`, so a
+neutral policy output means half-speed rather than stop and intentional stop sits
+at the far `-1` boundary. Add a non-collision freeze rule: after 60 consecutive
+no-translation steps, terminate with an explicit `-10` failure penalty. Sixty
+steps still permits three 180° scans at the 9° turn rate. Preserve PPO_28's arena,
+vision, first-sight-only reward, pursuit/search rewards, speeds, and PPO settings.
+Warm-transfer PPO_28's policy/value weights into a newly constructed normalized-
+action model and reset optimizer state. Run a 20k smoke and then a 500k gate;
+do not extend the unchanged PPO_28 to 800k.
+
+### PPO_29_NORMALIZED — implemented; freeze CURED but success unchanged (2026-09-02)
+
+Implemented the recommended bundle. Env (`rl_environment.py`): a class flag
+`NORMALIZED_THROTTLE` switches the throttle output to `[-1,1]` and maps it to a
+forward-only physical throttle via the new `physical_throttle()` classmethod
+`(action+1)/2` (`-1`=stop, `0`=half, `+1`=full; negative never means reverse). A
+terminal general-freeze rule (`FREEZE_LIMIT=60`, `FREEZE_PENALTY=10`, in the
+`time` reward bucket, `info["frozen"]`) ends any episode with no translation for
+60 consecutive steps; real movement resets `freeze_steps`. The 40-step collision
+`STUCK_LIMIT` is unchanged (stuck fires first for wedged contact; freeze catches
+open-field standstill/spin). Owner-requested scan nudge (`SCAN_REWARD=0.01`, in
+the `exploration` bucket): a small reward for facing each new heading bin before
+first sight, capped at one revolution per episode via `scanned_headings`, off
+after discovery — "just one spin" of encouragement, bounded by the freeze rule.
+Trainer (`train_rl.py`): CLI `--normalized-throttle`, `--freeze-limit`,
+`--freeze-penalty`, `--scan-reward`, `--warm-transfer` (loads a donor with no env
+to skip SB3's action-space check, builds a fresh model with the new bounds, copies
+`policy.state_dict()`, keeps the fresh optimizer). Diagnostics now classify
+PHYSICAL throttle so stopped/forward stats stay honest under normalization. Tests:
+`tests/test_ppo29_normalized_throttle.py` (10 cases); full suite 58/58 pass.
+
+Timing note: plain PPO runs at ~2.1s/1k steps here, so 250k took ~9 min. The "~2h"
+figure elsewhere in this ledger is the LSTM memory brain only, NOT plain PPO.
+
+- **20k smoke** (`ppo_29_normalized_throttle_smoke/`, seed 406432, warm-transferred
+  from PPO_28): deterministic 100-episode exam 73% success, **stopped steps
+  56.73% -> 5.02%** — the go/no-go gate (stopped% collapse) passed at 20k.
+- **250k run** (`ppo_29_normalized_throttle_250k/`, seed 208230, 253,952
+  transitions): **69% success**, 31% timeout, +16.69 reward, 20.26 net progress,
+  **stopped 6.29%**, forward 93.7%, mean physical throttle 0.81, collision 4.83%,
+  worst streak 40, avg length 170. A 500k confirmation run was launched and stopped
+  by owner at ~300k: its 25-maze checkpoints matched the 250k plateau (68-76%, no
+  upward trend), confirming more budget does not help.
+
+Verdict: the freeze fix is a complete, permanent success (57% -> 6% stopped;
+behavior now constantly moving/searching) but did NOT raise success — 69% ties
+PPO_28's 71%. The freeze was a SYMPTOM, not the ceiling. The true remaining
+blocker is SEARCH/DISCOVERY: ~30% of episodes never find the hidden target before
+timeout, because a reactive policy has no memory of where it has already looked.
+Keep normalized throttle + freeze rule + scan nudge permanently as the new healthy
+seeker baseline. PPO_29 (memoryless) is the seeker champion.
+
+### PPO_30_LSTM_SEARCH — memory brain tested for search; CLOSED, memory loses (2026-09-02)
+
+Revived the recurrent LSTM brain (`--memory lstm`, `MlpLstmPolicy`,
+`lstm_hidden_size=256`, `n_lstm_layers=1`, lr 2e-4) to test whether memory of
+where-searched helps the hidden-target SEARCH problem — the first task where memory
+has a plausible job, unlike the still-target-with-known-direction PPO_19-21 line.
+ONLY the brain changed; it inherits all PPO_29 env changes (normalized throttle,
+freeze rule, scan nudge) and the same 6-obstacle arena. Trains fresh (LSTM weights
+cannot warm-transfer from an MLP). Trainer: restored the `RecurrentPPO` build
+branch behind `--memory {none,lstm}` + `--lstm-hidden-size`; `predict_with_memory`
+and all four inference loops already carried LSTM state. Runs ~15s/1k (7x slower).
+
+- **200k** (`ppo_30_lstm_search_200k/`, seed 27495): **53% success**, 47% timeout,
+  stopped 0.25%, forward 99.7%, mean throttle 0.37 (timid), avg length 373. Below
+  memoryless (69%) BUT the 25-maze checkpoints were STILL climbing steeply at the
+  cut (36->48->60% in the final stretch), so 53% looked budget-limited, not a
+  ceiling — which justified a 500k extension.
+- **500k** (`ppo_30_lstm_search_500k/`, seed 709447, 507,904 transitions): final
+  100-maze exam **39% success**, 61% timeout, 10.85 net progress — WORSE than its
+  own 200k. The 25-maze checkpoints oscillated 44-68% throughout and never settled
+  (the LSTM instability seen in PPO_19-21); the final saved model landed on a weak
+  point and the rigorous exam exposed it.
+
+Verdict: on the hidden-target SEARCH task the recurrent memory brain is worse AND
+less stable than memoryless. The "memory of where I searched" hypothesis did not
+pay off (matching the owner's tie-or-lose prediction). DECISION: drop the LSTM for
+the static-target line; keep memoryless PPO_29 as champion. `--memory lstm` stays
+in the trainer for a possible future MOVING-target test (a genuine temporal
+signal), which is a later stage.
+
+### PPO_31_LSTM_EXPLORE — 2-layer LSTM + boosted exploration; ABORTED, LSTM closed again (2026-09-03)
+
+Owner's chosen experiment: give the memory brain MORE capacity (2 LSTM layers) plus
+a 5x stronger new-area reward, to see if it could finally crack search. Flags:
+`--memory lstm --lstm-layers 2 --lstm-hidden-size 256 --normalized-throttle
+--exploration-reward 0.05 --new-view-reward 0.01 --learning-rate 0.0002` (lr held at
+PPO_30's value per owner's "don't hike the LR"). Trainer changes (kept): new CLI
+`--lstm-layers` (default 1), `--exploration-reward`, `--new-view-reward`; the
+recurrent branch now auto-uses `n_epochs=5` (plain MLP stays 10) as a stability
+lever; config records `lstm_layers`, `exploration_reward`, `new_view_reward`. Reward
+env defaults were raised for this run: `EXPLORATION_REWARD 0.01->0.05`,
+`NEW_VIEW_REWARD 0.002->0.01`.
+
+- **~164k of 250k, then died on its own** (`ppo_31_lstm_explore_250k/`, natural
+  seed). Deterministic exam by step: 40k=0%, 60k=4%, 80k=12%, **100k=24%**, 120k=16%,
+  140k=20%, 160k=20% — climbed then FLATTENED at ~20-24%, below memoryless PPO_29
+  (69%) and below PPO_30's 39%. Checkpoints saved through 160k; no final model/eval.
+- **Stopped externally, not by owner or code.** Log ends cleanly after the 160k
+  checkpoint with NO traceback → OS-level kill, almost certainly OUT OF MEMORY (the
+  2-layer LSTM is the heaviest brain we run, ~20MB/save, alongside TensorBoard +
+  browser). Lesson: prefer the light MLP and watch RAM.
+- **Two failure signatures:** (a) 2 layers = harder to train, not smarter (the
+  flagged recurrent instability); (b) episode length ballooned 180→640+ steps = the
+  boosted exploration reward BACKFIRED into a "professional wanderer" farming
+  new-cell bonuses instead of committing to find the target.
+
+Verdict: the from-scratch LSTM is now closed TWICE (PPO_30 39%, PPO_31 ~20%). A
+recurrent brain built from scratch wastes its capacity relearning the walk/dodge
+body, so it is a worse searcher than the memoryless champion. Do not spend more
+budget on a fresh internal-memory brain for the static seeker.
+
+### Next (planned) — memory via STATE AUGMENTATION (coverage map), not LSTM
+
+Owner reaffirmed (2026-09-03) the real goal: a MEMORY seeker reaching **≥85%** on the
+hidden target, then a slowly MOVING target. Decision: the memory must NOT be an
+internal LSTM (forces relearning the body, unstable). Instead use **state
+augmentation** — feed the champion walker an explicit external memory as extra
+OBSERVATION inputs: a **coverage / visitation map** ("been-there radar") built only
+from cells Leaper has actually visited/seen — and **warm-start on the memoryless
+PPO_29 champion** so walking/dodging is preserved and only "steer toward unexplored
+ground" is learned. Honesty constraint: only seen/visited info enters; unexplored
+cells stay blank and the target note stays empty until genuine line-of-sight — never
+feed the full map or the hidden target position (that would be cheating and would
+erase the search problem). Moving-target-ready by design: the same memory-as-input
+idea later upgrades the existing `last_seen_target` note to carry the target HEADING
+("last seen here, moving right"), making the mover a small add-on, not a rebuild.
+Build steps when resumed (owner to green-light first): add a coverage-map observation
+channel to the env (reuse the existing exploration grid / `EXPLORATION_CELL_SIZE`),
+widen the observation, warm-start PPO_29 with the new (zero-initialized) input
+columns, run ~250k. Searchable terms: "state/observation augmentation RL",
+"visitation/coverage map", "occupancy grid as observation", "external vs recurrent
+memory". Densify-the-arena + bigger arena/obstacles remain valid LATER stages but are
+paused behind this. Memoryless PPO_29 (69%) stays the fallback champion.
+
 ## Terms used in this project
 
-- **Environment step:** one action applied to one Leaper environment. The current action can move at most `0.75` units and turn at most `18` degrees.
-- **Episode:** one attempt from a random spawn. It ends on goal success, PPO_16's terminal stuck failure, or after `1,000` environment steps in the current large arena.
+- **Environment step:** one action applied to one Leaper environment. PPO_28 moves at most `0.375` units and turns at most `9` degrees.
+- **Episode:** one attempt from a random spawn. It ends on goal success, PPO_16's terminal stuck failure, or after `1,000` environment steps in the slow-seeker arena.
 - **Training rollout:** the experience PPO collects before updating its neural network. `n_steps=1024` means 1,024 steps from each of 8 parallel environments, so one training rollout contains `8,192` transitions.
 - **PPO update:** after a training rollout, PPO reuses those 8,192 transitions for `10` epochs. With `batch_size=256`, that is 32 mini-batches per epoch and 320 gradient updates per rollout.
-- **Evaluation checkpoint:** every 10,000 total training steps, training pauses briefly for 25 deterministic evaluation episodes. Five additional exploratory episodes are recorded for the browser visualizer. These five recordings are replays only and are not used to train the policy.
+- **Evaluation checkpoint:** every 10,000 total training steps, training pauses briefly for 25 deterministic evaluation episodes. Five deterministic episodes are recorded for the browser visualizer. These recordings are replays only and are not used to train the policy.
 - **Total timesteps:** total transitions across all 8 environments. Because PPO completes whole 8,192-transition rollouts, a requested 300,000-step run currently finishes at 303,104 collected steps.
 
-## Current baseline configuration
+## Current seeker configuration
 
 ### Environment
 
-- Arena boundary: `[-93.75, 93.75]` on both planar axes
-- Fixed target: `(-40, -10)`; exact direction and distance are observations, not visual detections
-- Random circular obstacles: 51, regenerated every episode with a reachability guard
+- Arena boundary: `[-31.25, 31.25]` on both planar axes
+- Random semantic target; direction/distance hidden until unoccluded sight
+- Random circular obstacles: 6, regenerated every episode with a reachability guard
 - Collision samples: body plus 3 samples on each of 6 legs (19 total)
 - Maximum episode length: 1,000 steps
-- Maximum movement: 0.75 units per step
-- Maximum turn: 18 degrees per step
+- Maximum movement: 0.375 units per step
+- Maximum turn: 9 degrees per step
 - PPO_9 observation: original 7 navigation values plus `last_collision`,
   `previous_forward_action`, and `previous_turn_action` (10 values total)
 - PPO_10 forward throttle: signed `[-1, 1]`; negative reverses, zero stops,
   and positive moves forward. Turning remains `[-1, 1]`.
-- PPO_17_SMOKE keeps the 18-value observation shape but replaces the old eight
+- PPO_17_SMOKE kept the 18-value observation shape but replaced the old eight
   360° centre rays with eight 25° collision-aware sectors covering only the
-  forward 200°. Each sector samples three directions and returns the minimum
-  safe translation clearance for the complete 19-point body/leg footprint,
-  normalized by the unchanged 12-unit range. The rear 160° is unseen. This
-  semantic change invalidates every earlier policy even though the shape stays 18.
+  forward 200°, each returning the 19-point safe clearance normalized by the
+  12-unit range. This was discarded by owner decision (see PPO_18).
+- **PPO_25 (16 rays + idle penalty) remains the previous fully-informed champion and warm-start parent.** It is
+  the PPO_23 design (16 rays, 270° cone, range 28, forward-only) plus ONE behavioral
+  change — an **idle penalty** that taxes sustained standing-still (`--idle-penalty
+  0.04 --idle-grace 3`). Deployable champion = seed 911743 = **93%** on the 100-maze
+  exam and **91.3%** on a 1,000-fresh-maze stress test (95% CI 89.6–93.0%). It cleared
+  the 85% target reliably: 4 seeds scored 89 / 92 / 93 / 92 (mean **91.5%**), vs
+  PPO_23's high-variance 81.5% (73–87). Keep 16 rays + idle penalty for all runs.
+- **PPO_23 (16 rays) was the prior champion (81.5% mean, best seed 87%).** Same as
+  PPO_18 with vision detail doubled 8 → **16 rays** (observation 18 → 26, channels
+  0–9 unchanged). Set with `--ray-count 16`. Superseded by PPO_25's idle penalty,
+  which raised the mean +10 points and removed the seed-to-seed variance.
+- **PPO_18 was the prior 8-ray baseline (75%).** It keeps the 18-value shape (base
+  channels 0–9 unchanged) but the eight rays (indices 10–17) are the simple thin
+  rangefinder — distance from the body centre to the nearest obstacle or
+  wall — re-aimed into a **270° forward cone** and normalized by a longer
+  **28-unit** range; the rear 90° is blind. Movement is **forward-only**: throttle
+  is `[0, 1]` (reverse removed), superseding PPO_10's signed `[-1, 1]`. These
+  changes invalidate every earlier policy even though the shape stays 18. The
+  trainer is plain `PPO("MlpPolicy")`; `--ray-count` / `--ray-max-range` /
+  `--net-arch` are CLI-selectable (defaults 8 / 28.0 / "64,64").
 
 ### Reward used by PPO_8
 
@@ -51,6 +300,24 @@ reward = (
 
 Only `prev_distance` is additional reward state. It is initialized at episode reset and updated after every step.
 
+### Reward addition in PPO_25 (idle penalty)
+
+PPO_25 adds one term to the reward above — an **idle penalty** that discourages
+sustained standing-still (the root cause of the PPO_23 timid-run variance):
+
+```python
+# idling = throttle < IDLE_THROTTLE (0.1) for more than IDLE_GRACE (3) steps in a row
+idle_penalty = -IDLE_PENALTY if idling else 0.0   # IDLE_PENALTY = 0.04
+reward = progress_reward + time_penalty + idle_penalty + collision_penalty + stuck_penalty + goal_reward
+```
+
+Sized deliberately between the time cost (0.01, so idling is worse than a normal
+step) and the collision penalty (0.18, so she never rams walls to avoid standing).
+The 3-step grace keeps a brief pivot-in-place free. Reported inside the `time`
+diagnostics bucket so keys are unchanged. Overridable via `--idle-penalty` /
+`--idle-grace` (defaults 0.04 / 3; `--idle-penalty 0` disables). New idle-state
+counter `self.idle_steps` is reset each episode.
+
 ### PPO
 
 ```text
@@ -67,6 +334,56 @@ entropy coefficient: 0.01
 seed: 7
 evaluation interval: 10,000 steps
 ```
+
+## RESOLVED (2026-08-27): the 85% target is met — PPO_25 = 91–93%
+
+The section below documents the problem as it stood at PPO_22. It was solved in
+two steps: **PPO_23** (sharper eyes, 8→16 rays) lifted the mean to 81.5% but was a
+seed lottery; **PPO_25** (an idle penalty on standing-still) removed the variance
+and lifted the mean to 91.5%, with every seed clearing 85%. Confirmed on 1,000
+fresh mazes at 91.3%. Two follow-ups were tested and cleanly ruled out: longer
+range alone (PPO_24) and longer range + idle penalty (PPO_26) both scored *below*
+the range-28 champion — in a dense field, longer rays flood the reading with
+distant clutter and make her hesitate. Champion recipe: **16 rays · range 28 ·
+forward-only · idle-penalty 0.04 / grace 3.** Original PPO_22-era analysis follows
+for the historical record.
+
+## The core unsolved problem (as of PPO_22, 2026-08-26)
+
+The champion is **PPO_18 = 75%** and the owner's target is **85%**. Two "more
+thinking power" experiments have now failed to close that gap: recurrent memory
+(PPO_19-21, best 71%) and a wider 256x256 network (PPO_22, 74%). Both were washes
+because **capacity is not the bottleneck.**
+
+**What she fails at:** the robot always knows the exact direction and distance to
+the target (a built-in compass observation). She no longer crashes (collision
+handling solved) and no longer freezes (the PPO_16 stuck rule solved that). The
+remaining ~25% of failures are **timeouts** — on the dense field, roughly 1 in 4
+mazes contains a pocket / cul-de-sac that *opens toward the target*. Her compass
+pulls her straight in; escaping requires temporarily moving *away* from the
+target and around an obstacle, which her greedy reactive policy resists. She
+paces inside the pocket until the 1,000-step budget runs out. **She is a strong
+reactive walker but a weak route-planner; the last 10% is dead-end solving.**
+
+**Why better eyes is the next lever (not more compute):** she has `RAY_COUNT = 8`
+beams over a 270° cone = one every ~34°. At `RAY_MAX_RANGE = 28` two neighbouring
+beams are ~19 units apart at the far end, but obstacles are only ~6 units wide, so
+a whole obstacle or a false "doorway" can fall in the blind gap between beams. Her
+picture of what is ahead is too coarse to read where the real openings are, so she
+commits to a trap before she can tell it is a trap.
+
+**Planned experiments (one variable at a time, fresh model each — changing the
+number of rays changes the 18-value observation size and invalidates older
+policies):**
+- **PPO_23 — more beams: `RAY_COUNT` 8 -> 16** (spacing ~34° -> ~17°). Everything
+  else identical to PPO_18. Targets the resolution problem directly so she can
+  read the shape of openings and route around pockets. This is the recommended
+  next run.
+- **PPO_24 — longer range: `RAY_MAX_RANGE` 28 -> ~45** — only if PPO_23 does not
+  reach ~85%. Lets her see large dead-end structures (several obstacles forming a
+  wall) sooner, ~2-3 obstacle layers ahead instead of ~1.
+- Cheap sanity check alongside: seed-replicate PPO_18 on 2-3 seeds to confirm 75%
+  is real, since PPO_18 (75%) vs PPO_22 (74%) is within single-seed noise.
 
 ## Run history
 
@@ -90,6 +407,319 @@ evaluation interval: 10,000 steps
 | PPO_16 | 303,104 | Stuck rule: revert collision penalty to -0.18 and add a terminal stuck-failure - if the robot collides with no forward progress for STUCK_LIMIT=40 consecutive steps, end the episode with a one-time STUCK_PENALTY=10; arena/target/rays/PPO settings/300k identical to PPO_14 | 64% deterministic success (natural seed 489429); collision rate collapsed to 1.35%, mean longest streak 3.66, worst wedge capped at 43 steps, forward-step share healthy at 70% | Completed and archived in `ppo_16_stuck_rule_300k/`; best result on the hard arena and it fixes the freeze without timidity - the robot learned to avoid dead-ends rather than endure them |
 | PPO_17_SMOKE | 24,576 | Validation only: eight forward 25° collision-aware sectors over 200°, same 18-value shape and 12-unit range; all reward, action, arena, collision recovery, stuck rule, and PPO settings unchanged | Smoke final: 1% deterministic success, 18.75 target progress, 3.88% collision steps; natural seed 308443 | Technical pipeline passed, NaN-free with empty stderr; not experimental evidence; isolated under `ppo_17_forward_clearance_smoke/` |
 | PPO_17 | 106,496 | Main 100k gate for PPO_17's eight forward body/leg-aware clearance sectors; otherwise PPO_16 environment, reward, action, stuck rule, and PPO settings | Final 100 episodes: 8% deterministic success, -6.45 mean reward, 28.67 target progress, 2.91% collision steps; natural seed 846909 | Completed under `ppo_17_forward_clearance_100k_rerun/`; low contact but weak, nearly zero-mean throttle and a 38% stochastic/8% deterministic gap. Do not extend automatically to 300k |
+| PPO_18 | 303,104 | Discard PPO_17 (owner) and return to the PPO_16 baseline with one "make her human" bundle: replace PPO_17's 200° collision-aware sectors with simple thin rangefinder rays re-aimed into a **270° forward cone**, range 12->28, and make movement **forward-only** (throttle `[0, 1]`, reverse removed). Dense 51-obstacle arena, stuck rule, reward, and PPO settings identical to PPO_16 | **75% deterministic success**, +20.39 mean reward on unseen dense mazes (natural seed 677925); collision-step rate 17.69% but no wedging (worst streak 43, mean longest 5.76) | Completed and archived in `ppo_18_human_vision_300k/`; **+11 over PPO_16** with decisive forward movement (0% reverse) — the opposite of PPO_17's timid collapse |
+| PPO_19 | 507,904 | Recurrent **memory** brain: only change from PPO_18 is `RecurrentPPO("MlpLstmPolicy")` (lstm_hidden_size 256) so she carries hidden state between steps. New dep `sb3-contrib`. lr 3e-4, 500k | **71%** deterministic (natural seed 736031); training jittered hard | Below champion. Archived `ppo_19_memory_500k/`. 25-maze checkpoints spiked to 84-92% but real 100-maze exam = 71% — never report the small-sample number |
+| PPO_20 | ~246k (aborted) | Same memory brain, only `--learning-rate 1e-4` (gentler) to cure PPO_19 jitter | Flat 0% to 160k, ~16-32% by 240k | Over-corrected: 1e-4 too slow to finish inside 500k. Stopped by owner, no final exam |
+| PPO_21 | 507,904 | Same memory brain, `--learning-rate 2e-4` (middle ground) | **69%** deterministic (natural seed 61224); healthiest curve of the three (smooth) | Below champion. Archived `ppo_21_memory_mid_500k/`. Collides less (10%) and more decisive (121 avg ep len) but times out more (31%). **Memory line abandoned** — loses at all three learning rates |
+| PPO_22 | 303,104 | Memoryless PPO_18 champion exactly, ONLY the brain widened: plain `PPO("MlpPolicy")` with `net_arch=[256,256]` instead of default 64x64 | **74%** deterministic (natural seed 570077); 26% timeout; collision-step rate 6.6% (down from PPO_18's 17.69%) | Archived `ppo_22_wider_brain_300k/`. **Statistical tie with PPO_18 (75%)** — wider network is a wash, timeout/planning gap unchanged. Converged by ~240k (checkpoints plateaued 80-88%), so longer budget won't help |
+| PPO_23 | 303,104 | PPO_18 champion exactly (64x64 brain, forward-only), ONLY the eyes sharpened: `RAY_COUNT` 8 -> 16 (spacing ~34° -> ~17°) via new `--ray-count` flag | **4 seeds: 86 / 73 / 87 / 80% -> mean 81.5%**, range 73-87 (high variance); collision-step rate ~2-4% | **CONFIRMED win of ~+5 pts over the tight ~76.7% 8-ray baseline; new baseline going forward.** Variance is a decisiveness effect (decisive seeds ~86-87% clear target, timid seeds 73-80%). Two of four cleared 85%. **Deployable champion = seed 965726 (87%, `..._seedC_300k`).** Replay `leaper_ppo23_replay.html` = the 86% seed |
+| PPO_24 | 507,904 | PPO_23 eyes (16 rays) with ONLY `--ray-max-range 28 -> 45` (longer sight); idle penalty NOT yet added | **80%** deterministic (seed 245103), 20% timeout, timid (55% forward) | **Inconclusive — dismissed.** Lands inside PPO_23's own 73-87% swing; range alone shows no signal. Confirmed the blocker is nerve, not eyes |
+| PPO_25 | 507,904 | PPO_23 champion (16 rays, range 28) + NEW **idle penalty** (per-step tax on standing still): `--idle-penalty 0.04 --idle-grace 3` | **4 seeds: 89 / 92 / 93 / 92 -> mean 91.5%**, range 89-93, all bold; **1,000 fresh mazes = 91.3% (95% CI 89.6-93.0)** | ✅ **NEW CHAMPION.** Variance crushed (14pt->4pt spread; 4/4 clear 85%) and mean +10pts. Deployable = seed 911743 (93%, `ppo_25_idle_s3/`) |
+| PPO_26 | 507,904 | PPO_25 idle penalty + `--ray-max-range 45` (the one untried combo) | **3 seeds: 80 / 84 / 82 -> mean 82%**, more timid (54-80% forward), 16-20% timeout | **Dismissed.** ~9 pts below the range-28 champion; longer range hurts even with the nerve fix (distant clutter in a dense field → hesitation). Range-45 door closed |
+
+## PPO_26 range-45 + idle-penalty experiment (dismissed)
+
+- Date: 2026-08-27
+- Status: complete (3 parallel seeds)
+- Parent: PPO_25 champion. Fresh models.
+- Reason: the only untried combination — test whether longer sight adds anything
+  *once* timidity is already fixed by the idle penalty.
+- Change from PPO_25: `--ray-max-range 28 -> 45`; idle penalty kept (0.04 / grace 3).
+- Command: `train_rl.py --ray-count 16 --ray-max-range 45 --idle-penalty 0.04 --idle-grace 3 --timesteps 500000 --run-name PPO_26_Sx` (seeds 782292 / 368918 / 934761).
+- Result (100-maze exam): 80% / 84% / 82% → mean **82%**; forward-step 80% / 70% / 54%; timeout 20% / 16% / 18%.
+- Artifacts: `rl_artifacts/ppo_26_r45_idle_s1|s2|s3/`.
+- Conclusion: all three ~9 pts below the range-28 PPO_25 cluster (89-93) and *more*
+  timid. Longer range hurts: at 45 nearly every ray hits distant clutter in the
+  dense 51-obstacle field, so open doorways stop reading as open and near-field
+  detail is compressed (a ray reports `distance / max_range`, so the same obstacle
+  reads fainter at a longer range). Confirms PPO_24's hint.
+- Next decision: **28 is the right range. Close the range-45 line. Ship PPO_25.**
+
+## PPO_25 idle-penalty experiment (NEW CHAMPION)
+
+- Date: 2026-08-27
+- Status: complete (1 lead + 3 parallel confirmation seeds)
+- Parent: PPO_23 champion (16 rays, range 28). Fresh models.
+- Reason: PPO_23's variance was a *decisiveness lottery* — timid seeds dithered to
+  73-80%. Standing still cost almost nothing (only the 0.01 time tax), so loitering
+  was a safe habit. Attack that at its source instead of reseeding.
+- Reward change (the one lever): add an **idle penalty** — `IDLE_PENALTY = 0.04`
+  per step when throttle < `IDLE_THROTTLE = 0.1` for more than `IDLE_GRACE = 3`
+  consecutive steps (brief pivot-in-place stays free). New CLI flags `--idle-penalty`
+  / `--idle-grace`, recorded in `training_config.json`. Range held at champion 28 to
+  isolate one variable. Everything else identical to PPO_23.
+- Command: `train_rl.py --ray-count 16 --ray-max-range 28 --idle-penalty 0.04 --idle-grace 3 --timesteps 500000 --run-name PPO_25[_Sx]` (seeds 102911 / 456047 / 703466 / 911743).
+- Result (100-maze exam): 89% / 92% / 92% / 93% → mean **91.5%**, range 89-93; every
+  seed **bold** (forward-step 86-99%), timeout 7-11%, collision 2-5.6%.
+- Generalization: champion model graded on **1,000 fresh held-out mazes** (seeds
+  50000-50999) = **91.3%** (95% CI 89.6-93.0%), vs 93% on the standard 100 → genuine
+  learning, not exam-overfit.
+- Artifacts: `rl_artifacts/ppo_25_idle_s3/` (champion, seed 911743) + s2/s4 + root run.
+- Conclusion: ✅ the win. Two effects at once — variance crushed (14pt → 4pt spread,
+  4/4 clear 85%, no timid runs) **and** mean +10 points (81.5 → 91.5), floor (89%)
+  now above target. The last blocker was that standing still was free.
+- Next decision: **PPO_25 is champion.** Deployable = seed 911743 (93%). Keep 16
+  rays + idle penalty as the baseline. (Longer range tested next in PPO_26 — worse.)
+
+## PPO_24 longer-sight experiment (dismissed)
+
+- Date: 2026-08-27
+- Status: complete (1 seed)
+- Parent: PPO_23 champion. Fresh model.
+- Reason: hypothesis that longer sight lets her spot big dead-ends earlier and cut
+  timeouts.
+- Change from PPO_23: `--ray-max-range 28 -> 45` only. No idle penalty yet.
+- Command: `train_rl.py --ray-count 16 --ray-max-range 45 --timesteps 500000 --run-name PPO_24` (seed 245103).
+- Result (100-maze exam): **80%**, 20% timeout, timid (55% forward / 45% stopped).
+- Artifacts: `rl_artifacts/` root run.
+- Conclusion: inconclusive — one seed lands mid-pack inside PPO_23's own 73-87%
+  swing, so longer range shows no signal, and the seed came out timid. Pointed the
+  search at *nerve* (→ PPO_25). Range-45 later fully ruled out in PPO_26.
+- Next decision: drop the range change; fix the decisiveness variance instead.
+
+## PPO_23 more-rays experiment (superseded by PPO_25)
+
+- Date: 2026-08-26
+- Status: complete
+- Parent: PPO_18 (the 75% champion). Fresh model.
+- Change (single variable): the eyes only. `RAY_COUNT` 8 -> 16, so the 270° cone
+  is sampled every ~17° instead of ~34°. Selected via the new `--ray-count` CLI
+  flag (default 8); the observation grows from 18 to 26 values (10 base + 16
+  rays), which invalidates older policies. Everything else identical to PPO_18 —
+  64x64 network, forward-only throttle `[0, 1]`, 28-unit range, dense 51-obstacle
+  arena, decoupled collisions, stuck rule, reward, PPO settings, 8,192 rollout.
+- Result (fixed-seed 100-episode deterministic exam, comparable to PPO_18's 75%):
+  **86% success, 14% timeout**, +31.86 mean reward, 68.55 net progress, 2.22%
+  collision-step rate, 3.73 mean longest collision streak, 51 worst (no freezes),
+  174.69 average episode length, 73.5% forward / 0% reverse (natural seed 671597,
+  303,104 steps, NaN-free). Stochastic training success also 86%.
+- **CORRECTION + FULL PICTURE (2026-08-26): the first 86% was optimistic; the
+  true 16-ray level is a 4-seed mean of ~81.5%, high variance, best seed 87%.**
+  The four 16-ray seeds:
+  - seed 671597 = **86%**, decisive (73.5% forward, throttle 0.64).
+  - seed 621697 = **73%**, TIMID (49% forward / 51% stopped, throttle 0.38).
+  - seed 965726 = **87%**, very decisive (91.9% forward, throttle 0.87). **Best.**
+  - seed 960925 = **80%**, moderately timid (67.6% forward, throttle 0.52).
+- Honest interpretation: 16 rays is a **CONFIRMED real win of ~+5 points on
+  average** (81.5% vs the confirmed 8-ray baseline mean 76.7% = 75/77/78, which is
+  tight/low-variance) and clearly better vision (collision rate ~2-4%). The
+  perception diagnosis was right. BUT it is **high-variance, and the variance is a
+  decisiveness effect**: the two decisive seeds hit ~86-87% (clear the 85%
+  target); the two that collapse toward stopping drop to 73-80% (the same
+  deterministic-timidity failure seen in PPO_17/PPO_19). **Two of four seeds
+  cleared 85%.** Do not report the *average* as meeting 85% (it's ~81.5%), but
+  since deployment ships the single best trained model, the **deployable champion
+  is seed 965726 = 87%** (`ppo_23_more_rays_seedC_300k/`), which does meet target.
+- Baseline confirmation (the comparison it rests on): PPO_18 reruns
+  `ppo_18_rerun_seedA_300k` (seed 270166) = **78%** and `ppo_18_rerun_seedB_300k`
+  (seed 869854) = **77%**, bracketing the original 75% — so the memoryless
+  baseline is a solid, low-variance ~75-78%.
+- Replay of the strong seed is at `rl_artifacts/leaper_ppo23_replay.html` (8/8
+  deterministic episodes reached the target), built with
+  `tmp/build_viewer.py ... --ray-count 16`; note it shows the lucky 86% seed, not
+  the typical policy.
+- Follow-ups to actually reach 85%: (1) 1-2 more 16-ray seeds to pin the true
+  mean; (2) attack the deterministic-timidity variance (e.g. `ent_coef`, or the
+  throttle-cancelling collapse); (3) PPO_24 = `--ray-max-range` 28 -> ~45 (longer
+  sight) as the next perception lever. Pick one; record it here.
+
+## PPO_22 wider-network experiment
+
+- Date: 2026-08-26
+- Status: complete
+- Parent: PPO_18 (the memoryless champion). Fresh model.
+- Change (single variable): the brain only. Plain `PPO("MlpPolicy", ...,
+  policy_kwargs=dict(net_arch=[256, 256]))` instead of SB3's default 64x64
+  hidden layers. Everything else identical to PPO_18 — 270°/28-unit forward
+  cone, forward-only throttle `[0, 1]`, dense 51-obstacle arena, decoupled
+  collisions, stuck rule, reward, PPO settings, 8,192 rollout. The trainer had
+  been left wired for `RecurrentPPO` after the memory experiments; it was
+  switched back to plain `PPO`. The `predict_with_memory` inference helper was
+  kept unchanged because plain PPO's `.predict()` accepts the same `state`/
+  `episode_start` arguments and simply returns a `None` state.
+- Result (fixed-seed 100-episode deterministic exam, comparable to PPO_18's 75%):
+  **74% success, 26% timeout**, +23.72 mean reward, 58.80 net progress, 6.59%
+  collision-step rate (down from PPO_18's 17.69%), 4.92 mean longest collision
+  streak, 42 worst (no freezes), 244.04 average episode length, 56.79% forward /
+  0% reverse (natural seed 570077, 303,104 steps, NaN-free, exit 0). Stochastic
+  training success 78%.
+- Interpretation: a statistical **tie** with PPO_18 (74 vs 75, single seed each).
+  The wider network cut contact further but did NOT move the timeout/planning
+  gap at all — route-planning *capacity* is not the bottleneck. The 25-maze
+  checkpoints climbed and then plateaued in the 80-88% band from ~240k onward
+  (peaked 92% at 250k), so the policy converged; a longer budget will not help.
+  Two lines are now exhausted — recurrent memory (PPO_19-21) and wider network
+  (PPO_22) — neither beats 75%. The next lever should target **perception or
+  reward**, not compute: richer/longer vision (more than 8 rays, or range beyond
+  28 on the 187.5-wide field so large dead-ends are seen sooner), or an
+  anti-wandering reward tweak. Cheapest sanity move first: seed-replicate PPO_18
+  on 2-3 seeds to confirm 75% is real, since 75 vs 74 is within single-seed noise.
+
+## PPO_19-PPO_21 recurrent-memory experiments
+
+- Date: 2026-08-25 to 2026-08-26
+- Status: complete (PPO_20 aborted); **memory line abandoned**
+- Parent: PPO_18. Fresh models.
+- Change: give her a **memory** — replace PPO_18's plain `MlpPolicy` with an LSTM
+  recurrent policy (`RecurrentPPO("MlpLstmPolicy")`, lstm_hidden_size 256,
+  n_lstm_layers 1) so hidden state carries between steps and she can, in
+  principle, remember explored dead-ends. New dependency `sb3-contrib>=2.9,<3`.
+  All four inference loops updated to carry LSTM state and reset it at each
+  episode start via `predict_with_memory()`. A `--learning-rate` CLI arg
+  (default 3e-4) was added so the rate is tunable without editing code.
+  Everything else identical to PPO_18.
+- Runs and results (fixed-seed 100-episode deterministic exam):
+  - **PPO_19** (lr 3e-4, 500k, seed 736031): **71%**. Trained but jittered hard
+    (72->48->92->76% across checkpoints), the signature of a learning rate a
+    touch too high for the recurrent policy. `ppo_19_memory_500k/`.
+  - **PPO_20** (lr 1e-4, seed logged in config): over-corrected — flat 0% to
+    160k, ~16-32% by 240k. Stopped by owner ~246k as clearly on track to miss
+    75%. No final exam written. `ppo_20_memory_gentle_500k/`.
+  - **PPO_21** (lr 2e-4, 500k, seed 61224): **69%**. Healthiest curve of the
+    three (smooth, no jitter, no crawl). Collides less (10.1%) and is more
+    decisive (121.41 avg ep len, mean throttle 0.80) than PPO_18, but times out
+    more (31% vs 25%). `ppo_21_memory_mid_500k/`.
+- Interpretation: recurrent memory does **not** beat memoryless PPO_18 at any of
+  the three learning rates tried (3e-4 = 71%, 2e-4 = 69%, 1e-4 = too slow).
+  Abandon the memory brain; PPO_18 (75%) stays champion. Reading note: the
+  per-10k checkpoints only sample **25** mazes and flatter (PPO_19 spiked to
+  84-92%); always report the rigorous 100-maze exam number, never the checkpoint.
+- Note: this arc was tracked in detail in the auto-memory during the runs and is
+  summarized here for the permanent ledger.
+
+## PPO_18 human forward-vision experiment
+
+- Date: 2026-08-24
+- Status: complete
+- Parent: PPO_16 (dense 51-obstacle arena, stuck rule, -0.18 collision penalty).
+  Fresh model.
+- Numbering note: the owner chose to discard the earlier PPO_17 forward-clearance
+  experiment as a direction. Because PPO_17's runs already occupy that slot in the
+  archives and above in this ledger, this human-vision run is recorded as **PPO_18**
+  so run names stay consistent with the files on disk. PPO_17's eyes were never
+  rebuilt to PPO_16's 360° form; PPO_18 replaces PPO_17's eyes directly (the working
+  tree sat at PPO_17 when this run began).
+- Reason for the run: two owner goals. (1) Creative: 360° all-round vision looks
+  unnatural — Leaper should see like a human, a forward field with a blind back.
+  (2) Performance: PPO_16's remaining gap is its 36% timeout rate; push success
+  toward the 85% target. PPO_17 had already tried forward vision and *failed* (8% vs
+  PPO_16's 64%) because it left the robot half-blind while still allowing reverse —
+  so a narrow-sighted robot backed into obstacles it could not see. The fix designed
+  here is to pair narrow vision with forward-only movement: **see forward, walk
+  forward**, so the robot never travels into its blind spot.
+
+### The one coherent change (a bundle, not a single variable)
+
+This is deliberately **not** a single-variable experiment; vision span, vision
+semantics, range, and the action space all moved together as one intended
+"human" redesign, by owner decision. Everything else (arena, target, 19 collision
+points, decoupled collision recovery, stuck rule, reward formula and amounts, PPO
+settings, 8,192 rollout, 10k eval interval) is identical to PPO_16.
+
+- **Vision geometry:** eight thin rangefinder rays (the simple PPO_11–16 sensor:
+  distance from the body centre to the nearest obstacle surface or wall), re-aimed
+  from a full circle into a **270° forward cone** (`VISION_FOV = 270°`). The rays
+  sit at the centres of eight equal sectors, symmetric about straight-ahead; the
+  robot is blind only to a 90° wedge directly behind it.
+- **Vision range:** `RAY_MAX_RANGE` 12.0 → **28.0**, so dead-ends are visible while
+  forming on the 187.5-wide field.
+- **Movement (the safety pairing):** reverse removed. Throttle is now `[0, 1]`
+  forward-only (`action_space.low = [0, -1]`); the robot turns to face, then walks
+  forward. It still escapes contact by rotating in place plus the stuck rule.
+- Observation stays 18 values and base channels 0–9 are unchanged, but the new
+  sensor geometry and action space invalidate every older policy (fresh start).
+
+```text
+        PPO_16 — 360° all-round eyes            PPO_18 — 270° human cone
+              (old, unnatural)                     (sees forward, walks forward)
+
+                  ↖  ↑  ↗                                ↖  ↑  ↗
+                  ←  R  →                                ←  R  →
+                  ↙  ↓  ↘                                 ·  ·  ·   ← rear 90° BLIND
+             rays in every direction               no rays behind; reverse removed
+                (can reverse too)                   so she never enters the blind spot
+```
+
+- Command: `python train_rl.py --timesteps 300000 --run-name PPO_18 --artifact-dir rl_artifacts/ppo_18_human_vision_300k` (natural seed 677925; smoke first under `ppo_18_human_vision_smoke/`).
+- Tests: `tests/test_ppo18_human_vision.py` (270° cone, longer range, forward-only,
+  symmetric rays, rear blind wedge); the reverse cases in
+  `test_ppo10_signed_throttle.py` / `test_ppo12_collision_recovery.py` were
+  converted to forward-only. All 36 focused tests pass; env passes Gymnasium's
+  checker NaN-free.
+
+### PPO_18 final result
+
+Deterministic values use the same fixed seeds from 10,000 (the identical exam
+PPO_14–PPO_17 sat), so this is directly comparable to PPO_16.
+
+| Deterministic metric | PPO_16 (360° eyes, reverse) | PPO_18 (270° human, forward-only) |
+|---|---|---:|
+| Success rate | 64% | **75%** |
+| Timeout rate | 36% | 25% |
+| Mean reward | (not comparable) | +20.39 |
+| Mean net target progress | 57.28 | 59.07 |
+| Collision rate | 1.35% | 17.69% |
+| Mean longest collision streak | 3.66 | 5.76 |
+| Worst collision streak (wedge) | 43 | 43 |
+| Forward step share | 70.0% | 69.64% |
+| Reverse step share | (some) | 0% |
+| Mean absolute throttle | — | 0.52 (decisive) |
+| Average episode length | 366.82 | 209.68 |
+| Stochastic training success | 94% | 81% |
+
+Reward breakdown per deterministic episode: +11.81 progress, -2.10 time, -8.08
+collision/stuck, +18.75 goal.
+
+### Deterministic success over training (answers the "it says 5%?" question)
+
+The 5% some graphs show is the **start** of training, not the result. The
+deterministic exam climbed from 0% to 75% over the run (checkpoint quick-evals use
+25 episodes and are noisier than the final 100-episode exam):
+
+| Steps | Success | |
+|--:|--:|:--|
+| 10k–80k | 0% | |
+| 90k | 4% | ▏ |
+| 100k | 20% | ████ |
+| 130k | 44% | █████████ |
+| 150k | 60% | ████████████ |
+| 160k | 64% | █████████████ |
+| 190k | 80% | ████████████████ |
+| 250k | 76% | ███████████████ |
+| 300k | 84%\* | █████████████████ |
+
+\* 300k checkpoint quick-eval (25 episodes); the rigorous final 100-episode exam
+scored **75%**, which is the number of record.
+
+Conclusion: the human-vision redesign is a genuine **+11-point win** over the
+previous champion (64% → 75%) and, critically, it is **healthy** — the exact
+opposite of PPO_17's failure. PPO_17 collapsed into timid, near-zero throttle
+(0.12 absolute) and 8% success; PPO_18 drives decisively (0.52 absolute throttle,
+70% forward, 0% reverse) and finishes episodes far faster (367 → 210 steps). This
+confirms the design reasoning: PPO_17 failed not because narrow vision is bad, but
+because a half-blind robot was still allowed to reverse into its blind spot;
+pairing the 270° cone with forward-only movement removes that mismatch.
+
+Honest caveats:
+- **Collision-step rate rose (1.35% → 17.69%).** With reverse removed the robot can
+  no longer peel *backwards* off an obstacle, so it scrapes along edges more while
+  pushing forward toward the goal. This is mostly benign edge-contact, not the old
+  freeze: the stuck rule held (mean longest streak 5.76, worst 43, no wedging), and
+  success *rose* despite the extra brushing. Still, contact avoidance is a clear
+  next target.
+- **Single natural seed** (677925), and this run **bundled several changes**
+  (vision span, semantics, range, forward-only), so the +11 cannot be attributed to
+  any one lever.
+
+Next decision: keep the 270° human vision and forward-only movement — proven a net
+win and behaviourally healthy. Remaining gap to the owner's 85% target is the 25%
+timeout rate (getting lost, not wedging — a navigation-planning shortfall). The
+design is now proven healthy, so the training-side power-ups deliberately held back
+from this run are justified as the next changes, one at a time: (1) larger network
+via `policy_kwargs` (net_arch ~256×256) and/or a longer training budget to cut
+timeouts; (2) recurrent memory (dead-end recall) if still short of 85%; (3) seed
+replication to confirm 75%; (4) reduce edge-brushing contact. Test one at a time
+and record here.
 
 ## PPO_17 forward collision-aware vision smoke test
 

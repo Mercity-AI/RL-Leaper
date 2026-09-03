@@ -89,7 +89,9 @@ export class LeaperSimulation {
     this.updateStatus(speed);
   }
 
-  updateExternal(frame, deltaTime, replay) {
+  // Drive the rig from an externally supplied pose ({x, z, yaw, distance,
+  // collision}) — shared by recorded replays and the live brain.
+  applyExternalFrame(frame, deltaTime, chaseFocus = null) {
     this.elapsed += deltaTime;
     const state = this.state;
     state.velocity.set(
@@ -106,9 +108,13 @@ export class LeaperSimulation {
     this.updateBody(speed, deltaTime);
     this.updateGait(speed, deltaTime);
     this.updateEffects(frame.collision, speed, deltaTime);
-    this.cameraController.update(state, this.rig.eyePivot, deltaTime);
+    this.cameraController.update(state, this.rig.eyePivot, deltaTime, chaseFocus);
     this.sun.position.set(state.position.x + 8, 15, state.position.z + 6);
     this.sun.target.position.set(state.position.x, 0, state.position.z);
+  }
+
+  updateExternal(frame, deltaTime, replay) {
+    this.applyExternalFrame(frame, deltaTime);
     const collisionLabel = frame.collision
       ? `${frame.collisionPart?.startsWith('leg') ? 'LEG' : 'BODY'} COLLISION`
       : 'MOVING';

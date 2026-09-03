@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leaper RL Study — Hypothesis & Findings</title>
+<style>
+  :root {
+    --bg:#0f1117; --panel:#171a22; --panel-2:#1d212b; --border:#2a2f3a;
+    --text:#e6e8ee; --muted:#9aa2b1; --accent:#ff8b3d; --accent-2:#ff4fa3;
+    --good:#5fd08a; --bad:#ff6f6f; --link:#6db3ff; --code-bg:#12151c;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.65 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; padding:0 20px 120px; }
+  .wrap { max-width:900px; margin:0 auto; }
+  header.page { padding:48px 0 24px; border-bottom:1px solid var(--border); }
+  header.page h1 { font-size:2.1rem; margin:0 0 10px;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  header.page p { color:var(--muted); margin:0; max-width:64ch; }
+  h2 { margin:44px 0 14px; padding-top:20px; font-size:1.45rem; border-top:1px solid var(--border); }
+  h2.major { color:#fff; }
+  h3 { margin:26px 0 10px; font-size:1.12rem; color:#cfd3dc; }
+  p { margin:12px 0; }
+  a { color:var(--link); }
+  ul { padding-left:22px; } li { margin:6px 0; }
+  strong { color:#fff; }
+  .callout { background:var(--panel); border-left:3px solid var(--accent);
+    padding:14px 18px; border-radius:8px; margin:18px 0; color:#d6dae3; }
+  .win { border-left-color:var(--good); }
+  code { background:var(--code-bg); border:1px solid var(--border); padding:1px 6px;
+    border-radius:5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+    font-size:0.88em; color:#ffd7a8; }
+  .table-scroll { overflow-x:auto; margin:16px 0; border-radius:10px; border:1px solid var(--border); }
+  table { border-collapse:collapse; width:100%; font-size:0.9rem; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+  thead th { background:var(--panel-2); color:#cfd3dc; font-weight:600; }
+  tbody tr:nth-child(even) { background:rgba(255,255,255,0.02); }
+  td strong { color:var(--good); }
+  .imgnote { background:var(--panel-2); border:1px dashed var(--border); border-radius:8px;
+    padding:12px 16px; color:var(--muted); font-size:0.9rem; margin:16px 0; }
+  .lead { color:var(--accent-2); font-weight:600; }
+  ol.findings li { margin:10px 0; }
+  footer.page { margin-top:48px; padding-top:18px; border-top:1px solid var(--border);
+    color:var(--muted); font-size:0.9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="page">
+  <h1>Leaper RL Study</h1>
+  <p>Hypothesis, setup, and run-by-run findings for teaching the Leaper hexapod to
+  cross an obstacle arena with PPO reinforcement learning. Covers PPO_1 through PPO_12.</p>
+</header>
+
+<h2 class="major" style="border-top:none;">Hypothesis — what are we doing?</h2>
+<p>A PPO policy should be able to teach the hexapod (Leaper) to cross an obstacle-laid
+arena on its own, just from rewards for getting closer to the target and for reaching
+it — no scripted spoon-feeding. If it moves far, avoids getting stuck, and completes the
+mission, we win.</p>
+
+<h2 class="major">1. Setup summary — How did we do it?</h2>
+
+<h3>Two connected environments</h3>
+<ul>
+  <li><strong>JavaScript / Three.js:</strong> displayed the hexapod, arena, obstacles, target, movement, and saved training replays in the browser.</li>
+  <li><strong>Python / Gymnasium:</strong> ran the actual RL training, using a faster, simplified top-down representation of the same task.</li>
+</ul>
+<p>The Python environment did not simulate detailed joints, balance, motors, or realistic
+leg physics. It trained the robot as a moving body with collision points representing its
+body and legs.</p>
+
+<h3>Training conditions</h3>
+<ul>
+  <li>Arena: <strong>50 × 50 units</strong> (coordinates run from −25 to +25 on each axis)</li>
+  <li>Target: fixed at <strong>(18, 18)</strong></li>
+  <li>Obstacles: <strong>five fixed circular obstacles</strong></li>
+  <li>Starting point: random valid position and direction each attempt</li>
+  <li>Attempt length: maximum <strong>400 steps</strong></li>
+  <li>Maximum movement: <strong>0.75 units per step</strong></li>
+  <li>Maximum rotation: <strong>18° per step</strong></li>
+  <li>Success: reaching the target area</li>
+  <li>Collision (through PPO_11): movement <em>and</em> rotation both rejected, but the attempt continued (changed in PPO_12)</li>
+</ul>
+<p>The final collision model checked one body point plus three points on each of six legs —
+<strong>19 collision points in total</strong>.</p>
+<div class="imgnote">🖼 Image placeholder: <code>Screenshot 2026-08-11 171934.png</code> — the 19-point collision model. Drop the file next to this page to display it.</div>
+
+<h3>What the model could control and observe</h3>
+<p>The robot controlled <strong>forward / reverse movement</strong> and <strong>left / right turning</strong>.
+By PPO_9 it received <strong>ten</strong> pieces of information: its position; direction and
+distance to the target; its facing direction; whether it had just collided; and its previous
+movement and turning commands.</p>
+<p>At this stage it did <strong>not</strong> have cameras, obstacle-distance sensors, a map, or
+leg-joint information. (Forward-looking obstacle sensors are added later, in PPO_11.)</p>
+
+<h3>Reward system</h3>
+<ul>
+  <li>Small reward for moving closer to the target; penalty for moving farther away</li>
+  <li><strong>−0.01</strong> per step</li>
+  <li><strong>−0.18</strong> per collision</li>
+  <li><strong>+25</strong> for reaching the target</li>
+</ul>
+
+<h3>Training stack</h3>
+<ul>
+  <li>Algorithm: <strong>PPO</strong>; eight environments in parallel</li>
+  <li><strong>8,192 experiences</strong> collected before each learning update; ten learning passes per update</li>
+  <li>Seed <strong>7</strong> (fixed through PPO_11; from PPO_12 each run uses a fresh natural random seed)</li>
+  <li>Checkpoint evaluation every <strong>10,000 steps</strong></li>
+  <li>Python, Gymnasium, Stable-Baselines3, PyTorch — on CPU</li>
+  <li>TensorBoard + Matplotlib for learning curves; Three.js for browser replay</li>
+</ul>
+
+<h2 class="major">Outcomes — what did we find?</h2>
+
+<h3>PPO_1–2: proving the basic task was learnable</h3>
+<p><strong>PPO_1</strong> (24,576 steps) confirmed the pipeline, logging, and model saving worked.
+<strong>PPO_2</strong> (303,104 steps) reached about <strong>60% success at its best archived
+checkpoint</strong> and <strong>57% in the final 100-attempt evaluation</strong>. Strong — but only
+the central body could collide; its legs passed through obstacles. It proved PPO could navigate
+the simplified arena, not that it could control the realistic collision-aware hexapod.</p>
+
+<h3>PPO_3–4: realistic leg collisions changed the problem</h3>
+<p><strong>PPO_3</strong> added 18 leg checks (19 points total) and reached only <strong>4% success</strong>
+before being stopped at 229,376 steps. <strong>PPO_4</strong> trained the full model for 303,104 steps
+and reached <strong>7% success</strong> with mean reward <strong>−46.23</strong> (4% at the 300k checkpoint).</p>
+<p>The first dramatic result: adding legs dropped performance from 57% to single digits, and 300k
+steps were not enough to recover. When any point collided, both movement and turning were rejected —
+so the robot could get stuck repeatedly attempting the same blocked action.</p>
+
+<h3>PPO_5–8: reward changes improved scores, but not reliable behavior</h3>
+<ul>
+  <li><strong>PPO_5</strong> — exploratory (106,496 steps); reward change and final eval not preserved. Not a formal conclusion.</li>
+  <li><strong>PPO_6</strong> — time-decaying goal reward (303,104 steps): <strong>0% success</strong>, mean reward −17.57.</li>
+  <li><strong>PPO_7</strong> — interrupted at 147,456 steps; reward experiment later withdrawn.</li>
+  <li><strong>PPO_8</strong> — the final documented reward system (progress + time + collision + goal), 303,104 steps: still <strong>0% deterministic success</strong>.</li>
+</ul>
+<p>PPO_8's average training reward improved (≈ −59.53 over the first 100 attempts → ≈ −25.94 over the
+last 100), yet every deterministic checkpoint reported 0%. The score improved while exploratory
+randomness was active; the final policy produced no useful movement without it.</p>
+
+<h3>PPO_8's major finding: the robot learned to freeze</h3>
+<ul>
+  <li>Timed out in <strong>100%</strong> of deterministic attempts</li>
+  <li>Zero throttle on ≈ <strong>99%</strong> of steps; effectively zero progress</li>
+  <li>Usually stood still rather than risk a collision; occasionally stuck in a collision loop until timeout</li>
+</ul>
+<p>Standing still was comparatively safe: moving risked the collision penalty, stopping only cost the
+smaller time penalty. The target was reachable (a typical start needs ≈ 39–43 full-speed steps vs a
+400-step limit), so the problem was the <em>strategy</em>, not time or reachability.</p>
+
+<h3>PPO_9: collision memory helped exploration, not deployment</h3>
+<p>PPO_9 added three observations: whether the last action collided, and the previous movement and
+turning commands. Late in training, exploratory success reached ≈ <strong>10%</strong> and mean progress
+≈ 6.65 units. But the final deterministic evaluation was still <strong>0% success</strong>, 100% stopped
+steps, zero progress, mean reward −6.03. It isolated the one-sided forward control as the likely cause
+of the freeze.</p>
+
+<h3>PPO_10: reverse movement finally broke the freeze</h3>
+<p>One controlled change: movement became a <strong>signed</strong> control (negative = reverse,
+0 = stop, positive = forward).</p>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Metric</th><th>PPO_8</th><th>PPO_9</th><th>PPO_10</th></tr></thead>
+  <tbody>
+    <tr><td>Deterministic success</td><td>0%</td><td>0%</td><td><strong>5%</strong></td></tr>
+    <tr><td>Timeout rate</td><td>100%</td><td>100%</td><td><strong>95%</strong></td></tr>
+    <tr><td>Mean target progress</td><td>~0</td><td>0</td><td><strong>6.29 units</strong></td></tr>
+    <tr><td>Stopped steps</td><td>~100%</td><td>100%</td><td><strong>0%</strong></td></tr>
+    <tr><td>Forward steps</td><td>~0%</td><td>0%</td><td><strong>54.64%</strong></td></tr>
+    <tr><td>Reverse steps</td><td>0%</td><td>0%</td><td><strong>45.36%</strong></td></tr>
+  </tbody>
+</table>
+</div>
+<div class="imgnote">🖼 Image placeholder: <code>Codex Image Aug 13, 2026, 05_46_20 PM.png</code> — PPO_10 movement, the freeze broken.</div>
+<p>The latest 100 exploratory attempts reached 34% success and 16.14 units of progress (mean reward
+≈ −0.48) — kept separate from the stricter 5% deterministic result. PPO_10 moved and approached the
+target but still could not reliably escape obstacles, having no way to sense them before contact.</p>
+
+<h3>PPO_11: giving the robot sight — the breakthrough</h3>
+<p>One controlled change: <strong>eight obstacle-clearance rangefinder rays</strong>, fanning out every
+45° around the facing (one straight ahead), each reporting clear distance to the nearest obstacle or
+wall. The observation grew from <strong>10 to 18</strong> values. We never told it to avoid obstacles —
+it only gained the readings and learned avoidance from the same −0.18 penalty.</p>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Metric</th><th>PPO_10 (blind)</th><th>PPO_11 (rays)</th></tr></thead>
+  <tbody>
+    <tr><td>Deterministic success</td><td>5%</td><td><strong>69%</strong></td></tr>
+    <tr><td>Timeout rate</td><td>95%</td><td><strong>31%</strong></td></tr>
+    <tr><td>Mean reward</td><td>−28.04</td><td><strong>+12.96</strong></td></tr>
+    <tr><td>Mean target progress</td><td>6.29</td><td><strong>22.79 units</strong></td></tr>
+    <tr><td>Collision rate</td><td>38.87%</td><td><strong>24.50%</strong></td></tr>
+    <tr><td>Average episode length</td><td>381.92</td><td><strong>163.64 steps</strong></td></tr>
+  </tbody>
+</table>
+</div>
+<div class="callout win"><strong>69% deterministic success is the best in the project's history</strong> —
+higher even than the body-only PPO_2 (57–60%) in the much harder 19-point arena. The robot now reaches
+the target and ends the attempt rather than timing out.</div>
+<p>Two honest caveats: the policy settled on a mostly-<strong>reverse</strong> gait (backing toward the
+target scores just as well — cosmetic, since net progress is strongly positive), and 31% of attempts
+still time out, with one stuck in a full 400-step collision streak.</p>
+
+<h4 style="color:#cfd3dc;">Seed replication — sensor, or luck?</h4>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Metric</th><th>Seed 7</th><th>Seed 11</th><th>Seed 23</th></tr></thead>
+  <tbody>
+    <tr><td>Deterministic success</td><td>69%</td><td>54%</td><td>39%</td></tr>
+    <tr><td>Collision rate</td><td>24.50%</td><td>42.92%</td><td>42.08%</td></tr>
+    <tr><td>Mean longest collision streak</td><td>31.5</td><td>92.7</td><td>112.0</td></tr>
+    <tr><td>Stochastic training success</td><td>83%</td><td>88%</td><td>93%</td></tr>
+  </tbody>
+</table>
+</div>
+<ol>
+  <li><strong>The rays are confirmed, decisively.</strong> All three seeds tower over blind PPO_10 (5%); stochastic success is high and tight (83–93%). The jump is the sensor, not luck.</li>
+  <li><strong>Getting unstuck is still not solved, and it's seed-sensitive.</strong> Success spans 39–69% (mean ≈ 54%); seeds 11 and 23 collide ~43% of the time. Seed 7 was simply luckiest on collisions. Every seed still has ~400-step streak attempts.</li>
+</ol>
+<p>The mechanism: a blocked step rejected <em>both</em> turning and moving, so a deterministic policy
+re-issued the same rejected action and looped until timeout, while exploratory randomness escaped.</p>
+
+<h3>PPO_12: letting a stuck robot wriggle free</h3>
+<p>Kept the rays; changed only the collision response. When a combined turn-and-move is blocked, the
+two now resolve <strong>independently</strong> — rotate in place if that alone is clear, then move along
+the resolved facing if that alone is clear. A touching robot can finally turn or reverse out of contact.
+Reward semantics unchanged. First run to use a fresh natural seed (53054).</p>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Metric</th><th>PPO_11 (7 / 11 / 23)</th><th>PPO_12 (natural)</th></tr></thead>
+  <tbody>
+    <tr><td>Deterministic success</td><td>69% / 54% / 39%</td><td><strong>65%</strong></td></tr>
+    <tr><td>Mean reward</td><td>+12.96 / −1.70 / −10.48</td><td><strong>+6.09</strong></td></tr>
+    <tr><td>Collision rate</td><td>24.5% / 42.9% / 42.1%</td><td>40.47%</td></tr>
+    <tr><td>Mean longest collision streak</td><td>31.5 / 92.7 / 112.0</td><td><strong>62.8</strong></td></tr>
+    <tr><td>Average episode length</td><td>163.6 / 219.0 / 270.8</td><td><strong>174.5 steps</strong></td></tr>
+  </tbody>
+</table>
+</div>
+<p>A modest, real improvement rather than a knockout. <strong>What worked:</strong> the escape mechanic
+is proven in unit tests — a wedged robot rotates or reverses out instead of freezing; success (65%) sits
+at the strong end of PPO_11's spread and above its ~54% seed average, and typical jams are much shorter
+(62.8 vs 92.7 / 112.0). <strong>What didn't:</strong> the collision <em>rate</em> did not fall (40.47%),
+and one attempt still hit a 400-step streak — partly a measurement artifact, since the flag marks any
+blocked intended move even when the robot then wriggles out.</p>
+<p class="lead">The lesson: avoiding contact is a different skill from escaping it.</p>
+
+<h2 class="major">Overall findings</h2>
+<ol class="findings">
+  <li><strong>The simplified task was learnable</strong> — PPO_2 did well, but body-only collisions weren't realistic enough.</li>
+  <li><strong>Leg collisions became the primary difficulty</strong> — 57% → single digits once six legs were included.</li>
+  <li><strong>Reverse movement solved the freeze, but not navigation</strong> — PPO_10 moved and approached, but couldn't reliably escape obstacles.</li>
+  <li><strong>Giving the robot sight was the breakthrough</strong> — eight rays took success from 5% to 69%, confirmed across three seeds.</li>
+  <li><strong>Escaping contact is a separate, still-open skill</strong> — decoupling the collision response (PPO_12) shortens jams but didn't lower the collision rate on its own.</li>
+</ol>
+<p>The training curves tell the same story: for several runs, exploratory reward improved without
+matching deterministic success. PPO_10 was the first run where better training behavior also produced
+active deterministic movement; PPO_11 was where deterministic performance finally jumped.</p>
+
+<h2 class="major">Where we stand and what's next</h2>
+<p>The rays and the decoupled collision response are permanent keepers. The remaining problem is
+<strong>contact avoidance</strong>, not escape. The next single controlled experiment
+(<strong>PPO_13</strong>) attacks it directly: raise the collision penalty above −0.18 so grinding along
+an obstacle costs more reward, keeping the rays, the decoupled physics, and all PPO settings unchanged.
+An alternative single change is denser or longer-range rays to see narrow gaps. As always, we test only
+one thing at a time.</p>
+
+<footer class="page">
+  Sources: <code>TRAINING.md</code> (run ledger), <code>rl_environment.py</code>, <code>train_rl.py</code>,
+  and the archived run artifacts under <code>rl_artifacts/</code>. Figures aligned to the authoritative ledger.
+</footer>
+
+</div>
+</body>
+</html>

@@ -228,6 +228,7 @@ canvas {
 
 .training-mode #trainingPanel { display: grid; }
 .training-mode #cuboidToggle,
+.brain-mode #cuboidToggle,
 .training-mode #touch { display: none; }
 .training-mode .hud .keys { display: none; }
 .training-mode .hud .sub::after { content: " // LEARNING REPLAY"; color: #ff4fa3; }

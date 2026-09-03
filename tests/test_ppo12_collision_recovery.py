@@ -94,30 +94,31 @@ class CollisionRecoveryTests(unittest.TestCase):
         self.assertTrue(info["collision"])
         self.assertLess(info["reward_terms"]["collision"], 0.0)
 
-    def test_reverses_out_when_forward_is_blocked(self):
-        """Facing into contact, a reverse throttle backs the robot away."""
+    def test_forward_blocked_pose_holds_without_reverse(self):
+        """PPO_18 removes reverse: facing into contact with no turn, it can't back out.
+
+        Escape now comes only from rotating to a clear facing (see the rotate-out
+        test) or, failing that, the stuck rule; a blocked forward move simply holds.
+        """
 
         def predicate(x, z, yaw):
             if not self.free((x, z), yaw):
                 return False
             _, forward = self.combined((x, z), yaw, 1.0, 0.0)
-            if self.free(forward, yaw):
-                return False  # forward must be blocked
-            _, backward = self.combined((x, z), yaw, -1.0, 0.0)
-            return self.free(backward, yaw)  # reverse must be clear
+            return not self.free(forward, yaw)  # forward must be blocked
 
         found = self.find(predicate)
-        self.assertIsNotNone(found, "no reverse-out pose found near the obstacle")
+        self.assertIsNotNone(found, "no forward-blocked pose found near the obstacle")
         x, z, yaw = found
         self.place((x, z), yaw)
-        _, backward = self.combined((x, z), yaw, -1.0, 0.0)
-        self.env.step(np.array([-1.0, 0.0], dtype=np.float32))
-        np.testing.assert_allclose(self.env.position, backward, atol=1e-5)
+        self.env.step(np.array([1.0, 0.0], dtype=np.float32))
+        # No forward room and no reverse, so position and facing are unchanged.
+        np.testing.assert_allclose(self.env.position, np.array([x, z]), atol=1e-5)
         self.assertAlmostEqual(self.env.yaw, yaw, places=5)
 
-    def test_observation_size_unchanged_from_ppo11(self):
+    def test_observation_size_matches_sixteen_ray_champion(self):
         observation, _ = self.env.reset(seed=1)
-        self.assertEqual(observation.shape, (18,))
+        self.assertEqual(observation.shape, (26,))
         self.assertTrue(self.env.observation_space.contains(observation))
 
 

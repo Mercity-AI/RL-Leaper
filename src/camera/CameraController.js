@@ -135,7 +135,7 @@ export class CameraController {
     return this.eyeView ? robotYaw + this.eyeYaw : this.yaw + Math.PI;
   }
 
-  update(state, eyePivot, deltaTime) {
+  update(state, eyePivot, deltaTime, chaseFocus = null) {
     if (this.eyeView) {
       this.tempA.set(0, 0, 0.19);
       eyePivot.localToWorld(this.tempA);
@@ -158,11 +158,15 @@ export class CameraController {
     }
 
     this.camera.up.set(0, 1, 0);
-    this.tempA.set(
-      state.position.x,
-      STANDING_HEIGHT * 0.75 + state.jumpHeight * 0.9,
-      state.position.z,
-    );
+    if (chaseFocus) {
+      this.tempA.set(chaseFocus.x, 1.6, chaseFocus.z);
+    } else {
+      this.tempA.set(
+        state.position.x,
+        STANDING_HEIGHT * 0.75 + state.jumpHeight * 0.9,
+        state.position.z,
+      );
+    }
     this.target.lerp(this.tempA, Math.min(1, 6 * deltaTime));
     this.tempB.set(
       Math.sin(this.yaw) * Math.cos(this.pitch),

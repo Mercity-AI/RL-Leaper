@@ -1,0 +1,247 @@
+<meta charset="utf-8">
+<title>Leaper RL Report</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#161b22; --panel2:#1b2230; --text:#e6edf3; --muted:#9aa7b4;
+    --accent:#58a6ff; --good:#3fb950; --warn:#d29922; --line:#2a3441; --code:#0b0f14;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:16px/1.65 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 90px;}
+  h1{font-size:30px;line-height:1.25;margin:.2em 0 .3em;border-bottom:2px solid var(--line);padding-bottom:.35em}
+  h2{font-size:24px;margin:1.9em 0 .5em;color:#fff;border-bottom:1px solid var(--line);padding-bottom:.3em}
+  h3{font-size:19px;margin:1.5em 0 .4em;color:var(--accent)}
+  h4{font-size:15px;margin:1.2em 0 .3em;color:var(--muted)}
+  p,li{color:var(--text)}
+  .muted{color:var(--muted)}
+  strong{color:#fff}
+  hr{border:none;border-top:1px solid var(--line);margin:2.4em 0}
+  code{background:var(--code);padding:.12em .4em;border-radius:5px;font-family:Consolas,Menlo,monospace;font-size:.9em}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto;font-family:Consolas,Menlo,monospace;font-size:13px;line-height:1.5}
+  table{border-collapse:collapse;width:100%;margin:1.1em 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#fff}
+  tr:nth-child(even) td{background:var(--panel)}
+  td.r,th.r{text-align:right}
+  .callout{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:1.2em 0}
+  .good{color:var(--good)} .warn{color:var(--warn)}
+  ul{padding-left:22px}
+</style>
+<div class="wrap">
+
+<h1>Leaper RL Report</h1>
+
+<h2>Run progress: PPO_10 → PPO_12</h2>
+
+<h3>Starting point — PPO_10 (short recap)</h3>
+<p>PPO_10 was the first run where the robot actually moved. Earlier runs had learned to freeze in place, because standing still was the safest way to avoid the collision penalty. PPO_10 fixed that by letting the throttle go negative (reverse), so freezing was no longer the only safe option.</p>
+<p>It worked, but the robot was still blind to obstacles:</p>
+<ul>
+  <li>Deterministic success: <strong>5%</strong></li>
+  <li>Collision rate: <strong>38.87%</strong> of steps (worst streak 399 of 400)</li>
+  <li>Average episode length: <strong>381.9</strong> of 400 — it almost always ran out of time instead of reaching the goal</li>
+</ul>
+<p>The robot had no way to see an obstacle coming; its only obstacle signal was a single bit that turned on <em>after</em> it had already hit something. So it ground into obstacles and kept grinding. That single weakness — no forward vision — is what PPO_11 set out to fix.</p>
+
+<hr style="margin:1.6em 0">
+
+<h3>PPO_11 — obstacle vision (eight rangefinder rays)</h3>
+<h4>Hypothesis — what are we doing?</h4>
+<p>If we give the robot forward-looking sight of obstacles, it should learn to steer around them before contact instead of grinding into them, so success should rise and collisions should fall. We change only the sensors so that any change in behavior can be attributed to sight and nothing else.</p>
+<h4>Setup — what changed</h4>
+<ul>
+  <li>Added <strong>eight rangefinder rays</strong> to the observation; nothing else changed.</li>
+  <li>Observation grew from <strong>10 values to 18</strong>. The rays fan out from the body, one every 45° (the first straight ahead), each reporting how far is clear before an obstacle or wall.</li>
+  <li>We do not tell the robot to avoid obstacles — it only gets the readings. The unchanged −0.18 collision penalty supplies the incentive, and PPO must learn the avoidance itself.</li>
+  <li>Everything else identical to PPO_10: reward, physics, action space, target, obstacles, PPO settings, 106,496 collected steps. Confirmed across 3 seeds.</li>
+</ul>
+<h4>Outcomes</h4>
+<table>
+  <tr><th>Metric (deterministic exam)</th><th class="r">PPO_10 (blind)</th><th class="r">PPO_11 (rays)</th></tr>
+  <tr><td>Success rate</td><td class="r">5%</td><td class="r good">69%</td></tr>
+  <tr><td>Collision rate</td><td class="r">38.87%</td><td class="r">24.50%</td></tr>
+  <tr><td>Mean longest collision streak</td><td class="r">49.44</td><td class="r">31.54</td></tr>
+  <tr><td>Average episode length</td><td class="r">381.9</td><td class="r">163.6</td></tr>
+</table>
+<p>This was the biggest single jump in the project — <strong>69% success, the best Leaper has produced</strong>, and higher than the older body-only run (60%) that never had legs to catch on obstacles. Episodes became about twice as short because the robot now reaches the goal and finishes rather than wandering into things until time runs out. Re-running with two more seeds gave 69% / 54% / 39%: every seed towered over blind PPO_10's 5%, confirming the gain came from the sensor, not a lucky seed.</p>
+<p>One problem remained: once the robot was already stuck <em>touching</em> an obstacle, it still couldn't reliably work its way free (the two harder seeds spent ~43% of steps in collision). That leftover weakness is what PPO_12 set out to fix.</p>
+
+<hr style="margin:1.6em 0">
+
+<h3>PPO_12 — collision recovery (let a stuck robot turn or back out)</h3>
+<h4>Hypothesis — what are we doing?</h4>
+<p>The rays let the robot avoid obstacles, but once it is pinned against one it stays stuck until the episode times out, because a blocked move cancels <em>both</em> the turn and the step. If we let the turn and the step resolve independently, a pinned robot should be able to rotate or reverse out of contact, so jams should get shorter and success should hold or rise. We change only the collision physics.</p>
+<h4>Setup — what changed</h4>
+<ul>
+  <li>Changed the collision <strong>response</strong> only; nothing the robot senses or is rewarded for changed. Before PPO_12, if the next move (turn and step combined) would hit something, the whole move was cancelled and a deterministic policy re-issued the same blocked move until the 400-step timeout.</li>
+  <li>The fix retries the two halves <strong>separately</strong>: first turn in place if that alone is clear, then step from the new facing if that alone is clear.</li>
+  <li>Everything else identical to PPO_11: the 18-value observation with rays, reward, action space, target, obstacles, PPO settings, 106,496 collected steps.</li>
+</ul>
+<h4>Outcomes</h4>
+<table>
+  <tr><th>Metric (deterministic exam)</th><th>PPO_11 (3 seeds)</th><th class="r">PPO_12</th></tr>
+  <tr><td>Success rate</td><td>69% / 54% / 39%</td><td class="r good">65%</td></tr>
+  <tr><td>Mean reward</td><td>+12.96 / -1.70 / -10.48</td><td class="r">+6.09</td></tr>
+  <tr><td>Collision rate</td><td>24.5% / 42.9% / 42.1%</td><td class="r">40.47%</td></tr>
+  <tr><td>Mean longest collision streak</td><td>31.5 / 92.7 / 112.0</td><td class="r">62.8</td></tr>
+  <tr><td>Average episode length</td><td>163.6 / 219.0 / 270.8</td><td class="r">174.5</td></tr>
+</table>
+<p>The escape mechanic is proven — unit tests show a wedged robot now rotates or reverses out instead of freezing. Success (65%) landed at the strong end of PPO_11's range and above its three-seed average (~54%), with short episodes (174 steps) meaning the robot reaches the goal and stops. Typical jams got shorter too: mean longest collision streak fell to 62.8, well below PPO_11's worse seeds (92.7, 112.0).</p>
+<p>The one thing that did not improve was the collision <em>rate</em> (40.47%). Part of that is a measurement quirk — the collision flag counts any blocked intended move even when the robot then successfully slides or reverses, so grinding along an obstacle edge while still making progress logs a collision every step.</p>
+
+<hr>
+
+<h2>1. Sensors</h2>
+<p>The robot does not carry separate physical sensors mounted on its head or legs. In the RL environment every "sense" is one number in an 18-value list the brain reads each step. Most are facts the robot knows about itself; the obstacle vision is eight rangefinders, and <strong>all eight originate from the single body center</strong> and fan outward. (A separate set of 19 points across the body and legs exists only as collision <em>test</em> points for the physics — see Environment design — not as sensors the brain reads.)</p>
+<p class="callout"><strong>Sampling rate / data format (applies to every sensor below):</strong> all values are sampled once per environment step — the simulation is discrete-time, so there is no Hz rate; one full 18-value reading is produced each step, right before the robot chooses its action. Every value is a <code>float32</code>. Navigation and memory values are normalized to roughly <code>[-1, 1]</code>; ray values are normalized to <code>[0, 1]</code>. On <code>reset()</code> the memory values (last collision, previous throttle, previous turn) start at 0.</p>
+
+<h4>A — Self / navigation sensors (7 values, origin: body). Proprioception, not obstacle sensing.</h4>
+<table>
+  <tr><th class="r">#</th><th>Sensor</th><th>Type</th><th>What it measures</th><th>Output</th></tr>
+  <tr><td class="r">0</td><td>position x</td><td>localization</td><td>body's east/west position ÷ 25</td><td>float ~[-0.84, 0.84]</td></tr>
+  <tr><td class="r">1</td><td>position z</td><td>localization</td><td>body's north/south position ÷ 25</td><td>float ~[-0.84, 0.84]</td></tr>
+  <tr><td class="r">2</td><td>target direction x</td><td>goal bearing</td><td>unit vector to goal, left/right part</td><td>float [-1, 1]</td></tr>
+  <tr><td class="r">3</td><td>target direction z</td><td>goal bearing</td><td>unit vector to goal, forward/back part</td><td>float [-1, 1]</td></tr>
+  <tr><td class="r">4</td><td>distance to goal</td><td>range-to-goal</td><td>straight-line distance, scaled 0–1</td><td>float [0, 1]</td></tr>
+  <tr><td class="r">5</td><td>facing (sin)</td><td>heading</td><td>which way the body points, part 1</td><td>float [-1, 1]</td></tr>
+  <tr><td class="r">6</td><td>facing (cos)</td><td>heading</td><td>which way the body points, part 2</td><td>float [-1, 1]</td></tr>
+</table>
+
+<h4>B — Short-term memory sensors (3 values, origin: body's own last step).</h4>
+<table>
+  <tr><th class="r">#</th><th>Sensor</th><th>Type</th><th>What it measures</th><th>Output</th></tr>
+  <tr><td class="r">7</td><td>last collision</td><td>contact memory</td><td>1 if it hit something last step, else 0</td><td>float {0, 1}</td></tr>
+  <tr><td class="r">8</td><td>previous throttle</td><td>action memory</td><td>how hard it drove last step</td><td>float [-1, 1]</td></tr>
+  <tr><td class="r">9</td><td>previous turn</td><td>action memory</td><td>how hard it turned last step</td><td>float [-1, 1]</td></tr>
+</table>
+
+<h4>C — Obstacle vision: eight rangefinder rays (8 values, origin: body center).</h4>
+<p>Added in PPO_11 — the sensor that took success from 5% to 69%. The rays fan out every 45° around the current facing (ray 0 straight ahead). Each measures the clear distance to the nearest obstacle or wall along its line, divided by <code>RAY_MAX_RANGE = 12.0</code> and clipped to <code>[0, 1]</code>: <strong>1.0 = clear (nothing within 12 units), 0.0 = touching.</strong> The measurement is analytic ray-vs-circle geometry against the five obstacles plus ray-vs-wall against the boundary, keeping the nearest hit.</p>
+<table>
+  <tr><th class="r">#</th><th>Ray direction (relative to facing)</th><th>Output</th></tr>
+  <tr><td class="r">10</td><td>0° (straight ahead)</td><td>float [0, 1]</td></tr>
+  <tr><td class="r">11</td><td>45°</td><td>float [0, 1]</td></tr>
+  <tr><td class="r">12</td><td>90°</td><td>float [0, 1]</td></tr>
+  <tr><td class="r">13</td><td>135°</td><td>float [0, 1]</td></tr>
+  <tr><td class="r">14</td><td>180° (straight back)</td><td>float [0, 1]</td></tr>
+  <tr><td class="r">15</td><td>225°</td><td>float [0, 1]</td></tr>
+  <tr><td class="r">16</td><td>270°</td><td>float [0, 1]</td></tr>
+  <tr><td class="r">17</td><td>315°</td><td>float [0, 1]</td></tr>
+</table>
+<p class="callout">Full sensor suite: <strong>7 navigation + 3 memory + 8 vision = 18 values</strong>, all read from the body. No head- or leg-mounted sensors exist in the RL model.</p>
+
+<h2>2. Capabilities / Action space</h2>
+<p>Each step the brain outputs exactly <strong>two continuous numbers</strong>, each in <code>[-1, 1]</code> and clipped to that range. Everything the Leaper can do comes from these two controls — there is <strong>no jump, strafe, or per-leg action in the RL action space</strong>; the articulated legs are visual only and are not independently commanded.</p>
+<table>
+  <tr><th class="r">#</th><th>Control</th><th>Range</th><th>Effect and constraint</th></tr>
+  <tr><td class="r">0</td><td>throttle</td><td>[-1, 1]</td><td>Signed drive. Distance this step = throttle × <code>MOVE_SPEED (0.75)</code> units. +1 = full forward, 0 = stop, −1 = full reverse.</td></tr>
+  <tr><td class="r">1</td><td>turn</td><td>[-1, 1]</td><td>Rotation this step = turn × <code>TURN_SPEED (18°)</code>. +1 = full turn one way, −1 = the other.</td></tr>
+</table>
+<p>Concrete behaviors these two controls produce:</p>
+<ul>
+  <li><strong>Move forward</strong> — positive throttle, near-zero turn (up to 0.75 units/step).</li>
+  <li><strong>Move backward</strong> — negative throttle (reverse; added in PPO_10, which is what cured the freezing).</li>
+  <li><strong>Turn left / turn right</strong> — nonzero turn, up to 18° per step.</li>
+  <li><strong>Arc / curve while moving</strong> — throttle and turn together (drive and rotate in the same step).</li>
+  <li><strong>Stop</strong> — throttle at 0.</li>
+</ul>
+<p><strong>Constraints on every action:</strong></p>
+<ul>
+  <li>Speed is capped at 0.75 units per step and turn at 18° per step; the throttle and turn values only scale within those caps.</li>
+  <li>A step whose combined move would collide is blocked. Since PPO_12 the turn and the step are resolved independently, so a touching robot can still rotate or reverse out of contact, but it cannot pass through an obstacle or the wall.</li>
+  <li>Actions are continuous (variable intensity), not discrete buttons.</li>
+</ul>
+
+<h2>3. Underlying AI model</h2>
+<p><strong>Type.</strong> A Stable-Baselines3 <strong>PPO</strong> agent using the default <strong>MlpPolicy</strong> (an actor-critic network). It is not a vision/CNN model — the input is a short list of 18 numbers, not an image, so a small fully-connected (MLP) network is the correct choice. It runs on <strong>CPU</strong>.</p>
+<p><strong>Shape.</strong> Two separate small networks that share no layers:</p>
+<ul>
+  <li><strong>Actor</strong> ("policy") — chooses the action.</li>
+  <li><strong>Critic</strong> ("value") — estimates how good the situation is (used only during training).</li>
+</ul>
+<p>Both share the same shape: input 18 → hidden 64 → hidden 64, with <code>tanh</code> activations between layers.</p>
+<pre>ACTOR   18 → Linear(18→64) → tanh → Linear(64→64) → tanh → Linear(64→2)  → 2 action means
+                                                          + log_std (2)     (exploration spread)
+CRITIC  18 → Linear(18→64) → tanh → Linear(64→64) → tanh → Linear(64→1)  → 1 value estimate</pre>
+<p>The <code>log_std</code> is 2 learned numbers controlling how much random exploration the actor adds during training; at evaluation the robot uses the actor's mean output (no randomness).</p>
+<p><strong>Layers.</strong> Each network is 2 hidden layers of 64 units plus an output layer: actor 18→64→64→2, critic 18→64→64→1.</p>
+<p><strong>Parameter count (exact, verified from the trained PPO_12 model):</strong></p>
+<table>
+  <tr><th>Part</th><th class="r">Parameters</th></tr>
+  <tr><td>Actor hidden layers (18→64→64)</td><td class="r">5,376</td></tr>
+  <tr><td>Actor action output (64→2)</td><td class="r">130</td></tr>
+  <tr><td>Exploration spread (log_std)</td><td class="r">2</td></tr>
+  <tr><td><strong>Actor total</strong></td><td class="r"><strong>5,508</strong></td></tr>
+  <tr><td>Critic hidden layers (18→64→64)</td><td class="r">5,376</td></tr>
+  <tr><td>Critic value output (64→1)</td><td class="r">65</td></tr>
+  <tr><td><strong>Critic total</strong></td><td class="r"><strong>5,441</strong></td></tr>
+  <tr><td><strong>Whole model (all trainable)</strong></td><td class="r"><strong>10,949</strong></td></tr>
+</table>
+<p>The entire brain is about 11,000 numbers — a genuinely tiny network, which is why it trains quickly on CPU.</p>
+
+<h2>4. Environment &amp; experiment design</h2>
+
+<h3>Observation space</h3>
+<p><code>Box(-1.0, 1.0, shape=(18,))</code> — the 18-value list detailed in section 1 (7 navigation + 3 memory + 8 rays), all <code>float32</code>.</p>
+
+<h3>Action space</h3>
+<p><code>Box(-1.0, 1.0, shape=(2,))</code> — the throttle + turn controls detailed in section 2.</p>
+
+<h3>Reward structure</h3>
+<p>Each step the score changes by adding four pieces; this is the whole formula, with no hidden terms (no upright, energy, or balance terms):</p>
+<pre>reward = progress + time + collision + goal</pre>
+<table>
+  <tr><th>Piece</th><th>Exact value</th><th>When</th><th>Purpose</th></tr>
+  <tr><td>Progress</td><td>0.2 × (distance closed this step)</td><td>every step</td><td>Pays for getting closer to the goal — the main incentive. Symmetric, so moving away costs the same, and dithering nets zero.</td></tr>
+  <tr><td>Time penalty</td><td>−0.01</td><td>every step</td><td>A small "hurry up" tax.</td></tr>
+  <tr><td>Collision penalty</td><td>−0.18</td><td>only on steps it hit something</td><td>Discourages bumping obstacles or walls.</td></tr>
+  <tr><td>Goal reward</td><td>+25.0</td><td>once, on reaching the goal</td><td>The payoff for success.</td></tr>
+</table>
+<p class="muted">Code constants: <code>DISTANCE_REWARD_SCALE = 0.2</code>, <code>STEP_PENALTY = 0.01</code>, <code>COLLISION_PENALTY = 0.18</code>, <code>GOAL_REWARD = 25.0</code>. "Reaching the goal" means getting within <strong>2.15 units</strong> of the target center (target radius 1.4 + body radius 0.75).</p>
+
+<h3>Termination conditions</h3>
+<ul>
+  <li><strong>Success</strong> — the robot reaches within 2.15 units of the target.</li>
+  <li><strong>Timeout</strong> — the episode hits <code>MAX_STEPS = 400</code>.</li>
+  <li>Collisions never end an episode; they only apply the penalty and block the move.</li>
+</ul>
+
+<h3>World and collision setup</h3>
+<ul>
+  <li>Arena: a <code>[-25, 25]</code> square (<code>WORLD_LIMIT = 25</code>).</li>
+  <li>Target: fixed at <code>(18, 18)</code>, radius 1.4.</li>
+  <li>Obstacles: five fixed circles — <code>(-10,-5) r3.2</code>, <code>(1,4) r3.0</code>, <code>(10,11) r2.8</code>, <code>(-7,13) r2.6</code>, <code>(12,-8) r3.4</code>.</li>
+  <li>Collision test shape: 19 points — the body center (radius 0.75) plus 3 points along each of the 6 legs at distances 1.2 / 2.2 / 3.24 from the body (radius 0.24 each). A pose collides if any of the 19 overlaps an obstacle or crosses the wall.</li>
+  <li>Spawn: each episode starts at a random collision-free position and facing, not too close to the target.</li>
+</ul>
+
+<h3>Training configuration and hyperparameters (unchanged PPO_8 → PPO_12)</h3>
+<table>
+  <tr><th>Setting</th><th>Value</th><th>Meaning</th></tr>
+  <tr><td>policy</td><td>MlpPolicy</td><td>actor-critic MLP</td></tr>
+  <tr><td>parallel environments</td><td>8</td><td>8 robots practice at once</td></tr>
+  <tr><td>learning rate</td><td>0.0003</td><td>size of each learning step</td></tr>
+  <tr><td>n_steps</td><td>1,024 per env</td><td>experience gathered before each update</td></tr>
+  <tr><td>rollout size</td><td>8,192</td><td>1,024 × 8 experiences per update</td></tr>
+  <tr><td>batch size</td><td>256</td><td>mini-batch per gradient step</td></tr>
+  <tr><td>epochs</td><td>10</td><td>reuses of each batch</td></tr>
+  <tr><td>gamma</td><td>0.995</td><td>weight on future reward</td></tr>
+  <tr><td>GAE lambda</td><td>0.95</td><td>value-estimate smoothing</td></tr>
+  <tr><td>entropy coefficient</td><td>0.01</td><td>nudge to keep exploring</td></tr>
+  <tr><td>seed</td><td>random per run (fixed 7 through PPO_11)</td><td>randomness source</td></tr>
+</table>
+<p class="muted">A requested 100,000-step run actually collects <strong>106,496</strong> steps, because PPO finishes whole 8,192-step rollouts.</p>
+
+<h3>Learning rate / learning schedule</h3>
+<p>The learning rate is the size of the step the network takes each time it adjusts itself toward better behavior — small enough to be stable, large enough to still make progress. Leaper uses a learning rate of <strong>0.0003</strong> (also written <code>3e-4</code>).</p>
+<p>This rate is held <strong>constant for the entire run</strong> — there is no decay or annealing schedule, so the robot learns at the same 0.0003 rate on its first update and its last. (Stable-Baselines3 supports a schedule that shrinks the rate over time, but we deliberately keep it flat so that when we change one thing between runs, the learning rate is never a hidden second variable.) The same 0.0003 was used unchanged across PPO_8 through PPO_12.</p>
+
+<h3>Evaluation setup</h3>
+<ul>
+  <li><strong>Deterministic exam:</strong> 100 episodes on fixed seeds 10,000–10,099, with the robot always taking its best (mean) action — no randomness. This exam is identical for every run, so PPO_10 vs PPO_11 vs PPO_12 is a fair comparison. Every success-rate headline above comes from this exam.</li>
+  <li><strong>Stochastic summary:</strong> the last 100 training episodes, reported separately. These run higher than the exam and are never treated as the real deployment result.</li>
+  <li>Checkpoints and a short evaluation run every 10,000 steps during training.</li>
+</ul>
+
+</div>
