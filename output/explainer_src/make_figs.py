@@ -247,3 +247,58 @@ box(ax, 0.3, 1.2, 9.4, 3.8, "WHY: target motion can be worked out from sightings
     "which is far better kept as an explicit map than squeezed through a learned notepad.", fc="white", ec=GREY, fs=9.5)
 plt.tight_layout(); plt.savefig(OUT + "fig_memory_inputs.png", dpi=200); plt.close()
 print("figures done")
+
+# ---------- Figure 12: the two-branch brain (owner's idea) ----------
+fig, ax = plt.subplots(figsize=(10, 6.4)); ax.set_xlim(0, 10); ax.set_ylim(0, 10); ax.axis("off")
+ax.text(5, 9.7, "The two-branch brain: a plain walker plus a small target-only memory", ha="center", fontsize=12, fontweight="bold", color=INK)
+# inputs
+box(ax, 0.3, 7.2, 3.0, 1.6, "BODY SENSES\nheading, last move, collision,\n16 obstacle rays (+ cleared map)", fc="#F1F5F9", fs=9)
+box(ax, 0.3, 4.2, 3.0, 1.9, "TARGET STREAM\nseen? · where it was (relative)\nhow I moved since last step\ntime since last sighting", fc="#F1F5F9", fs=9)
+# branches
+box(ax, 3.9, 7.1, 2.6, 1.8, "PLAIN BRANCH\n(the PPO_29 walker,\nweights carried over)", fc="#D9F0EC", ec=TEAL, bold=True, fs=9.5)
+box(ax, 3.9, 4.2, 2.3, 1.9, "MEMORY BRANCH\nLSTM, 32-64 cells\ncarried step to step", fc="#FDE8DC", ec=ORANGE, bold=True, fs=9.2)
+ax.annotate("", xy=(6.2, 5.8), xytext=(6.2, 4.5), arrowprops=dict(arrowstyle="-|>", color=ORANGE, lw=1.2, connectionstyle="arc3,rad=-1.5"))
+ax.text(6.9, 4.05, "remembers\nbetween steps", fontsize=7.5, color=ORANGE, ha="center", va="center")
+# belief
+box(ax, 3.9, 2.0, 2.6, 1.3, "BELIEF (5-8 numbers)\nwhere the target probably\nis now + how sure", fc="#FFF4E0", ec=GOLD, fs=8.8)
+# join
+box(ax, 7.6, 5.4, 2.1, 1.6, "JOIN\nstarts at zero,\nso day one = PPO_29", fc="white", ec=INK, fs=8.8)
+box(ax, 7.6, 3.0, 2.1, 1.2, "ACTION HEAD\nthrottle + turn", fc="#F1F5F9", fs=9)
+box(ax, 7.6, 1.2, 2.1, 1.2, "VALUE HEAD\nscore guess\n(training only)", fc="#F1F5F9", fs=8.6)
+# teacher
+box(ax, 0.3, 1.4, 3.0, 1.3, "TEACHER (training only)\nthe simulator's true target\nposition scores the belief", fc="white", ec=GREY, fs=8.6, tc=GREY)
+arrow(ax, 3.3, 8.0, 3.9, 8.0); arrow(ax, 3.3, 5.15, 3.9, 5.15)
+arrow(ax, 5.05, 4.2, 5.05, 3.3)
+arrow(ax, 6.5, 8.0, 7.6, 6.6); arrow(ax, 6.5, 2.65, 7.6, 5.8)
+arrow(ax, 8.65, 5.4, 8.65, 4.2); arrow(ax, 8.65, 3.0, 8.65, 2.4)
+arrow(ax, 3.3, 2.05, 3.9, 2.35, color=GREY, style="<|-")
+ax.text(5.2, 0.6, "The rays never touch the memory. The memory never touches the rays.", ha="center", fontsize=9.5, color=TEAL, fontweight="bold")
+plt.tight_layout(); plt.savefig(OUT + "fig_two_branch.png", dpi=200); plt.close()
+
+# ---------- Figure 13: how training works (PPO loop) ----------
+fig, ax = plt.subplots(figsize=(10, 3.4)); ax.set_xlim(0, 10); ax.set_ylim(0, 10); ax.axis("off")
+steps_ = [("1. TRY", "Leaper plays 8 arenas\nat once, with a little\ndice in every move"), ("2. SCORE", "the game hands out\npoints every step\n(+25 goal, -0.18 bump...)"),
+          ("3. COMPARE", "the coach looks at which\nmoves led to more points\nthan expected"), ("4. NUDGE", "adjust the 12,000 knobs\na tiny bit toward\nthose moves")]
+x = 0.3
+for t, b in steps_:
+    box(ax, x, 5.2, 2.1, 1.3, t, fc=TEAL, ec=TEAL, tc="white", bold=True, fs=10)
+    box(ax, x, 1.3, 2.1, 3.6, b, fc="white", ec=TEAL, fs=8.8)
+    if x < 7: arrow(ax, x+2.15, 5.85, x+2.35, 5.85)
+    x += 2.45
+ax.annotate("", xy=(0.6, 6.9), xytext=(9.0, 6.9), arrowprops=dict(arrowstyle="-|>", color=GREY, lw=1.2, connectionstyle="arc3,rad=0.25"))
+ax.text(4.85, 8.9, "repeat about 60 times for a 500k run (8,192 moves per lap)", ha="center", fontsize=9, color=GREY)
+plt.tight_layout(); plt.savefig(OUT + "fig_ppo_loop.png", dpi=200); plt.close()
+
+# ---------- Figure 14: exam noise ----------
+from math import comb
+fig, ax = plt.subplots(figsize=(9, 3.2))
+p = 0.69; xs = list(range(50, 90)); ys = [comb(100, k) * p**k * (1-p)**(100-k) * 100 for k in xs]
+cols = [TEAL if 60 <= k <= 78 else LIGHT for k in xs]
+ax.bar(xs, ys, color=cols, width=0.85)
+ax.axvline(69, color=INK, lw=1); ax.text(57, max(ys)*0.8, "true skill 69%", fontsize=9, color=INK, ha="right")
+ax.annotate("", xy=(68.6, max(ys)*0.82), xytext=(57.3, max(ys)*0.82), arrowprops=dict(arrowstyle="-|>", color=INK, lw=0.8))
+ax.text(78.6, max(ys)*0.55, "95% of exams land\nbetween 60% and 78%", fontsize=9, color=TEAL)
+ax.set_xlabel("score a 100-maze exam could give"); ax.set_ylabel("how often (%)")
+ax.set_yticks([])
+plt.tight_layout(); plt.savefig(OUT + "fig_noise.png", dpi=200); plt.close()
+print("extra figures done")

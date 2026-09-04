@@ -113,18 +113,20 @@ P("Written for the Leaper owner, 4 September 2026. Built from the repository's l
   "the run logs), the environment and trainer source code, and the question dossier "
   "<i>Leaper: target memory and the LSTM runs</i>.", "body")
 SP(10)
-BOX("THE WHOLE DOCUMENT IN FOUR SENTENCES", [
+BOX("THE WHOLE DOCUMENT IN FIVE SENTENCES", [
     "Leaper already walks and dodges rocks very well, and that skill lives in a small brain that must not be thrown away. "
     "The memory brain (LSTM) lost because it replaced that whole brain with a much bigger one that had to relearn walking from scratch "
     "while also learning to remember. The fix is to keep the small walking brain and hand it memory as extra written notes from the game "
     "(a 'cleared map' of where she has already looked, and a 'target note' that later carries the target's direction of travel). "
+    "When a learned memory is wanted for the moving target, the owner's two-branch brain (the plain walker plus a small LSTM that sees "
+    "only the target stream) is the right way to add it. "
     "The next experiment is one cheap, controlled run: PPO_29 plus the cleared map, three seeds, with a written pass mark of 78%."])
 SP(14)
 P("How to read this document", "h3")
 BUL(["<b>Part 1</b> explains the words. Skim it, come back to it whenever a term is unclear.",
      "<b>Part 2</b> tells the story of what has been tried and what each run taught, using the same numbers as the ledger.",
      "<b>Part 3</b> explains what the memory brain really is, why it was expected to help, and why it did not.",
-     "<b>Part 4</b> introduces the main idea of this document: memory does not have to live inside the brain.",
+     "<b>Part 4</b> introduces the two ideas this document rests on: memory as notes written by the game, and the owner's two-branch brain (a plain walker plus a small memory branch).",
      "<b>Part 5</b> answers the twenty questions one by one. Each has a short answer first, then the reasoning, then what to do.",
      "<b>Part 6</b> lays out the path ahead as concrete experiments with pass marks.",
      "<b>Part 7</b> is a one-page cheat sheet you can keep next to the keyboard."])
@@ -156,6 +158,16 @@ TABLE([
  ["State augmentation", "Adding extra hand-computed numbers to the observation, written by the game engine, instead of asking the brain to work them out itself. The current 'last seen target' note is already an example."],
  ["Belief", "The brain's working estimate of something it cannot currently see, for example 'the target is probably behind that rock and drifting left'."],
 ], [4*cm, 13*cm])
+BOX("FOUR PAIRS THAT ARE EASY TO MIX UP", [
+    "<b>Exam versus spot check.</b> The exam is 100 fixed mazes and is the score of record. A spot check is 25 mazes every 10,000 practice steps and is only for watching the trend.",
+    "<b>Deterministic versus stochastic.</b> Deterministic is how she plays; stochastic is how she practises. Only deterministic numbers are compared between runs.",
+    "<b>Head versus branch.</b> A head is an output (action head, value head). A branch is a separate pipe of processing inside the brain. The owner's two-branch idea has two branches and the usual two heads.",
+    "<b>Memory brain versus a note.</b> A memory brain learns its own private way to remember. A note is a plain number written by the game engine (for example 'target last seen 30 steps ago'). Both are memory; only one is readable."])
+H2("How training works, in one loop")
+FIGURE("fig_ppo_loop.png", "Every training run is this loop repeated. 'PPO' is just the name of the rule used in steps 3 and 4.", width=16*cm)
+P("Two consequences of this loop explain a lot of the history. First, the coach can only prefer moves that actually happened, so the dice in "
+  "step 1 matter: if the dice never push the throttle above zero, a freeze cannot be unlearned (that was PPO_28). Second, every knob is nudged "
+  "on every lap, so a bigger brain is not just slower to train, it is more likely to wobble: more knobs, same evidence.")
 PB()
 
 # ================================================================== PART 2 STORY
@@ -180,6 +192,7 @@ BOX("A NUMBER YOU NEED FOR EVERYTHING BELOW: THE NOISE BAND", [
     "are genuinely worse. Twenty-five-episode spot checks during training are four times noisier again: one episode is four points.",
     "Rule of thumb: to claim a real improvement on the 100-maze exam you want at least eight to ten points, or the same direction across "
     "three training seeds."])
+FIGURE("fig_noise.png", "If Leaper's true skill were exactly 69%, this is how often each exam score would come up. The teal bars cover 95% of exams.", width=14*cm)
 H2("What each milestone taught")
 TABLE([
  ["Run", "What changed", "Exam", "Lesson"],
@@ -280,6 +293,60 @@ BOX("WHY THIS IS THE RIGHT FIRST TEST", [
     "on the plain brain instead of 90 minutes for a memory brain. It is inspectable: you can draw the map in the replay viewer and see "
     "whether she is heading for the white space. And if it fails, that failure is informative: it would mean the missing piece is not "
     "coverage memory at all."])
+H2("The second idea: a two-branch brain")
+P("The owner's proposal: keep the ordinary brain for the ordinary senses, and add a second, separate LSTM that sees only the "
+  "memory-related information. In machine-learning language this is a <b>multi-branch</b> network (people sometimes loosely say "
+  "'multi-head'). It is a good idea, and it is the healthiest way to put an LSTM into Leaper. This section explains what it is, how it "
+  "would work, and where it fits.")
+FIGURE("fig_two_branch.png", "The two-branch brain. Body senses go through the plain branch (the PPO_29 walker). Only the target stream goes "
+       "through the small memory branch. The two meet at a join that starts at zero, then feed the usual action and value heads.", width=14.5*cm)
+H3("What 'multi-head' or 'multi-branch' means")
+P("A normal network is one pipe: everything goes in one end, actions come out the other. A multi-branch network has two or more pipes "
+  "running side by side. Each pipe is fed a different slice of the senses and can be built differently (one plain, one with memory). "
+  "The pipes meet at a join before the final decision. The word 'head' is best kept for the outputs, which PPO already has two of "
+  "(action and value). So the design reads: two branches in, one join, two heads out.")
+H3("How it works, step by step")
+NUM(["<b>Body senses</b> (heading, last move, collision, the 16 rays, and the cleared map if present) go into the <b>plain branch</b>. This is "
+     "the PPO_29 walker with its weights carried over unchanged.",
+     "<b>The target stream</b> (seen or not, where it was relative to Leaper, how Leaper herself moved since the last step, time since the last "
+     "sighting) goes into the <b>memory branch</b>: one small LSTM of 32 to 64 cells whose contents are carried from step to step and wiped at the "
+     "start of each episode.",
+     "The memory branch outputs a <b>belief</b>: five to eight numbers meaning 'the target is probably over there, moving that way, and I am this sure'.",
+     "The <b>join</b> puts the walker's features and the belief side by side. The connections coming from the belief start at zero, so on day one "
+     "Leaper behaves exactly like PPO_29 and only gradually learns to use the belief.",
+     "The usual two heads sit after the join: the <b>action head</b> (throttle, turn) and the <b>value head</b> (score guess, used in training only)."])
+H3("What happens inside an LSTM cell, in plain words")
+P("Each cell keeps one number between steps. Every step, three tiny learned gates decide how much of the old number to <b>forget</b>, how much "
+  "of the new input to <b>write</b>, and how much of the stored number to <b>reveal</b> to the rest of the brain. That is the whole trick. "
+  "'Long short-term memory' just means the gates can let a number survive for hundreds of steps if the network learns it is worth keeping. "
+  "With 32 or 64 such cells you have a small notepad that can hold something like 'last seen at bearing 40 degrees, 30 steps ago, drifting left'.")
+H3("Why this version can work where PPO_30 and PPO_31 failed")
+BUL(["<b>The rays never enter the memory.</b> The obstacle reflex cannot be distorted by a confused notepad.",
+     "<b>The walker's weights carry over.</b> Nothing has to relearn walking and dodging.",
+     "<b>It is about fifty times smaller.</b> A 64-cell LSTM on a handful of inputs is roughly 20,000 knobs, against 623,000 for PPO_30.",
+     "<b>It can be taught, not just rewarded.</b> See the teacher trick below."])
+H3("The teacher trick")
+P("The simulator knows the true target position every step. So the memory branch can be scored directly on how close its belief is, every "
+  "single step, alongside the usual PPO learning. This is supervised learning, and it is far steadier than waiting for the +25 at the end of an "
+  "episode to tell the memory whether it remembered well. The walker still learns by PPO exactly as before. The teacher is used only in "
+  "training; in the game the branch runs on its own.")
+H3("Where it helps, and where it does not")
+P("The branch only knows what it has seen. Before the first sighting it is empty, so for the static hidden target it mostly duplicates the "
+  "120-step note the game already keeps. Its value appears with a <b>moving</b> target and with occlusions, where 'which way was it going' "
+  "matters and a straight-line guess may not be enough. Search coverage still needs Leaper's position history, and that stays in the explicit "
+  "cleared map feeding the plain branch.")
+P("Note that the diagram does not change if the orange box is replaced by plain arithmetic (store last position, estimate velocity, fade "
+  "confidence). Same wiring, zero learned knobs. That arithmetic version is Phase 2; the LSTM version is Phase 3. Build the wiring once, "
+  "swap the middle box, and you have the cleanest possible comparison.")
+H3("What it costs")
+P("Stable-Baselines3 has nothing off the shelf for two branches with different inputs, so it needs a custom policy class (a few hundred "
+  "lines) with its own tests. Training is slower than the plain brain but far faster than PPO_30: a few seconds per 1,000 steps, not fifteen. "
+  "The browser export must carry the LSTM's numbers between frames, and the fixture self-test must include them.")
+BOX("WHERE IT FITS", "Phase 3 of the plan in Part 6. Build it after the cleared-map seeker (Phase 1) and the arithmetic target note (Phase 2) "
+    "exist, then race it against the arithmetic note on the same seeds and budget. Building it sooner is a fair call if the owner wants to; "
+    "the one thing not to skip is the arithmetic baseline, because without it nobody can tell whether the LSTM branch adds anything.",
+    bg=GOLD_BG, edge=GOLD)
+story.pop()  # drop the trailing spacer so a full page does not spill into a blank one
 PB()
 
 # ================================================================== PART 5 ANSWERS
@@ -301,7 +368,9 @@ QA(1, "Can this project preserve its learned local-navigation policy while addin
     "architecture. It is a real piece of engineering, a few hundred lines, and it needs its own tests.",
     "Outside-the-brain memory needs none of that. The game writes the notes, the plain brain reads 42 numbers instead of 26, and the "
     "transfer is the same zero-the-new-columns trick that already worked from PPO_25 to PPO_27. This is the recommended route for the "
-    "static target and for the first moving-target stages."],
+    "static target and for the first moving-target stages.",
+    "The owner's two-branch brain (Part 4) is the custom-policy route done right: the walker branch keeps PPO_29, the memory branch sees "
+    "only the target stream, and the two meet at a join that starts at zero."],
    "Treat 'preserve the walker' as a hard requirement for every future run. Any design that cannot load PPO_29's weights on day one "
    "should need a written justification before it is trained.")
 
@@ -408,7 +477,7 @@ QA(8, "What should the memory actually receive? Only target measurements and rob
 
 QA(9, "What memory size and type are proportionate? Would a one-layer 32 or 64-unit GRU or LSTM be more appropriate than separate 256-unit "
       "actor and critic LSTMs? Should actor and critic share a tracker state?",
-   "If a learned memory is ever added, a single-layer GRU of 32 to 64 units, used only for the target stream, is proportionate. The actor "
+   "If a learned memory is added, a single-layer GRU or LSTM of 32 to 64 units, used only for the target stream (the two-branch brain in Part 4), is proportionate. The actor "
    "and critic should share one tracker and keep separate heads. Two separate 256-unit notepads over the full observation was the wrong "
    "scale by roughly an order of magnitude for this task.",
    ["Size should match the job. The target note is five to eight numbers; a 64-unit memory to produce it is already generous. A GRU is "
@@ -557,8 +626,8 @@ QA(18, "What evaluation protocol would show that memory genuinely helps? Propose
 
 QA(19, "Should the project abandon full-policy memory for the static-target stage but keep memory for moving targets? If so, what evidence "
        "threshold should trigger adding it?",
-   "Abandon the full-policy memory brain entirely, for both stages. Keep the idea of a small, target-only learned memory in reserve for "
-   "the moving target, and add it only when the explicit tracker measurably fails.",
+   "Abandon the full-policy memory brain entirely, for both stages. Keep the two-branch brain (Part 4) in reserve for the moving target, "
+   "and add it only when the arithmetic tracker measurably fails.",
    ["The trigger is a number, not a feeling: with the explicit tracker in place, if success-given-detection in the long-occlusion bucket "
     "(over 120 steps) is more than 15 points below the short-occlusion bucket, <i>and</i> the tracking error in that bucket is large (the "
     "prediction is off by more than the target's radius plus a few units), then prediction is the bottleneck and a learned tracker is "
@@ -608,8 +677,9 @@ BUL(["Target wanders at a quarter of Leaper's speed, changes direction rarely, d
      "(no regression) and above 60% at 0.25 speed."])
 H2("Phase 3. Occlusions and, only if needed, a small learned tracker (two to three days)")
 BUL(["Grow occlusion length through the buckets 1-30, 31-120, over 120 steps by adding rocks near the target's path.",
-     "Apply the Question 19 trigger. If prediction is the bottleneck, build a 32 to 64-unit GRU tracker trained supervised on the true "
-     "target position, feed its outputs as appended inputs, and compare against the explicit filter on identical seeds and budget.",
+     "Apply the Question 19 trigger. If prediction is the bottleneck, build the two-branch brain from Part 4: a 32 to 64-cell LSTM branch fed "
+     "only the target stream, taught by the simulator's true target position, joined to the walker at zero. Compare it against the arithmetic "
+     "note on identical seeds and budget.",
      "The walker is never replaced. If the flat walker stalls on long occlusions even with a good tracker, that is the moment for a "
      "planner that hands it waypoints."])
 H2("Phase 4. Toward the game (ongoing)")
@@ -632,6 +702,7 @@ TABLE([
  ["Why did the memory brain lose?", "It replaced the whole walker with a brain 52 to 140 times bigger, trained from zero, with the rays routed through the memory. Not because memory is a bad idea."],
  ["Can the walker be kept?", "Yes. Append new senses, zero the new columns, reset the optimizer, warm-start from PPO_29. Never replace the brain."],
  ["Memory inside or outside the brain?", "Outside first: notes written by the game (cleared map, target note). Inside only later, small, target-only, and only if a measured test demands it."],
+ ["The two-branch brain?", "Good idea, Phase 3: plain walker branch + a 32-64 cell LSTM branch fed only the target stream, joined at zero, taught by the true target position. Race it against the arithmetic note."],
  ["What goes into memory?", "Target sightings, Leaper's own movement, time since sighting, position history. Not the rays."],
  ["Which donor?", "PPO_29. PPO_25 only if a separate waypoint walker is ever built."],
  ["Two heads?", "No. Tracker + cleared map + walker. The critic may see privileged information during training."],
@@ -642,7 +713,7 @@ TABLE([
  ["When to add a learned memory?", "When the explicit tracker's long-occlusion success is 15+ points below short-occlusion and its prediction error is large."],
  ["PPO_31?", "Inconclusive, three changes at once, stopped for an unrecorded reason. Evaluate its 160k checkpoint for the record and move on."],
 ], [5.2*cm, 11.8*cm])
-H2("Numbers worth remembering")
+story.append(Paragraph("Numbers worth remembering", ParagraphStyle("h2nk", parent=S["h2"], keepWithNext=0)))
 TABLE([
  ["Item", "Value"],
  ["Noise band of a 100-episode exam near 70%", "about plus or minus 9 points"],
