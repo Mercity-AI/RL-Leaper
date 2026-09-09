@@ -1,5 +1,12 @@
 # Leaper RL Training Ledger
 
+For the active September9 seeker research, start with
+[the cross-chat handoff](docs/SEEKER_HANDOFF.md),
+[the generated run index](docs/SEEKER_RUN_INDEX.md), and
+[the detailed current ledger](docs/SEEKER_SCRATCH_RUN_LOG_2026-09-09.md).
+Live JSON statuses override snapshots in these documents. Earlier entries below
+record different task stages and must not be ranked as identical evaluations.
+
 This file is the human-readable history of reinforcement-learning runs. Generated models, raw logs, plots, checkpoints, and browser replay data stay under `rl_artifacts/` because they are large and ignored by Git. Update this ledger whenever a run is started, stopped, completed, or diagnosed.
 
 ## PPO_27_SEEKER — completed first seeker run (2026-09-02)
@@ -232,6 +239,247 @@ columns, run ~250k. Searchable terms: "state/observation augmentation RL",
 "visitation/coverage map", "occupancy grid as observation", "external vs recurrent
 memory". Densify-the-arena + bigger arena/obstacles remain valid LATER stages but are
 paused behind this. Memoryless PPO_29 (69%) stays the fallback champion.
+
+### PPO_32_CLEARED_MAP — explicit cleared-map seeker (state augmentation); Phase 1, RUNNING (2026-09-04)
+
+The planned coverage-map experiment, built. **One controlled change:** the observation
+gains an explicit **cleared/search-coverage map** as extra inputs; everything else
+(every PPO_29 env rule and PPO hyperparameter) is held, except the learning rate and
+the enlarged observation as stated below.
+
+- **Hypothesis.** PPO_29's remaining static-target failures (~30% timeout, ~30% never
+  find the target) are caused by the memoryless brain **forgetting which parts of the
+  arena it has already searched**, so it re-sweeps covered ground and times out. Giving
+  it an explicit "where have I already looked" signal should raise first-detection and
+  therefore success.
+- **Exact observation change.** Observation widens **26 → 42**. Indices **0-25 are
+  unchanged** in order, meaning, normalization, and numerical implementation (pinned by
+  tests: byte-for-byte identical with coverage on vs off for the same state). Indices
+  **26-41** are 16 egocentric "distance to nearest **unchecked** ground" values, one per
+  vision-ray angle, each in `[0,1]` (0 = unchecked ground immediately along that heading,
+  1 = none within 28 units). Built from an episode-local grid (`EXPLORATION_CELL_SIZE =
+  3.0`) where a cell is cleared only if a hypothetical target there would be **detectable**
+  under the real target-visibility rules (270° FOV, range 28, unoccluded). **The map never
+  reads the actual target position** — only "this spot has been checked." See RL_SPEC §1a.
+- **Assurance indices 0-25 unchanged.** `test_ppo32_coverage_map` includes a direct
+  on-vs-off equality test plus a `_points_visible == _target_sensor` non-divergence test;
+  the sensor code path for channels 0-25 is untouched.
+- **Donor model.** `rl_artifacts/ppo_29_normalized_throttle_250k/leaper_ppo.zip`
+  (the memoryless SEEKER champion, 69%).
+- **Transfer procedure.** Build a fresh 42-input `MlpPolicy` (64,64). Copy the donor's
+  actor and critic first-layer columns into destination columns 0-25; **zero columns
+  26-41**; copy all later weights, biases, action-distribution params (`log_std`), and
+  value params exactly; fresh optimizer. Fail loudly on any unexpected parameter name or
+  shape. Equivalence test: with the 16 appended inputs zero, the widened model reproduces
+  PPO_29's deterministic actions and value predictions within `1e-5` on 1,000 sampled
+  observations. (Zero the new **weight columns**, never the runtime map inputs.)
+- **Learning rate.** `1.5e-4` (the only hyperparameter change; lower than PPO_29's `3e-4`
+  because we are fine-tuning a good brain, not training from scratch).
+- **Training budget.** 250,000 steps per run (PPO completes whole 8,192 rollouts, so it
+  collects a little over that), **three natural-seed runs** to separate signal from the
+  seed lottery. `n_steps=1024`, 8 envs, rollout 8,192, batch 256, `n_epochs=10`,
+  `gamma=0.995`, `gae_lambda=0.95`, `ent_coef=0.01`, normalized throttle on. Each run
+  picks its own natural seed, written into `training_config.json`.
+- **Three-seed requirement.** Do not select a checkpoint on stochastic training success,
+  and do not tune rewards/architecture after seeing one seed. Evaluate every full model
+  deterministically on the fixed 100-maze exam (seeds 10000-10099).
+- **Evaluation protocol.** Deterministic exam (seeds 10000-10099) reporting success plus
+  the new detection diagnostics (first-detection rate, time to first detection, success
+  given detection, fraction cleared before detection, outcome split) and body-health
+  (collision <6%, stopped <10%, success-after-sight >90% — recorded, not auto-acted-on).
+  Baseline: the unchanged PPO_29 donor is evaluated with the same detection diagnostics
+  for comparison.
+- **Written go/no-go gate.**
+  - **Go:** three-seed **mean success ≥ 78%** AND three-seed **mean first-detection ≥ 90%**
+    → select the best deterministic checkpoint/model and run a 1,000-maze deterministic
+    confirmation.
+  - **No-go:** mean success ≤ 73%.
+  - **Grey zone:** mean success > 73% but < 78% → extend only the best seed to 500k after
+    documenting the decision.
+- **Artifacts.** `rl_artifacts/ppo_32_cleared_map_smoke/` (isolated smoke),
+  `ppo_32_cleared_map_250k_s1/`, `_s2/`, `_s3/`. Commands:
+  `python train_rl.py --coverage-map --normalized-throttle --net-arch 64,64
+  --learning-rate 1.5e-4 --warm-transfer rl_artifacts/ppo_29_normalized_throttle_250k/leaper_ppo.zip
+  --timesteps 250000 --run-name PPO_32_CLEARED_MAP_S1 --artifact-dir rl_artifacts/ppo_32_cleared_map_250k_s1`
+  (repeat for s2/s3). One-change-per-experiment rule kept.
+
+**RESULTS (2026-09-04) — ❌ NO-GO. The cleared map did not help; hypothesis not supported.**
+Three natural-seed 250k runs, deterministic 100-maze exam (seeds 10000-10099):
+
+| Seed | Success | First-detection | Success\|detection | Never-detected | Collision % | Stopped % |
+|---|---:|---:|---:|---:|---:|---:|
+| s1 461014 | 67% | 81% | 83% | 19% | 7.8% | 11.5% |
+| s2 113602 | 65% | 79% | 82% | 21% | 8.2% | 8.0% |
+| s3 232855 | 70% | 81% | 86% | 19% | 9.5% | 3.3% |
+| **3-seed mean** | **67.3%** (65-70) | **80.3%** (79-81) | 83.7% | 19.7% | 8.5% | 7.6% |
+| PPO_29 baseline | 69% | 82% | 84.1% | 18% | 9.8% | 5.5% |
+
+- **Gate → NO-GO.** 3-seed mean success 67.3% ≤ 73% (the explicit no-go line), and first-
+  detection 80.3% is far under the ≥90% Go requirement. No 1,000-maze confirmation is run
+  (that is reserved for a Go), and no 500k extension (that is the grey-zone remedy for
+  73-78%, which we are below).
+- **Below the memoryless champion.** Every seed landed at or below PPO_29's 69%/82%. The
+  explicit cleared-map inputs did NOT raise first-detection — the exact metric the
+  hypothesis predicted they would move. So on this evidence, "the seeker fails because it
+  forgets where it already looked" is **not** the dominant cause of the remaining timeouts.
+- **The walker did not degrade.** Body-health is baseline-level (collisions slightly lower
+  than PPO_29, success-after-sight ~identical at ~84%). The threshold breaches (collision
+  >6%, stopped occasionally >10%, success-after-sight <90%) are present in the PPO_29
+  baseline too — they are properties of the seeker arena, not a PPO_32 regression. So this
+  is a genuine "the added signal didn't help discovery," not "we broke the body."
+- **Why it plausibly didn't help (for the next hypothesis, not acted on here):** the summary
+  is egocentric "distance to unchecked ground" along the 16 ray headings, capped at 28
+  units; in a 62.5-wide arena much unchecked ground sits beyond sensing range or in the
+  rear blind wedge, so early in an episode most directions read a similar mid-range value
+  and the gradient toward *genuinely* new territory is weak. A coarser but global signal
+  (e.g. bearing to the nearest large unchecked region, or a low-res whole-arena occupancy
+  vector) might carry more search information — but that is a NEW experiment to be proposed
+  and green-lit, per the one-change rule; nothing was tuned after seeing these seeds.
+- **Fallback champion unchanged: PPO_29 (69%) remains the seeker champion.** PPO_32 is not
+  promoted to a browser champion (it did not pass its evaluation gate); browser live-brain
+  export is untouched, as instructed.
+
+### PPO_33_FRONTIER_1B — global frontier note (Phase 1B); ❌ NO-GO, but the first improvement (2026-09-08)
+
+Phase 1B, the follow-up to PPO_32's negative. **One controlled change vs PPO_32:** replace the
+16 LOCAL 28-unit "distance to unchecked ground" rays (obs 26-41) with a compact **5-value
+GLOBAL frontier note** (obs 26-30). Everything else held: static hidden target, all PPO_29 env
+rules/rewards/PPO settings, original indices 0-25, plain 64×64 MlpPolicy (no LSTM), LR 1.5e-4,
+warm-transfer from the PPO_29 donor.
+
+- **Hypothesis.** PPO_32 failed because its local rays saturated and could not point at large
+  DISTANT unchecked regions. A global note — *direction + distance to the nearest frontier cell
+  of the largest substantial contiguous unchecked region, that region's size, and a valid flag*
+  — should steer Leaper toward the biggest unexplored area and raise first-detection.
+- **Observation change.** Obs widens **26 → 31**. Indices 0-25 unchanged (pinned by tests).
+  Indices 26-30 = `[rel_dir_x, rel_dir_z, distance/diagonal, region_size/total_cells, valid]`.
+  Computed only from the internal cleared grid (the same one PPO_32 built); a 4-connected
+  flood-fill picks the largest unchecked component, ignores fragments below
+  `FRONTIER_MIN_REGION_CELLS = 6` (rock-shadows), and takes the nearest frontier cell (region
+  cell adjacent to cleared). **Honest:** never reads the true target or obstacle positions
+  (pinned by a test that varies both and gets an identical note). `--frontier-note` flag.
+- **Transfer.** Widen PPO_29 26→31: copy the 26 donor columns exactly, ZERO the 5 new columns
+  in actor+critic first layers, copy all later params, fresh optimizer; equivalence test =
+  reproduces donor actions+values ≤1e-5 on 1,000 obs with the 5 appended inputs zero.
+- **Seed 10007 proof (before training):** at spawn (top-left) the note points +0.98 x / −0.21 z
+  into the large bottom-right unchecked region (72% of arena); a naive follow-the-note
+  controller drives Leaper straight into that region. `rl_artifacts/ppo_33_frontier_seed10007_proof.png`.
+
+**RESULTS (2026-09-08) — 3 natural-seed 250k, deterministic 100-maze exam (10000-10099):**
+
+| Seed | Success | First-detection | Success\|detection | Never-detected | Collision % | Stopped % |
+|---|---:|---:|---:|---:|---:|---:|
+| s1 445774 | 73% | 84% | 87% | 16% | 8.3% | 5.5% |
+| s2 341696 | 68% | 80% | 85% | 20% | 6.7% | 8.6% |
+| s3 460828 | 71% | 84% | 85% | 16% | 8.2% | 5.3% |
+| **3-seed mean** | **70.7%** (68-73) | **82.7%** (80-84) | 85.7% | 17.3% | 7.7% | 6.5% |
+| PPO_29 baseline | 69% | 82% | 84.1% | 18% | 9.8% | 5.5% |
+| PPO_32 (local rays) | 67.3% | 80.3% | 83.7% | 19.7% | 8.5% | 7.6% |
+
+- **Gate → NO-GO.** Go required mean success ≥78% AND first-detection ≥90%; actual 70.7% / 82.7%.
+  Mean success is also at/below the 73% no-go line. No 1,000-maze confirmation, no Phase 2 (per
+  the instruction: Go only, otherwise stop and report).
+- **BUT it is the first real improvement in the memory-augmentation line.** PPO_33 beats BOTH the
+  PPO_29 baseline (69%/82%) and the failed PPO_32 (67.3%/80.3%) on success AND first-detection,
+  across the seed spread — so the GLOBAL frontier signal is genuinely more useful than PPO_32's
+  local rays, and the direction (global > local) is validated. It just isn't enough on its own to
+  clear the 78%/90% bar: mean first-detection only moved +0.7pt over baseline, so ~17% of mazes
+  are still never solved because the target sits where the agent, even when steered at the biggest
+  unknown, does not get unobstructed line-of-sight in time.
+- **Walker healthy, no degradation:** collisions LOWER than baseline (7.7% vs 9.8%), stopped ~6.5%,
+  success-after-sight 85.7% (~baseline). Threshold breaches (collision >6%, sight <90%) match the
+  PPO_29 baseline = seeker-arena properties, not a PPO_33 regression.
+- **PPO_29 (69%) remains the seeker champion.** PPO_33 is NOT promoted to browser (did not pass
+  its gate); live-brain export untouched. Nothing tuned after seeing the seeds. Artifacts:
+  `rl_artifacts/ppo_33_frontier_250k_s{1,2,3}/`. STOPPED per instruction — Phase 2 not started.
+
+### Phase 1B failure inspection (2026-09-08) — the note was being IGNORED
+
+Before designing the next run, ran PPO_29 + all three PPO_33 on the same 100 exam mazes
+(identical env; mazes verified byte-identical regardless of the frontier flag; only difference =
+obs 26 vs 31). Two decisive findings (`rl_artifacts/phase1b_diagnostics/PHASE1B_FAILURE_REPORT.md`):
+
+1. **The frontier note was inert.** Note-zeroed ablation (zero the 5 inputs, keep the 26) did NOT
+   hurt — it *helped* in 2 of 3 seeds; movement-to-note alignment ≈ +0.01; same-state action
+   divergence ≈[0.01, 0.06]; revisit fraction identical to PPO_29 (0.84). PPO_33's +1.7pt over
+   PPO_29 was warm-transfer/seed noise, not the note.
+2. **Dominant failure = "never within 28 units"** (~12-15 of ~16-20 never-detected): Leaper never
+   travels to the target's region. Occlusion-behind-a-rock is minor (3-5); pursuit failure ~12.
+
+Likely cause of (1): the new columns are warm-transferred at exactly zero, and 250k of fine-tuning
+of an already-rewarded reactive policy never grows them (chicken-and-egg: the net won't route
+through a feature until it helps, and it can't help until the net routes through it). → PPO_34.
+
+### PPO_34_FRONTIER_SEED — seed the frontier-direction weights; ❌ NO-GO, but a diagnostic win (2026-09-08)
+
+**One controlled change vs PPO_33:** at warm-transfer, seed the two frontier-direction first-layer
+columns (obs 26-27) with **0.5 × the donor's learned target-direction columns (obs 2-3)** in BOTH
+actor and critic, instead of zeroing them (`--seed-frontier-from-target 0.5`; default 0.0 keeps
+PPO_33). Rationale: give the frontier direction the same "walk toward it" wiring the target
+direction already has, at half strength, so the note is behaviorally active from step 0 and
+fine-tuning only calibrates it. Only the new columns are touched, so a **zero note still reproduces
+PPO_29 exactly** (equivalence intact). Everything else held (env, rewards, PPO, indices 0-25, 64×64
+MLP, note computation, LR 1.5e-4, 3 seeds, 78%/90% gate).
+
+**RESULTS (3 natural-seed 250k, exam 10000-10099):**
+
+| Seed | Success | First-detection | Success\|detection | Never-detected | Detected-but-failed |
+|---|---:|---:|---:|---:|---:|
+| s1 867683 | 65% | 85% | 76% | 15% | 20% |
+| s2 68174 | 73% | 90% | 81% | 10% | 17% |
+| s3 854104 | 72% | 89% | 81% | 11% | 17% |
+| **mean** | **70.0%** | **88.0%** | 79% | 12% | 18% |
+| PPO_33 | 70.7% | 82.7% | 85.7% | 17.3% | 12 |
+| PPO_29 | 69% | 82% | 84.1% | 18% | 13 |
+
+- **Gate → NO-GO** (70.0% / 88.0%; both under 78% / 90%).
+- **But the seeding worked as intended — the note is now genuinely USED.** Ablation
+  (`ppo34_ablation.json`): zeroing the note now **drops first-detection 5-7 pts** (PPO_33 lost 0),
+  movement-to-note alignment rose to **+0.07–0.17** (PPO_33 +0.01), turn action-divergence ~0.32
+  (PPO_33 0.06). This confirms PPO_33's failure was **adoption** (dead zeroed columns), not the
+  concept.
+- **It revealed the real bottleneck: the always-on note fights PURSUIT.** Search improved
+  (first-detection 82.7 → 88.0, never-detected 17.3 → 12), but once the target is found the note
+  still points at unchecked ground away from it, so success-given-detection fell (85.7 → 79) and
+  detected-but-failed rose (12 → 18). The two effects cancel → success flat at ~70%.
+- Walker healthy; PPO_29 (69%) stays champion; PPO_34 not promoted to browser.
+- **Recommended next (PPO_35, one change, propose-before-build): gate the frontier note OFF after
+  detection** (zero it / valid=0 once `target_ever_seen`), mirroring the PDF's "exploration only in
+  not-found mode". Hypothesis: keep the +5pt detection gain while restoring pursuit → the cleanest
+  shot at the 78%/90% gate. Artifacts: `rl_artifacts/ppo_34_frontier_seed_250k_s{1,2,3}/`,
+  diagnostics in `rl_artifacts/phase1b_diagnostics/`.
+
+### PPO_35_FRONTIER_SEED025 — faint note + longer budget; ❌ NO-GO, best of the line; note sweep done (2026-09-08)
+
+The "trust the reward" path (owner's call) instead of gating the note off after detection: keep the
+frontier note always-on but faint enough that pursuit reward overrides it on its own. **Two changes
+vs PPO_34** (owner-directed, attribution caveat): `--seed-frontier-from-target 0.5 → 0.25` and
+250k → 500k. Everything else held.
+
+**RESULTS (3 natural-seed 500k, exam 10000-10099):**
+
+| Seed | Success | First-detection | Success\|detection | Never-det | Det-but-failed |
+|---|---:|---:|---:|---:|---:|
+| s1 437104 | 71% | 86% | 83% | 14% | 15% |
+| s2 888602 | 72% | 86% | 84% | 14% | 14% |
+| s3 869952 | 74% | 85% | 87% | 15% | 11% |
+| **mean** | **72.3%** | **85.7%** | ~85% | 14% | 13% |
+
+- **Gate → NO-GO** (72.3% / 85.7%). But the **highest and tightest success of the whole seeker line**
+  and **pursuit fully healed** (success|det back to ~85 from PPO_34's 79; detected-but-failed 18 → 13).
+- Ablation (`ppo35_ablation.json`): at 0.25 the note is **lightly used** — alignment +0.05–0.10 (PPO_33
+  +0.01, PPO_34 +0.13), turn action-divergence ~0.10–0.15 (PPO_34 0.32); zeroing drops first-detection
+  only 0–3 pts, and on s3 zeroing hurts net success (74 → 69), so it does help there.
+
+**Frontier-note sweep conclusion.** Across seed strength 0.0 → 0.25 → 0.5, the frontier note as an
+observation input plateaus at **~70–72% success / 85–88% first-detection**: 0.0 ignored (70.7), 0.5
+strongly used but hurts pursuit (70.0), 0.25 balanced and best (72.3). It is a **~+3 pt lever, not a
+path to 78%/90%.** The remaining wall is **traversal/coverage** — ~14% of mazes she never gets near
+the target (never within 28 u), and a directional hint alone cannot force a reactive walker to cross
+the arena. Note tuning is exhausted. PPO_29 (69%) stays champion; PPO_35 (72.3%) is the best seeker
+but not promoted (failed gate). Decision fork (nothing launched): accept, or a structural change (one
+at a time) — after-detection note gate, region-**centroid** note (not nearest rim), or a
+waypoint/planner layer.
 
 ## Terms used in this project
 
@@ -1532,3 +1780,72 @@ Artifact/archive directory:
 Conclusion:
 Next decision:
 ```
+
+## 2026-09-09: controlled seeker research campaign
+
+Owner requested single-run experiments (no multi-seed repetitions), complete metrics,
+TensorBoard, clear explanations, and progress toward >90% deterministic arrival.
+The live ledger is [docs/SEEKER_RUN_LOG_2026-09-09.md](docs/SEEKER_RUN_LOG_2026-09-09.md).
+Exact settings, seed123953224, donor SHA-256, code snapshots, imported runtime,
+per-episode data and checkpoints live under `rl_artifacts/seeker_20260909/`.
+
+The original PPO35s1 donor scores74% arrival /88% discovery on the separate200-maze
+development set. Completed253,952-transition continuations: control72.5%/90.5%,
+new-visible-space reward76%/87.5%, visitation-reward removal78%/89.5%.
+Active ICM finished76.5%/89.5%, versus removal's78%/89.5%; its bonus did not improve
+the completed comparison. These are deterministic scores, not stochastic
+training success. After completing all six arms, selection was frozen in
+`rl_artifacts/seeker_20260909/screen_selection.json`: removal at 253,952 transitions.
+On confirmation seeds 80000–80999, the frozen selected model reaches **80.7% arrival**
+versus **75.8%** for its equal-budget control. Discovery is 91.2% versus 91.3%, and
+arrival conditional on discovery is 88.5% versus 83.0%. The paired arrival gain is
+4.9 percentage points (95% maze-bootstrap interval +2.7 to +7.1). These outcomes
+were unavailable at selection. The interval concerns these fixed policies, not
+training-seed variability. The >90% target remains unmet.
+
+The new tooling is isolated under `rl/`, using34 observations (31 donor inputs plus
+three actual-motion values). The 50-input full-footprint sensor follow-up finished
+at 76.5% arrival / 85.5% discovery: better conversion after discovery, but more
+freezing during search. The independent 36-input stall-counter memory run finished
+at 74.5% arrival / 89.5% discovery. Both kept physics and original control rewards.
+No new LSTM was trained in this six-arm screen. The production browser brain is not replaced. The viewer
+now identifies which saved experiment its deterministic replay represents.
+
+Important diagnosis:47/52 baseline failures are stuck/frozen, and local action
+probes find movement alternatives in failed poses. Old body-center rays can show
+clearance while distal leg samples block. Reward removal currently has the strongest
+completed arrival result; discovery gains alone do not imply successful pursuit.
+
+## September 9: new owner requirement — train from scratch
+
+All new comparisons now start from random weights, empty optimizers and zero
+steps. The warm round-two queue was stopped after partial continuation (188,416
+last reported steps; 106,496 saved checkpoint). It is not a scratch experiment.
+The first-round 80.7% remains explicitly a fine-tuning result.
+
+Six scheduled scratch configurations are active/queued under `rl_artifacts/seeker_scratch_lr_20260909/`:
+original_mlp, removal_mlp, residual_lstm, residual_mlp, history_mlp, recovery_reward.
+Each healthy run has a 507,904-step initial budget; the owner additionally authorizes
+justified longer training and further experiments based on failure/learning evidence.
+One training seed per configuration persists. No moving target is introduced.
+The parallel MLP/LSTM and matched feedforward policies have 72,517 and 73,637
+parameters; 9 policy, 7 recurrent trainer, and 3 scratch-initialization checks pass.
+See `docs/SEEKER_SCRATCH_RUN_LOG_2026-09-09.md` for the current protocol and results.
+
+Owner subsequently required explicit learning-rate decay: linear 0.00015 → 0.000015,
+shared by PPO and recurrent PPO, with real optimizer-rate tests. The two constant-rate
+scratch runs stopped at saved 253,952-step models during evaluation and are archived
+under `seeker_scratch_20260909`; they are not scheduled-screen results. The new runs
+restart from the same random seed, not those checkpoints. `AGENTS.md` records the
+schedule and hyperparameter audit requirements.
+
+### Scheduled scratch architecture results (507,904 steps)
+
+Same200-maze development exam: original MLP29% arrival/73.5% discovery;
+removal27.5%/60.5%; residual MLP37%/72.5%; residual LSTM46.5%/82%.
+The LSTM recovered from14.5% at253952 and is the best completed scratch policy.
+History and contact-refund runs are ongoing; no confirmation exam opened.
+New runs evaluate approximately every50k steps. Paired same-scratch-model extensions
+to2,031,616 total steps are prepared, not launched: optimizer continuity verified,
+LR0.000015->0.000003, fresh seeded episodes at the continuation boundary. Full
+details and all checkpoint results: docs/SEEKER_SCRATCH_RUN_LOG_2026-09-09.md.

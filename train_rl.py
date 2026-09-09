@@ -38,6 +38,62 @@ def empty_reward_terms() -> dict[str, float]:
     return {term: 0.0 for term in REWARD_TERMS}
 
 
+def widen_policy_state_dict(donor_state: dict, destination_state: dict) -> dict:
+    """Copy a donor policy state dict into a (possibly wider) destination.
+
+    PPO_32 widens the 26-input PPO_29 MlpPolicy into a 42-input MlpPolicy: the two
+    first-layer weight matrices (``mlp_extractor.policy_net.0.weight`` and
+    ``mlp_extractor.value_net.0.weight``) gain 16 extra input columns for the
+    appended cleared-map summary. Every other parameter -- later layers, biases, the
+    action head, the value head, and ``log_std`` -- is shape-identical and copied
+    exactly. Donor columns land in destination columns 0..25 (the frozen legacy
+    channels) and the new columns 26..41 are explicitly ZEROED, so a freshly widened
+    model reproduces the donor's outputs when the appended inputs are zero.
+
+    Fails loudly on any parameter the destination has that the donor lacks, any
+    leftover donor parameter, and any shape mismatch that is not a pure input-column
+    widening (same rows, more columns). Returns a new state dict ready for
+    ``load_state_dict(..., strict=True)``.
+    """
+    import torch
+
+    widened: dict = {}
+    for name, dest_param in destination_state.items():
+        if name not in donor_state:
+            raise ValueError(
+                f"warm-transfer: destination parameter '{name}' is missing from the "
+                f"donor model; refusing to guess it."
+            )
+        donor_param = donor_state[name]
+        if tuple(donor_param.shape) == tuple(dest_param.shape):
+            widened[name] = donor_param.clone()
+            continue
+        # The only legitimate mismatch is a first-layer weight gaining input columns.
+        is_input_widening = (
+            dest_param.ndim == 2
+            and donor_param.ndim == 2
+            and dest_param.shape[0] == donor_param.shape[0]
+            and dest_param.shape[1] > donor_param.shape[1]
+        )
+        if not is_input_widening:
+            raise ValueError(
+                f"warm-transfer: unexpected shape change for '{name}': donor "
+                f"{tuple(donor_param.shape)} -> destination {tuple(dest_param.shape)}. "
+                f"Only first-layer input widening (same rows, more columns) is allowed."
+            )
+        new_weight = torch.zeros_like(dest_param)  # columns 26..41 stay zero
+        donor_columns = donor_param.shape[1]
+        new_weight[:, :donor_columns] = donor_param  # legacy columns 0..25
+        widened[name] = new_weight
+    leftover = set(donor_state) - set(destination_state)
+    if leftover:
+        raise ValueError(
+            f"warm-transfer: donor has parameters absent from the destination: "
+            f"{sorted(leftover)}; refusing to silently drop them."
+        )
+    return widened
+
+
 def classify_throttle(throttle: float) -> str:
     """Classify a signed throttle without counting reverse as stopped."""
     if abs(throttle) <= THROTTLE_EPSILON:
@@ -121,7 +177,10 @@ class ProgressCallback(BaseCallback):
             "collision_part": None,
             "forward_action": float(observation[8]),
             "turn_action": float(observation[9]),
-            "vision": [float(value) for value in observation[10:]],
+            "vision": [
+                float(value)
+                for value in observation[10 : 10 + LeaperReachEnv.RAY_COUNT]
+            ],
             "target_visible": bool(observation[0]),
             "target_ever_seen": bool(info.get("target_ever_seen", False)),
             "reward": 0.0,
@@ -304,6 +363,11 @@ class ProgressCallback(BaseCallback):
             self.model.save(
                 checkpoint_directory / f"leaper_ppo_{self.num_timesteps}"
             )
+            # PPO_32: first-detection + body-health snapshot at every checkpoint
+            # (25 exam episodes). Recorded into the checkpoint payload and printed
+            # with warning thresholds; never auto-changes the run.
+            health = detection_diagnostics(self.model, episodes=25)
+            self.visualizer_checkpoints[-1]["detection"] = health
             self._save_progress()
             self._save_live_state("training")
             if self.verbose:
@@ -311,6 +375,7 @@ class ProgressCallback(BaseCallback):
                     f"\nEvaluation at {self.num_timesteps:,} steps: "
                     f"mean reward={mean_reward:.2f}, success={success_rate:.0%}"
                 )
+                print_body_health(health, f"checkpoint {self.num_timesteps:,}")
         return True
 
     def _on_rollout_end(self) -> None:
@@ -538,6 +603,161 @@ def evaluate_diagnostics(model: RecurrentPPO, episodes: int = 100) -> dict:
     }
 
 
+# PPO_32 body-health warning thresholds. Breaching these does not change the
+# experiment automatically; it flags that the walker may have degraded and the run
+# should be stopped for diagnosis (see the task spec / TRAINING.md).
+HEALTH_COLLISION_MAX = 0.06        # collision steps should stay below 6%
+HEALTH_STOPPED_MAX = 0.10          # stopped steps should stay below 10%
+HEALTH_SUCCESS_AFTER_SIGHT_MIN = 0.90  # success after first sight should stay above 90%
+
+
+def detection_diagnostics(
+    model: RecurrentPPO,
+    episodes: int = 100,
+    seed_start: int = 10_000,
+) -> dict:
+    """Deterministic first-detection / search diagnostics on the fixed-seed exam.
+
+    Answers the PPO_32 question directly: does the agent FIND the hidden target, and
+    when it does, does it finish? Reported for both the coverage model and the
+    PPO_29 baseline (the cleared grid is maintained internally regardless of whether
+    the summary is fed to the policy, so "fraction cleared before detection" is
+    always available).
+
+    Never-detected handling: time-to-first-detection statistics are computed over
+    DETECTED episodes only (a never-detected episode has no detection time); the
+    never-detected count and rate are reported separately so the mean is not
+    silently polluted by a sentinel.
+    """
+    env = LeaperReachEnv()
+    rows: list[dict] = []
+    for episode in range(episodes):
+        observation, reset_info = env.reset(seed=seed_start + episode)
+        detected = bool(reset_info.get("target_ever_seen", False))
+        first_detection_step = 0 if detected else None
+        cleared_at_detection = (
+            float(reset_info.get("coverage_fraction", 0.0)) if detected else None
+        )
+        done = False
+        memory = None
+        episode_start = True
+        step_index = 0
+        collision_steps = 0
+        stopped_steps = 0
+        while not done:
+            action, memory = predict_with_memory(
+                model, observation, memory, episode_start, deterministic=True
+            )
+            episode_start = False
+            throttle = LeaperReachEnv.physical_throttle(float(action[0]))
+            if classify_throttle(throttle) == "stopped":
+                stopped_steps += 1
+            observation, _, terminated, truncated, info = env.step(action)
+            step_index += 1
+            if bool(info["collision"]):
+                collision_steps += 1
+            if first_detection_step is None and bool(info.get("target_ever_seen")):
+                first_detection_step = step_index
+                cleared_at_detection = float(info.get("coverage_fraction", 0.0))
+            done = terminated or truncated
+        rows.append(
+            {
+                "success": bool(info["is_success"]),
+                "detected": first_detection_step is not None,
+                "first_detection_step": first_detection_step,
+                "cleared_at_detection": cleared_at_detection,
+                "cleared_final": float(info.get("coverage_fraction", 0.0)),
+                "steps": step_index,
+                "collision_fraction": collision_steps / max(step_index, 1),
+                "stopped_fraction": stopped_steps / max(step_index, 1),
+            }
+        )
+    env.close()
+
+    detected_rows = [row for row in rows if row["detected"]]
+    detection_steps = [row["first_detection_step"] for row in detected_rows]
+    never = len(rows) - len(detected_rows)
+    detected_and_succeeded = sum(1 for row in detected_rows if row["success"])
+    detected_but_failed = len(detected_rows) - detected_and_succeeded
+    n = max(len(rows), 1)
+    return {
+        "episodes": len(rows),
+        "seed_start": seed_start,
+        "success_rate": float(np.mean([row["success"] for row in rows])),
+        "first_detection_rate": len(detected_rows) / n,
+        "mean_time_to_first_detection": (
+            float(np.mean(detection_steps)) if detection_steps else None
+        ),
+        "median_time_to_first_detection": (
+            float(np.median(detection_steps)) if detection_steps else None
+        ),
+        "time_to_first_detection_note": (
+            "mean/median over detected episodes only; never-detected episodes "
+            "excluded (they have no detection time)"
+        ),
+        "success_given_detection": (
+            detected_and_succeeded / len(detected_rows) if detected_rows else None
+        ),
+        "mean_cleared_fraction_before_detection": (
+            float(np.mean([row["cleared_at_detection"] for row in detected_rows]))
+            if detected_rows
+            else None
+        ),
+        "mean_cleared_fraction_final": float(
+            np.mean([row["cleared_final"] for row in rows])
+        ),
+        "outcome_split": {
+            "never_detected": never,
+            "detected_but_failed": detected_but_failed,
+            "detected_and_succeeded": detected_and_succeeded,
+        },
+        "outcome_split_rate": {
+            "never_detected": never / n,
+            "detected_but_failed": detected_but_failed / n,
+            "detected_and_succeeded": detected_and_succeeded / n,
+        },
+        "collision_step_percentage": float(
+            np.mean([row["collision_fraction"] for row in rows])
+        ),
+        "stopped_step_percentage": float(
+            np.mean([row["stopped_fraction"] for row in rows])
+        ),
+    }
+
+
+def print_body_health(diagnostics: dict, label: str) -> None:
+    """Print the walker body-health line and flag any breached warning threshold.
+
+    Does NOT change the run -- breaches are recorded for a human to decide whether
+    the walker has degraded enough to stop and diagnose (per the task spec).
+    """
+    collision = diagnostics["collision_step_percentage"]
+    stopped = diagnostics["stopped_step_percentage"]
+    success_after_sight = diagnostics.get("success_given_detection")
+    print(
+        f"  Body-health ({label}): collision steps {collision:.1%} "
+        f"(<{HEALTH_COLLISION_MAX:.0%}), stopped steps {stopped:.1%} "
+        f"(<{HEALTH_STOPPED_MAX:.0%}), success-after-first-sight "
+        f"{('n/a' if success_after_sight is None else f'{success_after_sight:.1%}')} "
+        f"(>{HEALTH_SUCCESS_AFTER_SIGHT_MIN:.0%}), first-detection "
+        f"{diagnostics['first_detection_rate']:.1%}"
+    )
+    warnings = []
+    if collision >= HEALTH_COLLISION_MAX:
+        warnings.append(f"collision steps {collision:.1%} >= {HEALTH_COLLISION_MAX:.0%}")
+    if stopped >= HEALTH_STOPPED_MAX:
+        warnings.append(f"stopped steps {stopped:.1%} >= {HEALTH_STOPPED_MAX:.0%}")
+    if success_after_sight is not None and success_after_sight <= HEALTH_SUCCESS_AFTER_SIGHT_MIN:
+        warnings.append(
+            f"success-after-sight {success_after_sight:.1%} <= {HEALTH_SUCCESS_AFTER_SIGHT_MIN:.0%}"
+        )
+    if warnings:
+        print(
+            "  ⚠ BODY-HEALTH WARNING (recorded, run not auto-changed): "
+            + "; ".join(warnings)
+        )
+
+
 def summarize_training_episodes(rows: list[dict], limit: int = 100) -> dict:
     """Summarize the latest stochastic on-policy training episodes."""
     selected = rows[-limit:]
@@ -606,6 +826,17 @@ def evaluate_with_recordings(
                 "vision": list(info.get("vision", ())),
                 "target_visible": bool(info.get("target_visible", False)),
                 "target_ever_seen": bool(info.get("target_ever_seen", False)),
+                # PPO_32: cells cleared this frame (flat grid indices). The viewer
+                # accumulates these to draw cleared-vs-unchecked ground. The reset
+                # pose's clearing lands on the first frame.
+                "coverage_new": list(info.get("coverage_new_cells", ())),
+                # PPO_33 / Phase 1B: the world point the global frontier note selects
+                # (x, z, valid) so the viewer/analysis can show where it points.
+                "frontier": (
+                    [env._frontier_target[0], env._frontier_target[1], env._frontier_valid]
+                    if env._frontier_target is not None
+                    else None
+                ),
             }
         ]
         memory = None
@@ -632,6 +863,12 @@ def evaluate_with_recordings(
                     "vision": list(info.get("vision", ())),
                     "target_visible": bool(info.get("target_visible", False)),
                     "target_ever_seen": bool(info.get("target_ever_seen", False)),
+                    "coverage_new": list(info.get("coverage_new_cells", ())),
+                    "frontier": (
+                        [env._frontier_target[0], env._frontier_target[1], env._frontier_valid]
+                        if env._frontier_target is not None
+                        else None
+                    ),
                 }
             )
         recordings.append(
@@ -645,6 +882,12 @@ def evaluate_with_recordings(
                 "obstacles": [list(obstacle) for obstacle in env.obstacles],
                 "target": env.target.tolist(),
                 "world_limit": LeaperReachEnv.WORLD_LIMIT,
+                # PPO_32 cleared-map geometry for the viewer overlay: a square grid
+                # of COVERAGE_CELL_SIZE cells spanning [-world_limit, world_limit].
+                "coverage_steps": int(env.coverage_steps),
+                "coverage_cell": float(LeaperReachEnv.COVERAGE_CELL_SIZE),
+                "coverage_map": bool(LeaperReachEnv.COVERAGE_MAP),
+                "frontier_note": bool(LeaperReachEnv.FRONTIER_NOTE),
                 "frames": frames,
             }
         )
@@ -740,6 +983,39 @@ def main() -> None:
         "PPO_28 clip-to-zero freeze. Off by default (plain forward-only [0,1]).",
     )
     parser.add_argument(
+        "--coverage-map",
+        action="store_true",
+        help="PPO_32: append 16 egocentric cleared-map summary values to the "
+        "observation (indices 26-41), widening it 26->42. The legacy channels 0-25 "
+        "are untouched. Use with --warm-transfer to widen a PPO_29 26-input donor "
+        "into the 42-input model (donor columns copied, new columns zeroed).",
+    )
+    parser.add_argument(
+        "--seed-frontier-from-target",
+        type=float,
+        default=0.0,
+        help="PPO_34: instead of ZEROING the two frontier-direction weight columns "
+        "(obs 26-27) at warm-transfer, seed them with this scale times the donor's "
+        "learned target-direction columns (obs 2-3), in BOTH actor and critic first "
+        "layers. 0.0 (default) = PPO_33 behaviour (zeroed). 0.5 = the frontier "
+        "direction starts wired like a half-strength 'target to walk toward', so the "
+        "note is behaviorally active from step 0 instead of an ignored dead input. "
+        "Requires --frontier-note + --warm-transfer. When the note inputs are zero "
+        "the model still reproduces the donor (weights only touch new columns).",
+    )
+    parser.add_argument(
+        "--frontier-note",
+        action="store_true",
+        help="PPO_33 / Phase 1B: append a 5-value GLOBAL frontier note to the "
+        "observation (indices 26-30), widening it 26->31: relative x/z direction to "
+        "the nearest frontier cell of the largest substantial unchecked region, its "
+        "distance (/diagonal), region size, and a valid flag. Replaces PPO_32's 16 "
+        "local coverage rays. Legacy channels 0-25 are untouched. Use with "
+        "--warm-transfer to widen a PPO_29 26-input donor (donor columns copied, new "
+        "columns zeroed). Honest: uses only the internal cleared grid, never the "
+        "target or obstacle positions.",
+    )
+    parser.add_argument(
         "--freeze-limit",
         type=int,
         default=LeaperReachEnv.FREEZE_LIMIT,
@@ -820,6 +1096,8 @@ def main() -> None:
     # PPO_29 throttle normalization + freeze/scan tuning. Set before any env is
     # built so training, evaluation, and replay envs in this process all agree.
     LeaperReachEnv.NORMALIZED_THROTTLE = args.normalized_throttle
+    LeaperReachEnv.COVERAGE_MAP = args.coverage_map
+    LeaperReachEnv.FRONTIER_NOTE = args.frontier_note
     LeaperReachEnv.FREEZE_LIMIT = args.freeze_limit
     LeaperReachEnv.FREEZE_PENALTY = args.freeze_penalty
     LeaperReachEnv.SCAN_REWARD = args.scan_reward
@@ -857,7 +1135,14 @@ def main() -> None:
         "scan_reward": LeaperReachEnv.SCAN_REWARD,
         "exploration_reward": LeaperReachEnv.EXPLORATION_REWARD,
         "new_view_reward": LeaperReachEnv.NEW_VIEW_REWARD,
-        "observation_size": 10 + LeaperReachEnv.RAY_COUNT,
+        "observation_size": LeaperReachEnv.observation_size(),
+        "coverage_map": LeaperReachEnv.COVERAGE_MAP,
+        "coverage_summary_count": LeaperReachEnv.RAY_COUNT if LeaperReachEnv.COVERAGE_MAP else 0,
+        "coverage_cell_size": LeaperReachEnv.COVERAGE_CELL_SIZE,
+        "frontier_note": LeaperReachEnv.FRONTIER_NOTE,
+        "frontier_note_size": LeaperReachEnv.FRONTIER_NOTE_SIZE if LeaperReachEnv.FRONTIER_NOTE else 0,
+        "frontier_min_region_cells": LeaperReachEnv.FRONTIER_MIN_REGION_CELLS,
+        "seed_frontier_from_target": args.seed_frontier_from_target,
         "ray_count": LeaperReachEnv.RAY_COUNT,
         "ray_max_range": LeaperReachEnv.RAY_MAX_RANGE,
         "idle_penalty": LeaperReachEnv.IDLE_PENALTY,
@@ -964,11 +1249,52 @@ def main() -> None:
             tensorboard_log=str(artifact_directory / "tensorboard"),
             device="auto",
         )
-        model.policy.load_state_dict(donor.policy.state_dict())
+        widened_state = widen_policy_state_dict(
+            donor.policy.state_dict(), model.policy.state_dict()
+        )
+        donor_input = donor.policy.state_dict()["mlp_extractor.policy_net.0.weight"].shape[1]
+        model.policy.load_state_dict(widened_state, strict=True)
         del donor
+        dest_input = LeaperReachEnv.observation_size()
+        widened_note = (
+            f"widened {donor_input}->{dest_input} inputs "
+            f"(new columns {donor_input}-{dest_input - 1} zeroed), "
+            if dest_input != donor_input
+            else ""
+        )
+        seed_note = ""
+        if args.seed_frontier_from_target > 0.0:
+            # PPO_34: give the frontier-direction inputs (obs 26-27) the donor's
+            # learned "walk toward the target" wiring at reduced strength, so the
+            # note is active from step 0 instead of a dead zeroed input. The target
+            # direction lives at obs columns 2-3; the frontier direction at 26-27.
+            # Only the new columns are touched, so a zero note still reproduces the
+            # donor exactly. Applied to actor and critic first layers alike.
+            if not (LeaperReachEnv.FRONTIER_NOTE and dest_input != donor_input):
+                raise SystemExit(
+                    "--seed-frontier-from-target requires --frontier-note and a "
+                    "widening warm-transfer (26->31)."
+                )
+            import torch
+
+            scale = args.seed_frontier_from_target
+            with torch.no_grad():
+                for network in (
+                    model.policy.mlp_extractor.policy_net,
+                    model.policy.mlp_extractor.value_net,
+                ):
+                    first_linear = next(
+                        layer for layer in network if hasattr(layer, "weight")
+                    )
+                    first_linear.weight[:, 26] = scale * first_linear.weight[:, 2]
+                    first_linear.weight[:, 27] = scale * first_linear.weight[:, 3]
+            seed_note = (
+                f" Seeded frontier-direction columns 26-27 = {scale} x "
+                "target-direction columns 2-3 (actor+critic)."
+            )
         print(
             f"Warm-transferred weights from {transfer_path} into a fresh "
-            "normalized-action model; optimizer reset."
+            f"model ({widened_note}fresh optimizer).{seed_note}"
         )
     elif args.warm_start:
         warm_start = args.warm_start
@@ -1033,12 +1359,17 @@ def main() -> None:
     model.save(artifact_directory / "leaper_ppo")
     callback._save_progress()
     deterministic_evaluation = evaluate_diagnostics(model, episodes=100)
+    detection_evaluation = detection_diagnostics(model, episodes=100)
     final_report = {
         "run_name": args.run_name,
         "requested_timesteps": args.timesteps,
         "collected_timesteps": callback.num_timesteps,
         "seed": args.seed,
+        "coverage_map": LeaperReachEnv.COVERAGE_MAP,
+        "frontier_note": LeaperReachEnv.FRONTIER_NOTE,
+        "observation_size": LeaperReachEnv.observation_size(),
         "deterministic_evaluation": deterministic_evaluation,
+        "detection_diagnostics": detection_evaluation,
         "latest_stochastic_training_episodes": summarize_training_episodes(
             callback.episode_diagnostics
         ),
@@ -1046,6 +1377,7 @@ def main() -> None:
     (artifact_directory / "final_evaluation.json").write_text(
         json.dumps(final_report, indent=2), encoding="utf-8"
     )
+    print_body_health(detection_evaluation, "final 100-maze exam")
     callback._save_live_state(
         "complete",
         (

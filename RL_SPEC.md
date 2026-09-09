@@ -1,5 +1,9 @@
 # Leaper RL Specification
 
+Active seeker architecture, schedules, environment semantics and runtime pointers:
+[docs/SEEKER_HANDOFF.md](docs/SEEKER_HANDOFF.md). This file also retains historical
+specifications; use each run's saved config/source snapshot for its exact contract.
+
 Consolidated technical reference for the Leaper reinforcement-learning agent:
 the sensors it reads, the actions it takes, the brain that maps one to the other,
 and the environment and experiment design around it. This is the single place to
@@ -38,16 +42,54 @@ runs pass the flags. See `TRAINING.md` for full results.
   tested for search and LOST (39-53%, unstable) — memory line closed for the static
   target. Remaining blocker = search/discovery (~30% never find the target).
 
+## PPO_32 changes — IMPLEMENTED (2026-09-04, cleared-map seeker, Phase 1)
+
+Behind the `--coverage-map` flag (class flag `COVERAGE_MAP`, default off), so class
+defaults still reproduce PPO_29. This is a **state-augmentation** experiment — no
+LSTM/recurrence, no moving target, no new reward, no changed PPO hyperparameters
+except the learning rate (`1.5e-4`) and the enlarged observation.
+
+- **Cleared/coverage map.** An episode-local grid over the whole arena
+  (`COVERAGE_CELL_SIZE = 3.0`, the existing exploration cell), reset each
+  `reset()` and updated for the spawn pose and after every step pose. A cell is
+  marked cleared only if a hypothetical target at the cell centre would be
+  **detectable** from Leaper's current pose under the exact target-visibility rules
+  (270° FOV, `RAY_MAX_RANGE = 28`, unobstructed, `TARGET_RADIUS` slack). The map
+  **never reads the real target position** — it records only "this location has
+  been checked". The shared vectorized geometry `_points_visible()` backs both the
+  map and the real target sensor (pinned equal by a test) so they cannot diverge.
+- **Observation +16 → 42.** When enabled, 16 egocentric "distance to unchecked
+  ground" values are appended at indices **26-41**, aligned with the 16 vision-ray
+  angles. Legacy indices **0-25 are byte-for-byte unchanged** (order, meaning,
+  scaling, numerical implementation), pinned by tests. Full internal grid kept for
+  diagnostics/viewer; only the 16-value summary is exposed to the policy.
+- **Warm-transfer widening** (`--warm-transfer` + `--coverage-map`): builds a fresh
+  42-input `MlpPolicy` (64,64), copies donor actor/critic first-layer columns into
+  destination columns 0-25, **zeros columns 26-41**, copies all later
+  weights/biases/`log_std`/value params exactly, fresh optimizer, and **fails
+  loudly** on any unexpected parameter name or shape. Equivalence test: a widened
+  model reproduces PPO_29's deterministic actions (and value predictions) within
+  `1e-5` on 1,000 sampled observations when the appended inputs are zero.
+- **Detection diagnostics** added to checkpoints and `final_evaluation.json`:
+  first-detection rate, mean/median time to first detection (over detected episodes
+  only), success given detection, arena fraction cleared before first detection, and
+  the never-detected / detected-but-failed / detected-and-succeeded split. Body-
+  health (collision %, stopped %, success-after-sight) is printed every checkpoint
+  with warning thresholds (collision <6%, stopped <10%, success-after-sight >90%).
+- Donor: `rl_artifacts/ppo_29_normalized_throttle_250k/leaper_ppo.zip`.
+
 ---
 
-## 1. Observation — what the agent senses (26 values)
+## 1. Observation — what the agent senses (26 values; 42 with `--coverage-map`)
 
 The observation is a flat vector of 26 float32 values in `[-1, 1]`
-(`Box(-1.0, 1.0, (26,))`). The target has semantic identity (the object tagged
+(`Box(-1.0, 1.0, (26,))`), or **42** when the PPO_32 cleared map is enabled
+(`Box(-1.0, 1.0, (42,))`). The target has semantic identity (the object tagged
 as the goal), but its coordinates are private environment state: the policy gets
 no target bearing or distance until the target is inside its 270° sight cone,
 within 28 units, and not occluded by an obstacle. This is ray/geometry perception,
-not pixel recognition.
+not pixel recognition. Observation size is reported dynamically via
+`LeaperReachEnv.observation_size()` — no more hard-coded `10 + RAY_COUNT`.
 
 | Idx | Channel | Definition | Range |
 |---:|---|---|---|
@@ -62,6 +104,53 @@ not pixel recognition.
 | 8 | prev throttle | previous step's forward throttle action | [0, 1] |
 | 9 | prev turn | previous step's turn action | [-1, 1] |
 | 10-25 | sixteen forward rangefinder rays | see below | [0, 1] |
+| 26-41 | sixteen cleared-map summaries | PPO_32 only (`--coverage-map`); see §1a | [0, 1] |
+| 26-30 | five global frontier-note values | PPO_33 / Phase 1B only (`--frontier-note`, replaces §1a); see §1b | [-1, 1] |
+
+### 1a. Cleared-map summary (indices 26-41, PPO_32 only)
+
+Present only when `COVERAGE_MAP` is enabled. Sixteen egocentric "distance to
+nearest **unchecked** ground" readings, one per vision-ray angle (identical
+headings to indices 10-25, so summary `k` shares ray `k`'s direction). Each ray is
+marched from the body centre outward in `COVERAGE_SAMPLE_STEP = 1.5`-unit steps from
+0 to `RAY_MAX_RANGE = 28`; the first sample that lands on an in-bounds, not-yet-
+cleared grid cell gives the distance. The value is `distance / RAY_MAX_RANGE` clipped
+to `[0, 1]`:
+
+- **0** = unchecked ground right along that heading;
+- larger = nearest unchecked ground is farther away;
+- **1** = no unchecked ground within 28 units that way (the ray leaves the arena or
+  every cell it crosses is already cleared).
+
+Cells hidden behind rocks are never cleared, so their rock-shadows read here as
+distant unchecked ground. The reading is the ray's **entry distance** into the first
+unchecked cell (not the cell-centre distance). Fully deterministic. The policy sees
+only these 16 summaries; the full grid stays internal for diagnostics and the
+training viewer's cleared-vs-unchecked overlay.
+
+### 1b. Global frontier note (indices 26-30, PPO_33 / Phase 1B only)
+
+Present only when `FRONTIER_NOTE` is enabled (`--frontier-note`), mutually exclusive
+with §1a in practice. Five values that REPLACE PPO_32's 16 local rays with a compact
+**global** search signal, computed only from the internal cleared grid (never the
+target or obstacle positions):
+
+| Idx | Value | Definition | Range |
+|---:|---|---|---|
+| 26 | frontier dir x | world-space unit x toward the selected frontier cell (0 if none) | [-1, 1] |
+| 27 | frontier dir z | world-space unit z toward the selected frontier cell (0 if none) | [-1, 1] |
+| 28 | frontier distance | that cell's distance ÷ arena diagonal (1 if none) | [0, 1] |
+| 29 | region size | selected region's cell count ÷ total grid cells | [0, 1] |
+| 30 | valid flag | 1 if a substantial unchecked region exists, else 0 | {0, 1} |
+
+**Selection.** 4-connected flood-fill labels the unchecked cells; the LARGEST
+component is chosen (components smaller than `FRONTIER_MIN_REGION_CELLS = 6` — tiny
+isolated rock-shadow fragments — are ignored, giving the invalid note `[0,0,1,0,0]`).
+Its **frontier cells** are those adjacent to a cleared cell (the known/unknown
+boundary); the one NEAREST the body is selected, and its direction/distance/size
+reported. This points Leaper at the biggest distant unexplored area, which the
+egocentric 28-unit §1a rays could not do. Rationale: PPO_32 (§1a) was a NO-GO because
+its local rays saturated on distant regions; §1b is the Phase 1B fix.
 
 **Forward vision (indices 10-25).** Sixteen thin rangefinder rays fan across a **270°**
 forward field centred on the current facing (`VISION_FOV = 270°`), from `yaw - 135°`
@@ -319,6 +408,10 @@ was always known), so its scores are NOT comparable to the 91-93% above.
 | PPO_29 | normalized throttle + freeze rule + scan nudge | **69%** | ✅ **SEEKER CHAMPION**; freeze cured (stopped 57%→6%), but success flat — blocker is search/discovery |
 | PPO_30 | recurrent LSTM memory (200k / 500k) | 53% / 39% | dismissed; memory is worse AND unstable on search — internal-memory line closed |
 | PPO_31 | 2-layer LSTM + 5x exploration reward (250k) | ~20% @164k | ABORTED (OOM at 164k); flattened ~20-24%, worse still; boosted reward → "professional wanderer"; from-scratch LSTM closed a 2nd time |
+| PPO_32 | explicit cleared-map (obs 26→42, warm PPO_29, LR 1.5e-4, 3 seeds 250k) | 67/65/70 → **67.3%** | ❌ **NO-GO** (gate = ≥78% success + ≥90% first-detection; no-go ≤73%). First-detection 80.3%, both BELOW the PPO_29 baseline (69%/82%). Cleared-map augmentation did not improve discovery. Hypothesis not supported. |
+| PPO_33 | global frontier note, Phase 1B (obs 26→31, warm PPO_29, LR 1.5e-4, 3 seeds 250k) | 73/68/71 → **70.7%** | ❌ **NO-GO** (gate ≥78%+≥90%fd). First-detection 82.7%. Failure inspection: the note was IGNORED (alignment ~0, zeroing didn't hurt); the +1.7pt was noise. Dominant failure = never within 28u (search coverage). |
+| PPO_34 | seed frontier-dir cols 26-27 = 0.5×target-dir cols 2-3 at warm-transfer (`--seed-frontier-from-target 0.5`; else = PPO_33) | 65/73/72 → **70.0%** | ❌ **NO-GO** (first-detect 88.0%). BUT the note is now USED (zeroing drops first-det 5-7pts; alignment +0.07–0.17). Fixed adoption; revealed the note HELPS search (first-det 82.7→88) but HURTS pursuit (succ\|det 85→79) → success flat. |
+| PPO_35 | seed 0.25 + 500k (two changes vs PPO_34, user-directed): faint note, trust reward to override in pursuit | 71/72/74 → **72.3%** | ❌ **NO-GO** (first-detect 85.7%). BEST of the frontier line, tightest (71-74); pursuit HEALED (succ\|det ~85, det-fail ~13). Note lightly used (align +0.05–0.10). **Sweep done: frontier-note-as-input plateaus ~70-72% / 85-88%fd; wall is traversal/coverage.** |
 
 **Status (two tracks):**
 - **Known-target world:** target met, **Champion = PPO_25** (16 rays · range 28 ·
@@ -352,3 +445,74 @@ incompatible):
 - Collision geometry or response → §4
 - Environment constants → §5
 - Model architecture or PPO hyperparameters → §6, §7
+
+## Isolated September 9 seeker experiments
+
+`rl/seeker_runner.py` and `rl/seeker_env.py` define experimental subclasses; they do
+not change the production `LeaperReachEnv` defaults or deployed ONNX interface.
+Common policy observation:31 PPO35 values plus actual world displacement x/z divided
+by0.375 and wrapped actual yaw change divided by9degrees. Reset odometry is zero.
+Both64×64 Tanh branches are transferred with zero extra input columns:12,997 trainable
+parameters, normalized forward-only policy actions. PPO remains8env×1024 steps,
+batch256,10epochs, lr0.00015, gamma0.995, GAE0.95, entropy0.01.
+
+Reward arms retain scan, hidden-distance progress, first sight, pursuit, time/idle,
+collision/stuck/frozen and arrival terms. `visibility` replaces cell/view bonuses
+with newly cleared cells/441 (maximum1 per episode, reset coverage unpaid, discovery
+ends payment); `removal` sets cell/view coefficients to zero; `icm` adds the independent
+bounded prediction-error reward to removal. Task and intrinsic returns are logged
+separately. All evaluation uses task rewards only and deterministic policy actions.
+
+ICM reads yaw sine/cosine and16 rays only. Encoder18→64Tanh→32Tanh;
+inverse64→64Tanh→2; forward34→64Tanh→32;11,906 independent parameters. Loss0.8inverse
+MSE+0.2forward MSE, next-feature target detached, Adam0.0003, one shuffled pass per
+rollout, batch256, gradient norm0.5. Pre-update error is normalized by preceding
+rollout RMS, clipped[0,1], coefficient0.01, cap1 per worker episode. No discovery,
+post-discovery or true-terminal payout. Removal trains the same ICM with coefficient0.
+
+Optional `--sensors footprint` uses50 inputs: unchanged34 plus16 full-footprint
+fixed-yaw translation clearances divided by6. It uses19 body/leg circles, the existing
+270degree directions, nearest radius-inflated obstacle/wall contact, and zero extra
+input weights.15,045 policy parameters. This is a stronger hypothetical proximity
+sensor, not reconstructed from current thin rays and not a safe-turn/action override.
+It does not relax collisions, reveal target coordinates, or supply an oracle route.
+
+Optional `--sensors stall_memory` uses 36 inputs: the unchanged 34 plus consecutive
+stuck steps / 40 and frozen steps / 60, clipped to [0, 1] and reset to zero. These
+summarize the robot's own collision and actual movement history. The two new input
+columns start at zero; the policy has 13,253 parameters. This branch uses original
+control sensors and rewards, independently of the footprint branch. It exposes
+existing counters without changing their terminal thresholds or overriding actions.
+
+Single training run per configuration by owner instruction; paired development
+mazes30000–30199; reserved confirmation80000–80999. See
+`docs/SEEKER_RUN_LOG_2026-09-09.md` for results, limitations and current decisions.
+
+## September 9 scratch-only recurrent comparison
+
+The owner superseded donor continuation for new runs. `rl/seeker_scratch.py` starts
+all models from newly randomized weights, empty optimizers and zero timesteps.
+Shared base weights come from a newly initialized reference policy, never a saved
+trained model. Controls compare original versus removed cell/view rewards, parallel
+MLP/LSTM versus matched residual MLP, finite history, and recovery-sensitive reward.
+See `docs/SEEKER_SCRATCH_RUN_LOG_2026-09-09.md` for the active protocol.
+
+`ResidualLstmPolicy`: 34-input direct 64-Tanh-64-Tanh MLP plus separate actor/critic
+34→LSTM64→zero Linear64 residuals, summed at the latent features; 72,517 parameters.
+`ResidualMlpPolicy`: same direct branch plus 34→128-Tanh→112-Tanh→64-Tanh→zero
+Linear64 feedforward residuals, separately for actor/critic; 73,637 parameters.
+All branches train; zero projections initially preserve the fresh base output.
+The history control has 136 inputs: current plus 1/4/16-step-old observations.
+
+The custom recurrent trainer retains SB3-contrib rollout collection and GAE, but
+uses episode-local chunks up to 128 steps, detached burn-in up to 32, and 256 valid
+learning tokens per batch. Padding and burn-in do not enter losses. Every valid
+rollout token is learned once per epoch, ten epochs. Cached prefix-state staleness
+is an explicit approximation. Evaluation preserves per-episode inference memory.
+
+The active scheduled scratch screen uses linearLR0.00015->0.000015 over507904
+transitions. Newly launched runs evaluate every50k nominal steps rounded up to an
+8192-transition rollout boundary and at final. Previously launched architecture
+runs retained106496/253952/507904 evaluation checkpoints. Planned paired extensions
+preserve optimizer state and decay0.000015->0.000003 from507904 to2031616 total
+transitions, with fresh seeded episodes explicitly recorded at resumption.

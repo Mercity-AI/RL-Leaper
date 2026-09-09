@@ -91,6 +91,21 @@ class SeekerTests(unittest.TestCase):
         self.assertGreater(float(observation[1]), 0.0)
         np.testing.assert_allclose(observation[2:4], [0.0, 1.0], atol=1e-6)
 
+    def test_last_seen_position_survives_memory_age_saturation(self):
+        self.env.target = np.array([0.0, 10.0], dtype=np.float32)
+        self.reset_memory()
+        self.env._update_target_memory(increment_time=False)
+        self.env.position = np.array([10.0, 10.0], dtype=np.float32)
+        self.env.yaw = math.pi / 2  # The remembered target is directly behind.
+        for _ in range(self.env.TARGET_MEMORY_STEPS + 20):
+            self.env._update_target_memory()
+        observation = self.env._observation()
+        self.assertFalse(self.env.target_visible)
+        self.assertTrue(self.env.target_ever_seen)
+        self.assertEqual(float(observation[1]), 1.0)
+        np.testing.assert_allclose(self.env.last_seen_target, [0.0, 10.0])
+        np.testing.assert_allclose(observation[2:4], [-1.0, 0.0], atol=1e-6)
+
     def test_moving_away_while_target_is_hidden_has_no_distance_penalty(self):
         self.env.target = np.array([0.0, 20.0], dtype=np.float32)
         self.env.yaw = math.pi
