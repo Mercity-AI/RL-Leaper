@@ -12,6 +12,7 @@ dist/
 rl_artifacts/
 public/rl_live_state.json
 public/rl_live_state.tmp
+public/rl_live_state.*.tmp
 *.zip
 
 # Test, coverage, and tool caches

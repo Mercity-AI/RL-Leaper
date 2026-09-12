@@ -1,0 +1,880 @@
+{
+  "updated_utc": "2026-09-09T19:26:37.898414+00:00",
+  "scope": "Four September9 seeker campaigns; older PPO history remains in TRAINING.md",
+  "note": "Development evaluations only; fine-tuned and scratch origins differ. Read live statuses before acting.",
+  "runs": [
+    {
+      "campaign": "seeker_20260909",
+      "campaign_meaning": "Earlier fine-tuning; inherited walker, not scratch",
+      "run": "control_250k",
+      "artifact_dir": "rl_artifacts/seeker_20260909/control_250k",
+      "status": "complete",
+      "trained_steps": 253952,
+      "seed": 123953224,
+      "donor": "E:\\Leaper\\rl_artifacts\\ppo_35_frontier_seed025_500k_s1\\leaper_ppo.zip",
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": null,
+      "hypothesis": null,
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.735,
+          "discovery": 0.895
+        },
+        {
+          "step": 253952,
+          "arrival": 0.725,
+          "discovery": 0.905
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_20260909",
+      "campaign_meaning": "Earlier fine-tuning; inherited walker, not scratch",
+      "run": "footprint_250k",
+      "artifact_dir": "rl_artifacts/seeker_20260909/footprint_250k",
+      "status": "complete",
+      "trained_steps": 253952,
+      "seed": 123953224,
+      "donor": "E:\\Leaper\\rl_artifacts\\ppo_35_frontier_seed025_500k_s1\\leaper_ppo.zip",
+      "parent_checkpoint": null,
+      "parameters": 15045,
+      "learning_rate_schedule": null,
+      "hypothesis": null,
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.75,
+          "discovery": 0.88
+        },
+        {
+          "step": 253952,
+          "arrival": 0.765,
+          "discovery": 0.855
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_20260909",
+      "campaign_meaning": "Earlier fine-tuning; inherited walker, not scratch",
+      "run": "icm_250k",
+      "artifact_dir": "rl_artifacts/seeker_20260909/icm_250k",
+      "status": "complete",
+      "trained_steps": 253952,
+      "seed": 123953224,
+      "donor": "E:\\Leaper\\rl_artifacts\\ppo_35_frontier_seed025_500k_s1\\leaper_ppo.zip",
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": null,
+      "hypothesis": null,
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.73,
+          "discovery": 0.88
+        },
+        {
+          "step": 253952,
+          "arrival": 0.765,
+          "discovery": 0.895
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_20260909",
+      "campaign_meaning": "Earlier fine-tuning; inherited walker, not scratch",
+      "run": "removal_250k",
+      "artifact_dir": "rl_artifacts/seeker_20260909/removal_250k",
+      "status": "complete",
+      "trained_steps": 253952,
+      "seed": 123953224,
+      "donor": "E:\\Leaper\\rl_artifacts\\ppo_35_frontier_seed025_500k_s1\\leaper_ppo.zip",
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": null,
+      "hypothesis": null,
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.77,
+          "discovery": 0.88
+        },
+        {
+          "step": 253952,
+          "arrival": 0.78,
+          "discovery": 0.895
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_20260909",
+      "campaign_meaning": "Earlier fine-tuning; inherited walker, not scratch",
+      "run": "stall_memory_250k",
+      "artifact_dir": "rl_artifacts/seeker_20260909/stall_memory_250k",
+      "status": "complete",
+      "trained_steps": 253952,
+      "seed": 123953224,
+      "donor": "E:\\Leaper\\rl_artifacts\\ppo_35_frontier_seed025_500k_s1\\leaper_ppo.zip",
+      "parent_checkpoint": null,
+      "parameters": 13253,
+      "learning_rate_schedule": null,
+      "hypothesis": null,
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.725,
+          "discovery": 0.89
+        },
+        {
+          "step": 253952,
+          "arrival": 0.745,
+          "discovery": 0.895
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_20260909",
+      "campaign_meaning": "Earlier fine-tuning; inherited walker, not scratch",
+      "run": "visibility_250k",
+      "artifact_dir": "rl_artifacts/seeker_20260909/visibility_250k",
+      "status": "complete",
+      "trained_steps": 253952,
+      "seed": 123953224,
+      "donor": "E:\\Leaper\\rl_artifacts\\ppo_35_frontier_seed025_500k_s1\\leaper_ppo.zip",
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": null,
+      "hypothesis": null,
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.735,
+          "discovery": 0.855
+        },
+        {
+          "step": 253952,
+          "arrival": 0.76,
+          "discovery": 0.875
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_round2_20260909",
+      "campaign_meaning": "Superseded warm continuation; do not resume",
+      "run": "continuation",
+      "artifact_dir": "rl_artifacts/seeker_round2_20260909/continuation",
+      "status": "interrupted_by_user_direction",
+      "trained_steps": null,
+      "seed": 200825972,
+      "donor": "E:\\Leaper\\rl_artifacts\\seeker_20260909\\removal_250k\\model_253952.zip",
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": null,
+      "hypothesis": "More optimization of the confirmed reward-removal policy improves recovery.",
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.74,
+          "discovery": 0.865
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_20260909",
+      "campaign_meaning": "Superseded constant-LR scratch; do not resume",
+      "run": "original_mlp",
+      "artifact_dir": "rl_artifacts/seeker_scratch_20260909/original_mlp",
+      "status": "interrupted_for_schedule_change",
+      "trained_steps": null,
+      "seed": 145032259,
+      "donor": null,
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": null,
+      "hypothesis": "Establish acquisition with the original cell/view rewards, from random weights.",
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.185,
+          "discovery": 0.84
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_20260909",
+      "campaign_meaning": "Superseded constant-LR scratch; do not resume",
+      "run": "removal_mlp",
+      "artifact_dir": "rl_artifacts/seeker_scratch_20260909/removal_mlp",
+      "status": "interrupted_for_schedule_change",
+      "trained_steps": null,
+      "seed": 145032259,
+      "donor": null,
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": null,
+      "hypothesis": "Test whether removing cell/view bonuses helps acquisition, not just fine-tuning.",
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.21,
+          "discovery": 0.845
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_lr_20260909",
+      "campaign_meaning": "Active scheduled scratch and own-model extensions",
+      "run": "history_mlp",
+      "artifact_dir": "rl_artifacts/seeker_scratch_lr_20260909/history_mlp",
+      "status": "complete",
+      "trained_steps": 507904,
+      "seed": 145032259,
+      "donor": null,
+      "parent_checkpoint": null,
+      "parameters": 26053,
+      "learning_rate_schedule": {
+        "kind": "linear",
+        "initial": 0.00015,
+        "final": 1.5e-05,
+        "clock": "fraction of declared total environment-transition budget remaining",
+        "formula": "final + (initial - final) * clip(progress_remaining, 0, 1)",
+        "extension": "Do not silently reset upward; choose and record an explicit extension schedule."
+      },
+      "hypothesis": "Finite observation history at 1/4/16 steps may resolve motion/recovery ambiguity without recurrent training.",
+      "evaluations": [
+        {
+          "step": 57344,
+          "arrival": 0.17,
+          "discovery": 0.785
+        },
+        {
+          "step": 106496,
+          "arrival": 0.235,
+          "discovery": 0.865
+        },
+        {
+          "step": 155648,
+          "arrival": 0.22,
+          "discovery": 0.84
+        },
+        {
+          "step": 204800,
+          "arrival": 0.26,
+          "discovery": 0.825
+        },
+        {
+          "step": 253952,
+          "arrival": 0.25,
+          "discovery": 0.79
+        },
+        {
+          "step": 303104,
+          "arrival": 0.33,
+          "discovery": 0.765
+        },
+        {
+          "step": 352256,
+          "arrival": 0.355,
+          "discovery": 0.805
+        },
+        {
+          "step": 401408,
+          "arrival": 0.375,
+          "discovery": 0.815
+        },
+        {
+          "step": 450560,
+          "arrival": 0.445,
+          "discovery": 0.82
+        },
+        {
+          "step": 507904,
+          "arrival": 0.505,
+          "discovery": 0.855
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_lr_20260909",
+      "campaign_meaning": "Active scheduled scratch and own-model extensions",
+      "run": "original_mlp",
+      "artifact_dir": "rl_artifacts/seeker_scratch_lr_20260909/original_mlp",
+      "status": "complete",
+      "trained_steps": 507904,
+      "seed": 145032259,
+      "donor": null,
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": {
+        "kind": "linear",
+        "initial": 0.00015,
+        "final": 1.5e-05,
+        "clock": "fraction of declared total environment-transition budget remaining",
+        "formula": "final + (initial - final) * clip(progress_remaining, 0, 1)",
+        "extension": "Do not silently reset upward; choose and record an explicit extension schedule."
+      },
+      "hypothesis": "Establish acquisition with the original cell/view rewards, from random weights.",
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.24,
+          "discovery": 0.855
+        },
+        {
+          "step": 253952,
+          "arrival": 0.215,
+          "discovery": 0.825
+        },
+        {
+          "step": 507904,
+          "arrival": 0.29,
+          "discovery": 0.735
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_lr_20260909",
+      "campaign_meaning": "Active scheduled scratch and own-model extensions",
+      "run": "recovery_reward",
+      "artifact_dir": "rl_artifacts/seeker_scratch_lr_20260909/recovery_reward",
+      "status": "complete",
+      "trained_steps": 507904,
+      "seed": 145032259,
+      "donor": null,
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": {
+        "kind": "linear",
+        "initial": 0.00015,
+        "final": 1.5e-05,
+        "clock": "fraction of declared total environment-transition budget remaining",
+        "formula": "final + (initial - final) * clip(progress_remaining, 0, 1)",
+        "extension": "Do not silently reset upward; choose and record an explicit extension schedule."
+      },
+      "hypothesis": "Charging only ineffective contact attempts may encourage learned recovery; terminal penalties stay unchanged.",
+      "evaluations": [
+        {
+          "step": 57344,
+          "arrival": 0.185,
+          "discovery": 0.795
+        },
+        {
+          "step": 106496,
+          "arrival": 0.185,
+          "discovery": 0.845
+        },
+        {
+          "step": 155648,
+          "arrival": 0.19,
+          "discovery": 0.855
+        },
+        {
+          "step": 204800,
+          "arrival": 0.21,
+          "discovery": 0.85
+        },
+        {
+          "step": 253952,
+          "arrival": 0.17,
+          "discovery": 0.795
+        },
+        {
+          "step": 303104,
+          "arrival": 0.155,
+          "discovery": 0.705
+        },
+        {
+          "step": 352256,
+          "arrival": 0.24,
+          "discovery": 0.795
+        },
+        {
+          "step": 401408,
+          "arrival": 0.23,
+          "discovery": 0.785
+        },
+        {
+          "step": 450560,
+          "arrival": 0.265,
+          "discovery": 0.785
+        },
+        {
+          "step": 507904,
+          "arrival": 0.26,
+          "discovery": 0.83
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_lr_20260909",
+      "campaign_meaning": "Active scheduled scratch and own-model extensions",
+      "run": "removal_mlp",
+      "artifact_dir": "rl_artifacts/seeker_scratch_lr_20260909/removal_mlp",
+      "status": "complete",
+      "trained_steps": 507904,
+      "seed": 145032259,
+      "donor": null,
+      "parent_checkpoint": null,
+      "parameters": 12997,
+      "learning_rate_schedule": {
+        "kind": "linear",
+        "initial": 0.00015,
+        "final": 1.5e-05,
+        "clock": "fraction of declared total environment-transition budget remaining",
+        "formula": "final + (initial - final) * clip(progress_remaining, 0, 1)",
+        "extension": "Do not silently reset upward; choose and record an explicit extension schedule."
+      },
+      "hypothesis": "Test whether removing cell/view bonuses helps acquisition, not just fine-tuning.",
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.19,
+          "discovery": 0.845
+        },
+        {
+          "step": 253952,
+          "arrival": 0.18,
+          "discovery": 0.69
+        },
+        {
+          "step": 507904,
+          "arrival": 0.275,
+          "discovery": 0.605
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_lr_20260909",
+      "campaign_meaning": "Active scheduled scratch and own-model extensions",
+      "run": "residual_lstm",
+      "artifact_dir": "rl_artifacts/seeker_scratch_lr_20260909/residual_lstm",
+      "status": "complete",
+      "trained_steps": 507904,
+      "seed": 145032259,
+      "donor": null,
+      "parent_checkpoint": null,
+      "parameters": 72517,
+      "learning_rate_schedule": {
+        "kind": "linear",
+        "initial": 0.00015,
+        "final": 1.5e-05,
+        "clock": "fraction of declared total environment-transition budget remaining",
+        "formula": "final + (initial - final) * clip(progress_remaining, 0, 1)",
+        "extension": "Do not silently reset upward; choose and record an explicit extension schedule."
+      },
+      "hypothesis": "Parallel current-observation MLP and recurrent memory can learn recovery sequences and more effective search.",
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.17,
+          "discovery": 0.84
+        },
+        {
+          "step": 253952,
+          "arrival": 0.145,
+          "discovery": 0.765
+        },
+        {
+          "step": 507904,
+          "arrival": 0.465,
+          "discovery": 0.82
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_lr_20260909",
+      "campaign_meaning": "Active scheduled scratch and own-model extensions",
+      "run": "residual_lstm_extension_2m",
+      "artifact_dir": "rl_artifacts/seeker_scratch_lr_20260909/residual_lstm_extension_2m",
+      "status": "complete",
+      "trained_steps": 2031616,
+      "seed": 145032260,
+      "donor": null,
+      "parent_checkpoint": "E:\\Leaper\\rl_artifacts\\seeker_scratch_lr_20260909\\residual_lstm\\model_507904.zip",
+      "parameters": 72517,
+      "learning_rate_schedule": {
+        "kind": "linear_extension",
+        "start": 507904,
+        "total": 2031616,
+        "initial": 1.5e-05,
+        "final": 3e-06,
+        "clock": "SB3 global progress remaining rescaled to extension horizon"
+      },
+      "hypothesis": "Parallel current-observation MLP and recurrent memory can learn recovery sequences and more effective search.",
+      "evaluations": [
+        {
+          "step": 557056,
+          "arrival": 0.445,
+          "discovery": 0.8
+        },
+        {
+          "step": 606208,
+          "arrival": 0.52,
+          "discovery": 0.825
+        },
+        {
+          "step": 655360,
+          "arrival": 0.47,
+          "discovery": 0.82
+        },
+        {
+          "step": 704512,
+          "arrival": 0.535,
+          "discovery": 0.815
+        },
+        {
+          "step": 753664,
+          "arrival": 0.545,
+          "discovery": 0.82
+        },
+        {
+          "step": 802816,
+          "arrival": 0.595,
+          "discovery": 0.84
+        },
+        {
+          "step": 851968,
+          "arrival": 0.605,
+          "discovery": 0.835
+        },
+        {
+          "step": 901120,
+          "arrival": 0.635,
+          "discovery": 0.84
+        },
+        {
+          "step": 950272,
+          "arrival": 0.585,
+          "discovery": 0.815
+        },
+        {
+          "step": 1007616,
+          "arrival": 0.615,
+          "discovery": 0.825
+        },
+        {
+          "step": 1056768,
+          "arrival": 0.6,
+          "discovery": 0.825
+        },
+        {
+          "step": 1105920,
+          "arrival": 0.6,
+          "discovery": 0.825
+        },
+        {
+          "step": 1155072,
+          "arrival": 0.565,
+          "discovery": 0.82
+        },
+        {
+          "step": 1204224,
+          "arrival": 0.605,
+          "discovery": 0.83
+        },
+        {
+          "step": 1253376,
+          "arrival": 0.575,
+          "discovery": 0.835
+        },
+        {
+          "step": 1302528,
+          "arrival": 0.605,
+          "discovery": 0.825
+        },
+        {
+          "step": 1351680,
+          "arrival": 0.615,
+          "discovery": 0.82
+        },
+        {
+          "step": 1400832,
+          "arrival": 0.6,
+          "discovery": 0.83
+        },
+        {
+          "step": 1458176,
+          "arrival": 0.6,
+          "discovery": 0.845
+        },
+        {
+          "step": 1507328,
+          "arrival": 0.595,
+          "discovery": 0.825
+        },
+        {
+          "step": 1556480,
+          "arrival": 0.595,
+          "discovery": 0.825
+        },
+        {
+          "step": 1605632,
+          "arrival": 0.6,
+          "discovery": 0.845
+        },
+        {
+          "step": 1654784,
+          "arrival": 0.615,
+          "discovery": 0.85
+        },
+        {
+          "step": 1703936,
+          "arrival": 0.605,
+          "discovery": 0.805
+        },
+        {
+          "step": 1753088,
+          "arrival": 0.62,
+          "discovery": 0.835
+        },
+        {
+          "step": 1802240,
+          "arrival": 0.605,
+          "discovery": 0.82
+        },
+        {
+          "step": 1851392,
+          "arrival": 0.615,
+          "discovery": 0.815
+        },
+        {
+          "step": 1900544,
+          "arrival": 0.61,
+          "discovery": 0.815
+        },
+        {
+          "step": 1957888,
+          "arrival": 0.63,
+          "discovery": 0.84
+        },
+        {
+          "step": 2007040,
+          "arrival": 0.61,
+          "discovery": 0.835
+        },
+        {
+          "step": 2031616,
+          "arrival": 0.605,
+          "discovery": 0.8
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_lr_20260909",
+      "campaign_meaning": "Active scheduled scratch and own-model extensions",
+      "run": "residual_mlp",
+      "artifact_dir": "rl_artifacts/seeker_scratch_lr_20260909/residual_mlp",
+      "status": "complete",
+      "trained_steps": 507904,
+      "seed": 145032259,
+      "donor": null,
+      "parent_checkpoint": null,
+      "parameters": 73637,
+      "learning_rate_schedule": {
+        "kind": "linear",
+        "initial": 0.00015,
+        "final": 1.5e-05,
+        "clock": "fraction of declared total environment-transition budget remaining",
+        "formula": "final + (initial - final) * clip(progress_remaining, 0, 1)",
+        "extension": "Do not silently reset upward; choose and record an explicit extension schedule."
+      },
+      "hypothesis": "Matched-capacity feedforward control separates additional capacity from recurrent memory.",
+      "evaluations": [
+        {
+          "step": 106496,
+          "arrival": 0.2,
+          "discovery": 0.865
+        },
+        {
+          "step": 253952,
+          "arrival": 0.26,
+          "discovery": 0.825
+        },
+        {
+          "step": 507904,
+          "arrival": 0.37,
+          "discovery": 0.725
+        }
+      ]
+    },
+    {
+      "campaign": "seeker_scratch_lr_20260909",
+      "campaign_meaning": "Active scheduled scratch and own-model extensions",
+      "run": "residual_mlp_extension_2m",
+      "artifact_dir": "rl_artifacts/seeker_scratch_lr_20260909/residual_mlp_extension_2m",
+      "status": "complete",
+      "trained_steps": 2031616,
+      "seed": 145032260,
+      "donor": null,
+      "parent_checkpoint": "E:\\Leaper\\rl_artifacts\\seeker_scratch_lr_20260909\\residual_mlp\\model_507904.zip",
+      "parameters": 73637,
+      "learning_rate_schedule": {
+        "kind": "linear_extension",
+        "start": 507904,
+        "total": 2031616,
+        "initial": 1.5e-05,
+        "final": 3e-06,
+        "clock": "SB3 global progress remaining rescaled to extension horizon"
+      },
+      "hypothesis": "Matched-capacity feedforward control separates additional capacity from recurrent memory.",
+      "evaluations": [
+        {
+          "step": 557056,
+          "arrival": 0.39,
+          "discovery": 0.725
+        },
+        {
+          "step": 606208,
+          "arrival": 0.44,
+          "discovery": 0.755
+        },
+        {
+          "step": 655360,
+          "arrival": 0.43,
+          "discovery": 0.725
+        },
+        {
+          "step": 704512,
+          "arrival": 0.44,
+          "discovery": 0.76
+        },
+        {
+          "step": 753664,
+          "arrival": 0.45,
+          "discovery": 0.725
+        },
+        {
+          "step": 802816,
+          "arrival": 0.42,
+          "discovery": 0.685
+        },
+        {
+          "step": 851968,
+          "arrival": 0.445,
+          "discovery": 0.71
+        },
+        {
+          "step": 901120,
+          "arrival": 0.425,
+          "discovery": 0.68
+        },
+        {
+          "step": 950272,
+          "arrival": 0.435,
+          "discovery": 0.68
+        },
+        {
+          "step": 1007616,
+          "arrival": 0.44,
+          "discovery": 0.665
+        },
+        {
+          "step": 1056768,
+          "arrival": 0.425,
+          "discovery": 0.69
+        },
+        {
+          "step": 1105920,
+          "arrival": 0.415,
+          "discovery": 0.64
+        },
+        {
+          "step": 1155072,
+          "arrival": 0.42,
+          "discovery": 0.685
+        },
+        {
+          "step": 1204224,
+          "arrival": 0.455,
+          "discovery": 0.695
+        },
+        {
+          "step": 1253376,
+          "arrival": 0.465,
+          "discovery": 0.68
+        },
+        {
+          "step": 1302528,
+          "arrival": 0.46,
+          "discovery": 0.71
+        },
+        {
+          "step": 1351680,
+          "arrival": 0.435,
+          "discovery": 0.675
+        },
+        {
+          "step": 1400832,
+          "arrival": 0.435,
+          "discovery": 0.685
+        },
+        {
+          "step": 1458176,
+          "arrival": 0.465,
+          "discovery": 0.735
+        },
+        {
+          "step": 1507328,
+          "arrival": 0.455,
+          "discovery": 0.69
+        },
+        {
+          "step": 1556480,
+          "arrival": 0.465,
+          "discovery": 0.69
+        },
+        {
+          "step": 1605632,
+          "arrival": 0.495,
+          "discovery": 0.705
+        },
+        {
+          "step": 1654784,
+          "arrival": 0.51,
+          "discovery": 0.725
+        },
+        {
+          "step": 1703936,
+          "arrival": 0.505,
+          "discovery": 0.745
+        },
+        {
+          "step": 1753088,
+          "arrival": 0.54,
+          "discovery": 0.785
+        },
+        {
+          "step": 1802240,
+          "arrival": 0.54,
+          "discovery": 0.76
+        },
+        {
+          "step": 1851392,
+          "arrival": 0.52,
+          "discovery": 0.805
+        },
+        {
+          "step": 1900544,
+          "arrival": 0.57,
+          "discovery": 0.83
+        },
+        {
+          "step": 1957888,
+          "arrival": 0.59,
+          "discovery": 0.825
+        },
+        {
+          "step": 2007040,
+          "arrival": 0.525,
+          "discovery": 0.76
+        },
+        {
+          "step": 2031616,
+          "arrival": 0.565,
+          "discovery": 0.775
+        }
+      ]
+    }
+  ]
+}

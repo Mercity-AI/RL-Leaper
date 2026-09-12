@@ -28,6 +28,7 @@ export class TrainingVisualizer {
     this.liveMode = true;
     this.syncedEpisode = null;
     this.createVisionDisplay();
+    this.createCoverageDisplay();
     this.timeline = panel.querySelector('[data-field="timeline"]');
     this.playButton = panel.querySelector('[data-action="play"]');
     this.logInput = panel.querySelector('[data-field="log-input"]');
@@ -115,6 +116,102 @@ export class TrainingVisualizer {
       this.visionGroup.add(line);
       return line;
     });
+  }
+
+  createCoverageDisplay() {
+    // PPO_32 cleared-map overlay. A flat grid of tiles laid just above the ground
+    // and below the obstacles/target, so you can see which ground the agent has
+    // already checked (cool green) versus what is still unchecked (warm amber) --
+    // including the rock-shadow cells that never get cleared. Built lazily once the
+    // grid dimensions arrive with an episode; unobtrusive (low opacity).
+    const scene = this.simulation.rig.robot.parent;
+    this.coverageGroup = new THREE.Group();
+    this.coverageGroup.position.y = 0.045;
+    this.coverageGroup.visible = false;
+    scene.add(this.coverageGroup);
+    this.coverageMesh = null;
+    this.coverageSteps = 0;
+    this.coverageColorCleared = new THREE.Color(0x2f7d4f);
+    this.coverageColorUnchecked = new THREE.Color(0xb5651d);
+    this.coverageDummy = new THREE.Object3D();
+    // Cumulative cleared state and the frame it was built up to, for cheap scrubbing.
+    this.coverageCleared = null;
+    this.coverageBuiltEpisode = null;
+    this.coverageBuiltFrame = -1;
+  }
+
+  ensureCoverageMesh(steps, cell, limit) {
+    if (this.coverageMesh && this.coverageSteps === steps) return;
+    if (this.coverageMesh) {
+      this.coverageGroup.remove(this.coverageMesh);
+      this.coverageMesh.geometry.dispose();
+      this.coverageMesh.material.dispose();
+    }
+    const count = steps * steps;
+    const geometry = new THREE.PlaneGeometry(cell * 0.94, cell * 0.94);
+    geometry.rotateX(-Math.PI / 2);
+    const material = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      vertexColors: true,
+    });
+    const mesh = new THREE.InstancedMesh(geometry, material, count);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.instanceColor = new THREE.InstancedBufferAttribute(
+      new Float32Array(count * 3),
+      3,
+    );
+    // Flat index matches the trainer: ix * steps + iz.
+    for (let ix = 0; ix < steps; ix += 1) {
+      for (let iz = 0; iz < steps; iz += 1) {
+        this.coverageDummy.position.set(
+          -limit + (ix + 0.5) * cell,
+          0,
+          -limit + (iz + 0.5) * cell,
+        );
+        this.coverageDummy.updateMatrix();
+        mesh.setMatrixAt(ix * steps + iz, this.coverageDummy.matrix);
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    this.coverageGroup.add(mesh);
+    this.coverageMesh = mesh;
+    this.coverageSteps = steps;
+  }
+
+  updateCoverageDisplay(episode, frameIndex) {
+    const steps = episode?.coverage_steps;
+    const frames = episode?.frames ?? [];
+    if (!steps || !frames.length || !frames[0]?.coverage_new) {
+      if (this.coverageGroup) this.coverageGroup.visible = false;
+      return;
+    }
+    const cell = episode.coverage_cell ?? 3.0;
+    const limit = episode.world_limit ?? steps * cell * 0.5;
+    this.ensureCoverageMesh(steps, cell, limit);
+    this.coverageGroup.visible = true;
+
+    const count = steps * steps;
+    // Rebuild the cumulative cleared set when the episode changed or the timeline
+    // scrubbed backward; otherwise extend it forward frame by frame.
+    if (this.coverageBuiltEpisode !== episode || frameIndex < this.coverageBuiltFrame) {
+      this.coverageCleared = new Uint8Array(count);
+      this.coverageBuiltEpisode = episode;
+      this.coverageBuiltFrame = -1;
+    }
+    for (let f = this.coverageBuiltFrame + 1; f <= frameIndex && f < frames.length; f += 1) {
+      const newCells = frames[f].coverage_new ?? [];
+      for (let i = 0; i < newCells.length; i += 1) this.coverageCleared[newCells[i]] = 1;
+    }
+    this.coverageBuiltFrame = frameIndex;
+
+    const colors = this.coverageMesh.instanceColor;
+    for (let i = 0; i < count; i += 1) {
+      const color = this.coverageCleared[i] ? this.coverageColorCleared : this.coverageColorUnchecked;
+      colors.setXYZ(i, color.r, color.g, color.b);
+    }
+    colors.needsUpdate = true;
   }
 
   updateVisionDisplay(frame) {
@@ -330,6 +427,7 @@ export class TrainingVisualizer {
         : 'TARGET: NOT DISCOVERED';
     this.panel.querySelector('[data-field="target-state"]').textContent = targetState;
     this.updateVisionDisplay(from);
+    this.updateCoverageDisplay(episode, frameIndex);
     this.simulation.updateExternal(
       {
         x: THREE.MathUtils.lerp(from.x, to.x, amount),
@@ -362,6 +460,10 @@ export class TrainingVisualizer {
   updatePanel() {
     const context = this.currentContext();
     const episode = this.currentEpisode();
+    const label = this.panel.querySelector('.training-label');
+    if (label && this.data?.run) {
+      label.textContent = `REPLAY: ${this.data.run.replaceAll('_', ' ').toUpperCase()}`;
+    }
     this.syncEpisodeWorld(episode);
     const record = context?.record;
     const episodes = context?.episodes ?? [];

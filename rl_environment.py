@@ -102,6 +102,37 @@ class LeaperReachEnv(gym.Env):
     IDLE_GRACE = 15
     IDLE_THROTTLE = 0.1
 
+    # PPO_32 cleared/search-coverage map (state-augmentation experiment). When
+    # COVERAGE_MAP is True the observation is widened from 26 to 42 by appending 16
+    # egocentric "distance to unchecked ground" readings (indices 26-41) aligned
+    # with the 16 vision-ray angles. The legacy channels 0-25 are untouched. The
+    # internal grid is episode-local, reset each reset(), and updated for the reset
+    # pose and after every step pose. A cell is marked cleared only if a
+    # hypothetical target at the cell centre would be DETECTABLE from Leaper's
+    # current pose under the exact target-visibility rules (270 deg FOV,
+    # RAY_MAX_RANGE, unobstructed) -- it never reads the real target position, so it
+    # records only "this location has been checked", never "the target is there".
+    # The grid is maintained regardless of COVERAGE_MAP so detection diagnostics
+    # (arena fraction cleared before first sight) work for the PPO_29 baseline too;
+    # only the 16-value summary is gated behind COVERAGE_MAP.
+    COVERAGE_MAP = False
+    COVERAGE_CELL_SIZE = EXPLORATION_CELL_SIZE  # 3.0, the existing exploration cell
+    COVERAGE_SAMPLE_STEP = 1.5  # ray-march increment for the summary (cell / 2)
+
+    # PPO_33 / Phase 1B global frontier note. PPO_32's 16 LOCAL 28-unit "distance to
+    # unchecked ground" rays did not pull Leaper toward large DISTANT unchecked
+    # regions (they saturated). This replaces them with a compact 5-value GLOBAL
+    # note appended at observation indices 26-30: the relative x/z direction to the
+    # nearest frontier cell of the LARGEST substantial contiguous unchecked region,
+    # that cell's distance (÷ arena diagonal), the region's size, and a valid flag.
+    # It is computed only from the same internal cleared grid used by PPO_32 -- it
+    # NEVER reads the real target position or obstacle positions, so it is honest
+    # search memory, not a cheat. Tiny isolated rock-shadow fragments (below
+    # FRONTIER_MIN_REGION_CELLS) are ignored. Legacy indices 0-25 stay untouched.
+    FRONTIER_NOTE = False
+    FRONTIER_MIN_REGION_CELLS = 6  # ignore unchecked blobs smaller than this
+    FRONTIER_NOTE_SIZE = 5
+
     # PPO_13 randomized obstacles: a fresh layout is sampled every episode in
     # reset(). Obstacle radii stay robot-relative (near the PPO_12 values) rather
     # than scaling with the world, so each obstacle remains meaningful next to the
@@ -135,12 +166,13 @@ class LeaperReachEnv(gym.Env):
             dtype=np.float32,
         )
         # Position, target direction, distance, facing, previous collision/action
-        # (indices 0-9, unchanged from PPO_10) plus eight forward rangefinder rays
-        # (indices 10-17). PPO_18 changes the sensor geometry (270-degree cone,
-        # longer range) and the action space (forward-only), so it must start from
-        # a fresh policy even though the observation shape stays 18.
+        # (indices 0-9, unchanged from PPO_10) plus RAY_COUNT forward rangefinder
+        # rays (indices 10..9+RAY_COUNT). PPO_18 changes the sensor geometry
+        # (270-degree cone, longer range) and the action space (forward-only), so it
+        # must start from a fresh policy. PPO_32 optionally appends RAY_COUNT
+        # cleared-map summary values (see COVERAGE_MAP) after the rays.
         self.observation_space = spaces.Box(
-            -1.0, 1.0, shape=(10 + self.RAY_COUNT,), dtype=np.float32
+            -1.0, 1.0, shape=(self.observation_size(),), dtype=np.float32
         )
         self.obstacles: tuple[tuple[float, float, float], ...] = ()
         self.target = self.TARGET.copy()
@@ -164,6 +196,30 @@ class LeaperReachEnv(gym.Env):
         self.scanned_headings: set[int] = set()
         self.trajectory: list[np.ndarray] = []
         self._figure = None
+        # PPO_32 cleared/coverage map internal state. Allocated here so tests that
+        # construct the env and drive step() without calling reset() still have a
+        # valid grid to clear into.
+        self.coverage_new_cells: list[int] = []
+        # PPO_33 frontier note diagnostics: the world point the note currently
+        # selects (or None), and whether it is valid. Populated by _frontier_note.
+        self._frontier_target: tuple[float, float] | None = None
+        self._frontier_valid: float = 0.0
+        self._init_coverage()
+
+    @classmethod
+    def observation_size(cls) -> int:
+        """Dynamic observation length: base (10) + rays, plus the coverage summary.
+
+        PPO_32 appends one cleared-map summary value per vision ray when
+        COVERAGE_MAP is enabled, so the size is 26 by default and 42 with coverage.
+        Everything that previously hard-coded ``10 + RAY_COUNT`` should call this.
+        """
+        return (
+            10
+            + cls.RAY_COUNT
+            + (cls.RAY_COUNT if cls.COVERAGE_MAP else 0)
+            + (cls.FRONTIER_NOTE_SIZE if cls.FRONTIER_NOTE else 0)
+        )
 
     @classmethod
     def physical_throttle(cls, action_throttle: float) -> float:
@@ -425,6 +481,241 @@ class LeaperReachEnv(gym.Env):
                 self.steps_since_target_seen + 1,
             )
 
+    def _points_visible(self, points: np.ndarray) -> np.ndarray:
+        """Vectorized target-visibility test for many candidate points at once.
+
+        This is the exact geometric generalization of ``_target_sensor``'s
+        visibility rule (270-degree FOV, ``RAY_MAX_RANGE``, obstacle occlusion,
+        ``TARGET_RADIUS`` slack) applied to an ``(N, 2)`` array of world points, so
+        the cleared map and the real target sensor share one geometry and cannot
+        silently diverge (pinned by a test). It NEVER reads ``self.target``; the
+        caller supplies the points. Returns a boolean array: True where a
+        hypothetical target at that point would be detectable from the current pose.
+        """
+        pts = np.atleast_2d(np.asarray(points, dtype=np.float64))
+        origin = self.position.astype(np.float64)
+        delta = pts - origin[None, :]
+        distance = np.hypot(delta[:, 0], delta[:, 1])
+        visible = np.ones(pts.shape[0], dtype=bool)
+        # A point coincident with the body is always "visible" (matches the scalar
+        # sensor's distance <= 1e-9 early return); FOV/range only gate real offsets.
+        far = distance > 1e-9
+        world_bearing = np.arctan2(delta[:, 0], delta[:, 1])
+        relative = (world_bearing - self.yaw + math.pi) % (2 * math.pi) - math.pi
+        in_fov = np.abs(relative) <= self.VISION_FOV / 2.0
+        in_range = (distance - self.TARGET_RADIUS) <= self.RAY_MAX_RANGE
+        visible &= (~far) | (in_fov & in_range)
+
+        if self.obstacles and np.any(visible & far):
+            safe_distance = np.where(far, distance, 1.0)
+            directions = delta / safe_distance[:, None]
+            obstacle_array = np.asarray(self.obstacles, dtype=np.float64)
+            centers = obstacle_array[:, :2]
+            radii = obstacle_array[:, 2]
+            offsets = origin[None, :] - centers  # (O, 2)
+            b = 2.0 * (directions @ offsets.T)  # (N, O)
+            c = (np.sum(offsets * offsets, axis=1) - radii * radii)[None, :]  # (1, O)
+            discriminant = b * b - 4.0 * c
+            root = np.sqrt(np.maximum(discriminant, 0.0))
+            entry = (-b - root) / 2.0
+            exit_distance = (-b + root) / 2.0
+            hit = np.where(entry >= 0.0, entry, exit_distance)
+            limit = (distance - self.TARGET_RADIUS)[:, None]
+            occluded = (discriminant >= 0.0) & (hit >= 0.0) & (hit < limit)
+            visible &= ~(far & np.any(occluded, axis=1))
+        return visible
+
+    def _init_coverage(self) -> None:
+        """Allocate the episode-local cleared grid and cache its cell centres.
+
+        The grid tiles the whole arena with ``COVERAGE_CELL_SIZE`` (the existing
+        3-unit exploration cell). Cell ``(ix, iz)`` has centre
+        ``-WORLD_LIMIT + (idx + 0.5) * cell`` on each axis, so a position maps to a
+        cell by ``floor((coord + WORLD_LIMIT) / cell)``. Centres are cached because
+        they never move within a run.
+        """
+        cell = self.COVERAGE_CELL_SIZE
+        limit = self.WORLD_LIMIT
+        steps = int((2.0 * limit) // cell) + 1
+        self.coverage_steps = steps
+        axis = -limit + (np.arange(steps, dtype=np.float64) + 0.5) * cell
+        grid_x, grid_z = np.meshgrid(axis, axis, indexing="ij")
+        self._coverage_centers_flat = np.stack(
+            (grid_x.reshape(-1), grid_z.reshape(-1)), axis=1
+        )  # (steps*steps, 2)
+        self.coverage_cleared = np.zeros(steps * steps, dtype=bool)
+        self.coverage_new_cells = []
+
+    def _reset_coverage(self) -> None:
+        """Clear the grid at the start of an episode (called from reset())."""
+        self.coverage_cleared[:] = False
+        self.coverage_new_cells = []
+
+    def _update_coverage(self) -> None:
+        """Mark every currently-detectable, not-yet-cleared cell as cleared.
+
+        Records the flat indices newly cleared this call in ``coverage_new_cells``
+        so the replay recorder can store compact per-frame deltas. Deterministic and
+        monotonic within an episode (cells only ever go unchecked -> cleared).
+        """
+        uncleared = np.flatnonzero(~self.coverage_cleared)
+        if uncleared.size == 0:
+            self.coverage_new_cells = []
+            return
+        visible = self._points_visible(self._coverage_centers_flat[uncleared])
+        newly = uncleared[visible]
+        self.coverage_cleared[newly] = True
+        self.coverage_new_cells = newly.tolist()
+
+    def _coverage_summary(self) -> np.ndarray:
+        """Sixteen egocentric "distance to nearest unchecked ground" readings.
+
+        One reading per vision-ray angle (same headings as ``_ray_distances``). Each
+        ray is marched outward from the body centre in ``COVERAGE_SAMPLE_STEP``
+        increments from 0 to ``RAY_MAX_RANGE``; the first sample that lands on an
+        in-bounds, not-yet-cleared cell gives the distance. The value is that
+        distance / ``RAY_MAX_RANGE`` clipped to [0, 1]: 0 = unchecked ground right
+        along that heading, larger = farther, 1 = no unchecked ground within 28
+        units that way (ray leaves the arena or every cell it crosses is cleared).
+        Cells hidden behind rocks are never cleared, so their rock-shadows read as
+        distant unchecked ground here. Fully deterministic.
+        """
+        angles = self.yaw + self._ray_relative_angles()  # (R,)
+        directions = np.stack((np.sin(angles), np.cos(angles)), axis=1)  # (R, 2)
+        samples = np.arange(
+            0.0, self.RAY_MAX_RANGE + self.COVERAGE_SAMPLE_STEP, self.COVERAGE_SAMPLE_STEP
+        )
+        samples = np.minimum(samples, self.RAY_MAX_RANGE)  # (S,)
+        origin = self.position.astype(np.float64)
+        # points[r, s] = origin + samples[s] * directions[r]
+        points = origin[None, None, :] + samples[None, :, None] * directions[:, None, :]
+        cell = self.COVERAGE_CELL_SIZE
+        limit = self.WORLD_LIMIT
+        steps = self.coverage_steps
+        ix = np.floor((points[..., 0] + limit) / cell).astype(np.int64)
+        iz = np.floor((points[..., 1] + limit) / cell).astype(np.int64)
+        in_bounds = (ix >= 0) & (ix < steps) & (iz >= 0) & (iz < steps)
+        flat = np.clip(ix, 0, steps - 1) * steps + np.clip(iz, 0, steps - 1)
+        cleared_here = self.coverage_cleared[flat]
+        unchecked = in_bounds & ~cleared_here  # (R, S)
+        has_unchecked = unchecked.any(axis=1)
+        first = unchecked.argmax(axis=1)
+        distance = samples[first]
+        value = np.where(has_unchecked, distance / self.RAY_MAX_RANGE, 1.0)
+        return np.clip(value, 0.0, 1.0).astype(np.float32)
+
+    def coverage_fraction(self) -> float:
+        """Fraction of arena cells currently marked cleared (diagnostics)."""
+        return float(self.coverage_cleared.mean())
+
+    def _frontier_note(self) -> np.ndarray:
+        """PPO_33 global frontier note (5 values) from the internal cleared grid.
+
+        Deterministic, and a pure function of ``(coverage_cleared, position)`` only:
+        it never reads the real target position or obstacle positions (honest search
+        memory). Steps:
+
+        1. Take the unchecked cells (``~coverage_cleared``) and label their
+           4-connected components.
+        2. Choose the LARGEST component. If it is smaller than
+           ``FRONTIER_MIN_REGION_CELLS`` (only tiny isolated rock-shadow fragments
+           remain), return the invalid note.
+        3. Its frontier cells are the region cells adjacent to a cleared cell; pick
+           the one NEAREST the body. (If the region touches no cleared cell yet, fall
+           back to its nearest cell.)
+        4. Emit ``[rel_dir_x, rel_dir_z, distance / arena_diagonal, region_size /
+           total_cells, 1.0]`` toward that cell. Directions are world-space unit
+           components, matching the remembered-target-direction convention (indices
+           2-3). The invalid note is ``[0, 0, 1, 0, 0]`` (0 direction, "far/unknown"
+           distance, no size, flag off) so a cleared arena reads as "nothing left".
+        """
+        invalid = np.array([0.0, 0.0, 1.0, 0.0, 0.0], dtype=np.float32)
+        steps = self.coverage_steps
+        total = self.coverage_cleared.size
+        cleared_grid = self.coverage_cleared.reshape(steps, steps)
+        unchecked = ~cleared_grid
+        if not unchecked.any():
+            self._frontier_target = None
+            self._frontier_valid = 0.0
+            return invalid
+
+        # Label 4-connected unchecked components with an iterative flood fill and
+        # keep the largest. 441 cells, so a plain Python BFS is cheap and exact.
+        labels = np.full((steps, steps), -1, dtype=np.int32)
+        best_cells: list[tuple[int, int]] = []
+        for start_i in range(steps):
+            for start_j in range(steps):
+                if not unchecked[start_i, start_j] or labels[start_i, start_j] != -1:
+                    continue
+                stack = [(start_i, start_j)]
+                labels[start_i, start_j] = 1
+                cells: list[tuple[int, int]] = []
+                while stack:
+                    i, j = stack.pop()
+                    cells.append((i, j))
+                    for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        ni, nj = i + di, j + dj
+                        if (
+                            0 <= ni < steps
+                            and 0 <= nj < steps
+                            and unchecked[ni, nj]
+                            and labels[ni, nj] == -1
+                        ):
+                            labels[ni, nj] = 1
+                            stack.append((ni, nj))
+                if len(cells) > len(best_cells):
+                    best_cells = cells
+
+        region_size = len(best_cells)
+        if region_size < self.FRONTIER_MIN_REGION_CELLS:
+            self._frontier_target = None
+            self._frontier_valid = 0.0
+            return invalid
+
+        # Frontier cells = region cells touching a cleared cell (the known/unknown
+        # boundary). Fall back to all region cells if none touch cleared yet.
+        frontier = [
+            (i, j)
+            for (i, j) in best_cells
+            if any(
+                0 <= i + di < steps and 0 <= j + dj < steps and cleared_grid[i + di, j + dj]
+                for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1))
+            )
+        ]
+        candidates = frontier if frontier else best_cells
+
+        cell = self.COVERAGE_CELL_SIZE
+        limit = self.WORLD_LIMIT
+        px, pz = float(self.position[0]), float(self.position[1])
+        best_distance = math.inf
+        best_x = best_z = 0.0
+        for (i, j) in candidates:
+            cx = -limit + (i + 0.5) * cell
+            cz = -limit + (j + 0.5) * cell
+            distance = math.hypot(cx - px, cz - pz)
+            if distance < best_distance:
+                best_distance = distance
+                best_x, best_z = cx, cz
+
+        diagonal = 2.0 * math.sqrt(2.0) * limit
+        if best_distance > 1e-6:
+            dir_x = (best_x - px) / best_distance
+            dir_z = (best_z - pz) / best_distance
+        else:
+            dir_x = dir_z = 0.0
+        self._frontier_target = (best_x, best_z)
+        self._frontier_valid = 1.0
+        return np.array(
+            [
+                dir_x,
+                dir_z,
+                min(best_distance / diagonal, 1.0),
+                min(region_size / total, 1.0),
+                1.0,
+            ],
+            dtype=np.float32,
+        )
+
     def _search_state(self) -> tuple[tuple[int, int], tuple[int, int, int]]:
         cell_x = math.floor(float(self.position[0]) / self.EXPLORATION_CELL_SIZE)
         cell_z = math.floor(float(self.position[1]) / self.EXPLORATION_CELL_SIZE)
@@ -461,7 +752,17 @@ class LeaperReachEnv(gym.Env):
         )
         vision = self._ray_distances(self.position, self.yaw)
         self.last_vision = vision
-        return np.concatenate([base, vision])
+        parts = [base, vision]
+        if self.COVERAGE_MAP:
+            # PPO_32: only the 16-value summary is exposed to the policy; the full
+            # grid stays internal for diagnostics and the viewer.
+            parts.append(self._coverage_summary())
+        if self.FRONTIER_NOTE:
+            # PPO_33 / Phase 1B: the compact 5-value global frontier note.
+            parts.append(self._frontier_note())
+        if len(parts) == 2:
+            return np.concatenate([base, vision])
+        return np.concatenate(parts)
 
     def reset(
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
@@ -501,6 +802,10 @@ class LeaperReachEnv(gym.Env):
         # the scan nudge (standing still at spawn is not a "look around").
         self.scanned_headings.add(view[2])
         self._update_target_memory(increment_time=False)
+        # PPO_32: episode-local cleared map. Reset, then clear for the spawn pose so
+        # the very first observation already reflects what the spawn can see.
+        self._reset_coverage()
+        self._update_coverage()
         self.trajectory = [self.position.copy()]
         observation = self._observation()
         return observation, {
@@ -509,6 +814,9 @@ class LeaperReachEnv(gym.Env):
             "target": self.target.tolist(),
             "target_visible": self.target_visible,
             "target_ever_seen": self.target_ever_seen,
+            "coverage_fraction": self.coverage_fraction(),
+            "coverage_new_cells": list(self.coverage_new_cells),
+            "coverage_steps": self.coverage_steps,
         }
 
     def _distance(self) -> float:
@@ -574,6 +882,8 @@ class LeaperReachEnv(gym.Env):
         reached = distance <= self.TARGET_RADIUS + self.AGENT_RADIUS
         moved_distance = float(np.linalg.norm(self.position - previous_position))
         self._update_target_memory()
+        # PPO_32: update the cleared map for the resulting pose before observing.
+        self._update_coverage()
 
         cell, view = self._search_state()
         entered_new_cell = cell not in self.visited_cells
@@ -677,6 +987,9 @@ class LeaperReachEnv(gym.Env):
             "target": self.target.tolist(),
             "target_visible": self.target_visible,
             "target_ever_seen": self.target_ever_seen,
+            "coverage_fraction": self.coverage_fraction(),
+            "coverage_new_cells": list(self.coverage_new_cells),
+            "coverage_steps": self.coverage_steps,
             "reward_terms": {
                 "progress": progress_reward,
                 "exploration": exploration_reward,
