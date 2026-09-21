@@ -1,0 +1,28 @@
+#junkyardPanel {
+  position: fixed;
+  bottom: 40px;
+  left: 16px;
+  z-index: 10;
+  width: min(410px, calc(100vw - 64px));
+  padding: 16px;
+  background: rgba(247, 249, 245, 0.95);
+  border: 1px solid #bac3ba;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px #17231822;
+  font: 12px/1.5 ui-monospace, monospace;
+}
+#junkyardPanel strong { letter-spacing: 0.15em; }
+#junkyardPanel label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+#junkyardPanel select, #junkyardPanel button { padding: 8px; font: inherit; border: 1px solid #bac3ba; border-radius: 4px; background: white; cursor: pointer; }
+.junkyard-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.size-controls { display: flex; gap: 12px; margin-bottom: 12px; }
+.size-controls input { flex: 1; min-width: 0; accent-color: #253e36; }
+#junkyardPanel button:first-child { background: #253e36; color: white; }
+#junkyardPanel p { margin: 12px 0 6px; }
+#junkyardPanel small { color: #657065; font-size: 10px; }
+@media (max-width: 700px) {
+  .junkyard-mode .hud .keys { display: none; }
+  .junkyard-mode #topViewHint { top: 100px; width: 80%; text-align: center; font-size: 9px; }
+  #junkyardPanel { bottom: 150px; padding: 10px; font-size: 10px; }
+  .junkyard-mode #status { font-size: 8px; letter-spacing: 0; }
+}

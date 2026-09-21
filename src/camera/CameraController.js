@@ -14,6 +14,7 @@ export class CameraController {
     this.pitch = 0.42;
     this.distance = 11.5;
     this.topHeight = 75;
+    this.mapScale = 1;
     this.topCenter = new THREE.Vector2(0, 0);
     this.eyeYaw = 0;
     this.eyePitch = 0;
@@ -45,7 +46,7 @@ export class CameraController {
         this.topHeight = THREE.MathUtils.clamp(
           this.topHeight * (1 + event.deltaY * 0.0012),
           28,
-          180,
+          180 * this.mapScale,
         );
       } else {
         this.distance = THREE.MathUtils.clamp(
@@ -70,7 +71,7 @@ export class CameraController {
     this.canvas.style.cursor = this.mode === 'TOP' ? 'grab' : 'default';
     this.camera.fov = this.eyeView ? 60 : this.mode === 'TOP' ? 75 : 55;
     this.camera.up.set(0, 1, 0);
-    this.scene.fog.far = this.mode === 'TOP' ? 220 : 64;
+    this.scene.fog.far = (this.mode === 'TOP' ? 220 : 64) * this.mapScale;
     this.camera.updateProjectionMatrix();
   }
 
@@ -102,13 +103,13 @@ export class CameraController {
       const worldUnitsPerPixel = visibleHeight / Math.max(this.canvas.clientHeight, 1);
       this.topCenter.x = THREE.MathUtils.clamp(
         this.topCenter.x - deltaX * worldUnitsPerPixel,
-        -75,
-        75,
+        -75 * this.mapScale,
+        75 * this.mapScale,
       );
       this.topCenter.y = THREE.MathUtils.clamp(
         this.topCenter.y - deltaY * worldUnitsPerPixel,
-        -75,
-        75,
+        -75 * this.mapScale,
+        75 * this.mapScale,
       );
     }
     this.lastX = event.clientX;

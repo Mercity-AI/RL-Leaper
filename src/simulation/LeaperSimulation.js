@@ -64,6 +64,7 @@ export class LeaperSimulation {
       .addScaledVector(forward, movement.forward)
       .addScaledVector(right, movement.side);
     if (move.lengthSq() > 1) move.normalize();
+    if (this.navigationMove && move.lengthSq() < 1e-4) move.copy(this.navigationMove);
     const hasInput = move.lengthSq() > 1e-4;
 
     const targetMovement = this.input.getTargetMovement();
@@ -146,6 +147,7 @@ export class LeaperSimulation {
   }
 
   positionBlocked(x, z) {
+    if (this.world.positionBlocked) return this.world.positionBlocked(x, z);
     return this.world.colliders.some((obstacle) => {
       const minimumDistance = obstacle.radius + BODY_COLLISION_RADIUS;
       const dx = x - obstacle.x;
