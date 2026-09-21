@@ -1,13 +1,10 @@
 import * as THREE from 'three';
+import { JunkyardBrain } from './JunkyardBrain.js';
 
 export class JunkyardPlaytest {
   constructor({ engine, world, simulation, target, cameraController }) {
     Object.assign(this, { engine, world, simulation, target, cameraController });
-    this.path = [];
     this.walking = false;
-    this.replanDelay = 0;
-    this.stallTime = 0;
-    this.previous = new THREE.Vector3();
     document.body.classList.add('junkyard-mode');
     document.querySelector('.sub').textContent = 'JUNKYARD // PATHWAY PLAYTEST';
     this.panel = document.createElement('section');
@@ -17,6 +14,7 @@ export class JunkyardPlaytest {
         <button data-action="route">START RUN</button>
         <button data-action="panel" aria-expanded="false" aria-controls="junkyardOptions">OPTIONS</button>
       </div>
+      <div class="brain-state" aria-live="polite">BRAIN CONNECTING</div>
       <div id="junkyardOptions" hidden>
       <strong>JUNKYARD PLAYTEST</strong>
       <label>Leaper clearance width
@@ -27,7 +25,7 @@ export class JunkyardPlaytest {
       <div class="junkyard-actions"><button data-action="reset">RESET</button>
         <button data-action="clearance">SHOW CLEARANCE</button></div>
       <p data-message>WASD to explore. In TOP view, Shift + click sets the destination.</p>
-      <small>Flat-ground pathfinding preview · circular leg clearance · no climbing or learned AI.</small>
+      <small>Live trained brain · 7,757,824 steps · vision and memory · inference only. Clearance overlay is a conservative design guide, not the brain’s route.</small>
       <p class="clearance-key" hidden>Green: reachable · Amber: disconnected · Red: blocked at this size</p>
       </div>`;
     document.body.appendChild(this.panel);
@@ -39,6 +37,10 @@ export class JunkyardPlaytest {
       event.currentTarget.textContent = options.hidden ? 'OPTIONS' : 'HIDE OPTIONS';
     };
     this.message = this.panel.querySelector('[data-message]');
+    this.brainLabel = this.panel.querySelector('.brain-state');
+    this.brain = new JunkyardBrain(this);
+    document.querySelector('.keys').innerHTML = '<b>WASD / IJKL</b> MOVE PINK · <b>SHIFT</b> FASTER<br /><b>DRAG</b> CAMERA · <b>VIEW</b> TOGGLE · <b>START / STOP</b> BRAIN';
+    target.setSelected(true);
     const size = this.panel.querySelector('input');
     size.addEventListener('input', () => {
       this.panel.querySelector('output').textContent = `${Number(size.value).toFixed(1)} units`;
@@ -93,25 +95,19 @@ export class JunkyardPlaytest {
     this.walking = true;
     this.target.setSelected(true);
     this.panel.querySelector('[data-action=route]').textContent = 'STOP RUN';
-    this.plan();
-  }
-
-  hold(message) {
-    this.path = [];
-    this.simulation.navigationMove = null;
-    this.simulation.state.velocity.set(0, 0, 0);
-    this.message.textContent = message;
+    this.brain.start();
   }
 
   stop(message) {
     this.walking = false;
-    this.hold(message);
+    this.brain.stop();
+    this.message.textContent = message;
     this.panel.querySelector('[data-action=route]').textContent = 'START RUN';
-    if (this.routeLine) this.routeLine.visible = false;
+
   }
 
   reset() {
-    this.stop('WASD to explore. In TOP view, Shift + click sets the destination.');
+    this.stop('WASD / IJKL move pink. Start Run lets the trained brain search and chase.');
     const { x, z } = this.world.spawn;
     const state = this.simulation.state;
     state.position.set(x, 0, z);
@@ -125,7 +121,7 @@ export class JunkyardPlaytest {
       leg.stepping = false;
     });
     this.cameraController.target.set(x, 1, z);
-    if (this.routeLine) this.routeLine.visible = false;
+    this.brain.reset();
   }
 
   makeOverlay() {
@@ -167,66 +163,7 @@ export class JunkyardPlaytest {
     this.panel.querySelector('small').textContent += ` Reachable from spawn: ${Math.round(queue.length / Math.max(1, freeCount) * 100)}% of clear floor.`;
   }
 
-  plan() {
-    const s = this.world.scale;
-    const start = this.simulation.state.position;
-    const goal = this.target.mesh.position;
-    this.goal = goal.clone();
-    this.replanDelay = 0.3;
-    const route = this.world.navigation.route({ x: start.x / s, z: start.z / s }, { x: goal.x / s, z: goal.z / s });
-    if (this.routeLine) {
-      this.engine.scene.remove(this.routeLine);
-      this.routeLine.geometry.dispose();
-      this.routeLine.material.dispose();
-      this.routeLine = null;
-    }
-    if (!route.length) {
-      this.hold('Run active — no clear route. Move pink onto reachable floor; Leaper will keep chasing.');
-      return;
-    }
-    this.path = route.slice(1).map((p) => new THREE.Vector3(p.x * s, 0, p.z * s));
-    this.goal = goal.clone();
-    this.routeLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(route.map((p) => new THREE.Vector3(p.x * s, 0.4, p.z * s))),
-      new THREE.LineBasicMaterial({ color: 0x00a6b0, depthTest: false }));
-    this.routeLine.renderOrder = 6;
-    this.engine.scene.add(this.routeLine);
-    this.stallTime = 0;
-    this.previous.copy(start);
-    this.message.textContent = 'Chasing pink. Move it with IJKL or Shift + click in TOP view. STOP RUN ends the chase.';
-  }
-
   update(dt) {
-    if (!this.walking) return;
-    const movement = this.simulation.input.getMovement();
-    this.replanDelay = Math.max(0, this.replanDelay - dt);
-    if (movement.forward || movement.side) {
-      this.path = [];
-      this.simulation.navigationMove = null;
-      this.message.textContent = 'Run active — manual steering. Release WASD to resume chasing.';
-      this.goal = null;
-      return;
-    }
-    if (!this.goal || (this.target.mesh.position.distanceTo(this.goal) > 0.05 && this.replanDelay === 0)) this.plan();
-    if (!this.path.length) return;
-    const position = this.simulation.state.position;
-    const delta = this.path[0].clone().sub(position);
-    if (delta.length() < 0.18) {
-      this.path.shift();
-      this.simulation.state.velocity.set(0, 0, 0);
-      if (!this.path.length) {
-        return this.hold('Target reached — run still active. Move pink and Leaper will follow.');
-      }
-      delta.copy(this.path[0]).sub(position);
-    }
-    if (position.distanceTo(this.previous) < 0.002) this.stallTime += dt;
-    else this.stallTime = 0;
-    this.previous.copy(position);
-    if (this.stallTime > 2) {
-      this.hold('Run active — replanning around an obstacle.');
-      this.goal = null;
-      return;
-    }
-    const distance = delta.length();
-    this.simulation.navigationMove = delta.normalize().multiplyScalar(Math.min(0.8, distance / 2));
+    this.brain.update(dt);
   }
 }

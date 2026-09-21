@@ -71,7 +71,7 @@ function animate(currentTime) {
   if (trainingVisualizer) trainingVisualizer.update(deltaTime);
   else {
     if (playtest) playtest.update(deltaTime);
-    simulation.update(deltaTime);
+    else simulation.update(deltaTime);
   }
   engine.renderer.render(engine.scene, engine.camera);
 }

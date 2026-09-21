@@ -51,43 +51,72 @@ Three.js already controls the continuously changing 3D scene. React would be use
 4. Add an `assets/` pipeline when the procedural robot is replaced or supplemented with Blender models.
 5. Add focused tests for collision rules, movement math, and RL observations/rewards.
 
-## Junkyard pathway playtest
+## Junkyard trained-brain playtest
 
-Open `http://127.0.0.1:5173/?map=junkyard` after starting the dev server.
-The imported map is a browser copy of `C:/Blender/Junkyard_Blockmesh.blend`;
-the original Blender file is never saved or modified by the exporter.
+The junkyard now runs the saved **7,757,824-step reverse-urgency recurrent
+policy**, not the navigation pathfinder. The small on-screen badge identifies
+its checkpoint and whether pink is visible, hidden in memory, or not yet found.
+Hover over the badge for the policy-weight SHA256. If the brain service fails,
+the run stops with an offline message; there is no substitute controller.
 
-- **START RUN / STOP RUN** controls continuous chasing of the pink target.
-  Moving pink replans the route automatically. Reaching it or losing a clear
-  route keeps the run active; move pink onto reachable floor to continue.
-- **WASD** temporarily takes manual control; releasing it resumes an active
-  chase. **Shift** sprints; **Space** jumps.
-- **VIEW** cycles chase, lens, and top cameras. Drag to look/pan; wheel to zoom.
-- In top view, **Shift + click** places pink. An active run follows it automatically.
-- Alternatively select pink with **P**, then move it with **IJKL**.
-- Adjust the **size slider**, then **APPLY SIZE** to reload at that size.
-  An active run automatically resumes after the reload.
-- **SHOW CLEARANCE** shows green reachable floor, amber disconnected floor,
-  and red blocked floor. Connectivity is measured from the starting position.
+Start the local inference service with a Python 3.12 runtime that has the RL
+requirements installed (the launcher can reuse this repository's existing
+Windows .venv packages):
 
-Width is the conservative circular clearance around the legs, measured in the
-original Blender map units. The initial width is 2.4; the original simulator's
-clearance is 7.98. Internally the map scales relative to the unchanged robot rig.
-Displayed simulator speed is therefore not speed in original Blender units.
+```powershell
+python scripts/run_junkyard_brain.py
+pnpm dev
+```
 
-This is a flat-ground design preview using mesh triangle projections and a
-0.4-unit navigation grid, not the trained PPO policy or articulated physics.
-Narrow passages can be rejected conservatively. Low debris blocks movement;
-there is no climbing, walking up ramps, or jumping over collision barriers.
-Objects above the estimated robot height are excluded from clearance checks.
-Changing size also changes overhead clearance. Saved RL models and training
-rules are unchanged.
+Run these in separate terminals. Open
+`http://127.0.0.1:5173/?map=junkyard`. A production preview can use port 4173.
+The service listens only on 127.0.0.1:8767. The model is loaded from the local,
+uncommitted `model_7757824/` directory, or supply `--model <checkpoint.zip>`.
+It never trains, modifies weights, or writes to the source Blender file.
 
-After editing and saving the map in Blender, refresh the browser export:
+- **START RUN / STOP RUN** runs or pauses the brain. Memory survives a pause
+  and target movement. **RESET**, a page reload, or applying size starts a new
+  memory session. Applying size resumes the run if it was active.
+- **WASD / IJKL** moves pink, **Shift** moves it faster. Pink is selected on
+  startup; **P** or the pink button toggles target selection.
+- In top view, **Shift + click** places pink directly. It may be placed in a
+  blocked area for testing; the brain does not get a guaranteed route to it.
+- **VIEW** cycles chase, lens, and top. Drag to look/pan; wheel to zoom.
+- **OPTIONS** reveals size, reset, and the clearance overlay. Options start hidden.
+- The overlay is only a conservative circular-footprint design aid. Green means
+  connected to spawn under that approximation; it is not information given to
+  the brain or a prediction of the learned policy's success.
+
+The frozen observation/memory and movement recipe comes from the saved viewer
+at commit 7689aca. It uses 34 inputs, a 270-degree view with 16 range rays,
+remembered last-seen target, a search-coverage frontier note, recurrent policy
+memory, signed forward/reverse throttle, and separate rotation/translation
+collision recovery. Each model step is 1/30 simulated second. A slow machine or
+connection reduces wall-clock playback speed instead of skipping policy steps.
+
+Junkyard adaptation: the shared Blender collision JSON is conservatively
+rasterized into 0.1 Blender-unit cells for sensing and the 19 body/leg sample
+collisions. Robot dimensions, per-step movement, ray range and memory timing
+remain in original robot units. The size control scales the map relative to the
+rig; map extent determines distance normalization and the coverage grid.
+Sensor readings therefore differ from the original circular-obstacle arena.
+This is a new-map transfer test, not identical training physics or evidence of
+training success. There is no climbing or jump control in brain mode.
+Interactive runs continue after training catch/stuck/timeout flags, without
+resetting memory or replacing actions, until Stop Run. A policy may still get
+stuck or fail to search effectively; the viewer reports its actual behavior.
+
+After editing and saving the Blender map, regenerate the shared export:
 
 ```powershell
 & 'C:/Program Files/Blender Foundation/Blender 4.3/blender.exe' -b 'C:/Blender/Junkyard_Blockmesh.blend' --python scripts/export_junkyard.py
 ```
 
-Then reload the dev page (or rebuild if using `pnpm preview`). Validation:
-`node --test tests/junkyard-navigation.test.js` and `pnpm build`.
+Restart the inference service to reload collision geometry, and reload the
+browser (rebuild first if using production preview).
+
+Validation: `node --test tests/junkyard-*.test.js`,
+`python tests/test_junkyard_brain.py`, and `pnpm build`.
+The Python tests need the local checkpoint. They verify its identity, matching
+actions, hidden-target isolation, remembered target, reverse motion, and a
+120-step actual-model search in the imported map.

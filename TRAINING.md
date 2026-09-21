@@ -208,3 +208,31 @@ Artifact/archive directory:
 Conclusion:
 Next decision:
 ```
+
+## 2026-09-21: Junkyard transfer playtest — saved brain, no training
+
+- Controller: imported `model_7757824` reverse-urgency ResidualLstmPolicy,
+  7,757,824 collected steps, 34 observations, deterministic inference.
+- Policy-weight SHA256: `883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594`.
+- Observation/memory and action/step recipe preserved from the separate viewer
+  checkout at `7689aca`: frozen copies in `rl/checkpoint_environment.py`,
+  `rl/seeker_env.py` (import path adapted), and `rl/seeker_recurrent_policy.py`.
+- This replaces the junkyard's hand-authored pathfinder controller. Clearance
+  visualization remains an independent design aid and never drives the policy.
+- Map-specific changes: rectangular Blender arena, conservative 0.1 Blender-unit
+  raster of the shared exported triangles for rays/occlusion and 19-point pose
+  collisions. The existing size control scales map geometry relative to the
+  unchanged robot. Coverage extent and distance normalization follow map extent.
+- Preserve signed reverse, 16 rays/270-degree FOV/28-unit range, last-seen target
+  memory, frontier observation, recurrent state, and decoupled collision recovery.
+  Do not expose hidden target coordinates to observation. Target movement and
+  Stop/Start preserve recurrent memory; Reset/size/reload starts a new session.
+- Interactive inference ignores episode termination flags for continuing play
+  (catch, stuck, frozen, timeout). No new rewards are optimized, no training
+  runs are started, and no saved model is overwritten. This adapter is for
+  evaluation/playtesting only; training here would be a new experiment.
+- Validation: three Python integration tests passed, including a real 120-step
+  hidden-target-start rollout and action parity with direct model.predict;
+  four JavaScript lifecycle/navigation tests passed; production build passed.
+- The model can still fail on the new map. This integration establishes that the
+  actual saved policy is driving movement; it does not claim navigation success.
