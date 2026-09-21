@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { JunkyardBrain } from './JunkyardBrain.js';
+import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
 
 export class JunkyardPlaytest {
   constructor({ engine, world, simulation, target, cameraController }) {
@@ -12,6 +13,7 @@ export class JunkyardPlaytest {
     this.panel.innerHTML = `
       <div class="junkyard-toolbar">
         <button data-action="route">START RUN</button>
+        <button data-action="random">RESTART RANDOM</button>
         <button data-action="panel" aria-expanded="false" aria-controls="junkyardOptions">OPTIONS</button>
       </div>
       <div class="brain-state" aria-live="polite">BRAIN CONNECTING</div>
@@ -25,7 +27,7 @@ export class JunkyardPlaytest {
       <div class="junkyard-actions"><button data-action="reset">RESET</button>
         <button data-action="clearance">SHOW CLEARANCE</button></div>
       <p data-message>WASD to explore. In TOP view, Shift + click sets the destination.</p>
-      <small>Live trained brain · 7,757,824 steps · vision and memory · inference only. Clearance overlay is a conservative design guide, not the brain’s route.</small>
+      <small>Live trained brain · 7,757,824 steps · vision and memory · inference only. Clearance overlay is a conservative design guide, not the brain’s route. <span data-clearance-summary></span></small>
       <p class="clearance-key" hidden>Green: reachable · Amber: disconnected · Red: blocked at this size</p>
       </div>`;
     document.body.appendChild(this.panel);
@@ -54,6 +56,20 @@ export class JunkyardPlaytest {
     this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.panel.querySelector('[data-action=route]').onclick = () => this.walking ? this.stop('Run stopped. Press START RUN to chase pink again.') : this.start();
     this.panel.querySelector('[data-action=reset]').onclick = () => this.reset();
+    this.panel.querySelector('[data-action=random]').onclick = () => {
+      const spawn = randomJunkyardStart(this.world, this.simulation.state.position);
+      if (!spawn) {
+        this.brainLabel.textContent = 'NO ROOM FOR A RANDOM PAIR — TRY A SMALLER SIZE';
+        this.message.textContent = 'No separated, connected spawn pair found at this size. Try a smaller Leaper.';
+        if (this.panel.querySelector('#junkyardOptions').hidden) {
+          this.panel.querySelector('[data-action=panel]').click();
+        }
+        return;
+      }
+      this.reset(spawn);
+      this.makeOverlay(spawn.position);
+      this.start();
+    };
     this.panel.querySelector('[data-action=clearance]').onclick = (e) => {
       this.overlay.visible = !this.overlay.visible;
       e.target.textContent = this.overlay.visible ? 'HIDE CLEARANCE' : 'SHOW CLEARANCE';
@@ -106,28 +122,40 @@ export class JunkyardPlaytest {
 
   }
 
-  reset() {
+  reset(spawn = null) {
     this.stop('WASD / IJKL move pink. Start Run lets the trained brain search and chase.');
-    const { x, z } = this.world.spawn;
+    const { x, z } = spawn?.position || this.world.spawn;
+    if (spawn) this.target.mesh.position.set(spawn.target.x, 3.5, spawn.target.z);
     const state = this.simulation.state;
     state.position.set(x, 0, z);
     state.previousVelocity.set(0, 0, 0);
     state.jumpHeight = 0;
     state.verticalVelocity = 0;
     state.grounded = true;
-    state.yaw = 0;
+    state.yaw = spawn?.yaw || 0;
+    state.velocity.set(0, 0, 0);
     this.simulation.rig.legs.forEach((leg) => {
-      leg.footPosition.set(x + leg.homeLocal.x, 0.1, z + leg.homeLocal.z);
+      const c = Math.cos(state.yaw), s = Math.sin(state.yaw);
+      leg.footPosition.set(x + leg.homeLocal.x * c + leg.homeLocal.z * s, 0.1,
+        z - leg.homeLocal.x * s + leg.homeLocal.z * c);
       leg.stepping = false;
     });
     this.cameraController.target.set(x, 1, z);
     this.brain.reset();
+    if (!spawn && this.overlay) this.makeOverlay();
   }
 
-  makeOverlay() {
+  makeOverlay(spawn = this.world.spawn) {
+    const visible = this.overlay?.visible || false;
+    if (this.overlay) {
+      this.engine.scene.remove(this.overlay);
+      this.overlay.geometry.dispose();
+      this.overlay.material.map.dispose();
+      this.overlay.material.dispose();
+    }
     const nav = this.world.navigation;
     const reachable = new Uint8Array(nav.free.length);
-    const first = nav.nearest({ x: this.world.spawn.x / this.world.scale, z: this.world.spawn.z / this.world.scale });
+    const first = nav.nearest({ x: spawn.x / this.world.scale, z: spawn.z / this.world.scale });
     const queue = [first];
     reachable[first] = 1;
     for (let head = 0; head < queue.length; head += 1) {
@@ -157,10 +185,10 @@ export class JunkyardPlaytest {
     this.overlay.rotation.x = -Math.PI / 2;
     this.overlay.position.set((b.minX + nav.columns * nav.cell / 2) * s, 0.2, (b.minZ + nav.rows * nav.cell / 2) * s);
     this.overlay.renderOrder = 5;
-    this.overlay.visible = false;
+    this.overlay.visible = visible;
     this.engine.scene.add(this.overlay);
     const freeCount = nav.free.reduce((sum, v) => sum + v, 0);
-    this.panel.querySelector('small').textContent += ` Reachable from spawn: ${Math.round(queue.length / Math.max(1, freeCount) * 100)}% of clear floor.`;
+    this.panel.querySelector('[data-clearance-summary]').textContent = `Reachable from spawn: ${Math.round(queue.length / Math.max(1, freeCount) * 100)}% of clear floor.`;
   }
 
   update(dt) {

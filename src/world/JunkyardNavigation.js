@@ -53,8 +53,8 @@ export class JunkyardNavigation {
     }
   }
 
-  blocked(x, z) {
-    const r = this.radius;
+  blocked(x, z, radius = this.radius) {
+    const r = radius;
     const b = this.bounds;
     if (x - r < b.minX || x + r > b.maxX || z - r < b.minZ || z + r > b.maxZ) return true;
     for (let ix = Math.floor((x - r) / this.bucketSize); ix <= Math.floor((x + r) / this.bucketSize); ix += 1) {

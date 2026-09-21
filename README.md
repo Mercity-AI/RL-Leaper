@@ -77,6 +77,10 @@ It never trains, modifies weights, or writes to the source Blender file.
 - **START RUN / STOP RUN** runs or pauses the brain. Memory survives a pause
   and target movement. **RESET**, a page reload, or applying size starts a new
   memory session. Applying size resumes the run if it was active.
+- **RESTART RANDOM** places both Leaper and pink at new, separated clear
+  positions with a connected ground route, randomizes Leaper's facing, resets
+  its memory, and starts a fresh run. The route is used only to select a fair
+  starting pair; it is never provided to the brain.
 - **WASD / IJKL** moves pink, **Shift** moves it faster. Pink is selected on
   startup; **P** or the pink button toggles target selection.
 - In top view, **Shift + click** places pink directly. It may be placed in a
