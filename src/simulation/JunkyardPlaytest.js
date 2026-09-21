@@ -13,19 +13,31 @@ export class JunkyardPlaytest {
     this.panel = document.createElement('section');
     this.panel.id = 'junkyardPanel';
     this.panel.innerHTML = `
+      <div class="junkyard-toolbar">
+        <button data-action="route">START RUN</button>
+        <button data-action="panel" aria-expanded="false" aria-controls="junkyardOptions">OPTIONS</button>
+      </div>
+      <div id="junkyardOptions" hidden>
       <strong>JUNKYARD PLAYTEST</strong>
       <label>Leaper clearance width
         <output>${world.width.toFixed(1)} units</output>
       </label>
       <div class="size-controls"><input type="range" aria-label="Leaper clearance width" min="1.2" max="8" step="0.1" value="${world.width}" />
       <button data-action="size">APPLY SIZE</button></div>
-      <div class="junkyard-actions"><button data-action="route">START RUN</button>
-        <button data-action="reset">RESET</button>
+      <div class="junkyard-actions"><button data-action="reset">RESET</button>
         <button data-action="clearance">SHOW CLEARANCE</button></div>
       <p data-message>WASD to explore. In TOP view, Shift + click sets the destination.</p>
       <small>Flat-ground pathfinding preview · circular leg clearance · no climbing or learned AI.</small>
-      <p class="clearance-key" hidden>Green: reachable · Amber: disconnected · Red: blocked at this size</p>`;
+      <p class="clearance-key" hidden>Green: reachable · Amber: disconnected · Red: blocked at this size</p>
+      </div>`;
     document.body.appendChild(this.panel);
+    this.panel.querySelector('[data-action=panel]').onclick = (event) => {
+      const options = this.panel.querySelector('#junkyardOptions');
+      options.hidden = !options.hidden;
+      this.panel.classList.toggle('expanded', !options.hidden);
+      event.currentTarget.setAttribute('aria-expanded', String(!options.hidden));
+      event.currentTarget.textContent = options.hidden ? 'OPTIONS' : 'HIDE OPTIONS';
+    };
     this.message = this.panel.querySelector('[data-message]');
     const size = this.panel.querySelector('input');
     size.addEventListener('input', () => {
