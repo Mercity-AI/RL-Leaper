@@ -95,6 +95,7 @@ export class JunkyardNavigation {
 
   route(start, goal) {
     if (this.blocked(start.x, start.z) || this.blocked(goal.x, goal.z)) return [];
+    if (this.clearLine(start, goal)) return [start, goal];
     const first = this.nearest(start);
     const last = this.nearest(goal);
     if (first < 0 || last < 0 || !this.clearLine(start, this.point(first))

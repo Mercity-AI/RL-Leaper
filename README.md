@@ -57,12 +57,16 @@ Open `http://127.0.0.1:5173/?map=junkyard` after starting the dev server.
 The imported map is a browser copy of `C:/Blender/Junkyard_Blockmesh.blend`;
 the original Blender file is never saved or modified by the exporter.
 
-- **LOOP DEMO** starts a repeating walk between reachable destinations.
-- **WASD** takes manual control; **Shift** sprints; **Space** jumps.
+- **START RUN / STOP RUN** controls continuous chasing of the pink target.
+  Moving pink replans the route automatically. Reaching it or losing a clear
+  route keeps the run active; move pink onto reachable floor to continue.
+- **WASD** temporarily takes manual control; releasing it resumes an active
+  chase. **Shift** sprints; **Space** jumps.
 - **VIEW** cycles chase, lens, and top cameras. Drag to look/pan; wheel to zoom.
-- In top view, **Shift + click** places pink, then **WALK TO PINK** tests a route.
+- In top view, **Shift + click** places pink. An active run follows it automatically.
 - Alternatively select pink with **P**, then move it with **IJKL**.
 - Adjust the **size slider**, then **APPLY SIZE** to reload at that size.
+  An active run automatically resumes after the reload.
 - **SHOW CLEARANCE** shows green reachable floor, amber disconnected floor,
   and red blocked floor. Connectivity is measured from the starting position.
 

@@ -5,6 +5,7 @@ export class JunkyardPlaytest {
     Object.assign(this, { engine, world, simulation, target, cameraController });
     this.path = [];
     this.walking = false;
+    this.replanDelay = 0;
     this.stallTime = 0;
     this.previous = new THREE.Vector3();
     document.body.classList.add('junkyard-mode');
@@ -18,8 +19,7 @@ export class JunkyardPlaytest {
       </label>
       <div class="size-controls"><input type="range" aria-label="Leaper clearance width" min="1.2" max="8" step="0.1" value="${world.width}" />
       <button data-action="size">APPLY SIZE</button></div>
-      <div class="junkyard-actions"><button data-action="route">WALK TO PINK</button>
-        <button data-action="demo">LOOP DEMO</button>
+      <div class="junkyard-actions"><button data-action="route">START RUN</button>
         <button data-action="reset">RESET</button>
         <button data-action="clearance">SHOW CLEARANCE</button></div>
       <p data-message>WASD to explore. In TOP view, Shift + click sets the destination.</p>
@@ -34,36 +34,12 @@ export class JunkyardPlaytest {
     this.panel.querySelector('[data-action=size]').onclick = () => {
       const url = new URL(location.href);
       url.searchParams.set('width', size.value);
+      url.searchParams.set('run', this.walking ? '1' : '0');
       location.assign(url);
     };
     this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.panel.querySelector('[data-action=route]').onclick = () => this.walking ? this.stop('Route paused. WASD to explore.') : this.plan();
+    this.panel.querySelector('[data-action=route]').onclick = () => this.walking ? this.stop('Run stopped. Press START RUN to chase pink again.') : this.start();
     this.panel.querySelector('[data-action=reset]').onclick = () => this.reset();
-    this.panel.querySelector('[data-action=demo]').onclick = () => {
-      if (this.looping) return this.stop('Demo stopped. WASD to explore.');
-      this.reset();
-      const nav = world.navigation;
-      const start = { x: world.spawn.x / world.scale, z: world.spawn.z / world.scale };
-      let best = null;
-      // A reproducible tour destination across the yard, reachable at this size.
-      for (const point of [{ x: 12, z: 12 }, { x: -12, z: -10 }, { x: 12, z: -12 }, { x: 0, z: 8 }]) {
-        const goal = nav.point(nav.nearest(point));
-        const route = nav.route(start, goal);
-        if (route.length && (!best || Math.hypot(goal.x - start.x, goal.z - start.z) > best.distance)) {
-          best = { goal, distance: Math.hypot(goal.x - start.x, goal.z - start.z) };
-        }
-      }
-      if (!best) return this.stop('No demo route at this size. Try a smaller Leaper.');
-      this.demoEnds = [new THREE.Vector3(world.spawn.x, 3.5, world.spawn.z),
-        new THREE.Vector3(best.goal.x * world.scale, 3.5, best.goal.z * world.scale)];
-      this.demoEnd = 1;
-      target.mesh.position.copy(this.demoEnds[1]);
-      this.plan();
-      this.looping = this.walking;
-      this.panel.querySelector('[data-action=demo]').textContent = this.looping ? 'STOP DEMO' : 'LOOP DEMO';
-      cameraController.mode = 'TOP';
-      cameraController.toggle();
-    };
     this.panel.querySelector('[data-action=clearance]').onclick = (e) => {
       this.overlay.visible = !this.overlay.visible;
       e.target.textContent = this.overlay.visible ? 'HIDE CLEARANCE' : 'SHOW CLEARANCE';
@@ -90,24 +66,36 @@ export class JunkyardPlaytest {
       ), engine.camera);
       const point = raycaster.ray.intersectPlane(ground, new THREE.Vector3());
       if (!point) return;
-      this.stop('Destination moved. Press WALK TO PINK to test the route.');
       target.mesh.position.x = point.x;
       target.mesh.position.z = point.z;
+      if (!this.walking) this.message.textContent = 'Target moved. Press START RUN to chase it.';
     });
+    if (new URLSearchParams(location.search).get('run') === '1') this.start();
   }
 
   topView() {
     while (this.cameraController.mode !== 'TOP') this.cameraController.toggle();
   }
 
-  stop(message) {
-    this.looping = false;
-    this.panel.querySelector('[data-action=demo]').textContent = 'LOOP DEMO';
-    this.walking = false;
+  start() {
+    this.walking = true;
+    this.target.setSelected(true);
+    this.panel.querySelector('[data-action=route]').textContent = 'STOP RUN';
+    this.plan();
+  }
+
+  hold(message) {
+    this.path = [];
     this.simulation.navigationMove = null;
     this.simulation.state.velocity.set(0, 0, 0);
-    this.panel.querySelector('[data-action=route]').textContent = 'WALK TO PINK';
     this.message.textContent = message;
+  }
+
+  stop(message) {
+    this.walking = false;
+    this.hold(message);
+    this.panel.querySelector('[data-action=route]').textContent = 'START RUN';
+    if (this.routeLine) this.routeLine.visible = false;
   }
 
   reset() {
@@ -171,6 +159,8 @@ export class JunkyardPlaytest {
     const s = this.world.scale;
     const start = this.simulation.state.position;
     const goal = this.target.mesh.position;
+    this.goal = goal.clone();
+    this.replanDelay = 0.3;
     const route = this.world.navigation.route({ x: start.x / s, z: start.z / s }, { x: goal.x / s, z: goal.z / s });
     if (this.routeLine) {
       this.engine.scene.remove(this.routeLine);
@@ -179,7 +169,7 @@ export class JunkyardPlaytest {
       this.routeLine = null;
     }
     if (!route.length) {
-      this.stop('No clear ground route at this size. Move pink to open floor, or try a smaller Leaper.');
+      this.hold('Run active — no clear route. Move pink onto reachable floor; Leaper will keep chasing.');
       return;
     }
     this.path = route.slice(1).map((p) => new THREE.Vector3(p.x * s, 0, p.z * s));
@@ -188,38 +178,42 @@ export class JunkyardPlaytest {
       new THREE.LineBasicMaterial({ color: 0x00a6b0, depthTest: false }));
     this.routeLine.renderOrder = 6;
     this.engine.scene.add(this.routeLine);
-    this.walking = true;
     this.stallTime = 0;
     this.previous.copy(start);
-    this.panel.querySelector('[data-action=route]').textContent = 'STOP WALKING';
-    this.message.textContent = 'Following the blue route. WASD takes over; moving pink stops the route.';
+    this.message.textContent = 'Chasing pink. Move it with IJKL or Shift + click in TOP view. STOP RUN ends the chase.';
   }
 
   update(dt) {
     if (!this.walking) return;
     const movement = this.simulation.input.getMovement();
-    if (movement.forward || movement.side) return this.stop('Manual control. Press WALK TO PINK to plan again.');
-    if (this.target.mesh.position.distanceTo(this.goal) > 0.05) return this.stop('Destination moved. Press WALK TO PINK to plan again.');
+    this.replanDelay = Math.max(0, this.replanDelay - dt);
+    if (movement.forward || movement.side) {
+      this.path = [];
+      this.simulation.navigationMove = null;
+      this.message.textContent = 'Run active — manual steering. Release WASD to resume chasing.';
+      this.goal = null;
+      return;
+    }
+    if (!this.goal || (this.target.mesh.position.distanceTo(this.goal) > 0.05 && this.replanDelay === 0)) this.plan();
+    if (!this.path.length) return;
     const position = this.simulation.state.position;
     const delta = this.path[0].clone().sub(position);
     if (delta.length() < 0.18) {
       this.path.shift();
       this.simulation.state.velocity.set(0, 0, 0);
       if (!this.path.length) {
-        if (this.looping) {
-          this.demoEnd = 1 - this.demoEnd;
-          this.target.mesh.position.copy(this.demoEnds[this.demoEnd]);
-          this.plan();
-          return;
-        }
-        return this.stop('Destination reached! Move pink to test another pathway.');
+        return this.hold('Target reached — run still active. Move pink and Leaper will follow.');
       }
       delta.copy(this.path[0]).sub(position);
     }
     if (position.distanceTo(this.previous) < 0.002) this.stallTime += dt;
     else this.stallTime = 0;
     this.previous.copy(position);
-    if (this.stallTime > 2) return this.stop('Movement blocked. Try a wider route or a smaller Leaper.');
+    if (this.stallTime > 2) {
+      this.hold('Run active — replanning around an obstacle.');
+      this.goal = null;
+      return;
+    }
     const distance = delta.length();
     this.simulation.navigationMove = delta.normalize().multiplyScalar(Math.min(0.8, distance / 2));
   }
