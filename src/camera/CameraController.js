@@ -31,6 +31,10 @@ export class CameraController {
     toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
     toggleButton.addEventListener('click', () => this.toggle());
     canvas.addEventListener('pointerdown', (event) => {
+      if (this.followSubject && this.mode === 'CHASE' && event.button === 0) {
+        const request = canvas.requestPointerLock?.();
+        request?.catch?.(() => {});
+      }
       this.pointerId = event.pointerId;
       this.lastX = event.clientX;
       this.lastY = event.clientY;
@@ -64,7 +68,11 @@ export class CameraController {
   }
 
   toggle() {
-    this.mode = this.mode === 'CHASE' ? 'LENS' : this.mode === 'LENS' ? 'TOP' : 'CHASE';
+    if (this.followSubject) {
+      this.mode = this.mode === 'CHASE' ? 'TOP' : 'CHASE';
+      if (document.pointerLockElement === this.canvas) document.exitPointerLock();
+      this.topCenter.set(this.followSubject.mesh.position.x, this.followSubject.mesh.position.z);
+    } else this.mode = this.mode === 'CHASE' ? 'LENS' : this.mode === 'LENS' ? 'TOP' : 'CHASE';
     this.toggleButton.textContent = `VIEW: ${this.mode}`;
     this.toggleButton.classList.toggle('on', this.mode !== 'CHASE');
     document.body.classList.toggle('top-view', this.mode === 'TOP');
@@ -76,9 +84,10 @@ export class CameraController {
   }
 
   onPointerMove(event) {
-    if (event.pointerId !== this.pointerId) return;
-    const deltaX = event.clientX - this.lastX;
-    const deltaY = event.clientY - this.lastY;
+    const locked = document.pointerLockElement === this.canvas;
+    if (!locked && event.pointerId !== this.pointerId) return;
+    const deltaX = locked ? event.movementX : event.clientX - this.lastX;
+    const deltaY = locked ? event.movementY : event.clientY - this.lastY;
     if (this.eyeView) {
       this.eyeYaw = THREE.MathUtils.clamp(
         this.eyeYaw + deltaX * 0.0055,
@@ -133,6 +142,7 @@ export class CameraController {
   }
 
   getMovementHeading(robotYaw) {
+    if (this.followSubject && this.mode === 'TOP') return Math.PI;
     return this.eyeView ? robotYaw + this.eyeYaw : this.yaw + Math.PI;
   }
 
@@ -160,9 +170,9 @@ export class CameraController {
 
     this.camera.up.set(0, 1, 0);
     this.tempA.set(
-      state.position.x,
-      STANDING_HEIGHT * 0.75 + state.jumpHeight * 0.9,
-      state.position.z,
+      this.followSubject ? this.followSubject.mesh.position.x : state.position.x,
+      this.followSubject ? this.followSubject.height * 0.65 : STANDING_HEIGHT * 0.75 + state.jumpHeight * 0.9,
+      this.followSubject ? this.followSubject.mesh.position.z : state.position.z,
     );
     this.target.lerp(this.tempA, Math.min(1, 6 * deltaTime));
     this.tempB.set(

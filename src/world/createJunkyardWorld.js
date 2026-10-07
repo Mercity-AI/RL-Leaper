@@ -15,6 +15,7 @@ export async function createJunkyardWorld(scene) {
   if (!response.ok) throw new Error('The junkyard collision export could not be loaded.');
   const data = await response.json();
   const navigation = new JunkyardNavigation(data, width / 2, (STANDING_HEIGHT + 1.5) / scale);
+  const playerNavigation = new JunkyardNavigation(data, 0.25, 1.9);
   const spawnIndex = navigation.nearest({ x: 0, z: 0 });
   if (spawnIndex < 0) throw new Error('No open starting position at this robot size.');
   const spawn = navigation.point(spawnIndex);
@@ -33,5 +34,6 @@ export async function createJunkyardWorld(scene) {
     spawn: { x: spawn.x * scale, z: spawn.z * scale },
     initialTarget: { x: goal.x * scale, z: goal.z * scale },
     positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),
+    playerBlocked: (x, z) => playerNavigation.blocked(x / scale, z / scale),
   };
 }

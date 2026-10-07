@@ -44,7 +44,7 @@ export class JunkyardBrain {
       this.previousFrame = frame;
       this.ready = true;
       this.label = 'BRAIN 7,757,824';
-      this.playtest.message.textContent = 'Saved reverse-urgency brain loaded. Start Run to let it search and chase; WASD / IJKL move pink.';
+      this.playtest.message.textContent = 'Saved reverse-urgency brain loaded. Start Run to let it search and chase; WASD moves Lola; Shift runs; F switches guns.';
       this.playtest.brainLabel.title = `Residual LSTM · inference only · policy SHA256 ${frame.policy_sha256}`;
     } catch (error) {
       if (generation !== this.generation) return;

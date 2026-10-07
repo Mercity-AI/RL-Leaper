@@ -81,11 +81,16 @@ It never trains, modifies weights, or writes to the source Blender file.
   positions with a connected ground route, randomizes Leaper's facing, resets
   its memory, and starts a fresh run. The route is used only to select a fair
   starting pair; it is never provided to the brain.
-- **WASD / IJKL** moves pink, **Shift** moves it faster. Pink is selected on
-  startup; **P** or the pink button toggles target selection.
-- In top view, **Shift + click** places pink directly. It may be placed in a
-  blocked area for testing; the brain does not get a guaranteed route to it.
-- **VIEW** cycles chase, lens, and top. Drag to look/pan; wheel to zoom.
+- **WASD / IJKL** moves Lola relative to the camera; **Shift** runs faster.
+  **S** backs up without turning her around. Her smaller collision footprint
+  allows narrower passages than the Leaper can use.
+- **F** (or the weapon button) switches between M416 and Basic Gun outfits and
+  their carrying poses. Weapons are visual only; shooting is not implemented.
+- Click the scene to capture the mouse for looking; **Escape** releases it.
+  Dragging also works when mouse capture is unavailable. **VIEW** switches
+  between Lola's chase camera and top view; wheel zooms.
+- In top view, **Shift + click** places Lola on clear ground. A clear spot does
+  not guarantee that the Leaper can reach it.
 - **OPTIONS** reveals size, reset, and the clearance overlay. Options start hidden.
 - The overlay is only a conservative circular-footprint design aid. Green means
   connected to spawn under that approximation; it is not information given to
@@ -109,6 +114,20 @@ training success. There is no climbing or jump control in brain mode.
 Interactive runs continue after training catch/stuck/timeout flags, without
 resetting memory or replacing actions, until Stop Run. A policy may still get
 stuck or fail to search effectively; the viewer reports its actual behavior.
+
+Lola's browser copies live in `assets/characters/lola/`. They are exported by
+`scripts/export_lola.py` from the Basic Gun and M416 run scenes in
+`C:/Blender/LOWPOLY/Lola_both_animations.blend1.blend`, using the lower-body cycle
+from `Lola_walk_final.blend`. The walk cycle plays more slowly than the run.
+Idle is an averaged hold; backward movement reuses the cycle in reverse and
+sideways movement reuses the forward cycle until dedicated clips are authored.
+The exporter never saves the source Blender files. Lola's position replaces
+the pink target; the saved brain and its visibility/memory rules are unchanged.
+
+Character checks: `node --test tests/lola-player.test.js`. These load the real
+exported skeletons and clips, check animation, backward movement, sprinting,
+wall sliding, and weapon switching. Texture decoding and browser mouse capture
+still require a manual visual check.
 
 After editing and saving the Blender map, regenerate the shared export:
 

@@ -7,7 +7,7 @@ export class JunkyardPlaytest {
     Object.assign(this, { engine, world, simulation, target, cameraController });
     this.walking = false;
     document.body.classList.add('junkyard-mode');
-    document.querySelector('.sub').textContent = 'JUNKYARD // PATHWAY PLAYTEST';
+    document.querySelector('.sub').textContent = 'JUNKYARD // LOLA + LEAPER';
     this.panel = document.createElement('section');
     this.panel.id = 'junkyardPanel';
     this.panel.innerHTML = `
@@ -41,7 +41,7 @@ export class JunkyardPlaytest {
     this.message = this.panel.querySelector('[data-message]');
     this.brainLabel = this.panel.querySelector('.brain-state');
     this.brain = new JunkyardBrain(this);
-    document.querySelector('.keys').innerHTML = '<b>WASD / IJKL</b> MOVE PINK · <b>SHIFT</b> FASTER<br /><b>DRAG</b> CAMERA · <b>VIEW</b> TOGGLE · <b>START / STOP</b> BRAIN';
+    document.querySelector('.keys').innerHTML = '<b>WASD</b> MOVE LOLA · <b>SHIFT</b> RUN · <b>F</b> SWITCH GUN<br /><b>CLICK + MOUSE</b> LOOK · <b>ESC</b> RELEASE MOUSE · <b>VIEW</b> TOP / CHASE';
     target.setSelected(true);
     const size = this.panel.querySelector('input');
     size.addEventListener('input', () => {
@@ -54,7 +54,7 @@ export class JunkyardPlaytest {
       location.assign(url);
     };
     this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.panel.querySelector('[data-action=route]').onclick = () => this.walking ? this.stop('Run stopped. Press START RUN to chase pink again.') : this.start();
+    this.panel.querySelector('[data-action=route]').onclick = () => this.walking ? this.stop('Run stopped. Press START RUN to chase Lola again.') : this.start();
     this.panel.querySelector('[data-action=reset]').onclick = () => this.reset();
     this.panel.querySelector('[data-action=random]').onclick = () => {
       const spawn = randomJunkyardStart(this.world, this.simulation.state.position);
@@ -81,7 +81,8 @@ export class JunkyardPlaytest {
     engine.camera.far = 500 * world.scale;
     engine.camera.updateProjectionMatrix();
     engine.scene.fog.near = 35 * world.scale;
-    this.topView();
+    engine.scene.fog.far = 64 * world.scale;
+    if (!target.isPlayer) this.topView();
     this.reset();
     this.makeOverlay();
     const raycaster = new THREE.Raycaster();
@@ -96,6 +97,10 @@ export class JunkyardPlaytest {
       ), engine.camera);
       const point = raycaster.ray.intersectPlane(ground, new THREE.Vector3());
       if (!point) return;
+      if (target.isPlayer && world.playerBlocked(point.x, point.z)) {
+        this.message.textContent = 'Choose clear ground for Lola.';
+        return;
+      }
       target.mesh.position.x = point.x;
       target.mesh.position.z = point.z;
       if (!this.walking) this.message.textContent = 'Target moved. Press START RUN to chase it.';
@@ -123,9 +128,9 @@ export class JunkyardPlaytest {
   }
 
   reset(spawn = null) {
-    this.stop('WASD / IJKL move pink. Start Run lets the trained brain search and chase.');
+    this.stop('WASD moves Lola. Shift runs. F switches guns. Start Run lets the trained brain search and chase.');
     const { x, z } = spawn?.position || this.world.spawn;
-    if (spawn) this.target.mesh.position.set(spawn.target.x, 3.5, spawn.target.z);
+    if (spawn) this.target.mesh.position.set(spawn.target.x, this.target.isPlayer ? 0 : 3.5, spawn.target.z);
     const state = this.simulation.state;
     state.position.set(x, 0, z);
     state.previousVelocity.set(0, 0, 0);
@@ -140,7 +145,8 @@ export class JunkyardPlaytest {
         z - leg.homeLocal.x * s + leg.homeLocal.z * c);
       leg.stepping = false;
     });
-    this.cameraController.target.set(x, 1, z);
+    this.cameraController.target.copy(this.target.mesh.position);
+    this.cameraController.target.y = this.target.height ? this.target.height * 0.65 : 1;
     this.brain.reset();
     if (!spawn && this.overlay) this.makeOverlay();
   }

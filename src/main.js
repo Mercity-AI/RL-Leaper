@@ -11,6 +11,7 @@ import { LeaperSimulation } from './simulation/LeaperSimulation.js';
 import { TrainingVisualizer } from './simulation/TrainingVisualizer.js';
 import { createJunkyardWorld } from './world/createJunkyardWorld.js';
 import { JunkyardPlaytest } from './simulation/JunkyardPlaytest.js';
+import { LolaPlayer } from './robot/LolaPlayer.js';
 
 const app = document.getElementById('app');
 const engine = createScene(app);
@@ -25,12 +26,21 @@ try {
   document.getElementById('status').textContent = `MAP LOAD FAILED: ${error.message} — reload to retry`;
   throw error;
 }
-const target = new TargetMarker(
-  engine.scene,
-  world.colliders,
-  document.getElementById('cuboidToggle'),
-  trainingMode ? TRAINING_TARGET : world.initialTarget || null,
-);
+document.getElementById('status').textContent = junkyardMode ? 'LOADING LOLA…' : 'LOADING…';
+let target;
+try {
+  target = junkyardMode
+    ? await LolaPlayer.create(engine.scene, world, document.getElementById('cuboidToggle'))
+    : new TargetMarker(
+      engine.scene,
+      world.colliders,
+      document.getElementById('cuboidToggle'),
+      trainingMode ? TRAINING_TARGET : world.initialTarget || null,
+    );
+} catch (error) {
+  document.getElementById('status').textContent = `CHARACTER LOAD FAILED: ${error.message} — reload to retry`;
+  throw error;
+}
 const rig = createHexapod(engine.scene);
 const input = new InputController(() => target.toggle());
 const cameraController = new CameraController(
@@ -48,6 +58,7 @@ const simulation = new LeaperSimulation({
   sun: engine.sun,
   statusElement: document.getElementById('status'),
 });
+if (junkyardMode) cameraController.followSubject = target;
 const trainingVisualizer = trainingMode
   ? new TrainingVisualizer({
       simulation,
