@@ -30,6 +30,22 @@ def add_track(obj, action, name):
     track.mute = False
 
 
+def prop_action(obj, source_action, name, end):
+    """Keep a weapon's authored local transform synchronized with each pose."""
+    action = bpy.data.actions.new(name)
+    rotation = 'rotation_quaternion' if obj.rotation_mode == 'QUATERNION' else 'rotation_euler'
+    for path in ('location', rotation, 'scale'):
+        for index, fallback in enumerate(getattr(obj, path)):
+            source_curve = source_action.fcurves.find(path, index=index) if source_action else None
+            curve = action.fcurves.new(path, index=index)
+            for frame in range(1, end + 1):
+                value = source_curve.evaluate(frame) if source_curve else fallback
+                if 'Idle' in name and source_curve:
+                    value = sum(source_curve.evaluate(f) for f in range(1, end)) / (end - 1)
+                curve.keyframe_points.insert(frame, value)
+    return action
+
+
 report = []
 for weapon, scene_name, rig_name in (
     ('basic', '01 Basic Gun - Original Run', 'rig.001'),
@@ -69,6 +85,18 @@ for weapon, scene_name, rig_name in (
             curve.keyframe_points.remove(curve.keyframe_points[-1], fast=True)
         curve.keyframe_points.insert(1, value)
         curve.keyframe_points.insert(25, value)
+    crouch_rig = bpy.data.objects[
+        'Lola_03_Tuck_Rig.002' if weapon == 'basic' else 'Lola_04_Tuck_Rig.002']
+    crouch = crouch_rig.animation_data.action.copy()
+    crouch.name = weapon + '_CrouchWalk'
+    crouch_idle = crouch.copy()
+    crouch_idle.name = weapon + '_CrouchIdle'
+    for curve in crouch_idle.fcurves:
+        value = sum(curve.evaluate(frame) for frame in range(1, 33)) / 32
+        while len(curve.keyframe_points):
+            curve.keyframe_points.remove(curve.keyframe_points[-1], fast=True)
+        curve.keyframe_points.insert(1, value)
+        curve.keyframe_points.insert(33, value)
     rig.animation_data.action = walk
     scene.frame_set(1)
     bpy.context.view_layer.update()
@@ -81,15 +109,28 @@ for weapon, scene_name, rig_name in (
     bounds = [[min(p[i] for p in points) for i in range(3)],
               [max(p[i] for p in points) for i in range(3)]]
     for obj in objects:
-        if not obj.animation_data:
+        is_prop = obj.name.startswith(('M416', 'Lola_Gun', 'Basic_Gun'))
+        if not obj.animation_data and not is_prop:
             continue
+        obj.animation_data_create()
         original = obj.animation_data.action
         for track in list(obj.animation_data.nla_tracks):
             obj.animation_data.nla_tracks.remove(track)
         obj.animation_data.action = None
-        for name, action in [('Walk', walk), ('Run', run), ('Idle', idle)]:
+        for name, action in [('Walk', walk), ('Run', run), ('Idle', idle),
+                             ('CrouchWalk', crouch), ('CrouchIdle', crouch_idle)]:
             if obj == rig:
                 add_track(obj, action, name)
+            elif is_prop:
+                source_obj = obj
+                if name.startswith('Crouch'):
+                    base_name = obj.name.split('.')[0]
+                    source_obj = next(o for o in crouch_rig.children if o.name.split('.')[0] == base_name)
+                source_action = (source_obj.animation_data.action
+                                 if source_obj != obj and source_obj.animation_data else original)
+                prop = prop_action(source_obj, source_action, weapon + '_' + name,
+                                   33 if name.startswith('Crouch') else 25)
+                add_track(obj, prop, name)
             elif original:
                 copy = original.copy()
                 if name == 'Idle':
@@ -109,6 +150,6 @@ for weapon, scene_name, rig_name in (
         export_animations=True, export_yup=True,
     )
     report.append({'weapon': weapon, 'scene': scene_name, 'rig': rig_name,
-                   'bounds': bounds, 'clips': ['Walk', 'Run', 'Idle']})
+                   'bounds': bounds, 'clips': ['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle']})
 (OUTPUT / 'export-info.json').write_text(json.dumps(report, indent=2))
 print('LOLA_EXPORT', json.dumps(report))

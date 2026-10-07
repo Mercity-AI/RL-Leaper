@@ -18,7 +18,9 @@
     "clips": [
       "Walk",
       "Run",
-      "Idle"
+      "Idle",
+      "CrouchWalk",
+      "CrouchIdle"
     ]
   },
   {
@@ -40,7 +42,9 @@
     "clips": [
       "Walk",
       "Run",
-      "Idle"
+      "Idle",
+      "CrouchWalk",
+      "CrouchIdle"
     ]
   }
 ]

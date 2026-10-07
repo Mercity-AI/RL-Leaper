@@ -20,6 +20,7 @@ export class LolaPlayer {
     this.mesh.position.set(world.initialTarget.x, 0, world.initialTarget.z);
     this.direction = new THREE.Vector3();
     this.weaponIndex = 0;
+    this.crouching = false;
     this.toggleButton = toggleButton;
     this.outfits = models.map((gltf) => {
       // Blender's character faces -Y, which exports as +Z.
@@ -33,29 +34,28 @@ export class LolaPlayer {
       });
       const mixer = new THREE.AnimationMixer(gltf.scene);
       const actions = {};
-      for (const name of ['Walk', 'Run', 'Idle']) {
+      for (const name of ['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle']) {
         const clip = gltf.animations.find((item) => item.name === name);
         if (!clip) throw new Error(`Lola is missing the ${name} animation`);
         actions[name] = mixer.clipAction(clip);
       }
       actions.Idle.play();
       this.mesh.add(gltf.scene);
-      const boots = [];
-      gltf.scene.traverse((object) => {
-        if (object.isSkinnedMesh && /BOOTS/i.test(object.name)) boots.push(object);
-      });
-      return { model: gltf.scene, mixer, actions, boots, current: 'Idle' };
+      for (const [name, action] of Object.entries(actions)) {
+        action.setEffectiveWeight(name === 'Idle' ? 1 : 0).play();
+      }
+      return { model: gltf.scene, mixer, actions, current: 'Idle' };
     });
     scene.add(this.mesh);
     toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
     toggleButton.addEventListener('click', () => this.switchWeapon());
     window.addEventListener('keydown', (event) => {
-      if (event.code !== 'KeyF' || event.repeat || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+      if (!['KeyF', 'KeyC'].includes(event.code) || event.repeat || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
       event.preventDefault();
-      this.switchWeapon();
+      if (event.code === 'KeyC') this.crouching = !this.crouching;
+      else this.switchWeapon();
     });
     this.showWeapon();
-    this.groundPoint = new THREE.Vector3();
   }
 
   showWeapon() {
@@ -77,8 +77,8 @@ export class LolaPlayer {
     this.mesh.rotation.y = Math.atan2(forward.x, forward.z);
     this.direction.copy(forward).multiplyScalar(forwardAmount).addScaledVector(right, sideAmount);
     if (this.direction.lengthSq() > 1) this.direction.normalize();
-    const sprint = speed > 5;
-    const distance = (sprint ? 3.4 : 1.7) * this.world.scale * deltaTime;
+    const sprint = speed > 5 && !this.crouching;
+    const distance = (this.crouching ? 0.85 : sprint ? 3.4 : 1.7) * this.world.scale * deltaTime;
     const startX = this.mesh.position.x;
     const startZ = this.mesh.position.z;
     // Short steps and axis sliding keep Lola out of walls, including at corners.
@@ -91,31 +91,27 @@ export class LolaPlayer {
       if (!this.world.playerBlocked(p.x, p.z + dz)) p.z += dz;
     }
     const moved = Math.hypot(this.mesh.position.x - startX, this.mesh.position.z - startZ);
-    const next = moved > 0.0001 ? (sprint ? 'Run' : 'Walk') : 'Idle';
+    const moving = moved > 0.0001;
+    const next = this.crouching ? (moving ? 'CrouchWalk' : 'CrouchIdle')
+      : moving ? (sprint ? 'Run' : 'Walk') : 'Idle';
     for (const outfit of this.outfits) {
       if (outfit.current !== next) {
-        outfit.actions[outfit.current].fadeOut(0.16);
-        outfit.actions[next].reset().fadeIn(0.16).play();
+        const previous = outfit.actions[outfit.current];
+        const phase = previous.time / previous.getClip().duration;
+        outfit.actions[next].time = phase * outfit.actions[next].getClip().duration;
         outfit.current = next;
       }
       // Reuse the forward cycle backwards until a backward/strafe clip is authored.
-      outfit.actions[next].timeScale = next === 'Idle' ? 1 : (forwardAmount < 0 ? -1 : 1);
-      outfit.mixer.update(deltaTime);
-      // Keep the lowest boot on the ground, including the temporary idle hold.
-      outfit.model.position.y = 0;
-      this.mesh.updateMatrixWorld(true);
-      let lowest = Infinity;
-      for (const boot of outfit.boots) {
-        boot.skeleton.update();
-        const positions = boot.geometry.attributes.position;
-        for (let vertex = 0; vertex < positions.count; vertex += 1) {
-          this.groundPoint.fromBufferAttribute(positions, vertex);
-          boot.boneTransform(vertex, this.groundPoint);
-          this.groundPoint.applyMatrix4(boot.matrixWorld);
-          lowest = Math.min(lowest, this.groundPoint.y);
-        }
+      for (const [name, action] of Object.entries(outfit.actions)) {
+        // Continuous weights avoid restarting crossfades when input changes quickly.
+        const weight = THREE.MathUtils.lerp(action.getEffectiveWeight(), name === next ? 1 : 0,
+          1 - Math.exp(-12 * deltaTime));
+        action.setEffectiveWeight(weight);
+        action.timeScale = name.includes('Idle') ? 1 : (forwardAmount < 0 ? -1 : 1);
       }
-      if (Number.isFinite(lowest)) outfit.model.position.y = -lowest;
+      outfit.mixer.update(deltaTime);
+      // Preserve Blender's authored root height; never lift the whole body to
+      // follow whichever animated boot happens to be lowest this frame.
     }
   }
 }

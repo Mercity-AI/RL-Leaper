@@ -12,6 +12,7 @@ import { TrainingVisualizer } from './simulation/TrainingVisualizer.js';
 import { createJunkyardWorld } from './world/createJunkyardWorld.js';
 import { JunkyardPlaytest } from './simulation/JunkyardPlaytest.js';
 import { LolaPlayer } from './robot/LolaPlayer.js';
+import { enableMovableHud } from './controls/MovableHud.js';
 
 const app = document.getElementById('app');
 const engine = createScene(app);
@@ -67,6 +68,7 @@ const trainingVisualizer = trainingMode
     })
   : null;
 const playtest = junkyardMode ? new JunkyardPlaytest({ engine, world, simulation, target, cameraController }) : null;
+if (junkyardMode) enableMovableHud();
 
 if (trainingMode) {
   document.body.classList.add('training-mode');
@@ -77,7 +79,7 @@ let previousTime = performance.now();
 
 function animate(currentTime) {
   requestAnimationFrame(animate);
-  const deltaTime = Math.min(0.033, (currentTime - previousTime) / 1000);
+  const deltaTime = Math.min(junkyardMode ? 0.1 : 0.033, (currentTime - previousTime) / 1000);
   previousTime = currentTime;
   if (trainingVisualizer) trainingVisualizer.update(deltaTime);
   else {

@@ -86,6 +86,11 @@ It never trains, modifies weights, or writes to the source Blender file.
   allows narrower passages than the Leaper can use.
 - **F** (or the weapon button) switches between M416 and Basic Gun outfits and
   their carrying poses. Weapons are visual only; shooting is not implemented.
+- **C** toggles crouching. WASD uses the authored crouch-walk cycle; Shift does
+  not override crouch speed. Standing collision clearance remains conservative.
+- **Double-tap and hold the second tap, then drag** moves a screen control or
+  panel. Double-click then drag also works. Placement is remembered locally and
+  kept within the window when resizing. Escape releases the game mouse first.
 - Click the scene to capture the mouse for looking; **Escape** releases it.
   Dragging also works when mouse capture is unavailable. **VIEW** switches
   between Lola's chase camera and top view; wheel zooms.
@@ -121,6 +126,12 @@ Lola's browser copies live in `assets/characters/lola/`. They are exported by
 from `Lola_walk_final.blend`. The walk cycle plays more slowly than the run.
 Idle is an averaged hold; backward movement reuses the cycle in reverse and
 sideways movement reuses the forward cycle until dedicated clips are authored.
+The crouch clips come from the two authored Crouch Walk scenes. Playback keeps
+Blender's root height instead of repositioning the body to follow the lowest
+foot each frame. Continuous transition weights and preserved stride phase avoid
+restarting the cycle on every walk/run/crouch transition. Animation time uses
+elapsed time, including frames longer than 33 milliseconds (capped at 100 ms
+for tab stalls).
 The exporter never saves the source Blender files. Lola's position replaces
 the pink target; the saved brain and its visibility/memory rules are unchanged.
 

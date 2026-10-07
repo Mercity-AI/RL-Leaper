@@ -13,6 +13,8 @@
   font: 12px/1.5 ui-monospace, monospace;
 }
 #junkyardPanel.expanded { width: min(320px, calc(100vw - 48px)); }
+.junkyard-mode .movable-hud { pointer-events: auto; touch-action: none; }
+.junkyard-mode .hud-dragging { cursor: grabbing !important; outline: 2px dashed #53716a; z-index: 30 !important; }
 .junkyard-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
 .brain-state { margin: 5px 2px 0; font-size: 9px; color: #43594d; max-width: 280px; }
 #junkyardOptions { padding: 12px 4px 4px; max-height: calc(100dvh - 180px); overflow-y: auto; touch-action: pan-y; }

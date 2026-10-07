@@ -41,7 +41,7 @@ export class JunkyardPlaytest {
     this.message = this.panel.querySelector('[data-message]');
     this.brainLabel = this.panel.querySelector('.brain-state');
     this.brain = new JunkyardBrain(this);
-    document.querySelector('.keys').innerHTML = '<b>WASD</b> MOVE LOLA · <b>SHIFT</b> RUN · <b>F</b> SWITCH GUN<br /><b>CLICK + MOUSE</b> LOOK · <b>ESC</b> RELEASE MOUSE · <b>VIEW</b> TOP / CHASE';
+    document.querySelector('.keys').innerHTML = '<b>WASD</b> MOVE · <b>SHIFT</b> RUN · <b>C</b> CROUCH · <b>F</b> GUN<br /><b>CLICK + MOUSE</b> LOOK · <b>ESC</b> RELEASE<br /><b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
     target.setSelected(true);
     const size = this.panel.querySelector('input');
     size.addEventListener('input', () => {
