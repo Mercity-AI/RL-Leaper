@@ -20,7 +20,9 @@
       "Run",
       "Idle",
       "CrouchWalk",
-      "CrouchIdle"
+      "CrouchIdle",
+      "StrafeLeft",
+      "StrafeRight"
     ]
   },
   {
@@ -44,7 +46,9 @@
       "Run",
       "Idle",
       "CrouchWalk",
-      "CrouchIdle"
+      "CrouchIdle",
+      "StrafeLeft",
+      "StrafeRight"
     ]
   }
 ]

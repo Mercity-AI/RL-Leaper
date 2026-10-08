@@ -91,6 +91,16 @@ for weapon, scene_name, rig_name in (
     crouch.name = weapon + '_CrouchWalk'
     crouch_idle = crouch.copy()
     crouch_idle.name = weapon + '_CrouchIdle'
+    side_rigs = {
+        direction: bpy.data.objects[
+            f'Lola_{"Basic_Gun" if weapon == "basic" else "M416"}_Crossover_{direction}_Rig']
+        for direction in ('Left', 'Right')
+    }
+    side_actions = {}
+    for direction, source_rig in side_rigs.items():
+        action = source_rig.animation_data.action.copy()
+        action.name = weapon + '_Strafe' + direction
+        side_actions['Strafe' + direction] = action
     for curve in crouch_idle.fcurves:
         value = sum(curve.evaluate(frame) for frame in range(1, 33)) / 32
         while len(curve.keyframe_points):
@@ -118,14 +128,16 @@ for weapon, scene_name, rig_name in (
             obj.animation_data.nla_tracks.remove(track)
         obj.animation_data.action = None
         for name, action in [('Walk', walk), ('Run', run), ('Idle', idle),
-                             ('CrouchWalk', crouch), ('CrouchIdle', crouch_idle)]:
+                             ('CrouchWalk', crouch), ('CrouchIdle', crouch_idle),
+                             *side_actions.items()]:
             if obj == rig:
                 add_track(obj, action, name)
             elif is_prop:
                 source_obj = obj
-                if name.startswith('Crouch'):
+                if name.startswith(('Crouch', 'Strafe')):
                     base_name = obj.name.split('.')[0]
-                    source_obj = next(o for o in crouch_rig.children if o.name.split('.')[0] == base_name)
+                    source_rig = crouch_rig if name.startswith('Crouch') else side_rigs[name.removeprefix('Strafe')]
+                    source_obj = next(o for o in source_rig.children if o.name.split('.')[0] == base_name)
                 source_action = (source_obj.animation_data.action
                                  if source_obj != obj and source_obj.animation_data else original)
                 prop = prop_action(source_obj, source_action, weapon + '_' + name,
@@ -150,6 +162,6 @@ for weapon, scene_name, rig_name in (
         export_animations=True, export_yup=True,
     )
     report.append({'weapon': weapon, 'scene': scene_name, 'rig': rig_name,
-                   'bounds': bounds, 'clips': ['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle']})
+                   'bounds': bounds, 'clips': ['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle', *side_actions]})
 (OUTPUT / 'export-info.json').write_text(json.dumps(report, indent=2))
 print('LOLA_EXPORT', json.dumps(report))

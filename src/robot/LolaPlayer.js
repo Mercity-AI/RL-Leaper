@@ -34,7 +34,7 @@ export class LolaPlayer {
       });
       const mixer = new THREE.AnimationMixer(gltf.scene);
       const actions = {};
-      for (const name of ['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle']) {
+      for (const name of ['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle', 'StrafeLeft', 'StrafeRight']) {
         const clip = gltf.animations.find((item) => item.name === name);
         if (!clip) throw new Error(`Lola is missing the ${name} animation`);
         actions[name] = mixer.clipAction(clip);
@@ -52,7 +52,10 @@ export class LolaPlayer {
     window.addEventListener('keydown', (event) => {
       if (!['KeyF', 'KeyC'].includes(event.code) || event.repeat || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
       event.preventDefault();
-      if (event.code === 'KeyC') this.crouching = !this.crouching;
+      if (event.code === 'KeyC') {
+        this.crouching = !this.crouching;
+        this.showWeapon();
+      }
       else this.switchWeapon();
     });
     this.showWeapon();
@@ -60,7 +63,7 @@ export class LolaPlayer {
 
   showWeapon() {
     this.outfits.forEach((outfit, index) => { outfit.model.visible = index === this.weaponIndex; });
-    this.toggleButton.textContent = `F: ${this.weaponIndex === 0 ? 'M416' : 'BASIC GUN'}`;
+    this.toggleButton.textContent = `F: ${this.weaponIndex === 0 ? 'M416' : 'BASIC GUN'} · C: ${this.crouching ? 'CROUCHED' : 'STANDING'}`;
     this.toggleButton.classList.add('on');
   }
 
@@ -92,8 +95,9 @@ export class LolaPlayer {
     }
     const moved = Math.hypot(this.mesh.position.x - startX, this.mesh.position.z - startZ);
     const moving = moved > 0.0001;
+    const sideways = Math.abs(sideAmount) > 0.1 && Math.abs(sideAmount) >= Math.abs(forwardAmount);
     const next = this.crouching ? (moving ? 'CrouchWalk' : 'CrouchIdle')
-      : moving ? (sprint ? 'Run' : 'Walk') : 'Idle';
+      : moving ? (sideways ? (sideAmount < 0 ? 'StrafeLeft' : 'StrafeRight') : sprint ? 'Run' : 'Walk') : 'Idle';
     for (const outfit of this.outfits) {
       if (outfit.current !== next) {
         const previous = outfit.actions[outfit.current];
@@ -101,13 +105,14 @@ export class LolaPlayer {
         outfit.actions[next].time = phase * outfit.actions[next].getClip().duration;
         outfit.current = next;
       }
-      // Reuse the forward cycle backwards until a backward/strafe clip is authored.
+      // Only forward locomotion reverses on S; authored crossovers keep their direction.
       for (const [name, action] of Object.entries(outfit.actions)) {
         // Continuous weights avoid restarting crossfades when input changes quickly.
         const weight = THREE.MathUtils.lerp(action.getEffectiveWeight(), name === next ? 1 : 0,
           1 - Math.exp(-12 * deltaTime));
         action.setEffectiveWeight(weight);
-        action.timeScale = name.includes('Idle') ? 1 : (forwardAmount < 0 ? -1 : 1);
+        action.timeScale = name.startsWith('Strafe') ? (sprint ? 1 : 0.625)
+          : name.includes('Idle') ? 1 : (forwardAmount < 0 ? -1 : 1);
       }
       outfit.mixer.update(deltaTime);
       // Preserve Blender's authored root height; never lift the whole body to

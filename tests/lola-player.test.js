@@ -17,10 +17,48 @@ async function load(weapon) {
   ));
 }
 
+test('C toggles crouch once per press and A/D select authored crossovers for both guns', async () => {
+  let keydown;
+  const originalListener = window.addEventListener;
+  window.addEventListener = (name, callback) => { if (name === 'keydown') keydown = callback; };
+  const models = await Promise.all([load('m416'), load('basic')]);
+  const button = { addEventListener() {}, classList: { add() {} } };
+  const player = new LolaPlayer(new THREE.Scene(),
+    { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false }, button, models);
+  window.addEventListener = originalListener;
+  const press = (code, repeat = false) => keydown({ code, repeat, target: { tagName: 'CANVAS' }, preventDefault() {} });
+  const move = (f, s) => player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, 1 / 60);
+  for (let weapon = 0; weapon < 2; weapon += 1) {
+    move(0, -1);
+    assert.equal(player.outfits[weapon].current, 'StrafeLeft');
+    move(0, 1);
+    assert.equal(player.outfits[weapon].current, 'StrafeRight');
+    move(-1, 1);
+    assert.equal(player.outfits[weapon].actions.StrafeRight.timeScale, 0.625);
+    press('KeyC');
+    press('KeyC', true);
+    move(0, 0);
+    assert.equal(player.crouching, true);
+    assert.equal(player.outfits[weapon].current, 'CrouchIdle');
+    assert.match(button.textContent, /CROUCHED/);
+    move(0, -1);
+    assert.equal(player.outfits[weapon].current, 'CrouchWalk');
+    press('KeyC');
+    assert.equal(player.crouching, false);
+    press('KeyF');
+  }
+  for (const gltf of models) {
+    const left = gltf.animations.find(clip => clip.name === 'StrafeLeft');
+    const right = gltf.animations.find(clip => clip.name === 'StrafeRight');
+    assert.ok(left.tracks.some((track, index) => JSON.stringify([...track.values]) !== JSON.stringify([...right.tracks[index].values])),
+      'left and right contain different authored poses');
+  }
+});
+
 test('both exported outfits have distinct walk/run clips and animate their skeletons', async () => {
   for (const weapon of ['basic', 'm416']) {
     const gltf = await load(weapon);
-    assert.deepEqual(gltf.animations.map((clip) => clip.name).sort(), ['CrouchIdle', 'CrouchWalk', 'Idle', 'Run', 'Walk']);
+    assert.deepEqual(gltf.animations.map((clip) => clip.name).sort(), ['CrouchIdle', 'CrouchWalk', 'Idle', 'Run', 'StrafeLeft', 'StrafeRight', 'Walk']);
     const mixer = new THREE.AnimationMixer(gltf.scene);
     const walk = gltf.animations.find((clip) => clip.name === 'Walk');
     const run = gltf.animations.find((clip) => clip.name === 'Run');

@@ -124,8 +124,12 @@ Lola's browser copies live in `assets/characters/lola/`. They are exported by
 `scripts/export_lola.py` from the Basic Gun and M416 run scenes in
 `C:/Blender/LOWPOLY/Lola_both_animations.blend1.blend`, using the lower-body cycle
 from `Lola_walk_final.blend`. The walk cycle plays more slowly than the run.
-Idle is an averaged hold; backward movement reuses the cycle in reverse and
-sideways movement reuses the forward cycle until dedicated clips are authored.
+Idle is an averaged hold; backward movement reuses the cycle in reverse.
+A/D use the authored Crossover Left/Right clips from scenes 13–16 in the
+updated Blender file, with the matching gun transforms. Standing diagonals use
+the crossover when sideways input is at least as strong as forward input.
+Crouched sideways movement still uses the crouch-walk cycle. C toggles crouch
+once per press, and the weapon button also displays CROUCHED or STANDING.
 The crouch clips come from the two authored Crouch Walk scenes. Playback keeps
 Blender's root height instead of repositioning the body to follow the lowest
 foot each frame. Continuous transition weights and preserved stride phase avoid
