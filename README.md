@@ -139,6 +139,17 @@ for tab stalls).
 The exporter never saves the source Blender files. Lola's position replaces
 the pink target; the saved brain and its visibility/memory rules are unchanged.
 
+After exporting Lola, run `node scripts/measure_lola_steps.mjs`. It measures
+the supporting foot's backward travel in each in-place animation and writes
+`assets/characters/lola/stride-profiles.json`. Player translation follows this
+phase-dependent distance instead of a separate fixed movement speed. Walking,
+running, crouching, and crossovers each use their own measured stride. Shift
+selects the faster cycle/cadence; it does not multiply distance independently.
+Collision limits animation advancement as well as movement. A constant measured
+floor offset per clip (blended on transitions) grounds the idle pose without
+snapping the body to a different foot each frame. Backward and crouched sideways
+motion still reuse existing clips and may need dedicated authored animations.
+
 Character checks: `node --test tests/lola-player.test.js`. These load the real
 exported skeletons and clips, check animation, backward movement, sprinting,
 wall sliding, and weapon switching. Texture decoding and browser mouse capture

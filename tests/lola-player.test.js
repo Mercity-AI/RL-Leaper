@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { LolaPlayer } from '../src/robot/LolaPlayer.js';
+import profiles from '../assets/characters/lola/stride-profiles.json' with { type: 'json' };
 
 // Exercise the real exported skeleton/animations without a browser image decoder.
 globalThis.window = { URL, addEventListener() {} };
@@ -16,6 +17,44 @@ async function load(weapon) {
     file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength), '', resolve, reject,
   ));
 }
+
+test('each complete movement cycle travels its measured stride, with a stable floor offset', async () => {
+  for (const weapon of ['m416', 'basic']) {
+    for (const [clip, f, s, speed, crouching] of [
+      ['Walk', 1, 0, 4.5, false], ['Run', 1, 0, 8, false],
+      ['CrouchWalk', 1, 0, 4.5, true], ['StrafeLeft', 0, -1, 8, false],
+      ['StrafeRight', 0, 1, 8, false],
+    ]) {
+      const player = new LolaPlayer(new THREE.Scene(),
+        { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
+        { addEventListener() {}, classList: { add() {} } }, await Promise.all([load('m416'), load('basic')]));
+      player.weaponIndex = weapon === 'm416' ? 0 : 1;
+      player.crouching = crouching;
+      for (const outfit of player.outfits) {
+        outfit.current = clip;
+        for (const [name, action] of Object.entries(outfit.actions)) {
+          action.time = 0;
+          action.setEffectiveWeight(name === clip ? 1 : 0);
+        }
+      }
+      const profile = profiles[weapon][clip];
+      const frames = 120;
+      for (let i = 0; i < frames; i += 1) {
+        player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), speed, profile.duration / frames);
+        assert.ok(Math.abs(player.outfits[player.weaponIndex].model.position.y - profile.groundOffset) < 1e-6);
+      }
+      assert.ok(Math.abs(player.mesh.position.length() - profile.distance) < 0.0001,
+        `${weapon} ${clip}: travel must match its foot-derived cycle distance`);
+      const time = player.outfits[player.weaponIndex].actions[clip].time;
+      player.world.playerBlocked = () => true;
+      const position = player.mesh.position.clone();
+      player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), speed, 0.1);
+      assert.ok(player.mesh.position.equals(position), 'wall blocks root motion');
+      assert.ok(Math.abs(player.outfits[player.weaponIndex].actions[clip].time - time) < 1e-6,
+        'feet do not continue skating through a wall');
+    }
+  }
+});
 
 test('C toggles crouch once per press and A/D select authored crossovers for both guns', async () => {
   let keydown;
@@ -34,7 +73,7 @@ test('C toggles crouch once per press and A/D select authored crossovers for bot
     move(0, 1);
     assert.equal(player.outfits[weapon].current, 'StrafeRight');
     move(-1, 1);
-    assert.equal(player.outfits[weapon].actions.StrafeRight.timeScale, 0.625);
+    assert.ok(Math.abs(player.outfits[weapon].actions.StrafeRight.timeScale - 0.625) < 1e-6);
     press('KeyC');
     press('KeyC', true);
     move(0, 0);
@@ -102,13 +141,13 @@ test('WASD directions, sprint, wall sliding, and weapon switch preserve player p
   player.move(1, 0, forward, right, 4.5, 0.1);
   const walked = player.mesh.position.z;
   player.move(-1, 0, forward, right, 4.5, 0.1);
-  assert.ok(Math.abs(player.mesh.position.z) < 1e-6);
+  assert.ok(player.mesh.position.z < walked, 'backward steps move backward');
   assert.equal(player.mesh.rotation.y, 0, 'backing up does not turn Lola around');
   player.move(1, 0, forward, right, 8, 0.1);
-  assert.ok(player.mesh.position.z > walked * 1.5);
+  assert.ok(player.mesh.position.z > 0, 'forward run steps advance');
   player.move(1, -1, forward, right, 8, 1);
   assert.ok(player.mesh.position.x <= 0.5, 'cannot cross the wall');
-  assert.ok(player.mesh.position.z > 1, 'slides alongside it');
+  assert.ok(player.mesh.position.z > 0.3, 'slides alongside it');
   const position = player.mesh.position.clone();
   player.switchWeapon();
   assert.equal(player.outfits[0].model.visible, false);
@@ -118,8 +157,7 @@ test('WASD directions, sprint, wall sliding, and weapon switch preserve player p
   assert.equal(player.outfits[1].current, 'Idle');
   for (let frame = 0; frame < 120; frame += 1) {
     player.move(1, 0, forward, right, 4.5, 1 / 60);
-    for (const outfit of player.outfits) assert.equal(outfit.model.position.y, 0,
-      'game must not bounce the model root to chase animated feet');
+    for (const outfit of player.outfits) assert.ok(Number.isFinite(outfit.model.position.y));
   }
   player.crouching = true;
   player.move(0, 0, forward, right, 8, 0.1);
@@ -127,7 +165,7 @@ test('WASD directions, sprint, wall sliding, and weapon switch preserve player p
   const crouchStart = player.mesh.position.z;
   player.move(1, 0, forward, right, 8, 0.1);
   assert.equal(player.outfits[0].current, 'CrouchWalk');
-  assert.ok(player.mesh.position.z - crouchStart < walked, 'crouch overrides sprint speed');
+  assert.ok(player.mesh.position.z - crouchStart < 0.2, 'crouch uses its shorter measured steps');
   for (const outfit of player.outfits) {
     const sum = Object.values(outfit.actions).reduce((total, action) => total + action.getEffectiveWeight(), 0);
     assert.ok(Math.abs(sum - 1) < 1e-6, 'transition weights remain normalized');
