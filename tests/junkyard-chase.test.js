@@ -68,3 +68,20 @@ test('A stale reset cannot replace a newer session; failed inference never falls
   assert.equal(button.textContent, 'START RUN');
   assert.match(driver.label, /OFFLINE/);
 });
+
+test('pausing during inference keeps the final authoritative pose for contact', async () => {
+  globalThis.document = { hidden: false };
+  const { driver } = fixture();
+  driver.request = async () => frame;
+  await driver.reset();
+  let finish;
+  driver.request = () => new Promise(resolve => { finish = resolve; });
+  driver.start();
+  driver.update(1 / 30);
+  driver.stop();
+  finish({ ...frame, x: 0.375, step: 1 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(driver.frame.x, 0.375);
+  assert.equal(driver.running, false);
+  assert.equal(driver.busy, false);
+});

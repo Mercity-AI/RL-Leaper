@@ -171,10 +171,10 @@ export class CameraController {
     this.camera.up.set(0, 1, 0);
     this.tempA.set(
       this.followSubject ? this.followSubject.mesh.position.x : state.position.x,
-      this.followSubject ? this.followSubject.height * 0.65 : STANDING_HEIGHT * 0.75 + state.jumpHeight * 0.9,
+      this.followSubject ? this.followSubject.height * 0.65 + this.followSubject.mesh.position.y : STANDING_HEIGHT * 0.75 + state.jumpHeight * 0.9,
       this.followSubject ? this.followSubject.mesh.position.z : state.position.z,
     );
-    this.target.lerp(this.tempA, Math.min(1, 6 * deltaTime));
+    this.target.lerp(this.tempA, 1 - Math.exp(-6 * deltaTime));
     this.tempB.set(
       Math.sin(this.yaw) * Math.cos(this.pitch),
       Math.sin(this.pitch),

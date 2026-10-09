@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from sb3_contrib import RecurrentPPO
 
-from rl.junkyard_env import JunkyardEnv
+from rl.junkyard_env import JunkyardEnv, PLAYER_CONTACT
 from rl.junkyard_geometry import JunkyardGeometry
 from rl.seeker_recurrent_policy import ResidualLstmPolicy
 
@@ -42,9 +42,9 @@ def load_brain(path):
 
 
 class BrainSession:
-    def __init__(self, model, geometry, position, yaw, target):
+    def __init__(self, model, geometry, position, yaw, target, player_collision=False):
         self.model = model
-        self.env = JunkyardEnv(geometry, position, yaw, target)
+        self.env = JunkyardEnv(geometry, position, yaw, target, player_collision)
         self.obs = self.env.initial_observation()
         self.memory = None
         self.action = np.zeros(2, dtype=np.float32)
@@ -65,6 +65,7 @@ class BrainSession:
     def snapshot(self):
         env = self.env
         return dict(x=float(env.position[0]), z=float(env.position[1]), yaw=env.yaw,
+            contact_version=PLAYER_CONTACT["version"],
             step=env.steps, model_step=self.model.num_timesteps, distance=env._distance(),
             collision=bool(self.info.get("collision", False)), collisionPart=self.info.get("collision_part"),
             target_visible=bool(env.target_visible), target_ever_seen=bool(env.target_ever_seen),
@@ -130,7 +131,8 @@ def main():
                     if width not in geometry_cache:
                         geometry_cache.clear()
                         geometry_cache[width] = JunkyardGeometry(ROOT / "assets/maps/junkyard/collision.json", 7.98 / width)
-                    session = BrainSession(model, geometry_cache[width], vector(data["position"]), yaw, vector(data["target"]))
+                    session = BrainSession(model, geometry_cache[width], vector(data["position"]), yaw,
+                        vector(data["target"]), player_collision=data.get("player_collision") is True)
                     if len(sessions) >= 8:
                         sessions.pop(next(iter(sessions)))
                     token = uuid.uuid4().hex

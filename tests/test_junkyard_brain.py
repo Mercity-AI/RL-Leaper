@@ -47,6 +47,19 @@ class BrainTests(unittest.TestCase):
         self.assertIsNotNone(env._collision_for_pose(self.geometry.maximum, 0))
         self.assertEqual(env._ray_distances(env.position, env.yaw).shape, (16,))
 
+    def test_player_contact_blocks_leaper_and_allows_reverse(self):
+        env = JunkyardEnv(self.geometry, [0, 0], 0, [0, 6.9], player_collision=True)
+        start = env.position.copy()
+        _, _, _, _, info = env.step(np.array([1, 0], dtype=np.float32))
+        np.testing.assert_array_equal(env.position, start)
+        self.assertEqual(info['collision_part'], 'player')
+        env.step(np.array([-1, 0], dtype=np.float32))
+        self.assertLess(env.position[1], start[1])
+        env.target = np.array([0, 0], dtype=np.float32)
+        env.position = np.array([0, -10], dtype=np.float32)
+        self.assertEqual(env._collision_for_pose(np.array([0, 10]), 0), 'player',
+            'swept contact prevents crossing through the player')
+
     def test_real_checkpoint_actions_and_persistent_memory(self):
         session = BrainSession(self.model, self.geometry, [0, 0], 0, [0, -15])
         self.assertEqual(self.model.num_timesteps, 7757824)

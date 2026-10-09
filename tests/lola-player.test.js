@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { LolaPlayer } from '../src/robot/LolaPlayer.js';
 import profiles from '../assets/characters/lola/stride-profiles.json' with { type: 'json' };
+import contact from '../src/config/player-contact.json' with { type: 'json' };
 
 // Exercise the real exported skeleton/animations without a browser image decoder.
 globalThis.window = { URL, addEventListener() {} };
@@ -18,10 +19,39 @@ async function load(weapon) {
   ));
 }
 
+test('player collision radius contains both outfits and guns throughout their animations', async () => {
+  for (const weapon of ['basic', 'm416']) {
+    const gltf = await load(weapon);
+    const mixer = new THREE.AnimationMixer(gltf.scene);
+    let maximum = 0;
+    const point = new THREE.Vector3();
+    for (const clip of gltf.animations) {
+      mixer.stopAllAction();
+      mixer.clipAction(clip).reset().play();
+      for (let sample = 0; sample < 48; sample += 1) {
+        mixer.setTime(clip.duration * sample / 48);
+        gltf.scene.updateMatrixWorld(true);
+        gltf.scene.traverse(mesh => {
+          if (!mesh.isMesh) return;
+          if (mesh.isSkinnedMesh) mesh.skeleton.update();
+          const vertices = mesh.geometry.attributes.position;
+          for (let i = 0; i < vertices.count; i += 1) {
+            point.fromBufferAttribute(vertices, i);
+            if (mesh.isSkinnedMesh) mesh.boneTransform(i, point);
+            point.applyMatrix4(mesh.matrixWorld);
+            maximum = Math.max(maximum, Math.hypot(point.x, point.z));
+          }
+        });
+      }
+    }
+    assert.ok(maximum <= contact.playerRadius, `${weapon} radius ${maximum} exceeds contact envelope`);
+  }
+});
+
 test('each complete movement cycle travels its measured stride, with a stable floor offset', async () => {
   for (const weapon of ['m416', 'basic']) {
     for (const [clip, f, s, speed, crouching] of [
-      ['Walk', 1, 0, 4.5, false], ['Run', 1, 0, 8, false],
+      ['Run', 1, 0, 4.5, false], ['Run', 1, 0, 8, false],
       ['CrouchWalk', 1, 0, 4.5, true], ['StrafeLeft', 0, -1, 8, false],
       ['StrafeRight', 0, 1, 8, false],
     ]) {
@@ -40,7 +70,8 @@ test('each complete movement cycle travels its measured stride, with a stable fl
       const profile = profiles[weapon][clip];
       const frames = 120;
       for (let i = 0; i < frames; i += 1) {
-        player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), speed, profile.duration / frames);
+        player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), speed,
+          profile.duration / frames / (crouching ? 2 : speed > 5 ? 2.7 : 2));
         assert.ok(Math.abs(player.outfits[player.weaponIndex].model.position.y - profile.groundOffset) < 1e-6);
       }
       assert.ok(Math.abs(player.mesh.position.length() - profile.distance) < 0.0001,
@@ -73,7 +104,7 @@ test('C toggles crouch once per press and A/D select authored crossovers for bot
     move(0, 1);
     assert.equal(player.outfits[weapon].current, 'StrafeRight');
     move(-1, 1);
-    assert.ok(Math.abs(player.outfits[weapon].actions.StrafeRight.timeScale - 0.625) < 1e-6);
+    assert.ok(Math.abs(player.outfits[weapon].actions.StrafeRight.timeScale - 2) < 1e-6);
     press('KeyC');
     press('KeyC', true);
     move(0, 0);
@@ -125,8 +156,8 @@ test('animation clock and blending agree at 30 and 60 rendered frames per second
     for (let frame = 0; frame < fps * 2; frame += 1) {
       player.move(1, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, 1 / fps);
     }
-    samples.push({ time: player.outfits[0].actions.Walk.time,
-      z: player.mesh.position.z, weight: player.outfits[0].actions.Walk.getEffectiveWeight() });
+    samples.push({ time: player.outfits[0].actions.Run.time,
+      z: player.mesh.position.z, weight: player.outfits[0].actions.Run.getEffectiveWeight() });
   }
   for (const key of ['time', 'z', 'weight']) assert.ok(Math.abs(samples[0][key] - samples[1][key]) < 1e-6);
 });
@@ -169,5 +200,31 @@ test('WASD directions, sprint, wall sliding, and weapon switch preserve player p
   for (const outfit of player.outfits) {
     const sum = Object.values(outfit.actions).reduce((total, action) => total + action.getEffectiveWeight(), 0);
     assert.ok(Math.abs(sum - 1) < 1e-6, 'transition weights remain normalized');
+  }
+});
+
+test('jump takes off once, remains blocked by walls in air, and lands at every frame rate', async () => {
+  for (const fps of [30, 60, 120]) {
+    const player = new LolaPlayer(new THREE.Scene(),
+      { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: (x, z) => z > 0.25 },
+      { addEventListener() {}, classList: { add() {} } }, await Promise.all([load('m416'), load('basic')]));
+    player.crouching = true;
+    assert.equal(player.jump(), true);
+    assert.equal(player.crouching, false);
+    assert.equal(player.jump(), false, 'no double jump');
+    let peak = 0;
+    for (let i = 0; i < fps; i += 1) {
+      player.move(1, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 8, 1 / fps);
+      peak = Math.max(peak, player.mesh.position.y);
+      assert.ok(player.mesh.position.z <= 0.25, 'jump cannot bypass wall collision');
+      assert.ok(player.mesh.position.y >= 0, 'never falls through floor');
+    }
+    assert.ok(Math.abs(peak - 0.85) < 0.01);
+    assert.equal(player.grounded, true);
+    assert.equal(player.mesh.position.y, 0);
+    assert.equal(player.verticalVelocity, 0);
+    assert.equal(player.jump(), true, 'can jump again after landing');
+    player.resetJump();
+    assert.equal(player.grounded, true);
   }
 });

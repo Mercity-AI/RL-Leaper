@@ -236,3 +236,19 @@ Next decision:
   four JavaScript lifecycle/navigation tests passed; production build passed.
 - The model can still fail on the new map. This integration establishes that the
   actual saved policy is driving movement; it does not claim navigation success.
+
+### 2026-10-09 — Interactive Lola contact and jump
+
+- Added opt-in player contact to the Junkyard inference adapter, using shared
+  `src/config/player-contact.json`: a 4.8 robot-unit leg envelope plus Lola's
+  1.0 map-unit radius, including held weapons. Swept contact blocks translation through the player;
+  the existing collision response can still rotate or reverse away.
+- The browser blocks Lola against the displayed/interpolated robot and reserves
+  0.4 robot units for one pending inference step (maximum translation 0.375).
+  Jumping does not bypass player/robot or map contact. Jump height is 0.85 map
+  units with gravity 14 map units per second squared; no authored jump clip yet.
+- This changes interactive collision behavior from the checkpoint's training
+  conditions. The saved weights, training environment, action/observation shapes,
+  and reward definitions are unchanged; no training or model overwrite occurred.
+  Any training with this collision rule must be a new recorded experiment, not
+  treated as equivalent to the original checkpoint benchmark.

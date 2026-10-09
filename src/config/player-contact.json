@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "leaperRadius": 4.8,
+  "playerRadius": 1.0,
+  "pendingStepMargin": 0.4
+}

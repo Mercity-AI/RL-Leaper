@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import strideProfiles from '../../assets/characters/lola/stride-profiles.json' with { type: 'json' };
-import { strideDistance } from './strideMotion.js';
+import { evenStrideElapsed, strideDistance } from './strideMotion.js';
 
 export class LolaPlayer {
   static async create(scene, world, toggleButton) {
@@ -23,6 +23,8 @@ export class LolaPlayer {
     this.direction = new THREE.Vector3();
     this.weaponIndex = 0;
     this.crouching = false;
+    this.grounded = true;
+    this.verticalVelocity = 0;
     this.toggleButton = toggleButton;
     this.outfits = models.map((gltf, index) => {
       // Blender's character faces -Y, which exports as +Z.
@@ -77,6 +79,21 @@ export class LolaPlayer {
   toggle() { /* Lola remains controllable while the Leaper is paused. */ }
   setSelected() { this.selected = true; }
 
+  jump() {
+    if (!this.grounded) return false;
+    this.grounded = false;
+    this.crouching = false;
+    this.verticalVelocity = Math.sqrt(2 * 14 * 0.85) * this.world.scale;
+    this.showWeapon();
+    return true;
+  }
+
+  resetJump() {
+    this.grounded = true;
+    this.verticalVelocity = 0;
+    this.mesh.position.y = 0;
+  }
+
   move(forwardAmount, sideAmount, forward, right, speed, deltaTime) {
     const steps = Math.max(1, Math.ceil(deltaTime * 120));
     for (let i = 0; i < steps; i += 1) {
@@ -85,7 +102,12 @@ export class LolaPlayer {
   }
 
   moveStep(forwardAmount, sideAmount, forward, right, speed, deltaTime) {
-    this.mesh.position.y = 0;
+    if (!this.grounded) {
+      const gravity = 14 * this.world.scale;
+      this.mesh.position.y += this.verticalVelocity * deltaTime - 0.5 * gravity * deltaTime ** 2;
+      this.verticalVelocity -= gravity * deltaTime;
+      if (this.mesh.position.y <= 0) this.resetJump();
+    }
     this.mesh.rotation.y = Math.atan2(forward.x, forward.z);
     this.direction.copy(forward).multiplyScalar(forwardAmount).addScaledVector(right, sideAmount);
     const inputStrength = Math.min(1, this.direction.length());
@@ -93,10 +115,10 @@ export class LolaPlayer {
     const sprint = speed > 5 && !this.crouching;
     const sideways = Math.abs(sideAmount) > 0.1 && Math.abs(sideAmount) >= Math.abs(forwardAmount);
     const next = this.crouching ? (inputStrength ? 'CrouchWalk' : 'CrouchIdle')
-      : inputStrength ? (sideways ? (sideAmount < 0 ? 'StrafeLeft' : 'StrafeRight') : sprint ? 'Run' : 'Walk') : 'Idle';
+      : inputStrength ? (sideways ? (sideAmount < 0 ? 'StrafeLeft' : 'StrafeRight') : 'Run') : 'Idle';
     let distance = 0;
     for (const [index, outfit] of this.outfits.entries()) {
-      if (outfit.current !== next) {
+      if (this.grounded && outfit.current !== next) {
         const previous = outfit.actions[outfit.current];
         outfit.actions[next].time = previous.time / previous.getClip().duration * outfit.actions[next].getClip().duration;
         outfit.current = next;
@@ -104,12 +126,18 @@ export class LolaPlayer {
       let floor = 0;
       for (const [name, action] of Object.entries(outfit.actions)) {
         const oldWeight = action.getEffectiveWeight();
-        const weight = THREE.MathUtils.lerp(oldWeight, name === next ? 1 : 0, 1 - Math.exp(-12 * deltaTime));
+        const weight = this.grounded
+          ? THREE.MathUtils.lerp(oldWeight, name === next ? 1 : 0, 1 - Math.exp(-12 * deltaTime)) : oldWeight;
         action.setEffectiveWeight(weight);
-        const rate = name.startsWith('Strafe') ? (sprint ? 1 : 0.625)
-          : name.includes('Idle') ? 1 : (forwardAmount < 0 ? -1 : 1);
+        const pace = name.startsWith('Crouch') ? 2 : sprint ? 2.7 : 2;
+        const rate = name.startsWith('Strafe') ? pace
+          : name.includes('Idle') ? 1 : pace * (forwardAmount < 0 ? -1 : 1);
         action.timeScale = name.includes('Idle') ? 1 : rate * inputStrength;
+        if (!this.grounded) action.timeScale = 0;
         const profile = outfit.profiles[name];
+        if (name === 'Run' && deltaTime > 0) {
+          action.timeScale = evenStrideElapsed(profile, action.time, deltaTime * action.timeScale) / deltaTime;
+        }
         if (index === this.weaponIndex && inputStrength) {
           distance += strideDistance(profile, action.time, deltaTime * action.timeScale) * (oldWeight + weight) / 2;
         }
@@ -117,6 +145,11 @@ export class LolaPlayer {
       }
       // One measured floor offset per clip, blended without frame-by-frame foot snapping.
       outfit.model.position.y = floor * this.world.scale;
+    }
+    if (!this.grounded) {
+      const profile = this.outfits[this.weaponIndex].profiles[sideways
+        ? (sideAmount < 0 ? 'StrafeLeft' : 'StrafeRight') : 'Run'];
+      distance = profile.distance / profile.duration * (sprint ? 2.7 : 2) * inputStrength * deltaTime;
     }
     distance *= this.world.scale;
     const startX = this.mesh.position.x;

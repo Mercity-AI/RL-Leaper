@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { JunkyardBrain } from './JunkyardBrain.js';
 import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
+import { contact, contactRadius } from '../world/playerContact.js';
 
 export class JunkyardPlaytest {
   constructor({ engine, world, simulation, target, cameraController }) {
@@ -41,7 +42,7 @@ export class JunkyardPlaytest {
     this.message = this.panel.querySelector('[data-message]');
     this.brainLabel = this.panel.querySelector('.brain-state');
     this.brain = new JunkyardBrain(this);
-    document.querySelector('.keys').innerHTML = '<b>WASD</b> MOVE · <b>SHIFT</b> RUN · <b>C</b> CROUCH · <b>F</b> GUN<br /><b>CLICK + MOUSE</b> LOOK · <b>ESC</b> RELEASE<br /><b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
+    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>F</b> GUN · <b>CLICK + MOUSE</b> LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
     target.setSelected(true);
     const size = this.panel.querySelector('input');
     size.addEventListener('input', () => {
@@ -103,6 +104,7 @@ export class JunkyardPlaytest {
       }
       target.mesh.position.x = point.x;
       target.mesh.position.z = point.z;
+      target.resetJump?.();
       if (!this.walking) this.message.textContent = 'Target moved. Press START RUN to chase it.';
     });
     if (new URLSearchParams(location.search).get('run') === '1') this.start();
@@ -128,9 +130,25 @@ export class JunkyardPlaytest {
   }
 
   reset(spawn = null) {
-    this.stop('WASD moves Lola. Shift runs. F switches guns. Start Run lets the trained brain search and chase.');
+    this.stop('WASD moves Lola. Shift sprints. Space jumps. C crouches. F switches guns. Start Run lets the trained brain search and chase.');
     const { x, z } = spawn?.position || this.world.spawn;
     if (spawn) this.target.mesh.position.set(spawn.target.x, this.target.isPlayer ? 0 : 3.5, spawn.target.z);
+    if (this.target.isPlayer) {
+      const minimum = contactRadius(this.world.scale) + contact.pendingStepMargin;
+      if (Math.hypot(this.target.mesh.position.x - x, this.target.mesh.position.z - z) < minimum) {
+        const nav = this.world.navigation;
+        for (let i = 0; i < nav.free.length; i += 1) {
+          if (!nav.free[i]) continue;
+          const point = nav.point(i);
+          const px = point.x * this.world.scale, pz = point.z * this.world.scale;
+          if (Math.hypot(px - x, pz - z) < minimum) continue;
+          this.target.mesh.position.set(px, 0, pz);
+          break;
+        }
+      }
+    }
+    this.target.resetJump?.();
+    this.simulation.input.jumpBuffer = 0;
     const state = this.simulation.state;
     state.position.set(x, 0, z);
     state.previousVelocity.set(0, 0, 0);

@@ -1,3 +1,5 @@
+import { contact, contactRadius, touchesLeaper } from '../world/playerContact.js';
+
 // Only the checkpoint server chooses movement. No navigation-route fallback.
 export class JunkyardBrain {
   constructor(playtest) {
@@ -11,6 +13,22 @@ export class JunkyardBrain {
     this.generation = 0;
     this.frame = null;
     this.label = 'BRAIN CONNECTING';
+    if (this.target.isPlayer) {
+      const mapBlocked = playtest.world.playerBlocked;
+      playtest.world.playerBlocked = (x, z) => {
+        if (mapBlocked(x, z)) return true;
+        const from = this.previousFrame || this.simulation.state.position;
+        const to = this.frame || from;
+        const radius = contactRadius(playtest.world.scale);
+        if (touchesLeaper(x, z, from, to, radius)) return true;
+        // While an inference is in flight, reserve one maximum server step.
+        // Allow retreat if that extra reservation has just expanded around Lola.
+        if (!this.running && !this.busy) return false;
+        if (!touchesLeaper(x, z, from, to, radius + contact.pendingStepMargin)) return false;
+        const p = this.target.mesh.position;
+        return Math.hypot(x - to.x, z - to.z) <= Math.hypot(p.x - to.x, p.z - to.z);
+      };
+    }
   }
 
   async request(path, payload) {
@@ -36,15 +54,17 @@ export class JunkyardBrain {
       const frame = await this.request('reset', {
         width: this.playtest.world.width, position: [state.position.x, state.position.z],
         yaw: state.yaw, target: [this.target.mesh.position.x, this.target.mesh.position.z],
+        player_collision: Boolean(this.target.isPlayer),
       });
       if (generation !== this.generation) return;
       if (frame.model_step !== 7757824 || !frame.policy_sha256) throw new Error('Unexpected checkpoint identity');
+      if (this.target.isPlayer && frame.contact_version !== contact.version) throw new Error('Restart the brain service to enable player collision');
       this.token = frame.token;
       this.frame = frame;
       this.previousFrame = frame;
       this.ready = true;
       this.label = 'BRAIN 7,757,824';
-      this.playtest.message.textContent = 'Saved reverse-urgency brain loaded. Start Run to let it search and chase; WASD moves Lola; Shift runs; F switches guns.';
+      this.playtest.message.textContent = 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; F switches guns.';
       this.playtest.brainLabel.title = `Residual LSTM · inference only · policy SHA256 ${frame.policy_sha256}`;
     } catch (error) {
       if (generation !== this.generation) return;
@@ -71,12 +91,13 @@ export class JunkyardBrain {
   stop() {
     this.running = false;
     this.clock = 0;
-    // Discard display of an in-flight action after Stop. It may have advanced
-    // the server one tick; a resume displays its next authoritative pose.
+    // Finish displaying a pending server step so collision and the visible
+    // robot keep the same position while paused. No new step is requested.
   }
 
   update(dt) {
     const sim = this.simulation;
+    if (this.target.isPlayer && this.target.grounded && sim.input.consumeJump()) this.target.jump();
     sim.input.update(dt);
     const a = sim.input.getMovement();
     const b = sim.input.getTargetMovement();
@@ -93,11 +114,9 @@ export class JunkyardBrain {
       this.request('step', { token: this.token,
         target: [this.target.mesh.position.x, this.target.mesh.position.z] }).then((frame) => {
         if (generation !== this.generation) return;
-        if (this.running) {
-          this.previousFrame = this.frame;
-          this.frame = frame;
-          this.renderAge = 0;
-        }
+        this.previousFrame = this.frame;
+        this.frame = frame;
+        this.renderAge = 0;
       }).catch((error) => {
         if (generation === this.generation) this.fail(error);
       }).finally(() => {
