@@ -20,12 +20,47 @@ export async function createJunkyardWorld(scene) {
   if (spawnIndex < 0) throw new Error('No open starting position at this robot size.');
   const spawn = navigation.point(spawnIndex);
   gltf.scene.scale.setScalar(scale);
+  gltf.scene.updateMatrixWorld(true);
   gltf.scene.traverse((object) => {
     if (!object.isMesh) return;
     object.castShadow = true;
     object.receiveShadow = true;
+    // The exported Cube contains both the floor and perimeter walls. Give
+    // elevated wall faces and the floor contrasting, neutral grey colours.
+    if (object.name === 'Cube') {
+      const geometry = object.geometry.index ? object.geometry.toNonIndexed() : object.geometry.clone();
+      const positions = geometry.attributes.position;
+      const colours = new Float32Array(positions.count * 3);
+      const wallColour = new THREE.Color(0x303030).convertSRGBToLinear();
+      const floorColour = new THREE.Color(0x626262).convertSRGBToLinear();
+      const point = new THREE.Vector3();
+      for (let i = 0; i < positions.count; i += 3) {
+        let highest = -Infinity;
+        for (let corner = 0; corner < 3; corner += 1) {
+          point.fromBufferAttribute(positions, i + corner).applyMatrix4(object.matrixWorld);
+          highest = Math.max(highest, point.y);
+        }
+        const colour = highest > 0.15 * scale ? wallColour : floorColour;
+        for (let corner = 0; corner < 3; corner += 1) colour.toArray(colours, (i + corner) * 3);
+      }
+      geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+      object.geometry = geometry;
+      object.material = object.material.clone();
+      object.material.color.setHex(0xffffff);
+      object.material.vertexColors = true;
+      object.material.roughness = 0.95;
+      object.material.metalness = 0;
+    }
   });
   scene.add(gltf.scene);
+  // Neutral atmosphere and fill lighting keep grey surfaces from turning blue.
+  scene.background.setHex(0x555555);
+  scene.fog.color.setHex(0x555555);
+  scene.traverse((object) => {
+    if (!object.isLight) return;
+    object.color.setHex(0xffffff);
+    if (object.isHemisphereLight) object.groundColor.setHex(0x777777);
+  });
   const initialTarget = { x: spawn.x, z: spawn.z + 5 };
   const goalIndex = navigation.nearest(initialTarget);
   const goal = navigation.point(goalIndex);
