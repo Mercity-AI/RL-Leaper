@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { JunkyardBrain } from './JunkyardBrain.js';
 import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
 import { contact, contactRadius } from '../world/playerContact.js';
+import { EyeVision } from './EyeVision.js';
 
 export class JunkyardPlaytest {
   constructor({ engine, world, simulation, target, cameraController }) {
@@ -18,8 +19,17 @@ export class JunkyardPlaytest {
         <button data-action="panel" aria-expanded="false" aria-controls="junkyardOptions">OPTIONS</button>
       </div>
       <div class="brain-state" aria-live="polite">BRAIN CONNECTING</div>
+      <div data-sight-status aria-live="polite">SIGHT CONNECTING…</div>
       <div id="junkyardOptions" hidden>
       <strong>JUNKYARD PLAYTEST</strong>
+      <label>Vision (changing mode resets the run)
+        <select data-sight-mode aria-label="Vision mode">
+          <option value="eye">Eye-level 3D vision</option>
+          <option value="legacy">Old flat vision</option>
+        </select>
+      </label>
+      <button data-action="sight" aria-pressed="true">HIDE SIGHT LINES</button>
+      <small>Green: clear · Orange: blocked at cover. Three eye checks; 16 movement rays unchanged.</small>
       <label>Leaper clearance width
         <output>${world.width.toFixed(1)} units</output>
       </label>
@@ -41,6 +51,7 @@ export class JunkyardPlaytest {
     };
     this.message = this.panel.querySelector('[data-message]');
     this.brainLabel = this.panel.querySelector('.brain-state');
+    this.sight = target.isPlayer ? new EyeVision(this) : null;
     this.brain = new JunkyardBrain(this);
     document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>F</b> GUN · <b>CLICK + MOUSE</b> LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
     target.setSelected(true);
@@ -51,6 +62,7 @@ export class JunkyardPlaytest {
     this.panel.querySelector('[data-action=size]').onclick = () => {
       const url = new URL(location.href);
       url.searchParams.set('width', size.value);
+      if (this.sight) url.searchParams.set('vision', this.sight.mode);
       url.searchParams.set('run', this.walking ? '1' : '0');
       location.assign(url);
     };
@@ -130,6 +142,7 @@ export class JunkyardPlaytest {
   }
 
   reset(spawn = null) {
+    this.sight?.clear();
     this.stop('WASD moves Lola. Shift sprints. Space jumps. C crouches. F switches guns. Start Run lets the trained brain search and chase.');
     const { x, z } = spawn?.position || this.world.spawn;
     if (spawn) this.target.mesh.position.set(spawn.target.x, this.target.isPlayer ? 0 : 3.5, spawn.target.z);

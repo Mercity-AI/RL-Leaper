@@ -1,5 +1,38 @@
 # Leaper RL Training Ledger
 
+### 2026-10-12 — Eye-level junkyard vision (inference experiment)
+
+- The interactive junkyard defaults to three 3D visibility segments from the
+  red eye to Lola's animated head, upper torso, and lower torso bones. Standing,
+  crouching, jumping, and both outfits use their actual animated bone positions.
+  The Python service intersects the same static GLB triangles shown in the browser,
+  double-sided, including low debris, walls, and overhead geometry. Any clear
+  segment reveals Lola only inside the existing body-relative 270-degree field
+  of view and 28-unit planar range (including existing target-radius allowance).
+- The 16 planar obstacle-distance readings, movement collisions, action layout,
+  34-input policy shape, recurrent network, and saved weights are unchanged.
+  Coverage/frontier exploration deliberately keeps its original planar scan;
+  only actual target detection uses eye-level sight. Eye origin includes the
+  rendered body/eye pose, transformed onto the authoritative server position.
+  Body points are sampled at each request, so debug lines show the latest server
+  sample rather than a continuously recomputed display-only ray.
+- Eye mode refreshes visible-target memory before inference and after movement;
+  blocked targets never update last-seen coordinates. Paused sight preview does
+  not advance the policy, steps, or target memory. The Options menu provides
+  old flat vision for comparison; switching modes resets the run and memory.
+- This changes observation semantics and timing despite retaining the input
+  shape. Previous training results are not benchmarks for this mode. No new
+  training, optimizer updates, or model overwrite occurred. Future training
+  with this sensor must be recorded as a new experiment. The saved policy's
+  SHA256 remains 883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594.
+- Validation: production build; five geometry/eye-policy tests, including 120
+  finite steps with the real saved policy; four legacy checkpoint tests; five
+  browser-driver/navigation tests plus two animated-anchor/debug-line tests.
+  Browser checks confirmed the loaded scene, live policy movement, sight status,
+  and switching between old and eye-level modes with a paused reset.
+  A training smoke run is inapplicable here:
+  the training environment is unchanged and this adapter is inference-only.
+
 This file is the human-readable history of reinforcement-learning runs. Generated models, raw logs, plots, checkpoints, and browser replay data stay under `rl_artifacts/` because they are large and ignored by Git. Update this ledger whenever a run is started, stopped, completed, or diagnosed.
 
 ## Terms used in this project

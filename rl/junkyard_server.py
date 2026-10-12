@@ -12,8 +12,9 @@ import numpy as np
 import torch
 from sb3_contrib import RecurrentPPO
 
-from rl.junkyard_env import JunkyardEnv, PLAYER_CONTACT
+from rl.junkyard_env import JunkyardEnv, PLAYER_CONTACT, EYE_VISION
 from rl.junkyard_geometry import JunkyardGeometry
+from rl.junkyard_sight import JunkyardSight, load_triangles
 from rl.seeker_recurrent_policy import ResidualLstmPolicy
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,16 +43,22 @@ def load_brain(path):
 
 
 class BrainSession:
-    def __init__(self, model, geometry, position, yaw, target, player_collision=False):
+    def __init__(self, model, geometry, position, yaw, target, player_collision=False, sight=None, sight_pose=None):
         self.model = model
-        self.env = JunkyardEnv(geometry, position, yaw, target, player_collision)
+        self.env = JunkyardEnv(geometry, position, yaw, target, player_collision, sight, sight_pose)
         self.obs = self.env.initial_observation()
         self.memory = None
         self.action = np.zeros(2, dtype=np.float32)
         self.info = {}
 
-    def step(self, target):
+    def step(self, target, sight_pose=None):
         self.env.target = np.asarray(target, dtype=np.float32)
+        if self.env.sight is not None:
+            self.env.sight_pose = sight_pose
+            # Refresh live sight before inference, preserving the last movement
+            # feedback and recurrent state. Hidden positions never enter memory.
+            self.env._update_target_memory(increment_time=False)
+            self.obs = np.concatenate((self.env._observation(), self.obs[-3:]))
         # The network only receives the observation, never the target coordinates.
         # Hidden target changes enter memory only after the visibility check.
         with torch.inference_mode():
@@ -64,7 +71,10 @@ class BrainSession:
 
     def snapshot(self):
         env = self.env
+        visible, _ = env._target_sensor()
         return dict(x=float(env.position[0]), z=float(env.position[1]), yaw=env.yaw,
+            sight_version=EYE_VISION['version'], sight=env.sight_debug,
+            sight_visible=bool(visible), sight_mode='eye' if env.sight else 'legacy',
             contact_version=PLAYER_CONTACT["version"],
             step=env.steps, model_step=self.model.num_timesteps, distance=env._distance(),
             collision=bool(self.info.get("collision", False)), collisionPart=self.info.get("collision_part"),
@@ -83,6 +93,8 @@ def main():
     model, digest = load_brain(args.model)
     sessions = {}
     geometry_cache = {}
+    sight_cache = {}
+    sight_triangles = load_triangles(ROOT / 'assets/maps/junkyard/junkyard.glb')
     origins = {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in (4173, 5173)}
 
     def vector(value):
@@ -90,6 +102,18 @@ def main():
         if value.shape != (2,) or not np.isfinite(value).all() or np.any(np.abs(value) > 500):
             raise ValueError("Expected a finite map position")
         return value
+
+    def sight_pose(data):
+        pose = data.get('sight_pose')
+        if not isinstance(pose, dict):
+            raise ValueError('Eye vision requires eye and target body points')
+        eye = np.asarray(pose.get('eye'), dtype=float)
+        points = np.asarray(pose.get('points'), dtype=float)
+        if (eye.shape != (3,) or points.shape != (3, 3)
+                or not np.isfinite(eye).all() or not np.isfinite(points).all()
+                or np.any(np.abs(eye) > 20) or np.any(np.abs(points) > 500)):
+            raise ValueError('Invalid eye vision pose')
+        return dict(eye=eye.tolist(), points=points.tolist())
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -113,6 +137,7 @@ def main():
 
         def do_GET(self):
             self.reply(200, dict(model_step=model.num_timesteps, policy_sha256=digest,
+                sight_version=EYE_VISION['version'],
                 controller="ResidualLstmPolicy", mode="inference-only"))
 
         def do_POST(self):
@@ -120,7 +145,7 @@ def main():
                 return self.reply(403, {"error": "Local junkyard viewer required"})
             try:
                 size = int(self.headers.get("Content-Length", 0))
-                if not 0 < size < 2048:
+                if not 0 < size < 4096:
                     raise ValueError("Invalid request size")
                 data = json.loads(self.rfile.read(size))
                 if self.path == "/reset":
@@ -130,16 +155,32 @@ def main():
                         raise ValueError("Invalid robot size or heading")
                     if width not in geometry_cache:
                         geometry_cache.clear()
+                        sight_cache.clear()
                         geometry_cache[width] = JunkyardGeometry(ROOT / "assets/maps/junkyard/collision.json", 7.98 / width)
+                        sight_cache[width] = JunkyardSight(sight_triangles * (7.98 / width))
+                    mode = data.get('sight_mode', 'legacy')
+                    if mode not in ('eye', 'legacy'):
+                        raise ValueError('Unknown sight mode')
                     session = BrainSession(model, geometry_cache[width], vector(data["position"]), yaw,
-                        vector(data["target"]), player_collision=data.get("player_collision") is True)
+                        vector(data["target"]), player_collision=data.get("player_collision") is True,
+                        sight=sight_cache[width] if mode == 'eye' else None,
+                        sight_pose=sight_pose(data) if mode == 'eye' else None)
                     if len(sessions) >= 8:
                         sessions.pop(next(iter(sessions)))
                     token = uuid.uuid4().hex
                     sessions[token] = session
                     result = session.snapshot() | dict(token=token, policy_sha256=digest)
-                elif self.path == "/step" and data.get("token") in sessions:
-                    result = sessions[data["token"]].step(vector(data["target"]))
+                elif self.path in ('/step', '/sense') and data.get('token') in sessions:
+                    session = sessions[data['token']]
+                    target = vector(data['target'])
+                    pose = sight_pose(data) if session.env.sight else None
+                    if self.path == '/step':
+                        result = session.step(target, pose)
+                    else:
+                        # Preview while paused: no policy, movement, or memory update.
+                        session.env.target = target
+                        session.env.sight_pose = pose
+                        result = session.snapshot()
                 else:
                     raise ValueError("Session expired. Reset Leaper to reconnect")
                 self.reply(200, result)

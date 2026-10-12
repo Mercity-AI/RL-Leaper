@@ -17,6 +17,8 @@
 .junkyard-mode .hud-dragging { cursor: grabbing !important; outline: 2px dashed #53716a; z-index: 30 !important; }
 .junkyard-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
 .brain-state { margin: 5px 2px 0; font-size: 9px; color: #43594d; max-width: 280px; }
+#junkyardPanel [data-sight-status] { margin: 3px 2px; color: #253e36; font-size: 10px; }
+#junkyardPanel label:has([data-sight-mode]) { flex-direction: column; align-items: stretch; gap: 4px; }
 #junkyardOptions { padding: 12px 4px 4px; max-height: calc(100dvh - 180px); overflow-y: auto; touch-action: pan-y; }
 #junkyardOptions[hidden] { display: none; }
 #junkyardPanel strong { letter-spacing: 0.15em; }

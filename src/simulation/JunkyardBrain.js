@@ -9,6 +9,7 @@ export class JunkyardBrain {
     this.running = false;
     this.ready = false;
     this.busy = false;
+    this.pendingMovement = false;
     this.clock = 0;
     this.generation = 0;
     this.frame = null;
@@ -23,7 +24,7 @@ export class JunkyardBrain {
         if (touchesLeaper(x, z, from, to, radius)) return true;
         // While an inference is in flight, reserve one maximum server step.
         // Allow retreat if that extra reservation has just expanded around Lola.
-        if (!this.running && !this.busy) return false;
+        if (!this.running && !this.pendingMovement) return false;
         if (!touchesLeaper(x, z, from, to, radius + contact.pendingStepMargin)) return false;
         const p = this.target.mesh.position;
         return Math.hypot(x - to.x, z - to.z) <= Math.hypot(p.x - to.x, p.z - to.z);
@@ -45,6 +46,7 @@ export class JunkyardBrain {
     const generation = ++this.generation;
     this.ready = false;
     this.busy = true;
+    this.pendingMovement = false;
     this.token = null;
     this.label = 'LOADING SAVED BRAIN…';
     const state = this.simulation.state;
@@ -55,13 +57,17 @@ export class JunkyardBrain {
         width: this.playtest.world.width, position: [state.position.x, state.position.z],
         yaw: state.yaw, target: [this.target.mesh.position.x, this.target.mesh.position.z],
         player_collision: Boolean(this.target.isPlayer),
+        ...(this.playtest.sight ? { sight_mode: this.playtest.sight.mode,
+          sight_pose: this.playtest.sight.pose() } : {}),
       });
       if (generation !== this.generation) return;
       if (frame.model_step !== 7757824 || !frame.policy_sha256) throw new Error('Unexpected checkpoint identity');
       if (this.target.isPlayer && frame.contact_version !== contact.version) throw new Error('Restart the brain service to enable player collision');
+      if (this.playtest.sight && frame.sight_version !== this.playtest.sight.version) throw new Error('Restart the brain service to enable eye-level vision');
       this.token = frame.token;
       this.frame = frame;
       this.previousFrame = frame;
+      this.playtest.sight?.show(frame);
       this.ready = true;
       this.label = 'BRAIN 7,757,824';
       this.playtest.message.textContent = 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; F switches guns.';
@@ -107,20 +113,28 @@ export class JunkyardBrain {
     this.target.move(a.forward + b.forward, a.side + b.side, forward, right,
       sim.input.sprinting ? 8 : 4.5, dt);
     this.clock += dt;
-    if (this.ready && this.running && !this.busy && this.clock >= 1 / 30 && !document.hidden) {
+    const preview = !this.running && Boolean(this.playtest.sight);
+    if (this.ready && (this.running || preview) && !this.busy && this.clock >= (preview ? 0.1 : 1 / 30) && !document.hidden) {
       this.clock = 0;
       this.busy = true;
+      this.pendingMovement = !preview;
       const generation = this.generation;
-      this.request('step', { token: this.token,
-        target: [this.target.mesh.position.x, this.target.mesh.position.z] }).then((frame) => {
+      this.request(preview ? 'sense' : 'step', { token: this.token,
+        target: [this.target.mesh.position.x, this.target.mesh.position.z],
+        ...(this.playtest.sight ? { sight_pose: this.playtest.sight.pose() } : {}),
+      }).then((frame) => {
         if (generation !== this.generation) return;
         this.previousFrame = this.frame;
         this.frame = frame;
         this.renderAge = 0;
+        this.playtest.sight?.show(frame);
       }).catch((error) => {
         if (generation === this.generation) this.fail(error);
       }).finally(() => {
-        if (generation === this.generation) this.busy = false;
+        if (generation === this.generation) {
+          this.busy = false;
+          this.pendingMovement = false;
+        }
       });
     }
     if (this.frame) {

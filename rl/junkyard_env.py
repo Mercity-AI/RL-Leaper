@@ -7,11 +7,15 @@ import numpy as np
 from rl.seeker_env import SeekerEnv
 
 PLAYER_CONTACT = json.loads((Path(__file__).resolve().parents[1] / "src/config/player-contact.json").read_text())
+EYE_VISION = json.loads((Path(__file__).resolve().parents[1] / "src/config/eye-vision.json").read_text())
 
 
 class JunkyardEnv(SeekerEnv):
-    def __init__(self, geometry, position, yaw, target, player_collision=False):
+    def __init__(self, geometry, position, yaw, target, player_collision=False, sight=None, sight_pose=None):
         self.geometry = geometry
+        self.sight = sight
+        self.sight_pose = sight_pose
+        self.sight_debug = None
         self.player_collision = False
         # Keep distances in original robot units; map size affects normalization.
         self.WORLD_LIMIT = float(np.max(np.abs([geometry.minimum, geometry.maximum])))
@@ -58,6 +62,21 @@ class JunkyardEnv(SeekerEnv):
 
     def _target_sensor(self):
         delta = self.target - self.position
+        if self.sight is not None and self.sight_pose is not None:
+            bearing = float(np.arctan2(delta[0], delta[1]))
+            relative = (bearing - self.yaw + np.pi) % (2 * np.pi) - np.pi
+            in_view = (abs(relative) <= self.VISION_FOV / 2
+                       and np.linalg.norm(delta) - self.TARGET_RADIUS <= self.RAY_MAX_RANGE)
+            offset = self.sight_pose['eye']
+            c, s = np.cos(self.yaw), np.sin(self.yaw)
+            origin = np.array([self.position[0] + offset[0]*c + offset[2]*s,
+                               offset[1], self.position[1] - offset[0]*s + offset[2]*c])
+            points = np.asarray(self.sight_pose['points'])
+            hits = [self.sight.hit(origin, point) for point in points]
+            clear = [bool(in_view and hit is None) for hit in hits]
+            self.sight_debug = dict(origin=origin.tolist(), points=points.tolist(), hits=hits,
+                                   clear=clear, in_view=bool(in_view))
+            return any(clear), bearing
         return bool(self._points_visible([self.target])[0]), float(np.arctan2(delta[0], delta[1]))
 
     def _reset_coverage(self):
