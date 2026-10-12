@@ -90,6 +90,7 @@ try {
   combat.config = COMBAT; actual.hit = originalHit;
   reset(); target.mesh.position.copy(lane); tick(0); frames(100);
   check(combat.lolaHealth === 92, 'one unobstructed hit deals exactly 8 damage');
+  check(target.hitDirection.dot(combat.direction) > 0.8, 'actual bolt collision passes its travel direction into hit recoil');
   check(combat.hud.querySelector('[data-health-bar]').value === 92 && !combat.hud.textContent.includes('100'), 'damage updates the visible health HUD');
 
   reset(); target.mesh.position.copy(lane); animatePlayer(); tick(0);
@@ -205,7 +206,7 @@ try {
     target.weaponIndex = query.get('gun') === 'basic' ? 1 : 0;
     target.crouching = query.has('crouch'); target.showWeapon(); target.startShot();
     target.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, 0.15);
-    if (query.has('hit')) { combat.damageLola(); animatePlayer(0.08); }
+    if (query.has('hit')) { combat.damageLola(new THREE.Vector3(0, 0, query.has('rear') ? 1 : -1)); animatePlayer(0.12); }
     const focus = target.mesh.position.clone().add(new THREE.Vector3(0, scale, 0));
     engine.camera.position.copy(focus).add(new THREE.Vector3(2.5, 0.3, 2.5).multiplyScalar(scale));
     engine.camera.up.set(0, 1, 0); engine.camera.lookAt(focus); result.hidden = true;

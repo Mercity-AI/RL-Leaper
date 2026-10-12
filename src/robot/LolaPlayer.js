@@ -20,6 +20,7 @@ export class LolaPlayer {
     this.isPlayer = true;
     this.height = 1.9 * world.scale * ENCOUNTER.lolaHeight;
     this.hitRecoilTime = 0;
+    this.hitDirection = new THREE.Vector3(0, 0, -1);
     this.mesh = new THREE.Group();
     this.mesh.position.set(world.initialTarget.x, 0, world.initialTarget.z);
     this.direction = new THREE.Vector3();
@@ -91,9 +92,18 @@ export class LolaPlayer {
     this.showWeapon();
   }
 
-  reactToHit() {
+  reactToHit(incomingDirection = null) {
     if (this.defeated) return;
     this.cancelShot();
+    // A bolt's travel direction points away from the side that was struck.
+    // Store world space so turning during recovery does not reverse the flinch.
+    if (incomingDirection) this.hitDirection.copy(incomingDirection);
+    else this.hitDirection.set(0, 0, -1).applyQuaternion(this.mesh.quaternion);
+    this.hitDirection.y = 0;
+    if (this.hitDirection.lengthSq() < 1e-8) {
+      this.hitDirection.set(0, 0, -1).applyQuaternion(this.mesh.quaternion);
+    }
+    this.hitDirection.normalize();
     this.hitRecoilTime = ENCOUNTER.hitRecoilDuration;
   }
 
@@ -259,11 +269,16 @@ export class LolaPlayer {
       outfit.mixer.update(deltaTime);
       if (this.hitRecoilTime > 0 && outfit.hitBone) {
         const t = 1 - this.hitRecoilTime / ENCOUNTER.hitRecoilDuration;
-        // Quick backward flinch, then a soft recovery; no root knockback into cover.
+        // Flinch away from impact, then recover; no root knockback into cover.
         const strength = Math.sin(Math.PI * 0.5 * Math.min(1, t / 0.22)) * (t < 0.22 ? 1 : 0)
           + (t >= 0.22 ? Math.sin(Math.PI * 0.5 * (1 - t) / 0.78) : 0);
         outfit.hitBase = outfit.hitBone.quaternion.clone();
-        outfit.hitBone.rotateX(-ENCOUNTER.hitRecoilAngle * strength);
+        this.mesh.updateMatrixWorld(true);
+        const parentRotation = outfit.hitBone.parent.getWorldQuaternion(new THREE.Quaternion());
+        const axis = new THREE.Vector3(0, 1, 0).cross(this.hitDirection)
+          .applyQuaternion(parentRotation.invert()).normalize();
+        outfit.hitBone.quaternion.premultiply(
+          new THREE.Quaternion().setFromAxisAngle(axis, ENCOUNTER.hitRecoilAngle * strength));
       }
       if (shot) {
         Object.values(outfit.actions).forEach((action, i) => action.setEffectiveWeight(weights[i]));

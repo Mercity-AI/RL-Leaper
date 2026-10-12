@@ -78,11 +78,11 @@ export class LeaperCombat {
     if (!this.leaperHealth) this.finish(debug ? 'LEAPER DEFEATED · DEBUG TEST' : 'LEAPER DEFEATED');
     this.updateHud();
   }
-  damageLola() {
+  damageLola(incomingDirection = null) {
     if (this.dead) return;
     this.lolaHealth = Math.max(0, this.lolaHealth - this.config.boltDamage);
     this.damageFlash = 0.4;
-    this.playtest.target.reactToHit?.();
+    this.playtest.target.reactToHit?.(incomingDirection);
     if (!this.lolaHealth) this.finish('LOLA DEFEATED');
     this.updateHud();
   }
@@ -152,7 +152,7 @@ export class LeaperCombat {
         // No impact orb: damage is communicated by the health bar until a hit animation is supplied.
         this.playtest.engine.scene.remove(bolt.mesh); this.bolts.splice(this.bolts.indexOf(bolt), 1);
         // Cover wins ties. Never damage Lola through a blocking triangle.
-        if (playerDistance <= distance && playerDistance < (cover?.distance ?? Infinity)) this.damageLola();
+        if (playerDistance <= distance && playerDistance < (cover?.distance ?? Infinity)) this.damageLola(bolt.direction);
         if (this.dead) break;
       }
     }

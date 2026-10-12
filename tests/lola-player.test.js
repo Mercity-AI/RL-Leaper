@@ -279,3 +279,36 @@ test('hit recoil bends the torso then recovers without displacing Lola', async (
   assert.equal(player.hitRecoilTime, 0);
   assert.ok(player.outfits.every(outfit => !outfit.hitBase));
 });
+
+test('hit recoil follows incoming world direction from every side despite Lola turning', async () => {
+  const player = new LolaPlayer(new THREE.Scene(),
+    { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
+    { addEventListener() {}, classList: { add() {} } }, await Promise.all([load('m416'), load('basic')]));
+  for (const crouching of [false, true]) {
+    player.crouching = crouching;
+    for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+      const right = new THREE.Vector3(forward.z, 0, -forward.x);
+      for (const direction of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)]) {
+        player.clearHitReaction();
+        player.reactToHit(direction);
+        // Change facing AFTER impact; recoil must retain the incoming direction.
+        player.move(0, 0, forward, right, 4.5, 0.1);
+        for (const outfit of player.outfits) {
+          const head = outfit.model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('DEF-spine.006'));
+          player.mesh.updateMatrixWorld(true);
+          const hit = head.getWorldPosition(new THREE.Vector3());
+          const rotation = outfit.hitBone.quaternion.clone();
+          outfit.hitBone.quaternion.copy(outfit.hitBase); player.mesh.updateMatrixWorld(true);
+          const neutral = head.getWorldPosition(new THREE.Vector3());
+          outfit.hitBone.quaternion.copy(rotation);
+          const displacement = hit.sub(neutral); displacement.y = 0;
+          assert.ok(displacement.dot(direction) > 0.03, 'torso bends away from the incoming side');
+        }
+        assert.deepEqual(player.mesh.position.toArray(), [0, 0, 0]);
+        assert.ok(player.hitDirection.equals(direction), 'keeps a copy of the incoming direction');
+      }
+    }
+  }
+});

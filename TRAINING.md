@@ -471,3 +471,18 @@ Next decision:
 - Moved recoil pivot to the lower spine so the whole upper torso participates,
   rather than mostly the shoulders/head. Final validation: 9 character tests,
   production build, and 51 browser checks passed.
+
+### 2026-10-12 — Directional hit recoil
+
+- Bolt impacts now pass their actual travel direction into Lola's reaction.
+  The torso bends away from the struck side: front/back/left/right all work,
+  independently of Lola's facing. Direction is retained in world space through
+  recovery and converted into the animated spine parent's space each frame.
+- Retains the 22-degree maximum, 0.6-second recovery, unchanged root position,
+  damage, and reset/death cleanup. Vertical travel is projected to the ground
+  plane for torso leaning. No sensing or policy changes; anchors still follow
+  the actual animated skeleton. Trained model and navigation are untouched.
+- Validated both outfits, crouch/standing and four facings against four hit
+  directions, including turning after impact. 10 character tests, production
+  build and 52 real-asset browser checks passed, including real bolt direction
+  delivery. Visually checked the forward lean from a rear hit.
