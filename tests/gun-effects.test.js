@@ -11,7 +11,7 @@ test('gunshot particles travel, expire individually and leave no scene residue',
   const start = spark.mesh.position.clone();
   fx.update(0.03);
   assert.ok(spark.mesh.position.distanceTo(start) > 0);
-  fx.update(0.04);
+  fx.update(0.12);
   assert.ok(fx.items.length > 0 && fx.items.every(item => item.velocity), 'sparks outlive flash/tracer');
   fx.update(0.4);
   assert.equal(fx.items.length, 0);
@@ -32,4 +32,16 @@ test('Leaper impact shudder is render-only and restores the exact body orientati
   fx.afterRender(robot);
   assert.ok(robot.quaternion.angleTo(original) < 1e-7);
   fx.clear();
+});
+
+test('flash and a nonzero bullet streak survive a slow 100ms frame', () => {
+  const fx = new GunshotEffects(new THREE.Scene(), 1);
+  fx.shot(new THREE.Vector3(), new THREE.Vector3(0, 0, 10), false);
+  const streak = fx.items[0].mesh;
+  assert.equal(streak.geometry.attributes.position.getZ(1), 10);
+  fx.update(0.1);
+  assert.equal(fx.items.length, 2);
+  assert.ok(fx.items.every(item => item.mesh.material.opacity > 0));
+  fx.update(0.1);
+  assert.equal(fx.items.length, 0);
 });

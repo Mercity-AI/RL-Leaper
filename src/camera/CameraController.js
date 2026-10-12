@@ -32,7 +32,7 @@ export class CameraController {
     toggleButton.addEventListener('click', () => this.toggle());
     canvas.addEventListener('pointerdown', (event) => {
       if (this.spectator?.active) return;
-      if (this.followSubject && this.mode === 'CHASE' && event.button === 0) {
+      if (this.followSubject && this.mode === 'CHASE' && (event.button === 0 || event.button === 2)) {
         const request = canvas.requestPointerLock?.();
         request?.catch?.(() => {});
       }
@@ -107,7 +107,7 @@ export class CameraController {
       this.yaw -= deltaX * 0.0055;
       this.pitch = THREE.MathUtils.clamp(
         this.pitch + deltaY * 0.005,
-        0.08,
+        this.followSubject ? -0.5 : 0.08,
         1.25,
       );
     } else if (this.mode === 'TOP') {
@@ -180,6 +180,15 @@ export class CameraController {
       this.followSubject ? this.followSubject.height * 0.65 + this.followSubject.mesh.position.y : STANDING_HEIGHT * 0.75 + state.jumpHeight * 0.9,
       this.followSubject ? this.followSubject.mesh.position.z : state.position.z,
     );
+    if (this.followSubject) {
+      // Offset both camera and focus to put the sight line beside Lola's shoulder.
+      const shoulder = Math.min(this.followSubject.height * 0.55, this.distance * 0.15 * this.camera.aspect);
+      this.tempA.x += Math.cos(this.yaw) * shoulder;
+      this.tempA.z -= Math.sin(this.yaw) * shoulder;
+      const fov = this.aiming ? THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(55) / 2) / 1.25)) : 55;
+      this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, fov, 1 - Math.exp(-14 * deltaTime));
+      this.camera.updateProjectionMatrix();
+    }
     this.target.lerp(this.tempA, 1 - Math.exp(-6 * deltaTime));
     this.tempB.set(
       Math.sin(this.yaw) * Math.cos(this.pitch),

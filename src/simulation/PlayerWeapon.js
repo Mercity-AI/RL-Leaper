@@ -3,6 +3,7 @@ import { GunshotEffects } from './GunshotEffects.js';
 
 export const PLAYER_WEAPON = Object.freeze({
   range: 60,
+  aimHold: 1.2,
   m416: Object.freeze({ damage: 2, interval: 0.12, rifle: true }),
   pistol: Object.freeze({ damage: 6, interval: 0.6, rifle: false }),
 });
@@ -29,11 +30,23 @@ export class PlayerWeapon {
     this.reticle.setAttribute('aria-label', 'Gun aiming reticle');
     document.body.append(this.reticle);
     const canvas = playtest.engine.renderer.domElement;
-    canvas.addEventListener('pointerdown', event => {
+    // Mouse events fire for each button, including left clicks while right aim is held.
+    canvas.addEventListener('mousedown', event => {
+      if (event.button === 2 && this.available) this.setAiming(true);
       if (event.button === 0) this.fire();
     });
+    window.addEventListener('mouseup', event => { if (event.button === 2) this.setAiming(false); });
+    window.addEventListener('pointercancel', () => this.setAiming(false));
+    window.addEventListener('keydown', event => { if (event.code === 'Escape') this.setAiming(false); });
     window.addEventListener('blur', () => this.reset());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.reset(); });
+  }
+
+  setAiming(active) {
+    this.p.target.aimHeld = active;
+    this.p.cameraController.aiming = active;
+    this.reticle.dataset.aim = String(active);
+    if (active) this.p.target.holdAim();
   }
 
   get weapon() { return this.p.target.weaponIndex === 0 ? PLAYER_WEAPON.m416 : PLAYER_WEAPON.pistol; }
@@ -50,10 +63,11 @@ export class PlayerWeapon {
   }
 
   fire() {
-    if (!this.available || this.remaining > 0 || !this.p.target.startShot(this.weapon.interval)) return false;
+    if (!this.available || this.remaining > 0 || !this.p.target.startShot(Math.max(0.24, this.weapon.interval), PLAYER_WEAPON.aimHold)) return false;
     const p = this.p, scale = p.world.scale;
     this.remaining = this.weapon.interval;
     p.engine.scene.updateMatrixWorld(true);
+    p.engine.camera.updateMatrixWorld(true);
     const cameraRay = new THREE.Raycaster();
     cameraRay.setFromCamera(new THREE.Vector2(), p.engine.camera);
     const enemies = this.enemyMeshes();
@@ -84,6 +98,7 @@ export class PlayerWeapon {
   afterRender() { this.visuals.afterRender(this.p.simulation.rig.robot); }
 
   reset() {
+    this.setAiming(false);
     this.remaining = 0;
     this.hitTime = 0;
     this.p.target.cancelShot();
@@ -94,6 +109,7 @@ export class PlayerWeapon {
   update(dt) {
     this.reticle.hidden = !this.available;
     if (!this.available) { this.reset(); return; }
+    if (this.p.target.aimHeld) this.p.target.holdAim();
     this.remaining = Math.max(0, this.remaining - dt);
     this.visuals.update(dt);
     this.hitTime = Math.max(0, this.hitTime - dt);

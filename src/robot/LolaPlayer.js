@@ -115,14 +115,14 @@ export class LolaPlayer {
     }
   }
 
-  startShot(duration = 1) {
+  startShot(duration = 1, hold = 0) {
     if (this.defeated || !this.grounded) return false;
     this.cancelShot();
     this.clearHitReaction();
     const outfit = this.outfits[this.weaponIndex];
     const action = outfit.shooting[this.crouching ? 'CrouchShoot' : 'Shoot'];
     action.reset().setEffectiveTimeScale(action.getClip().duration / duration).setEffectiveWeight(1).play();
-    this.shot = { outfit, action, elapsed: 0, duration };
+    this.shot = { outfit, action, elapsed: 0, duration, hold };
     outfit.shotGun.visible = true;
     outfit.carriedGun.visible = false;
     const weights = Object.values(outfit.actions).map(action => action.getEffectiveWeight());
@@ -130,6 +130,12 @@ export class LolaPlayer {
     outfit.mixer.update(0);
     Object.values(outfit.actions).forEach((action, i) => action.setEffectiveWeight(weights[i]));
     return true;
+  }
+
+  holdAim() {
+    if (this.shot || this.hitRecoilTime > 0 || !this.startShot()) return;
+    // The authored first frame is the raised-gun pose; aiming alone has no recoil.
+    this.shot.action.paused = true;
   }
 
   cancelShot() {
@@ -282,7 +288,7 @@ export class LolaPlayer {
       }
       if (shot) {
         Object.values(outfit.actions).forEach((action, i) => action.setEffectiveWeight(weights[i]));
-        if (shot.elapsed >= shot.duration) this.cancelShot();
+        if (shot.elapsed >= shot.duration + shot.hold && !this.aimHeld) this.cancelShot();
       }
     }
   }

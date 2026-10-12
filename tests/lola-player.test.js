@@ -312,3 +312,22 @@ test('hit recoil follows incoming world direction from every side despite Lola t
     }
   }
 });
+
+test('three spaced shots keep the raised gun, held aim persists, release restores locomotion', async () => {
+  const player = new LolaPlayer(new THREE.Scene(),
+    { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
+    { addEventListener() {}, classList: { add() {} } }, await Promise.all([load('m416'), load('basic')]));
+  const move = dt => player.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, dt);
+  for (const crouching of [false, true]) for (const weaponIndex of [0, 1]) {
+    player.crouching = crouching; player.weaponIndex = weaponIndex;
+    for (let i = 0; i < 3; i++) {
+      player.startShot(0.24, 1.2); move(0.7);
+      assert.ok(player.shot && player.shot.outfit.shotGun.visible);
+      assert.ok(!player.shot.outfit.carriedGun.visible);
+    }
+    move(1.5); assert.equal(player.shot, null);
+    player.aimHeld = true; player.holdAim(); move(3);
+    assert.ok(player.shot && player.shot.action.paused);
+    player.aimHeld = false; move(0.1); assert.equal(player.shot, null);
+  }
+});

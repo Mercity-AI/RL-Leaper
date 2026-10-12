@@ -524,3 +524,11 @@ Next decision:
   stopped/unready brain, no auto-repeat, repeat clicks and effect cleanup.
   Also clicked both guns and switched with Q in the production browser.
 - Shift no longer suppresses firing in CHASE; browser pointer checks include Shift held. TOP Shift-click teleport remains separate and TOP firing stays disabled.
+
+
+### Player aiming readability — 2026-10-12
+- Both guns remain one shot per left click, Q switches guns. Authored recoil now retains the raised-gun pose for 1.2 seconds after its clip; each shot refreshes it. Hold right mouse to keep aiming with a circular reticle and smooth 1.25× zoom. Release, blur, reset, death and spectator/top view clear aim input.
+- Chase sight line moves beside Lola's shoulder and permits aiming above the horizon. Camera heading and movement controls remain unchanged. Bullet damage still uses camera-to-target and muzzle-to-cover rays; no persistent residue.
+- Flash/tracer lifetimes now survive the playtest's 100ms frame cap; the instant bullet streak is nonzero from creation. This fixes shots disappearing before rendering on slow frames.
+- No saved models, policy observations, movement sensors, navigation, or Leaper sensing/behavior changed.
+- Validation: production build, 35 Node tests, and 70 real-asset browser checks passed; the shot-preview additionally verifies shoulder-view damage. Mouse down/up handles each button independently so left fire works while right aim is held.

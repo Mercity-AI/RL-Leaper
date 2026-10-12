@@ -9,9 +9,9 @@ export class GunshotEffects {
   shot(origin, end, rifle) {
     const direction = end.clone().sub(origin).normalize();
     const distance = origin.distanceTo(end);
-    const streak = new THREE.Line(new THREE.BufferGeometry().setFromPoints([origin, origin]),
+    const streak = new THREE.Line(new THREE.BufferGeometry().setFromPoints([origin, end]),
       new THREE.LineBasicMaterial({ color: 0xffe9b8, transparent: true, opacity: 0.9 }));
-    this.add(streak, 0.055);
+    this.add(streak, 0.14);
     Object.assign(this.items[this.items.length - 1], { origin: origin.clone(), direction, distance });
     const flash = new THREE.Mesh(new THREE.ConeGeometry(rifle ? 0.055 : 0.04, rifle ? 0.28 : 0.15, 5),
       new THREE.MeshBasicMaterial({ color: 0xffebbe, transparent: true, depthWrite: false }));
@@ -19,7 +19,7 @@ export class GunshotEffects {
     flash.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
     flash.rotateY(Math.random() * Math.PI);
     flash.scale.setScalar(this.scale * (0.8 + Math.random() * 0.4));
-    this.add(flash, 0.045);
+    this.add(flash, 0.12);
   }
   impact(point, normal, rifle) {
     this.kick = Math.max(this.kick, rifle ? 0.035 : 0.02);
@@ -46,8 +46,8 @@ export class GunshotEffects {
         item.velocity.y -= 5 * this.scale * dt;
       }
       if (item.origin) {
-        const head = item.distance * item.age / item.life;
-        const start = item.origin.clone().addScaledVector(item.direction, Math.max(0, head - 0.9 * this.scale));
+        const head = item.distance;
+        const start = item.origin.clone().addScaledVector(item.direction, head * item.age / item.life);
         const end = item.origin.clone().addScaledVector(item.direction, head);
         item.mesh.geometry.setFromPoints([start, end]);
       }

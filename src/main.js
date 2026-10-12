@@ -59,7 +59,10 @@ const simulation = new LeaperSimulation({
   sun: engine.sun,
   statusElement: document.getElementById('status'),
 });
-if (junkyardMode) cameraController.followSubject = target;
+if (junkyardMode) {
+  cameraController.followSubject = target;
+  cameraController.pitch = 0.16;
+}
 const trainingVisualizer = trainingMode
   ? new TrainingVisualizer({
       simulation,

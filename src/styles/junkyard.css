@@ -66,4 +66,6 @@ body.junkyard-mode::after { content: ''; position: fixed; inset: 0; pointer-even
 .junkyard-mode #cuboidToggle { top: 156px; }
 
 #playerReticle { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; text-shadow: 0 0 3px black; font: 24px monospace; pointer-events: none; z-index: 12; }
+#playerReticle[data-aim=true] { width: 48px; height: 48px; border: 1px solid #ffffffaa; border-radius: 50%; display: grid; place-items: center; box-shadow: 0 0 2px #0008; }
+#playerReticle[hidden] { display: none; }
 #playerReticle[data-hit=true] { color: #ffb04a; }

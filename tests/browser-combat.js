@@ -180,7 +180,7 @@ try {
   p.playerWeapon.reset();
   // Exercise the real DOM pointer listener rather than only calling fire().
   const canvas = engine.renderer.domElement;
-  const clickShot = () => canvas.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true, shiftKey: true }));
+  const clickShot = () => canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, shiftKey: true }));
   for (const weaponIndex of [0, 1]) {
     target.weaponIndex = weaponIndex; target.showWeapon(); p.playerWeapon.reset();
     p.walking = false; p.brain.ready = false;
@@ -199,6 +199,32 @@ try {
   check(target.weaponIndex === 0, 'Q switches from pistol to M416');
   window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyQ', bubbles: true }));
   check(target.weaponIndex === 1, 'Q switches back to pistol');
+  p.playerWeapon.reset();
+  const savedCameraPosition = engine.camera.position.clone(), savedCameraRotation = engine.camera.quaternion.clone();
+  const aimHeading = cameraController.getMovementHeading(0);
+  canvas.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+  check(target.aimHeld && cameraController.aiming && target.shot, 'right mouse raises the gun without firing');
+  const healthBeforeAimedClick = combat.leaperHealth;
+  clickShot();
+  check(target.aimHeld && combat.leaperHealth < healthBeforeAimedClick, 'left click fires while right mouse aim remains held');
+  const aimHealth = combat.leaperHealth;
+  animatePlayer(2); p.playerWeapon.update(2);
+  check(target.shot && combat.leaperHealth === aimHealth, 'held aim maintains pose without spending damage');
+  cameraController.update(p.simulation.state, rig.eyePivot, 1);
+  const magnification = Math.tan(THREE.MathUtils.degToRad(55) / 2) / Math.tan(THREE.MathUtils.degToRad(engine.camera.fov) / 2);
+  check(Math.abs(magnification - 1.25) < 0.001, 'held aim produces 25 percent optical zoom');
+  check(cameraController.getMovementHeading(0) === aimHeading, 'zoom preserves movement direction');
+  window.dispatchEvent(new MouseEvent('mouseup', { button: 2, bubbles: true }));
+  cameraController.update(p.simulation.state, rig.eyePivot, 1); animatePlayer(0.2);
+  check(!target.aimHeld && !cameraController.aiming && !target.shot && Math.abs(engine.camera.fov - 55) < 0.001, 'right release restores normal view and pose');
+  canvas.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+  window.dispatchEvent(new Event('blur'));
+  check(!target.aimHeld && !target.shot && !cameraController.aiming, 'focus loss clears held aim');
+  canvas.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+  p.pov.toggle(); p.playerWeapon.update(0);
+  check(!target.aimHeld && !cameraController.aiming, 'spectator entry clears player aiming');
+  p.pov.toggle();
+  engine.camera.position.copy(savedCameraPosition); engine.camera.quaternion.copy(savedCameraRotation); engine.camera.updateMatrixWorld(true);
   p.playerWeapon.reset(); combat.leaperHealth = 6;
   p.playerWeapon.fire();
   check(combat.leaperHealth === 0 && combat.hud.querySelector('[data-result] strong').textContent === 'LEAPER DEFEATED', 'player gunshot earns a real defeat, not a debug result');
@@ -244,6 +270,29 @@ try {
     engine.camera.position.copy(center).add(new THREE.Vector3(5, 3, 7));
     engine.camera.lookAt(center); result.hidden = true;
     p.playerWeapon.beforeRender(); engine.renderer.render(engine.scene, engine.camera); p.playerWeapon.afterRender();
+  }
+  if (new URLSearchParams(location.search).has('aimPreview')) {
+    combat.reset(); p.playerWeapon.reset(); target.mesh.position.copy(lane);
+    target.weaponIndex = 0; target.showWeapon(); target.crouching = false;
+    target.move(0, 0, new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0), 4.5, 0.1);
+    cameraController.mode = 'CHASE';
+    p.playerWeapon.setAiming(true);
+    engine.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(55) / 2) / 1.25));
+    engine.camera.updateProjectionMatrix();
+    engine.camera.position.copy(target.mesh.position).add(new THREE.Vector3(0.65, 1.65, 3.3).multiplyScalar(scale));
+    engine.camera.lookAt(center); engine.camera.updateMatrixWorld(true);
+    const healthBeforePreview = combat.leaperHealth;
+    engine.renderer.domElement.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    check(combat.leaperHealth < healthBeforePreview, 'shoulder-view left click damages Leaper');
+    p.playerWeapon.visuals.update(0.035);
+    result.hidden = true;
+    const reticle = p.playerWeapon.reticle;
+    reticle.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:48px;border:1px solid white;border-radius:50%;display:grid;place-items:center;color:#ffc26d;font:24px monospace;pointer-events:none';
+    engine.renderer.setAnimationLoop(() => {
+      engine.camera.aspect = innerWidth / innerHeight; engine.camera.updateProjectionMatrix();
+      engine.renderer.setSize(innerWidth, innerHeight);
+      p.playerWeapon.beforeRender(); engine.renderer.render(engine.scene, engine.camera); p.playerWeapon.afterRender();
+    });
   }
   if (new URLSearchParams(location.search).has('laserPreview')) {
     combat.reset(); target.mesh.position.copy(lane); animatePlayer();
