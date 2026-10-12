@@ -486,3 +486,24 @@ Next decision:
   directions, including turning after impact. 10 character tests, production
   build and 52 real-asset browser checks passed, including real bolt direction
   delivery. Visually checked the forward lean from a rear hit.
+
+### 2026-10-12 — Distinct gunshot animation, temporary impact particles
+
+- Pistol is click-per-shot at a 0.60-second interval; M416 fires while holding
+  left click at a 0.12-second minimum interval. Authored standing/crouched recoil
+  clips are retimed to each weapon cycle. Q switching, release, lost pointer
+  lock, blur, pause, death and POV prevent unattended automatic fire.
+- Brief irregular muzzle flashes and short moving pale streaks replace the
+  full-length static tracer. Leaper hits throw 5 pistol/9 rifle spark fragments,
+  fading and disposing in 0.15–0.32 seconds. No decals, casings, persistent debris
+  or residue. No new sound in this animation pass.
+- Added a restrained Leaper body shudder only during rendering; its exact
+  rotation is restored afterward, so saved-brain movement, eye targeting and
+  collision geometry are not changed. No learned-policy/sensor changes.
+- Initial damage balance: pistol 6 per shot (~10 DPS), M416 2 (~16.7 theoretical
+  DPS). With 600 health that is ~60s pistol/~36s rifle perfect-hit firing; cover,
+  missed shots and interruptions extend encounters. Actual 60–90s pacing still
+  needs playtesting; no realism claim for these armor damage values.
+- Validation: full Node suite, production build and browser regression checks
+  covering cadence, release, switching, cover, death/reset, particles expiring,
+  and render-only shudder restoration. Asset/model files remain unchanged.

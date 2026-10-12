@@ -115,14 +115,14 @@ export class LolaPlayer {
     }
   }
 
-  startShot() {
+  startShot(duration = 1) {
     if (this.defeated || !this.grounded) return false;
     this.cancelShot();
     this.clearHitReaction();
     const outfit = this.outfits[this.weaponIndex];
     const action = outfit.shooting[this.crouching ? 'CrouchShoot' : 'Shoot'];
-    action.reset().setEffectiveWeight(1).play();
-    this.shot = { outfit, action, elapsed: 0 };
+    action.reset().setEffectiveTimeScale(action.getClip().duration / duration).setEffectiveWeight(1).play();
+    this.shot = { outfit, action, elapsed: 0, duration };
     outfit.shotGun.visible = true;
     outfit.carriedGun.visible = false;
     const weights = Object.values(outfit.actions).map(action => action.getEffectiveWeight());
@@ -282,7 +282,7 @@ export class LolaPlayer {
       }
       if (shot) {
         Object.values(outfit.actions).forEach((action, i) => action.setEffectiveWeight(weights[i]));
-        if (shot.elapsed >= shot.action.getClip().duration) this.cancelShot();
+        if (shot.elapsed >= shot.duration) this.cancelShot();
       }
     }
   }

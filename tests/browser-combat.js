@@ -155,8 +155,8 @@ try {
   engine.camera.position.copy(target.mesh.position).add(new THREE.Vector3(0, 1.5 * scale, 2 * scale));
   engine.camera.lookAt(center); engine.camera.updateMatrixWorld(true);
   check(p.playerWeapon.fire(), 'left-click weapon path accepts a live standing shot');
-  check(combat.leaperHealth === 590, 'real player bullet damages the actual Leaper mesh');
-  check(!p.playerWeapon.fire(), 'one-second firing interval prevents duplicate bullets');
+  check(combat.leaperHealth === 598, 'real player bullet damages the actual Leaper mesh');
+  check(!p.playerWeapon.fire(), 'weapon firing interval prevents duplicate bullets');
   p.playerWeapon.reset(); target.crouching = true;
   check(p.playerWeapon.fire() && target.shot.action.getClip().name === 'CrouchShoot', 'crouched firing selects authored crouch shot');
   p.playerWeapon.reset();
@@ -176,7 +176,22 @@ try {
   check(!p.playerWeapon.fire(), 'spectator POV cannot redirect or fire player weapon');
   p.pov.toggle(); target.switchWeapon(); target.crouching = false;
   check(p.playerWeapon.fire(), 'second gun fires after switching');
-  p.playerWeapon.reset(); combat.leaperHealth = 10;
+  p.playerWeapon.reset();
+  target.weaponIndex = 0; target.showWeapon(); p.playerWeapon.lastWeapon = 0;
+  const healthBeforeBurst = combat.leaperHealth;
+  p.playerWeapon.held = true; p.playerWeapon.fire(); p.playerWeapon.update(0.12);
+  check(combat.leaperHealth === healthBeforeBurst - 4, 'held M416 fires a second bullet at rifle cadence');
+  p.playerWeapon.held = false; p.playerWeapon.update(0.4);
+  check(combat.leaperHealth === healthBeforeBurst - 4 && p.playerWeapon.effects.length === 0, 'release stops rifle and all particles disappear');
+  p.playerWeapon.reset(); target.switchWeapon(); p.playerWeapon.lastWeapon = 1;
+  const healthBeforePistol = combat.leaperHealth;
+  p.playerWeapon.held = true; p.playerWeapon.fire(); p.playerWeapon.update(0.6);
+  check(combat.leaperHealth === healthBeforePistol - 6, 'pistol fires only once per press even while held');
+  p.playerWeapon.reset();
+  target.switchWeapon(); p.playerWeapon.lastWeapon = 0; p.playerWeapon.held = true;
+  target.switchWeapon(); p.playerWeapon.update(0);
+  check(!p.playerWeapon.held, 'switching guns cancels held automatic fire');
+  p.playerWeapon.reset(); combat.leaperHealth = 6;
   p.playerWeapon.fire();
   check(combat.leaperHealth === 0 && combat.hud.querySelector('[data-result] strong').textContent === 'LEAPER DEFEATED', 'player gunshot earns a real defeat, not a debug result');
   p.playerWeapon.reset(); combat.reset();
@@ -211,6 +226,16 @@ try {
     engine.camera.position.copy(focus).add(new THREE.Vector3(2.5, 0.3, 2.5).multiplyScalar(scale));
     engine.camera.up.set(0, 1, 0); engine.camera.lookAt(focus); result.hidden = true;
     engine.renderer.render(engine.scene, engine.camera);
+  }
+  if (new URLSearchParams(location.search).has('impactPreview')) {
+    combat.reset(); p.playerWeapon.reset(); target.mesh.position.copy(lane);
+    target.mesh.rotation.y = Math.PI; cameraController.mode = 'CHASE'; p.walking = true;
+    engine.camera.position.copy(target.mesh.position).add(new THREE.Vector3(0, 1.5 * scale, 2 * scale));
+    engine.camera.lookAt(center); engine.camera.updateMatrixWorld(true);
+    p.playerWeapon.fire(); p.playerWeapon.visuals.update(0.055);
+    engine.camera.position.copy(center).add(new THREE.Vector3(5, 3, 7));
+    engine.camera.lookAt(center); result.hidden = true;
+    p.playerWeapon.beforeRender(); engine.renderer.render(engine.scene, engine.camera); p.playerWeapon.afterRender();
   }
   if (new URLSearchParams(location.search).has('laserPreview')) {
     combat.reset(); target.mesh.position.copy(lane); animatePlayer();

@@ -1,6 +1,11 @@
 import * as THREE from 'three';
+import { GunshotEffects } from './GunshotEffects.js';
 
-export const PLAYER_WEAPON = Object.freeze({ damage: 10, interval: 1, range: 60, flashTime: 0.07 });
+export const PLAYER_WEAPON = Object.freeze({
+  range: 60,
+  m416: Object.freeze({ damage: 2, interval: 0.12, automatic: true }),
+  pistol: Object.freeze({ damage: 6, interval: 0.6, automatic: false }),
+});
 
 // Instant bullet, with a separate camera sight ray and muzzle ray so nearby cover wins.
 export function bulletHit(geometry, enemies, origin, direction, range) {
@@ -8,14 +13,18 @@ export function bulletHit(geometry, enemies, origin, direction, range) {
   const ray = new THREE.Raycaster(origin, direction, 0, range);
   const enemy = ray.intersectObjects(enemies, true)[0];
   const hitEnemy = !!enemy && enemy.distance < (cover?.distance ?? Infinity);
-  return { enemy: hitEnemy, distance: (hitEnemy ? enemy.distance : cover?.distance) ?? range };
+  return { intersection: hitEnemy ? enemy : cover, enemy: hitEnemy, distance: (hitEnemy ? enemy.distance : cover?.distance) ?? range };
 }
 
 export class PlayerWeapon {
   constructor(playtest) {
     this.p = playtest;
     this.remaining = 0;
-    this.effects = [];
+    this.visuals = new GunshotEffects(playtest.engine.scene, playtest.world.scale);
+    this.effects = this.visuals.items;
+    this.held = false;
+    this.lastWeapon = playtest.target.weaponIndex;
+    this.hitTime = 0;
     this.reticle = document.createElement('div');
     this.reticle.id = 'playerReticle';
     this.reticle.textContent = '+';
@@ -23,11 +32,16 @@ export class PlayerWeapon {
     document.body.append(this.reticle);
     const canvas = playtest.engine.renderer.domElement;
     canvas.addEventListener('pointerdown', event => {
-      if (event.button === 0 && !event.shiftKey) this.fire();
+      if (event.button === 0 && !event.shiftKey && this.available) { this.held = true; this.fire(); }
     });
+    window.addEventListener('pointerup', () => { this.held = false; });
+    window.addEventListener('pointercancel', () => { this.held = false; });
+    document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement) this.held = false; });
     window.addEventListener('blur', () => this.reset());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.reset(); });
   }
+
+  get weapon() { return this.p.target.weaponIndex === 0 ? PLAYER_WEAPON.m416 : PLAYER_WEAPON.pistol; }
 
   get available() {
     const p = this.p;
@@ -41,9 +55,9 @@ export class PlayerWeapon {
   }
 
   fire() {
-    if (!this.available || this.remaining > 0 || !this.p.target.startShot()) return false;
+    if (!this.available || this.remaining > 0 || !this.p.target.startShot(this.weapon.interval)) return false;
     const p = this.p, scale = p.world.scale;
-    this.remaining = PLAYER_WEAPON.interval;
+    this.remaining = this.weapon.interval;
     p.engine.scene.updateMatrixWorld(true);
     const cameraRay = new THREE.Raycaster();
     cameraRay.setFromCamera(new THREE.Vector2(), p.engine.camera);
@@ -55,39 +69,29 @@ export class PlayerWeapon {
     const direction = aim.sub(origin).normalize();
     const hit = bulletHit(p.combat.geometry, enemies, origin, direction, range);
     const end = origin.clone().addScaledVector(direction, hit.distance);
-    this.tracer(origin, end);
+    this.visuals.shot(origin, end, this.weapon.automatic);
     this.reticle.dataset.hit = String(hit.enemy);
-    if (hit.enemy) p.combat.damageLeaper(PLAYER_WEAPON.damage);
+    if (hit.enemy) {
+      const normal = hit.intersection.face.normal.clone()
+        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.intersection.object.matrixWorld)).normalize();
+      this.visuals.impact(end, normal, this.weapon.automatic);
+      this.hitTime = 0.15;
+      p.combat.damageLeaper(this.weapon.damage);
+    }
     return true;
   }
 
-  tracer(origin, end) {
-    const p = this.p;
-    const geometry = new THREE.BufferGeometry().setFromPoints([origin, end]);
-    const material = new THREE.LineBasicMaterial({ color: 0xffe2a2, transparent: true, opacity: 0.8 });
-    const line = new THREE.Line(geometry, material);
-    p.engine.scene.add(line);
-    this.effects.push({ mesh: line, age: 0 });
-    const flash = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.18, 4),
-      new THREE.MeshBasicMaterial({ color: 0xffe8af, transparent: true, opacity: 0.9 }));
-    const direction = end.clone().sub(origin).normalize();
-    flash.position.copy(origin).addScaledVector(direction, 0.05 * p.world.scale);
-    flash.scale.setScalar(p.world.scale);
-    flash.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
-    p.engine.scene.add(flash);
-    this.effects.push({ mesh: flash, age: 0 });
-  }
+  clearEffects() { this.visuals.clear(); }
 
-  clearEffects() {
-    for (const { mesh } of this.effects) {
-      this.p.engine.scene.remove(mesh);
-      mesh.geometry.dispose(); mesh.material.dispose();
-    }
-    this.effects.length = 0;
+  beforeRender() {
+    if (!this.p.pov.active) this.visuals.beforeRender(this.p.simulation.rig.robot);
   }
+  afterRender() { this.visuals.afterRender(this.p.simulation.rig.robot); }
 
   reset() {
     this.remaining = 0;
+    this.held = false;
+    this.hitTime = 0;
     this.p.target.cancelShot();
     this.clearEffects();
     this.reticle.dataset.hit = 'false';
@@ -97,11 +101,12 @@ export class PlayerWeapon {
     this.reticle.hidden = !this.available;
     if (!this.available) { this.reset(); return; }
     this.remaining = Math.max(0, this.remaining - dt);
-    for (const effect of this.effects) {
-      effect.age += dt;
-      effect.mesh.material.opacity = Math.max(0, 1 - effect.age / PLAYER_WEAPON.flashTime);
+    if (this.lastWeapon !== this.p.target.weaponIndex) {
+      this.held = false; this.lastWeapon = this.p.target.weaponIndex;
     }
-    if (this.effects.length && this.effects[0].age >= PLAYER_WEAPON.flashTime) this.clearEffects();
-    if (this.remaining < PLAYER_WEAPON.interval - 0.15) this.reticle.dataset.hit = 'false';
+    if (this.held && this.weapon.automatic && this.remaining === 0) this.fire();
+    this.visuals.update(dt);
+    this.hitTime = Math.max(0, this.hitTime - dt);
+    if (!this.hitTime) this.reticle.dataset.hit = 'false';
   }
 }

@@ -70,7 +70,7 @@ export class JunkyardBrain {
       this.playtest.sight?.show(frame);
       this.ready = true;
       this.label = 'BRAIN 7,757,824';
-      this.playtest.message.textContent = 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; F switches guns.';
+      this.playtest.message.textContent = 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; Q switches guns; click for pistol shots, hold left click for M416 fire.';
       this.playtest.brainLabel.title = `Residual LSTM · inference only · policy SHA256 ${frame.policy_sha256}`;
     } catch (error) {
       if (generation !== this.generation) return;
