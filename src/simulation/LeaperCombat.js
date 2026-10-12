@@ -50,10 +50,10 @@ export class LeaperCombat {
     const debug = document.createElement('button');
     debug.textContent = 'DEBUG: DAMAGE LEAPER';
     debug.dataset.action = 'debug-damage';
-    debug.onclick = () => this.damageLeaper(COMBAT.debugDamage);
+    debug.onclick = () => this.damageLeaper(COMBAT.debugDamage, true);
     playtest.panel.querySelector('#junkyardOptions').append(debug);
     const note = document.createElement('small');
-    note.textContent = 'Debug test only. Lola’s guns do not fire yet; encounter duration needs player-weapon balancing.';
+    note.textContent = 'Debug health test. Q switches guns; left click fires in CHASE view.';
     playtest.panel.querySelector('#junkyardOptions').append(note);
     this.reset();
   }
@@ -71,10 +71,10 @@ export class LeaperCombat {
     for (const item of [...this.bolts, ...this.effects]) this.playtest.engine.scene.remove(item.mesh);
     this.bolts.length = 0; this.effects.length = 0;
   }
-  damageLeaper(amount) {
+  damageLeaper(amount, debug = false) {
     if (this.dead) return;
     this.leaperHealth = Math.max(0, this.leaperHealth - amount);
-    if (!this.leaperHealth) this.finish('LEAPER DEFEATED · DEBUG TEST');
+    if (!this.leaperHealth) this.finish(debug ? 'LEAPER DEFEATED · DEBUG TEST' : 'LEAPER DEFEATED');
     this.updateHud();
   }
   damageLola() {

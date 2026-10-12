@@ -54,7 +54,17 @@ for weapon, scene_name, rig_name in (
     scene = bpy.data.scenes[scene_name]
     bpy.context.window.scene = scene
     rig = bpy.data.objects[rig_name]
-    objects = [rig] + [o for o in rig.children_recursive if o.type == 'MESH']
+    shoot_rigs = {name: bpy.data.objects[f'Lola_{"Basic_Gun" if weapon == "basic" else "M416"}_{pose}_Shoot_Rig']
+                  for name, pose in [('Shoot', 'Standing'), ('CrouchShoot', 'Crouch')]}
+    shoot_actions = {name: source.animation_data.action.copy() for name, source in shoot_rigs.items()}
+    # Shooting weapons are authored in world space, separate from the rigs.
+    shoot_props = {name: bpy.data.objects[f'{"Basic_Gun" if weapon == "basic" else "M416"}_{pose}_Shooting_Weapon']
+                   for name, pose in [('Shoot', 'Standing'), ('CrouchShoot', 'Crouch')]}
+    shooting_weapon = shoot_props['Shoot'].copy()
+    shooting_weapon.name = weapon + '_ShootingWeapon'
+    scene.collection.objects.link(shooting_weapon)
+    shooting_weapon.animation_data_clear()
+    objects = [shooting_weapon, rig] + [o for o in rig.children_recursive if o.type == 'MESH']
     for obj in scene.objects:
         obj.select_set(False)
     for obj in objects:
@@ -120,7 +130,7 @@ for weapon, scene_name, rig_name in (
               [max(p[i] for p in points) for i in range(3)]]
     for obj in objects:
         is_prop = obj.name.startswith(('M416', 'Lola_Gun', 'Basic_Gun'))
-        if not obj.animation_data and not is_prop:
+        if not obj.animation_data and not is_prop and obj != shooting_weapon:
             continue
         obj.animation_data_create()
         original = obj.animation_data.action
@@ -129,19 +139,36 @@ for weapon, scene_name, rig_name in (
         obj.animation_data.action = None
         for name, action in [('Walk', walk), ('Run', run), ('Idle', idle),
                              ('CrouchWalk', crouch), ('CrouchIdle', crouch_idle),
-                             *side_actions.items()]:
+                             *side_actions.items(), *shoot_actions.items()]:
             if obj == rig:
+                if name in shoot_actions:
+                    # Preserve the source's 30 fps timing inside the 24 fps movement scene.
+                    action = action.copy()
+                    for curve in action.fcurves:
+                        for key in curve.keyframe_points:
+                            key.co.x = 1 + (key.co.x - 1) * 24 / 30
+                            key.handle_left.x = 1 + (key.handle_left.x - 1) * 24 / 30
+                            key.handle_right.x = 1 + (key.handle_right.x - 1) * 24 / 30
                 add_track(obj, action, name)
+            elif obj == shooting_weapon:
+                source = shoot_props.get(name, shoot_props['Shoot'])
+                prop = source.animation_data.action.copy()
+                for curve in prop.fcurves:
+                    for key in curve.keyframe_points:
+                        key.co.x = 1 + (key.co.x - 1) * 24 / 30
+                        key.handle_left.x = 1 + (key.handle_left.x - 1) * 24 / 30
+                        key.handle_right.x = 1 + (key.handle_right.x - 1) * 24 / 30
+                add_track(obj, prop, name)
             elif is_prop:
                 source_obj = obj
-                if name.startswith(('Crouch', 'Strafe')):
+                if name in ('CrouchWalk', 'CrouchIdle', 'StrafeLeft', 'StrafeRight'):
                     base_name = obj.name.split('.')[0]
                     source_rig = crouch_rig if name.startswith('Crouch') else side_rigs[name.removeprefix('Strafe')]
                     source_obj = next(o for o in source_rig.children if o.name.split('.')[0] == base_name)
                 source_action = (source_obj.animation_data.action
                                  if source_obj != obj and source_obj.animation_data else original)
                 prop = prop_action(source_obj, source_action, weapon + '_' + name,
-                                   33 if name.startswith('Crouch') else 25)
+                                   33 if name in ('CrouchWalk', 'CrouchIdle') else 25)
                 add_track(obj, prop, name)
             elif original:
                 copy = original.copy()
@@ -162,6 +189,6 @@ for weapon, scene_name, rig_name in (
         export_animations=True, export_yup=True,
     )
     report.append({'weapon': weapon, 'scene': scene_name, 'rig': rig_name,
-                   'bounds': bounds, 'clips': ['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle', *side_actions]})
+                   'bounds': bounds, 'clips': ['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle', *side_actions, *shoot_actions]})
 (OUTPUT / 'export-info.json').write_text(json.dumps(report, indent=2))
 print('LOLA_EXPORT', json.dumps(report))

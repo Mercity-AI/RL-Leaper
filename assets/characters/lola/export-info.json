@@ -22,7 +22,9 @@
       "CrouchWalk",
       "CrouchIdle",
       "StrafeLeft",
-      "StrafeRight"
+      "StrafeRight",
+      "Shoot",
+      "CrouchShoot"
     ]
   },
   {
@@ -32,7 +34,7 @@
     "bounds": [
       [
         -0.36817944049835205,
-        -0.6456332802772522,
+        -0.9486328363418579,
         0.04440946877002716
       ],
       [
@@ -48,7 +50,9 @@
       "CrouchWalk",
       "CrouchIdle",
       "StrafeLeft",
-      "StrafeRight"
+      "StrafeRight",
+      "Shoot",
+      "CrouchShoot"
     ]
   }
 ]

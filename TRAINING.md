@@ -408,3 +408,29 @@ Next decision:
 - Health panels retain names and bars but display no numeric HP. Removed the
   duplicate numeric readouts in attack status and debug labels. Internal health,
   damage, projectile timing, sensing and saved-brain movement are unchanged.
+
+### 2026-10-12 — Lola authored shooting and player bullets
+
+- Inspected the supplied Lola_both_animations.blend1.blend without saving it.
+  Scenes 17–20 contain standing/crouched shots for Basic Gun and M416 at 30 fps.
+  Exporter now includes Shoot and CrouchShoot plus their separately animated
+  world-space weapons; existing movement clips and stride profiles are preserved.
+- Q (and the existing F alias/button) switches weapons. Left click fires in
+  CHASE during a running encounter. C selects the authored crouch shot. The
+  first pass uses full-body authored poses, one shot per click, no airborne shot,
+  and no new audio. Moving during a full-body shot can slide the planted feet;
+  an upper-body locomotion blend and weapon-specific fire rates remain polish.
+- PlayerWeapon owns instant camera-reticle aiming, muzzle-to-hit cover checks,
+  brief amber tracer/muzzle flash, damage, and reset cleanup. Actual Leaper body
+  and leg meshes receive damage; nearest cover wins ties. No impact spheres.
+  Both guns currently deal 10 damage every 1 second (600 health takes about
+  60 seconds of perfect hits; misses/cover extend this). Tuning is centralized
+  in PLAYER_WEAPON. Player kills show real victory rather than the debug label.
+- Pause, death, reset, hidden tab, and spectator view cancel the player firing
+  pose/effects. Gun and crouch switches cancel the prior pose. Existing movement
+  controls remain active. Health bars retain no numeric readout.
+- No saved-brain/model/reward/input/sensor/navigation changes. Eye checks continue
+  following the same animated head/torso bones, now including authored recoil.
+- Validation: production build, 29 Node tests, and 45 real-asset browser checks
+  passed, including player bullet damage, thin cover, cadence, crouch, weapon
+  switching, real defeat, pause, reset, POV and existing Leaper combat checks.

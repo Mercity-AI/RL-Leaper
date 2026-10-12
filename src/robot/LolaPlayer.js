@@ -43,20 +43,31 @@ export class LolaPlayer {
         if (!clip) throw new Error(`Lola is missing the ${name} animation`);
         actions[name] = mixer.clipAction(clip);
       }
+      const shooting = {};
+      for (const name of ['Shoot', 'CrouchShoot']) {
+        const clip = gltf.animations.find(item => item.name === name);
+        if (!clip) throw new Error(`Lola is missing ${name}`);
+        shooting[name] = mixer.clipAction(clip).setLoop(THREE.LoopOnce, 1);
+        shooting[name].clampWhenFinished = true;
+      }
+      const shotGun = gltf.scene.getObjectByName(`${index === 0 ? 'm416' : 'basic'}_ShootingWeapon`);
+      const carriedGun = gltf.scene.getObjectByName(index === 0 ? 'M416_Carry' : 'Lola_Gun_Basic');
+      shotGun.visible = false;
       actions.Idle.play();
       this.mesh.add(gltf.scene);
       for (const [name, action] of Object.entries(actions)) {
         action.setEffectiveWeight(name === 'Idle' ? 1 : 0).play();
       }
-      return { model: gltf.scene, mixer, actions, profiles: strideProfiles[index === 0 ? 'm416' : 'basic'], current: 'Idle' };
+      return { model: gltf.scene, mixer, actions, shooting, shotGun, carriedGun, profiles: strideProfiles[index === 0 ? 'm416' : 'basic'], current: 'Idle' };
     });
     scene.add(this.mesh);
     toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
     toggleButton.addEventListener('click', () => this.switchWeapon());
     window.addEventListener('keydown', (event) => {
-      if (!['KeyF', 'KeyC'].includes(event.code) || event.repeat || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+      if (!['KeyQ', 'KeyF', 'KeyC'].includes(event.code) || event.repeat || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
       event.preventDefault();
       if (event.code === 'KeyC') {
+        this.cancelShot();
         this.crouching = !this.crouching;
         this.showWeapon();
       }
@@ -67,13 +78,56 @@ export class LolaPlayer {
 
   showWeapon() {
     this.outfits.forEach((outfit, index) => { outfit.model.visible = index === this.weaponIndex; });
-    this.toggleButton.textContent = `F: ${this.weaponIndex === 0 ? 'M416' : 'BASIC GUN'} · C: ${this.crouching ? 'CROUCHED' : 'STANDING'}`;
+    this.toggleButton.textContent = `Q: ${this.weaponIndex === 0 ? 'M416' : 'BASIC GUN'} · C: ${this.crouching ? 'CROUCHED' : 'STANDING'}`;
     this.toggleButton.classList.add('on');
   }
 
   switchWeapon() {
+    this.cancelShot();
     this.weaponIndex = 1 - this.weaponIndex;
     this.showWeapon();
+  }
+
+  startShot() {
+    if (this.defeated || !this.grounded) return false;
+    this.cancelShot();
+    const outfit = this.outfits[this.weaponIndex];
+    const action = outfit.shooting[this.crouching ? 'CrouchShoot' : 'Shoot'];
+    action.reset().setEffectiveWeight(1).play();
+    this.shot = { outfit, action, elapsed: 0 };
+    outfit.shotGun.visible = true;
+    outfit.carriedGun.visible = false;
+    const weights = Object.values(outfit.actions).map(action => action.getEffectiveWeight());
+    for (const action of Object.values(outfit.actions)) action.setEffectiveWeight(0);
+    outfit.mixer.update(0);
+    Object.values(outfit.actions).forEach((action, i) => action.setEffectiveWeight(weights[i]));
+    return true;
+  }
+
+  cancelShot() {
+    if (!this.shot) return;
+    const { outfit, action } = this.shot;
+    action.stop();
+    outfit.shotGun.visible = false;
+    outfit.carriedGun.visible = true;
+    // Locomotion weights kept advancing underneath the shooting pose.
+    this.shot = null;
+  }
+
+  muzzlePosition() {
+    const gun = this.outfits[this.weaponIndex].shotGun;
+    this.mesh.updateMatrixWorld(true);
+    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
+    const points = [], vertex = new THREE.Vector3();
+    let furthest = -Infinity;
+    const positions = gun.geometry.attributes.position;
+    for (let i = 0; i < positions.count; i++) {
+      vertex.fromBufferAttribute(positions, i).applyMatrix4(gun.matrixWorld);
+      furthest = Math.max(furthest, vertex.dot(forward));
+      points.push(vertex.clone());
+    }
+    const tip = points.filter(point => furthest - point.dot(forward) < 0.015 * this.world.scale);
+    return tip.reduce((sum, point) => sum.add(point), new THREE.Vector3()).multiplyScalar(1 / tip.length);
   }
 
   toggle() { /* Lola remains controllable while the Leaper is paused. */ }
@@ -81,6 +135,7 @@ export class LolaPlayer {
 
   jump() {
     if (this.defeated || !this.grounded) return false;
+    this.cancelShot();
     this.grounded = false;
     this.crouching = false;
     this.verticalVelocity = Math.sqrt(2 * 14 * 0.85) * this.world.scale;
@@ -174,7 +229,17 @@ export class LolaPlayer {
       for (const [name, action] of Object.entries(outfit.actions)) {
         if (!name.includes('Idle')) action.timeScale *= progress;
       }
+      const shot = this.shot?.outfit === outfit ? this.shot : null;
+      const weights = Object.values(outfit.actions).map(action => action.getEffectiveWeight());
+      if (shot) {
+        shot.elapsed += deltaTime;
+        Object.values(outfit.actions).forEach(action => action.setEffectiveWeight(0));
+      }
       outfit.mixer.update(deltaTime);
+      if (shot) {
+        Object.values(outfit.actions).forEach((action, i) => action.setEffectiveWeight(weights[i]));
+        if (shot.elapsed >= shot.action.getClip().duration) this.cancelShot();
+      }
     }
   }
 }

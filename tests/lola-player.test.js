@@ -115,7 +115,7 @@ test('C toggles crouch once per press and A/D select authored crossovers for bot
     assert.equal(player.outfits[weapon].current, 'CrouchWalk');
     press('KeyC');
     assert.equal(player.crouching, false);
-    press('KeyF');
+    press('KeyQ');
   }
   for (const gltf of models) {
     const left = gltf.animations.find(clip => clip.name === 'StrafeLeft');
@@ -128,7 +128,7 @@ test('C toggles crouch once per press and A/D select authored crossovers for bot
 test('both exported outfits have distinct walk/run clips and animate their skeletons', async () => {
   for (const weapon of ['basic', 'm416']) {
     const gltf = await load(weapon);
-    assert.deepEqual(gltf.animations.map((clip) => clip.name).sort(), ['CrouchIdle', 'CrouchWalk', 'Idle', 'Run', 'StrafeLeft', 'StrafeRight', 'Walk']);
+    assert.deepEqual(gltf.animations.map((clip) => clip.name).sort(), ['CrouchIdle', 'CrouchShoot', 'CrouchWalk', 'Idle', 'Run', 'Shoot', 'StrafeLeft', 'StrafeRight', 'Walk']);
     const mixer = new THREE.AnimationMixer(gltf.scene);
     const walk = gltf.animations.find((clip) => clip.name === 'Walk');
     const run = gltf.animations.find((clip) => clip.name === 'Run');
@@ -227,4 +227,31 @@ test('jump takes off once, remains blocked by walls in air, and lands at every f
     player.resetJump();
     assert.equal(player.grounded, true);
   }
+});
+
+test('both guns play authored standing/crouched shots and restore locomotion', async () => {
+  const player = new LolaPlayer(new THREE.Scene(),
+    { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
+    { addEventListener() {}, classList: { add() {} } }, await Promise.all([load('m416'), load('basic')]));
+  for (let weapon = 0; weapon < 2; weapon++) {
+    for (const crouch of [false, true]) {
+      player.crouching = crouch;
+      assert.equal(player.startShot(), true);
+      const outfit = player.outfits[weapon];
+      assert.equal(player.shot.action.getClip().name, crouch ? 'CrouchShoot' : 'Shoot');
+      assert.ok(Math.abs(player.shot.action.getClip().duration - 1) < 0.001);
+      assert.ok(outfit.shotGun.visible && !outfit.carriedGun.visible);
+      const start = player.muzzlePosition();
+      assert.ok(start.toArray().every(Number.isFinite));
+      player.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, 0.15);
+      assert.ok(start.distanceTo(player.muzzlePosition()) > 0.0001, 'authored gun recoil animates');
+      player.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, 1);
+      assert.equal(player.shot, null);
+      assert.ok(!outfit.shotGun.visible && outfit.carriedGun.visible);
+    }
+    player.startShot(); player.switchWeapon();
+    assert.equal(player.shot, null, 'switch cancels old firing pose');
+  }
+  player.grounded = false;
+  assert.equal(player.startShot(), false, 'no invented airborne shooting animation');
 });

@@ -3,6 +3,7 @@ import { JunkyardBrain } from './JunkyardBrain.js';
 import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
 import { contact, contactRadius } from '../world/playerContact.js';
 import { EyeVision } from './EyeVision.js';
+import { PlayerWeapon } from './PlayerWeapon.js';
 import { LeaperCombat } from './LeaperCombat.js';
 import { LeaperPov } from '../camera/LeaperPov.js';
 
@@ -57,7 +58,8 @@ export class JunkyardPlaytest {
     this.brain = new JunkyardBrain(this);
     this.combat = new LeaperCombat(this);
     this.pov = new LeaperPov(this);
-    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>F</b> GUN · <b>CLICK + MOUSE</b> LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
+    this.playerWeapon = new PlayerWeapon(this);
+    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>Q</b> GUN · <b>LEFT CLICK</b> SHOOT · MOUSE LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
     target.setSelected(true);
     const size = this.panel.querySelector('input');
     size.addEventListener('input', () => {
@@ -140,6 +142,7 @@ export class JunkyardPlaytest {
 
   stop(message) {
     this.walking = false;
+    this.playerWeapon?.reset();
     this.brain.stop();
     this.message.textContent = message;
     this.panel.querySelector('[data-action=route]').textContent = 'START RUN';
@@ -149,7 +152,7 @@ export class JunkyardPlaytest {
   reset(spawn = null) {
     this.sight?.clear();
     this.combat?.reset();
-    this.stop('WASD moves Lola. Shift sprints. Space jumps. C crouches. F switches guns. Start Run lets the trained brain search and chase.');
+    this.stop('WASD moves Lola. Shift sprints. Space jumps. C crouches. Q switches guns. Left click shoots in CHASE view. Start Run lets the trained brain search and chase.');
     const { x, z } = spawn?.position || this.world.spawn;
     if (spawn) this.target.mesh.position.set(spawn.target.x, this.target.isPlayer ? 0 : 3.5, spawn.target.z);
     if (this.target.isPlayer) {
@@ -237,6 +240,7 @@ export class JunkyardPlaytest {
   update(dt) {
     this.brain.update(dt);
     this.combat.update(dt);
+    this.playerWeapon.update(dt);
     this.pov.update();
   }
 }
