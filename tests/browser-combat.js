@@ -89,7 +89,7 @@ try {
   combat.config = COMBAT; actual.hit = originalHit;
   reset(); target.mesh.position.copy(lane); tick(0); frames(100);
   check(combat.lolaHealth === 92, 'one unobstructed hit deals exactly 8 damage');
-  check(combat.hud.querySelector('[data-health]').textContent === '92 / 100', 'damage updates the visible health HUD');
+  check(combat.hud.querySelector('[data-health-bar]').value === 92 && !combat.hud.textContent.includes('100'), 'damage updates the visible health HUD');
 
   reset(); target.mesh.position.copy(lane); animatePlayer(); tick(0);
   const standingHead = combat.pose()[0].y;

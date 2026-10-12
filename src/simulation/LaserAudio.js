@@ -1,4 +1,4 @@
-// Short synthesized laser crack/chirp. No downloads or autoplay before a gesture.
+// Low, rising-and-falling warning-siren shot voice. No downloads or autoplay before a gesture.
 export class LaserAudio {
   constructor() {
     this.enabled = true;
@@ -20,15 +20,18 @@ export class LaserAudio {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     const filter = context.createBiquadFilter();
-    oscillator.type = 'sawtooth';
-    oscillator.frequency.setValueAtTime(1500, now);
-    oscillator.frequency.exponentialRampToValueAtTime(180, now + 0.14);
-    filter.type = 'lowpass'; filter.frequency.value = 3200;
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(220, now);
+    oscillator.frequency.exponentialRampToValueAtTime(390, now + 0.22);
+    oscillator.frequency.exponentialRampToValueAtTime(220, now + 0.48);
+    oscillator.frequency.exponentialRampToValueAtTime(165, now + 0.78);
+    filter.type = 'lowpass'; filter.frequency.value = 1100;
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.003);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.035);
+    gain.gain.exponentialRampToValueAtTime(0.10, now + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
     oscillator.connect(filter); filter.connect(gain); gain.connect(context.destination);
     oscillator.onended = () => { oscillator.disconnect(); filter.disconnect(); gain.disconnect(); };
-    oscillator.start(now); oscillator.stop(now + 0.17);
+    oscillator.start(now); oscillator.stop(now + 0.82);
   }
 }

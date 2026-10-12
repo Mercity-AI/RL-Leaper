@@ -38,22 +38,22 @@ export class LeaperCombat {
     this.effectMaterial = new THREE.MeshBasicMaterial({ color: 0xb50913, transparent: true, opacity: 0.45 });
     this.enemyHud = document.createElement('div');
     this.enemyHud.id = 'leaperHealthHud';
-    this.enemyHud.innerHTML = '<b>LEAPER <span data-enemy-health></span></b><progress aria-label="Leaper health"></progress>';
+    this.enemyHud.innerHTML = '<b>LEAPER</b><progress aria-label="Leaper health"></progress>';
     document.body.append(this.enemyHud);
     this.hud = document.createElement('div');
     this.hud.id = 'combatHud';
-    this.hud.innerHTML = `<div class="combat-health"><b>LOLA <span data-health></span></b><progress data-health-bar max="100" value="100"></progress></div>
+    this.hud.innerHTML = `<div class="combat-health"><b>LOLA <span data-hit-label hidden>HIT</span></b><progress aria-label="Lola health" data-health-bar max="100" value="100"></progress></div>
       <div data-attack role="status"></div><div data-result hidden><strong></strong><button data-restart>RESTART ENCOUNTER</button></div>`;
     document.body.appendChild(this.hud);
     this.enemyHud.append(this.hud.querySelector('[data-attack]'));
     this.hud.querySelector('[data-restart]').onclick = () => { playtest.reset(); playtest.start(); };
     const debug = document.createElement('button');
-    debug.textContent = `DEBUG: DAMAGE LEAPER (−${COMBAT.debugDamage} HP)`;
+    debug.textContent = 'DEBUG: DAMAGE LEAPER';
     debug.dataset.action = 'debug-damage';
     debug.onclick = () => this.damageLeaper(COMBAT.debugDamage);
     playtest.panel.querySelector('#junkyardOptions').append(debug);
     const note = document.createElement('small');
-    note.textContent = `Debug test only. Lola’s guns do not fire yet. Leaper: ${COMBAT.leaperHealth} HP; encounter duration needs player-weapon balancing.`;
+    note.textContent = 'Debug test only. Lola’s guns do not fire yet; encounter duration needs player-weapon balancing.';
     playtest.panel.querySelector('#junkyardOptions').append(note);
     this.reset();
   }
@@ -146,7 +146,7 @@ export class LeaperCombat {
       // Grow out of the muzzle; the tail never extends behind the firing eye.
       bolt.mesh.scale.z = scale * Math.min(1, bolt.travelled / (this.config.laserLength * scale));
       if (hitDistance <= distance || bolt.travelled >= this.config.weaponRange * scale) {
-        if (hitDistance <= distance) this.effect(bolt.mesh.position);
+        // No impact orb: damage is communicated by the health bar until a hit animation is supplied.
         this.playtest.engine.scene.remove(bolt.mesh); this.bolts.splice(this.bolts.indexOf(bolt), 1);
         // Cover wins ties. Never damage Lola through a blocking triangle.
         if (playerDistance <= distance && playerDistance < (cover?.distance ?? Infinity)) this.damageLola();
@@ -204,15 +204,15 @@ export class LeaperCombat {
     this.updateHud();
   }
   updateHud() {
-    this.hud.querySelector('[data-health]').textContent = `${this.lolaHealth} / ${this.config.lolaHealth}`;
+
     const bar = this.hud.querySelector('[data-health-bar]');
     bar.max = this.config.lolaHealth; bar.value = this.lolaHealth;
     const status = this.dead ? (this.leaperHealth ? 'encounter ended' : 'defeated')
       : this.fireFlash > 0 && this.tree.state !== 'paused' ? 'firing' : this.tree.state;
-    this.enemyHud.querySelector('[data-attack]').textContent = `LEAPER · ${status.toUpperCase()}${this.tree.locked ? ' · AIM LOCKED' : ''} · ${this.leaperHealth} HP`;
+    this.enemyHud.querySelector('[data-attack]').textContent = `${status.toUpperCase()}${this.tree.locked ? ' · AIM LOCKED' : ''}`;
     const enemyBar = this.enemyHud.querySelector('progress');
     enemyBar.max = this.config.leaperHealth; enemyBar.value = this.leaperHealth;
-    this.enemyHud.querySelector('[data-enemy-health]').textContent = `${this.leaperHealth} / ${this.config.leaperHealth}`;
+    this.hud.querySelector('[data-hit-label]').hidden = this.damageFlash <= 0 || this.dead;
     // Ordinary hits briefly highlight the health readout; screen edges are
     // reserved for critical health, including while paused.
     this.hud.dataset.hit = String(this.damageFlash > 0 && !this.dead);

@@ -395,3 +395,16 @@ Next decision:
   use the existing double-tap/hold-and-drag system, as do the other control groups.
   Positions persist and clamp to the viewport; heading/camera controls sit below
   the bars by default. No movement policy, sensing, model or training changes.
+
+
+### 2026-10-12 — Remove impact orb, siren voice, bar-only health
+
+- Removed the expanding impact sphere on both player and cover hits. Damage
+  still drains the bar, with a brief HIT label/readout highlight; character hit
+  animation awaits the owner's asset. Muzzle-only pulse remains at the eye.
+- Replaced the sharp descending chirp with a low triangle-wave siren voice:
+  220 → 390 → 220 → 165 Hz over 0.8 seconds with a softened attack and filter.
+  Triggered only on firing; gesture unlock and mute remain unchanged.
+- Health panels retain names and bars but display no numeric HP. Removed the
+  duplicate numeric readouts in attack status and debug labels. Internal health,
+  damage, projectile timing, sensing and saved-brain movement are unchanged.

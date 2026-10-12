@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LaserAudio } from '../src/simulation/LaserAudio.js';
 
-test('laser audio requires a gesture, respects mute, and schedules a short falling pitch', () => {
+test('laser audio requires a gesture, respects mute, and schedules the rising-and-falling siren voice', () => {
   const gestures = {};
   const calls = [];
   let contexts = 0;
@@ -20,8 +20,8 @@ test('laser audio requires a gesture, respects mute, and schedules a short falli
   assert.equal(contexts, 0); assert.equal(calls.length, 0);
   gestures.pointerdown(); audio.fire();
   assert.equal(contexts, 1);
-  assert.ok(calls.some(c => c[0] === 'ramp' && c[1] === 180));
-  assert.ok(calls.some(c => c[0] === 'stop' && c[1] === 5.17));
+  assert.ok(calls.some(c => c[0] === 'ramp' && c[1] === 390));
+  assert.ok(calls.some(c => c[0] === 'stop' && c[1] === 5.82));
   const count = calls.length; audio.enabled = false; audio.fire();
   assert.equal(calls.length, count);
   audio.enabled = true; audio.context.state = 'suspended'; audio.fire();
