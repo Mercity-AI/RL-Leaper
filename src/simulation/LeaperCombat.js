@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LaserAudio } from './LaserAudio.js';
 import { createLaserVisual } from './LaserVisual.js';
 import { COMBAT } from '../config/combat.js';
 import { AttackController } from './AttackController.js';
@@ -22,6 +23,17 @@ export class LeaperCombat {
       return { material: o.material, base: o.material.emissiveIntensity };
     });
     this.laser = createLaserVisual(COMBAT);
+    this.audio = new LaserAudio();
+    const sound = document.createElement('button');
+    sound.textContent = 'SOUND: ON';
+    sound.setAttribute('aria-pressed', 'true');
+    sound.onclick = () => {
+      this.audio.enabled = !this.audio.enabled;
+      if (this.audio.enabled) this.audio.unlock();
+      sound.textContent = this.audio.enabled ? 'SOUND: ON' : 'SOUND: OFF';
+      sound.setAttribute('aria-pressed', String(this.audio.enabled));
+    };
+    playtest.panel.querySelector('.junkyard-toolbar').append(sound);
     this.effectGeometry = new THREE.SphereGeometry(1, 10, 8);
     this.effectMaterial = new THREE.MeshBasicMaterial({ color: 0xb50913, transparent: true, opacity: 0.45 });
     this.enemyHud = document.createElement('div');
@@ -33,6 +45,7 @@ export class LeaperCombat {
     this.hud.innerHTML = `<div class="combat-health"><b>LOLA <span data-health></span></b><progress data-health-bar max="100" value="100"></progress></div>
       <div data-attack role="status"></div><div data-result hidden><strong></strong><button data-restart>RESTART ENCOUNTER</button></div>`;
     document.body.appendChild(this.hud);
+    this.enemyHud.append(this.hud.querySelector('[data-attack]'));
     this.hud.querySelector('[data-restart]').onclick = () => { playtest.reset(); playtest.start(); };
     const debug = document.createElement('button');
     debug.textContent = `DEBUG: DAMAGE LEAPER (−${COMBAT.debugDamage} HP)`;
@@ -108,6 +121,7 @@ export class LeaperCombat {
     this.playtest.engine.scene.add(mesh);
     this.bolts.push({ mesh, direction: this.direction.clone(), travelled: 0 });
     this.fireFlash = 0.12;
+    this.audio.fire();
     this.effect(this.origin, true);
   }
   effect(position, muzzle = false) {
@@ -195,7 +209,7 @@ export class LeaperCombat {
     bar.max = this.config.lolaHealth; bar.value = this.lolaHealth;
     const status = this.dead ? (this.leaperHealth ? 'encounter ended' : 'defeated')
       : this.fireFlash > 0 && this.tree.state !== 'paused' ? 'firing' : this.tree.state;
-    this.hud.querySelector('[data-attack]').textContent = `LEAPER · ${status.toUpperCase()}${this.tree.locked ? ' · AIM LOCKED' : ''} · ${this.leaperHealth} HP`;
+    this.enemyHud.querySelector('[data-attack]').textContent = `LEAPER · ${status.toUpperCase()}${this.tree.locked ? ' · AIM LOCKED' : ''} · ${this.leaperHealth} HP`;
     const enemyBar = this.enemyHud.querySelector('progress');
     enemyBar.max = this.config.leaperHealth; enemyBar.value = this.leaperHealth;
     this.enemyHud.querySelector('[data-enemy-health]').textContent = `${this.leaperHealth} / ${this.config.leaperHealth}`;

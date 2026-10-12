@@ -8,7 +8,7 @@ export function createLaserVisual(config) {
   geometry.rotateX(Math.PI / 2);
   geometry.translate(0, 0, -config.laserLength / 2);
   const material = new THREE.ShaderMaterial({
-    uniforms: { tint: { value: new THREE.Color(0xc0000b) }, strength: { value: 0.95 } },
+    uniforms: { tint: { value: new THREE.Color(0x980c27) }, strength: { value: 0.95 } },
     vertexShader: `varying vec2 laserUv;
       void main() { laserUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `uniform vec3 tint; uniform float strength; varying vec2 laserUv;
@@ -16,7 +16,7 @@ export function createLaserVisual(config) {
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
   });
   const glow = material.clone();
-  glow.uniforms.strength.value = 0.18;
+  glow.uniforms.strength.value = 0.10;
   glow.blending = THREE.AdditiveBlending;
   return {
     create() {

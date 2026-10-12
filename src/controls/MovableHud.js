@@ -13,7 +13,7 @@ export function enableMovableHud() {
   try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { /* Private storage. */ }
   if (!saved || typeof saved !== 'object') saved = {};
   const selectors = ['.hud', '#status', '#cameraToggle', '#cuboidToggle', '#topViewHint',
-    '#junkyardPanel', '#joyBase', '#btnSprint', '#btnJump'];
+    '#junkyardPanel', '#leaperHealthHud', '#combatHud', '#joyBase', '#btnSprint', '#btnJump'];
   const entries = selectors.map((selector) => [selector, document.querySelector(selector)])
     .filter(([, element]) => element);
   for (const [key, element] of entries) {

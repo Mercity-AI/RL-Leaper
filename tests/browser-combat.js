@@ -54,7 +54,7 @@ try {
   target.mesh.position.x += 0.5 * scale; animatePlayer(); frames(8);
   check(combat.direction.distanceTo(locked) < 1e-7, 'moving Lola cannot change locked aim');
   check(combat.bolts.length === 0, 'no projectile before the full warning');
-  frames(5); check(combat.bolts.length === 1, 'one red bolt fires after the warning');
+  frames(3); check(combat.bolts.length === 1, 'one red bolt fires after the warning');
   const bolt = combat.bolts[0], boltStart = bolt.mesh.position.clone();
   p.walking = false; frames(10);
   check(bolt.mesh.position.distanceTo(boltStart) === 0, 'pause freezes active bolts');
@@ -150,7 +150,7 @@ try {
   if (new URLSearchParams(location.search).has('laserPreview')) {
     combat.reset(); target.mesh.position.copy(lane); animatePlayer();
     combat.pose(); combat.track(combat.pose()[1]); combat.fire();
-    combat.updateProjectiles(0.2, combat.pose());
+    combat.updateProjectiles(2.4 / COMBAT.projectileSpeed, combat.pose());
     const bolt = combat.bolts[0];
     const focus = bolt.mesh.position.clone().addScaledVector(bolt.direction, -COMBAT.laserLength * scale / 2);
     engine.camera.position.copy(focus).add(new THREE.Vector3(5, 2, 2));

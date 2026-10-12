@@ -380,3 +380,18 @@ Next decision:
   The red edge warning appears only at 20 HP or less and resets with health.
 - Validation: JS navigation/combat suite, production build, and real-asset browser
   checks including ordinary-hit tint, critical threshold, reset, and HUD placement.
+
+
+### 2026-10-12 — Fast crimson shots, audio, and opposing movable health bars
+
+- Owner-requested weapon speed increased from 12 to 80 map units/second (6.7x).
+  The 0.6-second warning, final aim lock, damage and cooldown are unchanged;
+  dodging now relies more on the warning. Full-segment collision still prevents
+  fast projectiles crossing cover. Core color is #980c27 with reduced halo.
+- Added a short synthesized laser firing sound through Web Audio, unlocked by
+  the first pointer/key gesture. SOUND ON/OFF is in the toolbar. Audio runs only
+  on actual fire events, not charging/cancellation; voices self-dispose in 0.17s.
+- Leaper health defaults top-left, Lola health top-right. Both health panels now
+  use the existing double-tap/hold-and-drag system, as do the other control groups.
+  Positions persist and clamp to the viewport; heading/camera controls sit below
+  the bars by default. No movement policy, sensing, model or training changes.
