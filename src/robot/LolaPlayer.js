@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ENCOUNTER } from '../config/encounter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import strideProfiles from '../../assets/characters/lola/stride-profiles.json' with { type: 'json' };
 import { evenStrideElapsed, strideDistance } from './strideMotion.js';
@@ -17,7 +18,8 @@ export class LolaPlayer {
     this.world = world;
     this.selected = true;
     this.isPlayer = true;
-    this.height = 1.9 * world.scale;
+    this.height = 1.9 * world.scale * ENCOUNTER.lolaHeight;
+    this.hitRecoilTime = 0;
     this.mesh = new THREE.Group();
     this.mesh.position.set(world.initialTarget.x, 0, world.initialTarget.z);
     this.direction = new THREE.Vector3();
@@ -28,7 +30,7 @@ export class LolaPlayer {
     this.toggleButton = toggleButton;
     this.outfits = models.map((gltf, index) => {
       // Blender's character faces -Y, which exports as +Z.
-      gltf.scene.scale.setScalar(world.scale);
+      gltf.scene.scale.set(world.scale, world.scale * ENCOUNTER.lolaHeight, world.scale);
       gltf.scene.traverse((object) => {
         if (object.isMesh) {
           object.castShadow = true;
@@ -43,6 +45,7 @@ export class LolaPlayer {
         if (!clip) throw new Error(`Lola is missing the ${name} animation`);
         actions[name] = mixer.clipAction(clip);
       }
+      const hitBone = gltf.scene.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('DEF-spine.003'));
       const shooting = {};
       for (const name of ['Shoot', 'CrouchShoot']) {
         const clip = gltf.animations.find(item => item.name === name);
@@ -58,7 +61,7 @@ export class LolaPlayer {
       for (const [name, action] of Object.entries(actions)) {
         action.setEffectiveWeight(name === 'Idle' ? 1 : 0).play();
       }
-      return { model: gltf.scene, mixer, actions, shooting, shotGun, carriedGun, profiles: strideProfiles[index === 0 ? 'm416' : 'basic'], current: 'Idle' };
+      return { model: gltf.scene, mixer, actions, hitBone, hitBase: null, shooting, shotGun, carriedGun, profiles: strideProfiles[index === 0 ? 'm416' : 'basic'], current: 'Idle' };
     });
     scene.add(this.mesh);
     toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
@@ -88,9 +91,24 @@ export class LolaPlayer {
     this.showWeapon();
   }
 
+  reactToHit() {
+    if (this.defeated) return;
+    this.cancelShot();
+    this.hitRecoilTime = ENCOUNTER.hitRecoilDuration;
+  }
+
+  clearHitReaction() {
+    this.hitRecoilTime = 0;
+    for (const outfit of this.outfits) {
+      if (outfit.hitBase) outfit.hitBone.quaternion.copy(outfit.hitBase);
+      outfit.hitBase = null;
+    }
+  }
+
   startShot() {
     if (this.defeated || !this.grounded) return false;
     this.cancelShot();
+    this.clearHitReaction();
     const outfit = this.outfits[this.weaponIndex];
     const action = outfit.shooting[this.crouching ? 'CrouchShoot' : 'Shoot'];
     action.reset().setEffectiveWeight(1).play();
@@ -200,7 +218,7 @@ export class LolaPlayer {
         floor += profile.groundOffset * weight;
       }
       // One measured floor offset per clip, blended without frame-by-frame foot snapping.
-      outfit.model.position.y = floor * this.world.scale;
+      outfit.model.position.y = floor * this.world.scale * ENCOUNTER.lolaHeight;
     }
     if (!this.grounded) {
       const profile = this.outfits[this.weaponIndex].profiles[sideways
@@ -225,7 +243,10 @@ export class LolaPlayer {
       p.x + this.direction.x * 0.01 * this.world.scale,
       p.z + this.direction.z * 0.01 * this.world.scale);
     const progress = distance > 1e-8 ? Math.min(1, moved / distance) : blockedAhead ? 0 : 1;
+    this.hitRecoilTime = Math.max(0, this.hitRecoilTime - deltaTime);
     for (const outfit of this.outfits) {
+      if (outfit.hitBase) outfit.hitBone.quaternion.copy(outfit.hitBase);
+      outfit.hitBase = null;
       for (const [name, action] of Object.entries(outfit.actions)) {
         if (!name.includes('Idle')) action.timeScale *= progress;
       }
@@ -236,6 +257,14 @@ export class LolaPlayer {
         Object.values(outfit.actions).forEach(action => action.setEffectiveWeight(0));
       }
       outfit.mixer.update(deltaTime);
+      if (this.hitRecoilTime > 0 && outfit.hitBone) {
+        const t = 1 - this.hitRecoilTime / ENCOUNTER.hitRecoilDuration;
+        // Quick backward flinch, then a soft recovery; no root knockback into cover.
+        const strength = Math.sin(Math.PI * 0.5 * Math.min(1, t / 0.22)) * (t < 0.22 ? 1 : 0)
+          + (t >= 0.22 ? Math.sin(Math.PI * 0.5 * (1 - t) / 0.78) : 0);
+        outfit.hitBase = outfit.hitBone.quaternion.clone();
+        outfit.hitBone.rotateX(-ENCOUNTER.hitRecoilAngle * strength);
+      }
       if (shot) {
         Object.values(outfit.actions).forEach((action, i) => action.setEffectiveWeight(weights[i]));
         if (shot.elapsed >= shot.action.getClip().duration) this.cancelShot();

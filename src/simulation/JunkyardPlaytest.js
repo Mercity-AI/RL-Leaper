@@ -143,6 +143,7 @@ export class JunkyardPlaytest {
   stop(message) {
     this.walking = false;
     this.playerWeapon?.reset();
+    this.target.clearHitReaction?.();
     this.brain.stop();
     this.message.textContent = message;
     this.panel.querySelector('[data-action=route]').textContent = 'START RUN';

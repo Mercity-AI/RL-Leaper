@@ -434,3 +434,24 @@ Next decision:
 - Validation: production build, 29 Node tests, and 45 real-asset browser checks
   passed, including player bullet damage, thin cover, cadence, crouch, weapon
   switching, real defeat, pause, reset, POV and existing Leaper combat checks.
+
+### 2026-10-12 — Hit flinch and encounter proportions
+
+- Added a 0.38-second additive torso recoil on bolt damage, peaking at about
+  nine degrees backward. It interrupts Lola's shooting pose, keeps feet/root
+  position unchanged, and returns to the underlying animation without drift.
+  Reset, defeat and stopping the encounter clear the reaction.
+- Lola is 10% shorter vertically (height and animation floor offset x0.9),
+  preserving horizontal dimensions and stride distances. Animated sight/hit
+  anchors follow the shorter skeleton. Player navigation height is adjusted;
+  the existing conservative horizontal contact envelope is unchanged.
+- Default junkyard Leaper clearance width changes from 2.4 to 2.88 (+20%).
+  This uses the existing map-relative size mechanism: rig/gait remain intact,
+  map scale and collision/navigation clearance stay consistent, and the saved
+  brain receives the requested width through its existing reset interface.
+  An explicit width URL/control value still overrides the default. Larger
+  clearance can make narrow passages unavailable. Models and 16 movement
+  sensors/input layout are unchanged; no retraining or navigation behavior added.
+- Proportions and recoil tuning are in src/config/encounter.js. Production build,
+  30 Node tests and 51 real-asset browser checks passed, including backward
+  head displacement, recovery/reset, requested ratios and combat regressions.

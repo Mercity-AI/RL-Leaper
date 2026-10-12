@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { LolaPlayer } from '../src/robot/LolaPlayer.js';
 import profiles from '../assets/characters/lola/stride-profiles.json' with { type: 'json' };
+import { ENCOUNTER } from '../src/config/encounter.js';
 import contact from '../src/config/player-contact.json' with { type: 'json' };
 
 // Exercise the real exported skeleton/animations without a browser image decoder.
@@ -72,7 +73,7 @@ test('each complete movement cycle travels its measured stride, with a stable fl
       for (let i = 0; i < frames; i += 1) {
         player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), speed,
           profile.duration / frames / (crouching ? 2 : speed > 5 ? 2.7 : 2));
-        assert.ok(Math.abs(player.outfits[player.weaponIndex].model.position.y - profile.groundOffset) < 1e-6);
+        assert.ok(Math.abs(player.outfits[player.weaponIndex].model.position.y - profile.groundOffset * ENCOUNTER.lolaHeight) < 1e-6);
       }
       assert.ok(Math.abs(player.mesh.position.length() - profile.distance) < 0.0001,
         `${weapon} ${clip}: travel must match its foot-derived cycle distance`);
@@ -254,4 +255,27 @@ test('both guns play authored standing/crouched shots and restore locomotion', a
   }
   player.grounded = false;
   assert.equal(player.startShot(), false, 'no invented airborne shooting animation');
+});
+
+test('hit recoil bends the torso then recovers without displacing Lola', async () => {
+  const player = new LolaPlayer(new THREE.Scene(),
+    { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
+    { addEventListener() {}, classList: { add() {} } }, await Promise.all([load('m416'), load('basic')]));
+  assert.equal(player.height, 1.9 * 0.9);
+  for (const outfit of player.outfits) assert.equal(outfit.model.scale.y, 0.9);
+  const move = dt => player.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, dt);
+  move(0.1);
+  const start = player.mesh.position.clone();
+  player.reactToHit(); move(0.08);
+  for (const outfit of player.outfits) {
+    assert.ok(outfit.hitBone && outfit.hitBase);
+    assert.ok(outfit.hitBone.quaternion.angleTo(outfit.hitBase) > 0.1);
+  }
+  assert.ok(player.mesh.position.equals(start));
+  move(0.4);
+  assert.equal(player.hitRecoilTime, 0);
+  assert.ok(player.outfits.every(outfit => !outfit.hitBase));
+  player.reactToHit(); move(0.05); player.clearHitReaction();
+  assert.equal(player.hitRecoilTime, 0);
+  assert.ok(player.outfits.every(outfit => !outfit.hitBase));
 });

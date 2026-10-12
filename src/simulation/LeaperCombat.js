@@ -63,6 +63,7 @@ export class LeaperCombat {
     this.lolaHealth = this.config.lolaHealth; this.leaperHealth = this.config.leaperHealth;
     this.damageFlash = 0; this.fireFlash = 0;
     this.playtest.target.defeated = false;
+    this.playtest.target.clearHitReaction?.();
     this.playtest.simulation.rig.eyePivot.rotation.set(0, 0, 0);
     this.hud.querySelector('[data-result]').hidden = true;
     this.updateHud();
@@ -81,11 +82,13 @@ export class LeaperCombat {
     if (this.dead) return;
     this.lolaHealth = Math.max(0, this.lolaHealth - this.config.boltDamage);
     this.damageFlash = 0.4;
+    this.playtest.target.reactToHit?.();
     if (!this.lolaHealth) this.finish('LOLA DEFEATED');
     this.updateHud();
   }
   finish(message) {
     this.tree.cancel(); this.tree.state = 'dead'; this.clearProjectiles();
+    this.playtest.target.clearHitReaction?.();
     this.playtest.target.defeated = true;
     this.playtest.stop('Encounter ended. Restart to play again.');
     const result = this.hud.querySelector('[data-result]');

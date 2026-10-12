@@ -1,11 +1,13 @@
 import * as THREE from 'three';
+import { ENCOUNTER } from '../config/encounter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BODY_COLLISION_RADIUS, STANDING_HEIGHT } from '../config/robot.js';
 import { JunkyardNavigation } from './JunkyardNavigation.js';
 
 export async function createJunkyardWorld(scene) {
-  const requestedWidth = Number(new URLSearchParams(location.search).get('width') || 2.4);
-  const width = Number.isFinite(requestedWidth) ? Math.max(1.2, Math.min(8, requestedWidth)) : 2.4;
+  const defaultWidth = 2.4 * ENCOUNTER.leaperSize;
+  const requestedWidth = Number(new URLSearchParams(location.search).get('width') || defaultWidth);
+  const width = Number.isFinite(requestedWidth) ? Math.max(1.2, Math.min(8, requestedWidth)) : defaultWidth;
   // Keep the existing rig/gait intact; scale the imported map relative to it.
   const scale = BODY_COLLISION_RADIUS * 2 / width;
   const [gltf, response] = await Promise.all([
@@ -15,7 +17,7 @@ export async function createJunkyardWorld(scene) {
   if (!response.ok) throw new Error('The junkyard collision export could not be loaded.');
   const data = await response.json();
   const navigation = new JunkyardNavigation(data, width / 2, (STANDING_HEIGHT + 1.5) / scale);
-  const playerNavigation = new JunkyardNavigation(data, 0.25, 1.9);
+  const playerNavigation = new JunkyardNavigation(data, 0.25, 1.9 * ENCOUNTER.lolaHeight);
   const spawnIndex = navigation.nearest({ x: 0, z: 0 });
   if (spawnIndex < 0) throw new Error('No open starting position at this robot size.');
   const spawn = navigation.point(spawnIndex);

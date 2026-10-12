@@ -181,6 +181,23 @@ try {
   p.playerWeapon.reset(); combat.reset();
   check(!target.shot && !p.playerWeapon.effects.length, 'reset clears shooting pose and transient effects');
   target.mesh.position.copy(base);
+  check(Math.abs(world.width - 2.88) < 1e-8, 'default Leaper clearance is 20 percent larger');
+  check(Math.abs(target.height / scale - 1.71) < 1e-8, 'Lola is 10 percent shorter');
+  target.crouching = false; target.cancelShot(); animatePlayer(0.2);
+  combat.damageLola(); animatePlayer(0.08);
+  check(target.hitRecoilTime > 0 && target.outfits.every(o => o.hitBase), 'bolt damage produces torso recoil on both outfits');
+  const active = target.outfits[target.weaponIndex];
+  target.mesh.updateMatrixWorld(true);
+  const hitHead = bones[target.weaponIndex][0].getWorldPosition(new THREE.Vector3());
+  const hitRotation = active.hitBone.quaternion.clone();
+  active.hitBone.quaternion.copy(active.hitBase); target.mesh.updateMatrixWorld(true);
+  const neutralHead = bones[target.weaponIndex][0].getWorldPosition(new THREE.Vector3());
+  active.hitBone.quaternion.copy(hitRotation);
+  check(hitHead.z < neutralHead.z, 'torso flinch moves the head backward rather than forward');
+  animatePlayer(0.4);
+  check(target.hitRecoilTime === 0 && target.outfits.every(o => !o.hitBase), 'hit recoil recovers without accumulating bone offsets');
+  combat.damageLola(); animatePlayer(0.08); combat.reset();
+  check(target.hitRecoilTime === 0 && target.outfits.every(o => !o.hitBase), 'encounter reset clears hit recoil');
   result.textContent += `\n\nALL ${passed} CHECKS PASSED`;
   document.title = `PASS ${passed} · Leaper combat regression`;
   if (new URLSearchParams(location.search).has('playerPreview')) {
@@ -188,6 +205,7 @@ try {
     target.weaponIndex = query.get('gun') === 'basic' ? 1 : 0;
     target.crouching = query.has('crouch'); target.showWeapon(); target.startShot();
     target.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, 0.15);
+    if (query.has('hit')) { combat.damageLola(); animatePlayer(0.08); }
     const focus = target.mesh.position.clone().add(new THREE.Vector3(0, scale, 0));
     engine.camera.position.copy(focus).add(new THREE.Vector3(2.5, 0.3, 2.5).multiplyScalar(scale));
     engine.camera.up.set(0, 1, 0); engine.camera.lookAt(focus); result.hidden = true;
