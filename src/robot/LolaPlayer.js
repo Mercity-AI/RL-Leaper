@@ -45,7 +45,7 @@ export class LolaPlayer {
         if (!clip) throw new Error(`Lola is missing the ${name} animation`);
         actions[name] = mixer.clipAction(clip);
       }
-      const hitBone = gltf.scene.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('DEF-spine.003'));
+      const hitBone = gltf.scene.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('DEF-spine.001'));
       const shooting = {};
       for (const name of ['Shoot', 'CrouchShoot']) {
         const clip = gltf.animations.find(item => item.name === name);

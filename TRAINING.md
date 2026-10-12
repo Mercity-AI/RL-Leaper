@@ -455,3 +455,19 @@ Next decision:
 - Proportions and recoil tuning are in src/config/encounter.js. Production build,
   30 Node tests and 51 real-asset browser checks passed, including backward
   head displacement, recovery/reset, requested ratios and combat regressions.
+
+### 2026-10-12 — Stronger visible hit flinch
+
+- Increased torso recoil from 0.16 to 0.38 radians (about 9 to 22 degrees)
+  and recovery duration from 0.38 to 0.60 seconds. Root position, movement,
+  damage, character sizes and trained policy remain unchanged.
+- Reviewed roaming: JunkyardBrain takes body translation/yaw from the saved
+  policy; shooting does not hold or face the body. JunkyardEnv deliberately
+  continues inference after catches/timeouts/contact. Close player collision
+  blocks approach without introducing a combat hold state. These are code-level
+  contributors, not a measured diagnosis of the owner's particular episode.
+- Production build and 9 character tests passed; browser regression checked
+  separately before committing.
+- Moved recoil pivot to the lower spine so the whole upper torso participates,
+  rather than mostly the shoulders/head. Final validation: 9 character tests,
+  production build, and 51 browser checks passed.

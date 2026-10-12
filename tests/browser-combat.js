@@ -194,7 +194,7 @@ try {
   const neutralHead = bones[target.weaponIndex][0].getWorldPosition(new THREE.Vector3());
   active.hitBone.quaternion.copy(hitRotation);
   check(hitHead.z < neutralHead.z, 'torso flinch moves the head backward rather than forward');
-  animatePlayer(0.4);
+  animatePlayer(0.7);
   check(target.hitRecoilTime === 0 && target.outfits.every(o => !o.hitBase), 'hit recoil recovers without accumulating bone offsets');
   combat.damageLola(); animatePlayer(0.08); combat.reset();
   check(target.hitRecoilTime === 0 && target.outfits.every(o => !o.hitBase), 'encounter reset clears hit recoil');

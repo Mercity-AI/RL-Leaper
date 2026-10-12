@@ -269,10 +269,10 @@ test('hit recoil bends the torso then recovers without displacing Lola', async (
   player.reactToHit(); move(0.08);
   for (const outfit of player.outfits) {
     assert.ok(outfit.hitBone && outfit.hitBase);
-    assert.ok(outfit.hitBone.quaternion.angleTo(outfit.hitBase) > 0.1);
+    assert.ok(outfit.hitBone.quaternion.angleTo(outfit.hitBase) > 0.25);
   }
   assert.ok(player.mesh.position.equals(start));
-  move(0.4);
+  move(0.7);
   assert.equal(player.hitRecoilTime, 0);
   assert.ok(player.outfits.every(outfit => !outfit.hitBase));
   player.reactToHit(); move(0.05); player.clearHitReaction();
