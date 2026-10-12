@@ -56,12 +56,12 @@ body.junkyard-mode::after { content: ''; position: fixed; inset: 0; pointer-even
 @media(max-width:700px) { #leaperHealthHud { top: 108px; width: 200px; padding: 6px 10px; } }
 
 /* Opposing health bars; both are included in the movable HUD layout. */
-#leaperHealthHud, #combatHud { top: 14px; bottom: auto; transform: none; width: min(420px, calc(50vw - 28px)); min-width: 0; box-sizing: border-box; padding: 10px 12px; font: 11px/1.5 monospace; border-radius: 6px; pointer-events: auto; }
+#leaperHealthHud, #combatHud { top: 14px; bottom: auto; transform: none; width: min(140px, calc(50vw - 28px)); min-width: 0; box-sizing: border-box; padding: 10px 12px; font: 11px/1.5 monospace; border-radius: 6px; pointer-events: auto; }
 #leaperHealthHud { left: 16px; right: auto; text-align: left; }
 #combatHud { left: auto; right: 16px; text-align: right; }
 #leaperHealthHud progress, #combatHud progress { height: 9px; margin: 5px 0; }
 #leaperHealthHud [data-attack] { font-size: 9px; color: #c8bbc0; }
-.junkyard-mode .hud { top: 112px; }
+.junkyard-mode .hud { display: none; }
 .junkyard-mode #cameraToggle { top: 112px; }
 .junkyard-mode #cuboidToggle { top: 156px; }
 
