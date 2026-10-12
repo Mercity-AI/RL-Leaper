@@ -80,7 +80,7 @@ export class LolaPlayer {
   setSelected() { this.selected = true; }
 
   jump() {
-    if (!this.grounded) return false;
+    if (this.defeated || !this.grounded) return false;
     this.grounded = false;
     this.crouching = false;
     this.verticalVelocity = Math.sqrt(2 * 14 * 0.85) * this.world.scale;
@@ -95,6 +95,7 @@ export class LolaPlayer {
   }
 
   move(forwardAmount, sideAmount, forward, right, speed, deltaTime) {
+    if (this.defeated) return;
     const steps = Math.max(1, Math.ceil(deltaTime * 120));
     for (let i = 0; i < steps; i += 1) {
       this.moveStep(forwardAmount, sideAmount, forward, right, speed, deltaTime / steps);

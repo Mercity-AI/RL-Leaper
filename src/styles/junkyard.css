@@ -37,3 +37,15 @@
   #junkyardOptions { max-height: calc(100dvh - 300px); }
   .junkyard-mode #status { font-size: 8px; letter-spacing: 0; }
 }
+
+/* Combat stays readable above the canvas and below the existing controls. */
+#combatHud { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30; color: #fff; background: #15171bea; border: 1px solid #65666b; border-radius: 9px; padding: 12px 18px; font: 12px/1.6 monospace; text-align: center; pointer-events: none; min-width: 250px; }
+#combatHud progress { display: block; width: 100%; height: 10px; margin: 5px 0; accent-color: #fa665b; }
+#combatHud [data-result] { margin-top: 12px; }
+#combatHud [data-result] strong { display: block; color: #ff8d83; }
+#combatHud button { pointer-events: auto; margin-top: 8px; padding: 10px; cursor: pointer; }
+body.junkyard-mode::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 20; box-shadow: inset 0 0 90px 20px #e62828; opacity: var(--damage-flash, 0); transition: opacity .08s; }
+#leaperReticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 25; color: #ffb6a9; font: 28px monospace; text-shadow: 0 1px 3px #000; pointer-events: none; }
+#leaperReticle[data-locked=true] { color: #fff; }
+#junkyardPanel [data-action=debug-damage] { margin-top: 10px; border-color: #d98b44; }
+#junkyardPanel .junkyard-toolbar { flex-wrap: wrap; }

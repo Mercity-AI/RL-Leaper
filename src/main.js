@@ -86,7 +86,9 @@ function animate(currentTime) {
     if (playtest) playtest.update(deltaTime);
     else simulation.update(deltaTime);
   }
+  playtest?.pov.beforeRender();
   engine.renderer.render(engine.scene, engine.camera);
+  playtest?.pov.afterRender();
 }
 
 requestAnimationFrame(animate);

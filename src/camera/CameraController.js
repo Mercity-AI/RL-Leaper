@@ -31,6 +31,7 @@ export class CameraController {
     toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
     toggleButton.addEventListener('click', () => this.toggle());
     canvas.addEventListener('pointerdown', (event) => {
+      if (this.spectator?.active) return;
       if (this.followSubject && this.mode === 'CHASE' && event.button === 0) {
         const request = canvas.requestPointerLock?.();
         request?.catch?.(() => {});
@@ -46,6 +47,7 @@ export class CameraController {
     window.addEventListener('pointercancel', (event) => this.endPointer(event));
     canvas.addEventListener('wheel', (event) => {
       event.preventDefault();
+      if (this.spectator?.active) return;
       if (this.mode === 'TOP') {
         this.topHeight = THREE.MathUtils.clamp(
           this.topHeight * (1 + event.deltaY * 0.0012),
@@ -68,6 +70,7 @@ export class CameraController {
   }
 
   toggle() {
+    if (this.spectator?.active) this.spectator.toggle();
     if (this.followSubject) {
       this.mode = this.mode === 'CHASE' ? 'TOP' : 'CHASE';
       if (document.pointerLockElement === this.canvas) document.exitPointerLock();
@@ -84,6 +87,7 @@ export class CameraController {
   }
 
   onPointerMove(event) {
+    if (this.spectator?.active) return;
     const locked = document.pointerLockElement === this.canvas;
     if (!locked && event.pointerId !== this.pointerId) return;
     const deltaX = locked ? event.movementX : event.clientX - this.lastX;
@@ -142,11 +146,13 @@ export class CameraController {
   }
 
   getMovementHeading(robotYaw) {
+    if (this.spectator?.active) return this.spectator.heading;
     if (this.followSubject && this.mode === 'TOP') return Math.PI;
     return this.eyeView ? robotYaw + this.eyeYaw : this.yaw + Math.PI;
   }
 
   update(state, eyePivot, deltaTime) {
+    if (this.spectator?.active) return;
     if (this.eyeView) {
       this.tempA.set(0, 0, 0.19);
       eyePivot.localToWorld(this.tempA);

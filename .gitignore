@@ -35,3 +35,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Generated browser combat test build
+/tmp/combat-browser-dist/

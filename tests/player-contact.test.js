@@ -22,6 +22,8 @@ test('Lola cannot enter the Leaper envelope while paused, running, or awaiting i
   assert.equal(playtest.world.playerBlocked(0, 5.79), true);
   assert.equal(playtest.world.playerBlocked(0, 5.9), false);
   brain.busy = true;
+  assert.equal(playtest.world.playerBlocked(0, 5.9), false, 'sense-only requests do not reserve movement');
+  brain.pendingMovement = true;
   assert.equal(playtest.world.playerBlocked(0, 5.9), true);
   p.z = 6.0;
   assert.equal(playtest.world.playerBlocked(0, 6.1), false, 'can retreat from reservation');

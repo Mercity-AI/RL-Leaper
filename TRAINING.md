@@ -285,3 +285,73 @@ Next decision:
   and reward definitions are unchanged; no training or model overwrite occurred.
   Any training with this collision rule must be a new recorded experiment, not
   treated as equivalent to the original checkpoint benchmark.
+
+
+### 2026-10-12 — First Leaper shooting system (inference-only playtest)
+
+- Continued from `b2ad02c` on `codex/eye-level-vision`; feature branch
+  `codex/leaper-shooting`. Existing untracked owner assets and folders retained.
+- Movement remains exclusively controlled by the saved 7,757,824-step policy.
+  No training, model writes, navigation changes, action/reward changes, movement
+  sensor changes, or observation-layout changes. Policy SHA256 remains
+  `883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594`.
+  Python compatibility tests still verify 34 inputs, 16 movement rays, hidden
+  target memory, and action parity against direct model inference.
+- `AttackController` is a small priority-selector behaviour tree with persistent
+  warning/lock/recovery/cooldown timers. Dead/paused takes priority, then current
+  visibility/range, physical eye alignment, cooldown tracking, and attack.
+  Shooting never drives movement or supplies observations to the trained brain.
+- Detection keeps its committed neutral red-eye anchor and 270-degree field.
+  `EyeVision.pose()` now explicitly uses that neutral anchor so weapon articulation
+  cannot inadvertently change the saved sensing interface. Its animated head and
+  torso points, server map occlusion, memory rules and 16 movement sensors remain
+  unchanged. Physical weapon checks are separate, from the articulated muzzle
+  against the actual rendered 3D map triangles, including double-sided faces.
+  This distinction also applies when selecting the old flat-vision comparison:
+  weapon safety always uses physical 3D cover checks.
+- Local combat selects a clear torso/head/pelvis point, respects +/-45-degree eye
+  yaw and -70/+80-degree pitch, tracks for 0.4 seconds, then holds its world-space
+  direction for the final 0.2 seconds of a 0.6-second bright-eye warning. Losing
+  the selected point to cover or losing alignment cancels the warning with a
+  0.35-second recovery. The locked firing path is rechecked before release.
+- Single straight red bolts, unlimited ammunition, 12 source-map units/second,
+  22 source-map-unit range, 8 damage, no homing. Distances/speed scale with map
+  size. Every frame sweeps the complete bolt segment and takes the nearest hit;
+  cover wins ties. Animated head sphere and torso capsule follow crouch/jump.
+  These are forgiving body hit areas, not per-triangle skinned mesh hitboxes;
+  arms, guns and lower legs are not separate hit regions in this first version.
+- Central tuning: `src/config/combat.js`. Lola starts at 100 HP; Leaper at 600 HP;
+  no regeneration. Two seconds of post-shot cooldown plus the next warning
+  currently yield about 2.6 seconds between uninterrupted shots (never below
+  the requested two-second minimum). Small muzzle/impact pulses, red damage
+  vignette, health HUD, Leaper overhead health bar, defeat and restart added.
+  600 HP targets 60–90 seconds at a future effective player DPS of roughly 7–10;
+  that encounter duration is provisional until real player shooting is added.
+- Inspection confirmed Lola's existing F control only swaps gun models and
+  animations. No player shooting/damage system existed. OPTIONS therefore has
+  an explicitly labelled DEBUG damage button (-100 HP), and the defeat label
+  identifies a debug test. This is not completed player combat.
+- STOP RUN cancels charging and freezes bolts/timers; Lola retains the prior
+  ability to move while the Leaper is paused. Restart/reset clears bolts,
+  effects and timers and restores health. Either defeat stops the encounter;
+  late brain responses cannot animate a defeated encounter. Existing generation
+  tokens prevent reset races. Background tabs hold fire.
+- LEAPER POV is a read-only spectator view of the real muzzle/direction. It
+  preserves the prior camera mode and Lola's movement heading, disables camera
+  look/pan while spectating, and works paused or running. Rig/legs/muzzle pulse
+  and through-wall diagnostic lines are hidden only during POV rendering, then
+  restored immediately. The reticle and attack indicator show charging/lock,
+  firing, cooldown, tracking and hidden-target states. The 70-degree camera
+  view intentionally does not represent the full detection field.
+- Validation: `node --test tests/*.test.js`; `python tests/test_eye_vision.py`;
+  `python tests/test_junkyard_brain.py`; `pnpm build` (existing bundle-size warning).
+  `tests/browser-combat.html` runs 31 real-map/real-Lola browser checks, including
+  warning/lock, cover interruption, extreme-speed thin-cover blocking, damage,
+  crouch/jump, aim limits, range, pause/reset/death/restart, and spectator isolation.
+  Build this separate test entry with Vite's `build({build:{outDir:
+  "tmp/combat-browser-dist",rollupOptions:{input:"tests/browser-combat.html"}}})`
+  and serve that directory locally. It is not part of the production viewer.
+- Corrected an existing test fixture in `tests/player-contact.test.js`: a
+  sense-only request marked `busy` does not reserve a movement step; the fixture
+  now sets the existing `pendingMovement` flag and tests both cases. No contact
+  behavior was changed.

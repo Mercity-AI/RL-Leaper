@@ -47,7 +47,11 @@ export class EyeVision {
     const { target, simulation } = this.playtest;
     target.mesh.updateMatrixWorld(true);
     simulation.rig.robot.updateMatrixWorld(true);
-    const eye = simulation.rig.eyePivot.localToWorld(new THREE.Vector3(0, 0, 0.148));
+    // Keep the committed detection origin independent of weapon/spectator aim.
+    // Before combat the eye was neutral; reproduce that same neutral transform.
+    const eye = simulation.rig.robot.localToWorld(
+      simulation.rig.eyePivot.position.clone().add(new THREE.Vector3(0, 0, 0.148)),
+    );
     const robot = simulation.rig.robot;
     const dx = eye.x - robot.position.x, dz = eye.z - robot.position.z;
     const c = Math.cos(robot.rotation.y), s = Math.sin(robot.rotation.y);

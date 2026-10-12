@@ -221,7 +221,7 @@ export class LeaperSimulation {
     this.bodyHeight = bodyHeight;
     this.rig.robot.position.set(state.position.x, bodyHeight, state.position.z);
     this.rig.robot.rotation.set(state.pitchTilt, state.yaw, state.rollTilt);
-    this.rig.eyePivot.rotation.set(
+    if (!this.rig.weaponControlled) this.rig.eyePivot.rotation.set(
       -this.cameraController.eyePitch,
       this.cameraController.eyeYaw,
       0,

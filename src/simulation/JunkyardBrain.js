@@ -113,7 +113,8 @@ export class JunkyardBrain {
     this.target.move(a.forward + b.forward, a.side + b.side, forward, right,
       sim.input.sprinting ? 8 : 4.5, dt);
     this.clock += dt;
-    const preview = !this.running && Boolean(this.playtest.sight);
+    const encounterOver = this.playtest.combat?.dead;
+    const preview = !encounterOver && !this.running && Boolean(this.playtest.sight);
     if (this.ready && (this.running || preview) && !this.busy && this.clock >= (preview ? 0.1 : 1 / 30) && !document.hidden) {
       this.clock = 0;
       this.busy = true;
@@ -137,7 +138,7 @@ export class JunkyardBrain {
         }
       });
     }
-    if (this.frame) {
+    if (this.frame && !encounterOver) {
       this.renderAge = (this.renderAge || 0) + dt;
       const t = Math.min(1, this.renderAge * 30);
       const prev = this.previousFrame;

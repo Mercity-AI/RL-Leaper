@@ -3,6 +3,8 @@ import { JunkyardBrain } from './JunkyardBrain.js';
 import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
 import { contact, contactRadius } from '../world/playerContact.js';
 import { EyeVision } from './EyeVision.js';
+import { LeaperCombat } from './LeaperCombat.js';
+import { LeaperPov } from '../camera/LeaperPov.js';
 
 export class JunkyardPlaytest {
   constructor({ engine, world, simulation, target, cameraController }) {
@@ -53,6 +55,8 @@ export class JunkyardPlaytest {
     this.brainLabel = this.panel.querySelector('.brain-state');
     this.sight = target.isPlayer ? new EyeVision(this) : null;
     this.brain = new JunkyardBrain(this);
+    this.combat = new LeaperCombat(this);
+    this.pov = new LeaperPov(this);
     document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>F</b> GUN · <b>CLICK + MOUSE</b> LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
     target.setSelected(true);
     const size = this.panel.querySelector('input');
@@ -101,7 +105,7 @@ export class JunkyardPlaytest {
     const raycaster = new THREE.Raycaster();
     const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     engine.renderer.domElement.addEventListener('pointerdown', (e) => {
-      if (!e.shiftKey || cameraController.mode !== 'TOP') return;
+      if (!e.shiftKey || cameraController.mode !== 'TOP' || this.pov.active || this.combat.dead) return;
       cameraController.pointerId = null;
       const rect = engine.renderer.domElement.getBoundingClientRect();
       raycaster.setFromCamera(new THREE.Vector2(
@@ -127,6 +131,7 @@ export class JunkyardPlaytest {
   }
 
   start() {
+    if (this.combat?.dead) return;
     this.walking = true;
     this.target.setSelected(true);
     this.panel.querySelector('[data-action=route]').textContent = 'STOP RUN';
@@ -143,6 +148,7 @@ export class JunkyardPlaytest {
 
   reset(spawn = null) {
     this.sight?.clear();
+    this.combat?.reset();
     this.stop('WASD moves Lola. Shift sprints. Space jumps. C crouches. F switches guns. Start Run lets the trained brain search and chase.');
     const { x, z } = spawn?.position || this.world.spawn;
     if (spawn) this.target.mesh.position.set(spawn.target.x, this.target.isPlayer ? 0 : 3.5, spawn.target.z);
@@ -230,5 +236,7 @@ export class JunkyardPlaytest {
 
   update(dt) {
     this.brain.update(dt);
+    this.combat.update(dt);
+    this.pov.update();
   }
 }
