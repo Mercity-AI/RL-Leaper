@@ -59,7 +59,7 @@ export class JunkyardPlaytest {
     this.combat = new LeaperCombat(this);
     this.pov = new LeaperPov(this);
     this.playerWeapon = new PlayerWeapon(this);
-    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>Q</b> GUN · <b>CLICK / HOLD</b> PISTOL / M416 · MOUSE LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
+    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>Q</b> GUN · <b>LEFT CLICK</b> FIRE · MOUSE LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
     target.setSelected(true);
     const size = this.panel.querySelector('input');
     size.addEventListener('input', () => {

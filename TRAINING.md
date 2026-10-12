@@ -507,3 +507,20 @@ Next decision:
 - Validation: full Node suite, production build and browser regression checks
   covering cadence, release, switching, cover, death/reset, particles expiring,
   and render-only shudder restoration. Asset/model files remain unchanged.
+
+### 2026-10-12 — Unified left-click firing
+
+- Both guns now fire exactly once per left press; removed M416 hold-to-fire
+  and all held-trigger state. Q still switches weapons. Weapon-specific recoil,
+  effects, cooldowns and damage are retained; rifle visuals no longer depend
+  on an automatic-fire flag.
+- Removed the Leaper running/brain-ready gates from Lola's weapon. Like movement,
+  Lola can now shoot in CHASE while the Leaper run is stopped or loading. Stop
+  still clears existing effects; new deliberate clicks are allowed afterward.
+  Leaper attacks remain paused. Death, hidden tab and spectator POV still block
+  player fire. No policy, movement, sensing or navigation changes.
+- Production build and 33 Node tests passed. All 62 real-asset browser checks
+  passed, now exercising actual pointerdown and Q key events for both guns,
+  stopped/unready brain, no auto-repeat, repeat clicks and effect cleanup.
+  Also clicked both guns and switched with Q in the production browser.
+- Shift no longer suppresses firing in CHASE; browser pointer checks include Shift held. TOP Shift-click teleport remains separate and TOP firing stays disabled.

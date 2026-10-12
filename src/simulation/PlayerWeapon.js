@@ -3,8 +3,8 @@ import { GunshotEffects } from './GunshotEffects.js';
 
 export const PLAYER_WEAPON = Object.freeze({
   range: 60,
-  m416: Object.freeze({ damage: 2, interval: 0.12, automatic: true }),
-  pistol: Object.freeze({ damage: 6, interval: 0.6, automatic: false }),
+  m416: Object.freeze({ damage: 2, interval: 0.12, rifle: true }),
+  pistol: Object.freeze({ damage: 6, interval: 0.6, rifle: false }),
 });
 
 // Instant bullet, with a separate camera sight ray and muzzle ray so nearby cover wins.
@@ -22,8 +22,6 @@ export class PlayerWeapon {
     this.remaining = 0;
     this.visuals = new GunshotEffects(playtest.engine.scene, playtest.world.scale);
     this.effects = this.visuals.items;
-    this.held = false;
-    this.lastWeapon = playtest.target.weaponIndex;
     this.hitTime = 0;
     this.reticle = document.createElement('div');
     this.reticle.id = 'playerReticle';
@@ -32,11 +30,8 @@ export class PlayerWeapon {
     document.body.append(this.reticle);
     const canvas = playtest.engine.renderer.domElement;
     canvas.addEventListener('pointerdown', event => {
-      if (event.button === 0 && !event.shiftKey && this.available) { this.held = true; this.fire(); }
+      if (event.button === 0) this.fire();
     });
-    window.addEventListener('pointerup', () => { this.held = false; });
-    window.addEventListener('pointercancel', () => { this.held = false; });
-    document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement) this.held = false; });
     window.addEventListener('blur', () => this.reset());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.reset(); });
   }
@@ -45,7 +40,7 @@ export class PlayerWeapon {
 
   get available() {
     const p = this.p;
-    return p.walking && p.brain.ready && !p.combat.dead && !p.pov.active
+    return !p.combat.dead && !p.pov.active
       && p.cameraController.mode === 'CHASE' && !document.hidden;
   }
 
@@ -69,12 +64,12 @@ export class PlayerWeapon {
     const direction = aim.sub(origin).normalize();
     const hit = bulletHit(p.combat.geometry, enemies, origin, direction, range);
     const end = origin.clone().addScaledVector(direction, hit.distance);
-    this.visuals.shot(origin, end, this.weapon.automatic);
+    this.visuals.shot(origin, end, this.weapon.rifle);
     this.reticle.dataset.hit = String(hit.enemy);
     if (hit.enemy) {
       const normal = hit.intersection.face.normal.clone()
         .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.intersection.object.matrixWorld)).normalize();
-      this.visuals.impact(end, normal, this.weapon.automatic);
+      this.visuals.impact(end, normal, this.weapon.rifle);
       this.hitTime = 0.15;
       p.combat.damageLeaper(this.weapon.damage);
     }
@@ -90,7 +85,6 @@ export class PlayerWeapon {
 
   reset() {
     this.remaining = 0;
-    this.held = false;
     this.hitTime = 0;
     this.p.target.cancelShot();
     this.clearEffects();
@@ -101,10 +95,6 @@ export class PlayerWeapon {
     this.reticle.hidden = !this.available;
     if (!this.available) { this.reset(); return; }
     this.remaining = Math.max(0, this.remaining - dt);
-    if (this.lastWeapon !== this.p.target.weaponIndex) {
-      this.held = false; this.lastWeapon = this.p.target.weaponIndex;
-    }
-    if (this.held && this.weapon.automatic && this.remaining === 0) this.fire();
     this.visuals.update(dt);
     this.hitTime = Math.max(0, this.hitTime - dt);
     if (!this.hitTime) this.reticle.dataset.hit = 'false';
