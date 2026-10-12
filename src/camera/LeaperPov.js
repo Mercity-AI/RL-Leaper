@@ -14,7 +14,7 @@ export class LeaperPov {
     this.reticle.id = 'leaperReticle'; this.reticle.textContent = '+'; this.reticle.hidden = true;
     document.body.append(this.reticle);
     const rig = playtest.simulation.rig;
-    this.hiddenObjects = [rig.robot, playtest.combat.healthBar, playtest.sight.lines,
+    this.hiddenObjects = [rig.robot, playtest.sight.lines,
       ...rig.legs.flatMap(leg => ['coxa', 'femur', 'tibia', 'calf', 'knee', 'calfJoint'].map(key => leg[key]))];
     playtest.cameraController.spectator = this;
   }

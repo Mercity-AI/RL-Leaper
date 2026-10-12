@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createLaserVisual } from './LaserVisual.js';
 import { COMBAT } from '../config/combat.js';
 import { AttackController } from './AttackController.js';
 import { CombatGeometry, aimAngles, withinAim, capsuleHit } from './CombatGeometry.js';
@@ -20,15 +21,13 @@ export class LeaperCombat {
       o.material = o.material.clone();
       return { material: o.material, base: o.material.emissiveIntensity };
     });
-    this.boltGeometry = new THREE.SphereGeometry(1, 10, 8);
-    this.boltMaterial = new THREE.MeshBasicMaterial({ color: 0xff301e });
-    this.effectMaterial = new THREE.MeshBasicMaterial({ color: 0xff6948, transparent: true, opacity: 0.6 });
-    this.healthBar = new THREE.Group();
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.18), new THREE.MeshBasicMaterial({ color: 0x251d20, side: THREE.DoubleSide }));
-    this.healthFill = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 0.1), new THREE.MeshBasicMaterial({ color: 0xeb574f, side: THREE.DoubleSide }));
-    this.healthFill.position.z = 0.01;
-    this.healthBar.add(back, this.healthFill);
-    playtest.engine.scene.add(this.healthBar);
+    this.laser = createLaserVisual(COMBAT);
+    this.effectGeometry = new THREE.SphereGeometry(1, 10, 8);
+    this.effectMaterial = new THREE.MeshBasicMaterial({ color: 0xb50913, transparent: true, opacity: 0.45 });
+    this.enemyHud = document.createElement('div');
+    this.enemyHud.id = 'leaperHealthHud';
+    this.enemyHud.innerHTML = '<b>LEAPER <span data-enemy-health></span></b><progress aria-label="Leaper health"></progress>';
+    document.body.append(this.enemyHud);
     this.hud = document.createElement('div');
     this.hud.id = 'combatHud';
     this.hud.innerHTML = `<div class="combat-health"><b>LOLA <span data-health></span></b><progress data-health-bar max="100" value="100"></progress></div>
@@ -101,8 +100,9 @@ export class LeaperCombat {
     this.origin.copy(rig.eyePivot.localToWorld(new THREE.Vector3(0, 0, 0.148)));
   }
   fire() {
-    const mesh = new THREE.Mesh(this.boltGeometry, this.boltMaterial);
-    mesh.scale.set(0.065, 0.065, 0.28).multiplyScalar(this.playtest.world.scale);
+    const mesh = this.laser.create();
+    mesh.scale.setScalar(this.playtest.world.scale);
+    mesh.scale.z = 0.001;
     mesh.position.copy(this.origin);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.direction);
     this.playtest.engine.scene.add(mesh);
@@ -111,7 +111,7 @@ export class LeaperCombat {
     this.effect(this.origin, true);
   }
   effect(position, muzzle = false) {
-    const mesh = new THREE.Mesh(this.boltGeometry, this.effectMaterial);
+    const mesh = new THREE.Mesh(this.effectGeometry, this.effectMaterial);
     mesh.position.copy(position);
     mesh.scale.setScalar(0.09 * this.playtest.world.scale);
     this.playtest.engine.scene.add(mesh);
@@ -129,6 +129,8 @@ export class LeaperCombat {
       const hitDistance = Math.min(cover?.distance ?? Infinity, playerDistance);
       bolt.mesh.position.addScaledVector(bolt.direction, Math.min(distance, hitDistance));
       bolt.travelled += distance;
+      // Grow out of the muzzle; the tail never extends behind the firing eye.
+      bolt.mesh.scale.z = scale * Math.min(1, bolt.travelled / (this.config.laserLength * scale));
       if (hitDistance <= distance || bolt.travelled >= this.config.weaponRange * scale) {
         if (hitDistance <= distance) this.effect(bolt.mesh.position);
         this.playtest.engine.scene.remove(bolt.mesh); this.bolts.splice(this.bolts.indexOf(bolt), 1);
@@ -185,10 +187,6 @@ export class LeaperCombat {
     const charge = this.tree.started === null ? 0 : Math.min(1, (this.tree.time - this.tree.started) / c.warning);
     for (const { material, base } of this.eyeMaterials) material.emissiveIntensity = this.leaperHealth ? base + charge * 8 + this.fireFlash * 20 : 0;
     rig.eyeLight.intensity = this.leaperHealth ? 1 + charge * 5 + this.fireFlash * 10 : 0;
-    this.healthBar.position.copy(rig.robot.position).add(new THREE.Vector3(0, 2, 0));
-    this.healthBar.quaternion.copy(p.engine.camera.quaternion);
-    this.healthFill.scale.x = this.leaperHealth / c.leaperHealth;
-    this.healthFill.position.x = -1.05 * (1 - this.healthFill.scale.x);
     this.updateHud();
   }
   updateHud() {
@@ -198,6 +196,14 @@ export class LeaperCombat {
     const status = this.dead ? (this.leaperHealth ? 'encounter ended' : 'defeated')
       : this.fireFlash > 0 && this.tree.state !== 'paused' ? 'firing' : this.tree.state;
     this.hud.querySelector('[data-attack]').textContent = `LEAPER · ${status.toUpperCase()}${this.tree.locked ? ' · AIM LOCKED' : ''} · ${this.leaperHealth} HP`;
-    document.documentElement.style.setProperty('--damage-flash', this.damageFlash > 0 ? '0.65' : '0');
+    const enemyBar = this.enemyHud.querySelector('progress');
+    enemyBar.max = this.config.leaperHealth; enemyBar.value = this.leaperHealth;
+    this.enemyHud.querySelector('[data-enemy-health]').textContent = `${this.leaperHealth} / ${this.config.leaperHealth}`;
+    // Ordinary hits briefly highlight the health readout; screen edges are
+    // reserved for critical health, including while paused.
+    this.hud.dataset.hit = String(this.damageFlash > 0 && !this.dead);
+    const low = this.lolaHealth <= this.config.lowHealthThreshold;
+    const opacity = low ? 0.15 + 0.2 * (1 - this.lolaHealth / this.config.lowHealthThreshold) : 0;
+    document.documentElement.style.setProperty('--damage-flash', String(opacity));
   }
 }

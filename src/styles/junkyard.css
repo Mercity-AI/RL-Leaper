@@ -49,3 +49,8 @@ body.junkyard-mode::after { content: ''; position: fixed; inset: 0; pointer-even
 #leaperReticle[data-locked=true] { color: #fff; }
 #junkyardPanel [data-action=debug-damage] { margin-top: 10px; border-color: #d98b44; }
 #junkyardPanel .junkyard-toolbar { flex-wrap: wrap; }
+
+#leaperHealthHud { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); width: min(280px, 35vw); z-index: 20; padding: 10px 14px; border-radius: 6px; background: #17191de8; color: #eee; font: 11px/1.5 monospace; text-align: center; pointer-events: none; }
+#leaperHealthHud progress { display: block; width: 100%; height: 8px; margin-top: 5px; accent-color: #b50913; }
+#combatHud[data-hit=true] .combat-health { color: #ffb09d; }
+@media(max-width:700px) { #leaperHealthHud { top: 108px; width: 200px; padding: 6px 10px; } }

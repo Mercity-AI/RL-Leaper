@@ -137,9 +137,27 @@ try {
   rig.eyePivot.rotation.y += 0.3;
   const after = EyeVision.prototype.pose.call(fakeSight);
   check(JSON.stringify(before) === JSON.stringify(after), 'weapon aim does not change the saved-brain sensing pose');
+  combat.reset(); combat.damageLola();
+  check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'ordinary damage does not tint screen edges');
+  for (let i = 0; i < 9; i++) combat.damageLola();
+  check(combat.lolaHealth === 20 && Number(document.documentElement.style.getPropertyValue('--damage-flash')) > 0, 'screen-edge warning begins at 20 HP');
+  combat.reset();
+  check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'restart clears critical-health screen tint');
+  check(document.querySelector('#leaperHealthHud progress').value === 600 && !combat.healthBar, 'Leaper health is in screen HUD, not a world-space bar');
   target.mesh.position.copy(base);
   result.textContent += `\n\nALL ${passed} CHECKS PASSED`;
   document.title = `PASS ${passed} · Leaper combat regression`;
+  if (new URLSearchParams(location.search).has('laserPreview')) {
+    combat.reset(); target.mesh.position.copy(lane); animatePlayer();
+    combat.pose(); combat.track(combat.pose()[1]); combat.fire();
+    combat.updateProjectiles(0.2, combat.pose());
+    const bolt = combat.bolts[0];
+    const focus = bolt.mesh.position.clone().addScaledVector(bolt.direction, -COMBAT.laserLength * scale / 2);
+    engine.camera.position.copy(focus).add(new THREE.Vector3(5, 2, 2));
+    engine.camera.up.set(0, 1, 0); engine.camera.lookAt(focus);
+    result.hidden = true;
+    engine.renderer.render(engine.scene, engine.camera);
+  }
 } catch (error) {
   result.textContent += `\nFAIL: ${error.stack}`; document.title = 'FAIL · Leaper combat regression';
   console.error(error);

@@ -30,7 +30,7 @@ export class JunkyardPlaytest {
           <option value="legacy">Old flat vision</option>
         </select>
       </label>
-      <button data-action="sight" aria-pressed="true">HIDE SIGHT LINES</button>
+      <button data-action="sight" aria-pressed="false">SHOW SIGHT LINES</button>
       <small>Green: clear · Orange: blocked at cover. Three eye checks; 16 movement rays unchanged.</small>
       <label>Leaper clearance width
         <output>${world.width.toFixed(1)} units</output>

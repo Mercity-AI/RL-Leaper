@@ -355,3 +355,28 @@ Next decision:
   sense-only request marked `busy` does not reserve a movement step; the fixture
   now sets the existing `pendingMovement` flag and tests both cases. No contact
   behavior was changed.
+
+
+### 2026-10-12 — Tire passage and combat presentation revision
+
+- Moved the three loose truck tires beside the bus (`truck_tire_single.006` through
+  `.008`) north by 2.5 source-map units (negative browser Z). Updated the GLB node
+  translations and exactly their 492 collision triangles; all other collision
+  entries are preserved. `scripts/move_junkyard_tires.py` reapplies this change
+  after a fresh original Blender export and refuses a double application. Original
+  Blender source files are untouched. Browser movement, projectile cover, server
+  eye rays, and movement sensors all consume the same revised map; restart the
+  brain service to discard its old geometry cache. No model or policy changes.
+- Default-width passage from map (4,-2.5) to (10,-2.5) was blocked before and is
+  now clear. The maximum 8-unit size has only 14 clear cells; the navigation test
+  now checks all of these rather than accidentally missing them with a stride.
+- Sight debug lines default off; the Options button can explicitly enable them.
+- Replaced the rounded bolt with a narrow dark-red finite laser streak. It grows
+  out of the eye to a 1.4-map-unit visual length, travels with the same swept
+  leading-tip collision and damage, and tapers/fades toward its trailing end.
+  Length/radius remain configurable; there is no continuous beam or homing.
+- Leaper health is now a fixed upper-screen HUD bar, never above the enemy mesh.
+  Ordinary hits highlight Lola's health readout without tinting the screen edges.
+  The red edge warning appears only at 20 HP or less and resets with health.
+- Validation: JS navigation/combat suite, production build, and real-asset browser
+  checks including ordinary-hit tint, critical threshold, reset, and HUD placement.

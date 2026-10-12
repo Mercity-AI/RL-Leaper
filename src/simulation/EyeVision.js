@@ -14,7 +14,7 @@ export class EyeVision {
       return bone;
     }));
     this.lines = new THREE.Group();
-    this.lines.visible = true;
+    this.lines.visible = false;
     this.lines.renderOrder = 20;
     for (let i = 0; i < 3; i += 1) {
       const geometry = new THREE.BufferGeometry();
