@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Lets `python tests/test_junkyard_server.py` import the project's rl package.
 sys.path.insert(0, str(ROOT))
 import numpy as np
-from rl.junkyard_server import (MODEL_STEP, SESSION_EXPIRED, JunkyardWorlds,
+from rl.junkyard_server import (MAX_SESSIONS, MODEL_STEP, SESSION_EXPIRED, JunkyardWorlds,
                                 loopback_origin, make_handler, make_server)
 
 # Brain-server tests use these ports; 8767 belongs to the real service.
@@ -66,7 +66,7 @@ def reset_body(**overrides):
 class ServerHarness:
     """Runs a brain service on the first free test port in a background thread."""
 
-    def __init__(self, model=None, max_sessions=8):
+    def __init__(self, model=None, max_sessions=MAX_SESSIONS):
         self.folder = tempfile.TemporaryDirectory()
         self.model = model or FakeModel()
         handler = make_handler(self.model, DIGEST, worlds=tiny_yard(self.folder.name), max_sessions=max_sessions)
@@ -243,6 +243,12 @@ class BrainServerTests(unittest.TestCase):
                                              sight_pose=reset_body()["sight_pose"]), timeout=3)
         self.assertEqual((status, frame["step"]), (200, 1))
 
+    def test_a_port_in_use_is_refused(self):
+        # A second brain service on the same port must fail with an error (also on
+        # Windows, where SO_REUSEADDR would let it share the port and split requests).
+        with self.assertRaises(OSError):
+            make_server(self.harness.server.RequestHandlerClass, self.harness.port).server_close()
+
 
 class SessionTableTests(unittest.TestCase):
     def test_active_tab_survives_new_sessions(self):
@@ -260,6 +266,19 @@ class SessionTableTests(unittest.TestCase):
         status, reply, _ = harness.post("/step", dict(token=idle, target=[0, 6], sight_pose=pose))
         self.assertEqual((status, reply["error"]), (400, SESSION_EXPIRED))
         self.assertEqual(len(harness.service.sessions), 3)
+
+    def test_hidden_tab_survives_resets_in_another_tab(self):
+        # A hidden browser tab sends nothing, so its session is the least recently
+        # used one. The default table must still keep it through 9 resets in another
+        # tab (fix guide 5.10), or switching back shows "Session expired".
+        harness = ServerHarness()
+        self.addCleanup(harness.close)
+        pose = reset_body()["sight_pose"]
+        hidden = harness.post("/reset", reset_body())[1]["token"]
+        for _ in range(9):
+            self.assertEqual(harness.post("/reset", reset_body())[0], 200)
+        status, frame, _ = harness.post("/step", dict(token=hidden, target=[0, 6], sight_pose=pose))
+        self.assertEqual((status, frame.get("step")), (200, 1), frame)
 
     def test_two_tabs_step_at_the_same_time(self):
         harness = ServerHarness()

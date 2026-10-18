@@ -42,8 +42,11 @@ DEFAULT_PORT = 8767
 # Map scale is BODY_COLLISION_DIAMETER / width, the same formula as the browser
 # (BODY_COLLISION_RADIUS * 2 / width in src/world/createJunkyardWorld.js).
 BODY_COLLISION_DIAMETER = 7.98
-# Open game tabs kept at once; the least recently used one is dropped first.
-MAX_SESSIONS = 8
+# Brain sessions kept at once; the least recently used one is dropped first.
+# Every RESET, size change or reload opens a new one, and a hidden browser tab
+# sends nothing, so the table must outlast many resets in another tab. A session
+# is only ~0.15 MB, so 32 of them cost about 5 MB.
+MAX_SESSIONS = 32
 # Leaper sizes whose map data stays in memory (rasters are also cached on disk).
 MAX_WORLDS = 4
 # Requests are small JSON objects; anything larger is refused.
@@ -397,11 +400,19 @@ def encode(data):
     return json.dumps(data, allow_nan=False).encode()
 
 
-def make_server(handler, port=DEFAULT_PORT, host="127.0.0.1"):
+class BrainHTTPServer(ThreadingHTTPServer):
     """Threaded server, so one idle or slow connection never stalls other moves."""
-    server = ThreadingHTTPServer((host, port), handler)
-    server.daemon_threads = True
-    return server
+
+    daemon_threads = True
+    # On Windows, SO_REUSEADDR lets a second server bind a port that is already
+    # listening, so two brain services would silently split the game's requests
+    # ("Session expired"). Without it, the second one fails with a clear message.
+    allow_reuse_address = sys.platform != "win32"
+
+
+def make_server(handler, port=DEFAULT_PORT, host="127.0.0.1"):
+    """Listen on this computer only; raises OSError when the port is taken."""
+    return BrainHTTPServer((host, port), handler)
 
 
 def main(argv=None):
