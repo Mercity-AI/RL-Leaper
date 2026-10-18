@@ -49,8 +49,9 @@ export class JunkyardPlaytest {
     // 4. Gameplay systems. Each receives this playtest as its context, so the
     //    order matters (combat, POV and the weapon read the ones before them).
     this.sight = target.isPlayer ? new EyeVision(this) : null;
+    // (If the brain service is offline, a run carries on in turret mode: the
+    // Leaper stands still but still shoots, and the brain's message says why.)
     this.brain = new JunkyardBrain(this);
-    this.brain.onFailed = () => this.brainFailed();
     this.playerController = new PlayerController({ player: target, input: simulation.input, cameraController,
       headingYaw: () => simulation.state.yaw });
     this.combat = new LeaperCombat(this);
@@ -94,12 +95,12 @@ export class JunkyardPlaytest {
     });
     this.panelView.renderSound(audio.enabled);
 
-    // 10. Presentation: camera, sun, floating health bar and readouts, updated
-    //     every frame after gameplay (the Leaper animator no longer drives them).
+    // 9. Presentation: camera, sun, floating health bar and readouts, updated
+    //    every frame after gameplay (the Leaper animator no longer drives them).
     this.presentation = new JunkyardPresentation({ engine, world, cameraController, player: target,
       encounter: this.encounter, pov: this.pov, brainLabel: this.brainLabel, statusElement: simulation.statusElement });
 
-    // 11. Designer tools: the clearance overlay and Shift + click placement in TOP view.
+    // 10. Designer tools: the clearance overlay and Shift + click placement in TOP view.
     this.overlay = new ClearanceOverlay({ scene: engine.scene, world });
     this.removePlacement = enableTopViewPlacement({
       engine, cameraController, world, player: target,
@@ -110,7 +111,7 @@ export class JunkyardPlaytest {
       },
     });
 
-    // 12. First reset (Loading -> Ready). After APPLY SIZE the session picks up
+    // 11. First reset (Loading -> Ready). After APPLY SIZE the session picks up
     //     where it was (Lola's spot, camera, gun, sound and the mode, paused);
     //     an old ?run=1 link still starts a run.
     if (!target.isPlayer) this.topView();
@@ -147,10 +148,6 @@ export class JunkyardPlaytest {
     this.panelView.renderFlow(next);
     this.pauseOverlay.render(next);
   }
-
-  // The brain went offline. A run carries on in turret mode (the Leaper stands
-  // still but still shoots); the brain's message says how to bring it back.
-  brainFailed() {}
 
   // ---- Toolbar actions ----
 
@@ -193,8 +190,7 @@ export class JunkyardPlaytest {
   // records who won).
   stop(message) {
     if (this.encounter.over) {
-      this.encounter.end();
-      this.message.textContent = ENDED_MESSAGE;
+      this.combatFinished();
       return;
     }
     this.flow.stop();
