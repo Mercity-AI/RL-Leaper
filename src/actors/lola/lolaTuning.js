@@ -59,6 +59,17 @@ export const RUN_JUMP_FADE_OUT = 0.06;
 // clip, never past the push-off.
 export const RUN_JUMP_MAX_SKIP = 4;
 
+// How the hit flinch's bend (ENCOUNTER.hitRecoilAngle) is shared along her
+// spine, lowest joint first. One joint bending 26 degrees stretched her shirt
+// at the waist up to 1.5x; spread over four joints it stays under 1.2x. The
+// shares add up to 1.2, so the head still moves about as far as before.
+export const LOLA_FLINCH_SPREAD = Object.freeze([
+  ['DEF-spine.001', 0.264],
+  ['DEF-spine.002', 0.336],
+  ['DEF-spine.003', 0.336],
+  ['DEF-spine.004', 0.264],
+]);
+
 // The reload's fade in and out at its start and end, in seconds.
 export const RELOAD_FADE_IN = 0.12;
 export const RELOAD_FADE_OUT = 0.15;

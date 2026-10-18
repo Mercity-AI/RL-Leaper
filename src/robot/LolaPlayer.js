@@ -3,7 +3,7 @@ import { ENCOUNTER } from '../config/encounter.js';
 import { crossedFootContact } from './footstepContacts.js';
 import { loadLolaAssets, prepareOutfit } from '../actors/lola/LolaAssets.js';
 import { LolaLocomotion } from '../actors/lola/LolaLocomotion.js';
-import { LolaAnimator } from '../actors/lola/LolaAnimator.js';
+import { LolaAnimator, undoFlinch } from '../actors/lola/LolaAnimator.js';
 import { LolaActionState } from '../actors/lola/LolaActionState.js';
 import { CharacterMover } from '../actors/lola/CharacterMover.js';
 import {
@@ -127,8 +127,7 @@ export class LolaPlayer {
       // A put-away outfit is no longer animated; drop its flinch offset and
       // pose it afresh when it is shown again.
       if (outfit.model.visible || !outfit.hitBase) return;
-      outfit.hitBone.quaternion.copy(outfit.hitBase);
-      outfit.hitBase = null;
+      undoFlinch(outfit);
       outfit.posed = -1;
     });
     this.toggleButton.textContent = `${this.weaponIndex === 0 ? '2: M416' : '1: BASIC GUN'} · C: ${this.crouching ? 'CROUCHED' : 'STANDING'}`;
@@ -198,10 +197,7 @@ export class LolaPlayer {
 
   clearHitReaction() {
     this.hitRecoilTime = 0;
-    for (const outfit of this.outfits) {
-      if (outfit.hitBase) outfit.hitBone.quaternion.copy(outfit.hitBase);
-      outfit.hitBase = null;
-    }
+    for (const outfit of this.outfits) undoFlinch(outfit);
   }
 
   // How far into the flinch she is, 0..1 (sharp bend, slower recovery).

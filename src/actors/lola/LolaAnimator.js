@@ -13,11 +13,19 @@ import * as THREE from 'three';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const scratch = {
-  axis: new THREE.Vector3(), rotation: new THREE.Quaternion(), parent: new THREE.Quaternion(),
-  p: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3(),
-  toModel: new THREE.Matrix4(), chest: new THREE.Matrix4(), relative: new THREE.Matrix4(),
-  local: new THREE.Matrix4(), parentMatrix: new THREE.Matrix4(),
+  axis: new THREE.Vector3(), worldAxis: new THREE.Vector3(), rotation: new THREE.Quaternion(),
+  parent: new THREE.Quaternion(), inverse: new THREE.Quaternion(),
 };
+
+// Put the flinched spine joints back to their pose from before the flinch.
+export function undoFlinch(outfit) {
+  for (const joint of outfit.flinchBones ?? []) {
+    if (joint.base) joint.bone.quaternion.copy(joint.base);
+    joint.base = null;
+  }
+  if (outfit.hitBase && !outfit.flinchBones?.length) outfit.hitBone.quaternion.copy(outfit.hitBase);
+  outfit.hitBase = null;
+}
 
 // The mixer averages every layer per bone, so showing an overlay at share w on
 // top of a base whose weights add up to `base` needs w·base / (1 − w). A full
@@ -59,8 +67,7 @@ export class LolaAnimator {
   //            reload: { action, weight }, flinch: { strength, angle, direction }, mesh }.
   pose(outfit, layers) {
     // The flinch is added after the mixer, so start from the clean pose.
-    if (outfit.hitBase) outfit.hitBone.quaternion.copy(outfit.hitBase);
-    outfit.hitBase = null;
+    undoFlinch(outfit);
 
     // Base layer: locomotion, eased toward standing while pushing into a wall.
     // The clips keep their own (travel) weights; only this pose sees the blend.
@@ -93,11 +100,8 @@ export class LolaAnimator {
     outfit.mixer.update(0);
     locomotion.forEach((action, i) => action.setEffectiveWeight(weights[i]));
 
-    // Post-mixer: glue the reload gun and arms, then add the flinch.
-    if (layers.reload) {
-      this.placeReloadGun(outfit, layers.reload.action.time);
-      this.attachReloadArms(outfit, layers.reload.weight);
-    }
+    // Post-mixer: glue the reload gun into her hand, then add the flinch.
+    if (layers.reload) this.placeReloadGun(outfit, layers.reload.action.time);
     if (layers.flinch) this.flinch(outfit, layers.flinch, layers.mesh);
   }
 
@@ -110,40 +114,24 @@ export class LolaAnimator {
     reload.gun.matrixWorldNeedsUpdate = true;
   }
 
-  // Pose the root-level shoulder/arm bones as the reload has them relative to its
-  // chest, but relative to her current (running) chest, blended in by weight.
-  // Call after placeReloadGun has posed the reload's own rig.
-  attachReloadArms(outfit, weight) {
-    const reload = outfit.reload;
-    if (!reload.torso || !reload.sourceTorso || weight <= 0) return;
-    const { toModel, chest, relative, local, parentMatrix, p, q, s } = scratch;
-    outfit.model.updateMatrixWorld(true);
-    toModel.copy(outfit.model.matrixWorld).invert();
-    chest.multiplyMatrices(toModel, reload.torso.matrixWorld);
-    // Source rig: torso-relative transform of each bone.
-    const sourceChestInverse = relative.copy(reload.sourceTorso.matrixWorld).invert();
-    for (const { bone, source } of reload.attached) {
-      if (!source) continue;
-      local.multiplyMatrices(sourceChestInverse, source.matrixWorld); // bone relative to the reload's chest
-      local.premultiply(chest); // ...placed on her chest, in model space
-      parentMatrix.multiplyMatrices(toModel, bone.parent.matrixWorld).invert();
-      local.premultiply(parentMatrix); // ...as the bone's own local transform
-      local.decompose(p, q, s);
-      bone.position.lerp(p, weight);
-      bone.quaternion.slerp(q, weight);
-      bone.scale.lerp(s, weight);
-    }
-  }
-
-  // Flinch away from the impact by bending the lower spine; no root knockback.
+  // Flinch away from the impact by bending the spine; no root knockback. The
+  // bend is shared along four joints (LOLA_FLINCH_SPREAD) so the shirt does
+  // not stretch at the waist; arms and guns hang from the chest and follow.
   // flinch = { strength 0..1, angle (radians at full strength), direction (world) }.
   flinch(outfit, { strength, angle, direction }, mesh) {
-    if (!outfit.hitBone) return;
-    const { axis, rotation, parent } = scratch;
-    outfit.hitBase = outfit.hitBone.quaternion.clone();
+    if (!outfit.flinchBones?.length) return;
+    const { axis, worldAxis, rotation, parent, inverse } = scratch;
     mesh.updateMatrixWorld(true);
-    outfit.hitBone.parent.getWorldQuaternion(parent);
-    axis.copy(UP).cross(direction).applyQuaternion(parent.invert()).normalize();
-    outfit.hitBone.quaternion.premultiply(rotation.setFromAxisAngle(axis, angle * strength));
+    // World rotation of the lowest joint's parent; each joint hangs from the last.
+    outfit.flinchBones[0].bone.parent.getWorldQuaternion(parent);
+    worldAxis.copy(UP).cross(direction);
+    for (const joint of outfit.flinchBones) {
+      joint.base = joint.bone.quaternion.clone();
+      axis.copy(worldAxis).applyQuaternion(inverse.copy(parent).invert()).normalize();
+      joint.bone.quaternion.premultiply(rotation.setFromAxisAngle(axis, angle * strength * joint.share));
+      parent.multiply(joint.bone.quaternion);
+    }
+    // The lowest joint's clean pose, for the systems that undo the flinch to compare.
+    outfit.hitBase = outfit.flinchBones[0].base;
   }
 }

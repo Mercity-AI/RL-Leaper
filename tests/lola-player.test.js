@@ -281,6 +281,18 @@ test('hit recoil bends the torso then recovers without displacing Lola', async (
   assert.equal(player.height, 1.9 * 0.9);
   for (const outfit of player.outfits) assert.equal(outfit.model.scale.y, 0.9);
   const move = dt => player.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, dt);
+  // The flinch bends the spine over several joints (so the shirt does not
+  // stretch at the waist): measure the head's total tilt with it undone.
+  const tilt = outfit => {
+    player.mesh.updateMatrixWorld(true);
+    const bent = outfit.headBone.getWorldQuaternion(new THREE.Quaternion());
+    const flinched = outfit.flinchBones.map(({ bone }) => bone.quaternion.clone());
+    outfit.flinchBones.forEach(({ bone, base }) => bone.quaternion.copy(base));
+    player.mesh.updateMatrixWorld(true);
+    const neutral = outfit.headBone.getWorldQuaternion(new THREE.Quaternion());
+    outfit.flinchBones.forEach(({ bone }, i) => bone.quaternion.copy(flinched[i]));
+    return bent.angleTo(neutral);
+  };
   move(0.1);
   const start = player.mesh.position.clone();
   // Only the outfit on screen is animated, so check each one while it is equipped.
@@ -289,7 +301,8 @@ test('hit recoil bends the torso then recovers without displacing Lola', async (
     player.reactToHit(); move(0.08);
     const outfit = player.outfits[weapon];
     assert.ok(outfit.hitBone && outfit.hitBase);
-    assert.ok(outfit.hitBone.quaternion.angleTo(outfit.hitBase) > 0.25);
+    assert.ok(outfit.hitBone.quaternion.angleTo(outfit.hitBase) > 0, 'the lowest spine joint bends');
+    assert.ok(tilt(outfit) > 0.25, `the torso bends (${tilt(outfit).toFixed(3)} rad)`);
     assert.ok(player.mesh.position.equals(start));
     move(0.7);
     assert.equal(player.hitRecoilTime, 0);
@@ -321,10 +334,12 @@ test('hit recoil follows incoming world direction from every side despite Lola t
           const head = outfit.model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('DEF-spine.006'));
           player.mesh.updateMatrixWorld(true);
           const hit = head.getWorldPosition(new THREE.Vector3());
-          const rotation = outfit.hitBone.quaternion.clone();
-          outfit.hitBone.quaternion.copy(outfit.hitBase); player.mesh.updateMatrixWorld(true);
+          // Undo the whole flinch (every bent spine joint) for the neutral pose.
+          const rotations = outfit.flinchBones.map(({ bone }) => bone.quaternion.clone());
+          outfit.flinchBones.forEach(({ bone, base }) => bone.quaternion.copy(base));
+          player.mesh.updateMatrixWorld(true);
           const neutral = head.getWorldPosition(new THREE.Vector3());
-          outfit.hitBone.quaternion.copy(rotation);
+          outfit.flinchBones.forEach(({ bone }, i) => bone.quaternion.copy(rotations[i]));
           const displacement = hit.sub(neutral); displacement.y = 0;
           assert.ok(displacement.dot(direction) > 0.03, 'torso bends away from the incoming side');
         }
