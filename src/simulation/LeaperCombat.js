@@ -115,12 +115,13 @@ export class LeaperCombat {
     this.updateHud();
   }
   // Someone is down. winner: 'lola' | 'leaper'; debug: the debug button landed the
-  // kill. The attack stops here; the game state and the result banner are the
-  // encounter's job, and Lola's `defeated` flag is PlayerVitals'.
+  // kill. This Leaper's attack stops here; whether the whole fight is over (every
+  // Leaper down, or Lola) is the game's call, as are the result banner and
+  // Lola's `defeated` flag.
   finish(winner, { debug = false } = {}) {
     this.tree.cancel(); this.tree.state = 'dead'; this.clearProjectiles();
     this.outcome = { winner, debug };
-    this.playtest.stop('Encounter ended. Restart to play again.');
+    this.playtest.combatFinished(this);
   }
   pose() {
     const { simulation, sight, target } = this.playtest;

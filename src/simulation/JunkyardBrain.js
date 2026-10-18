@@ -153,6 +153,8 @@ export class JunkyardBrain {
     this.label = BRAIN_OFFLINE_LABEL;
     this.playtest.message.textContent = `Brain offline (${error.message}). Start the brain service (see README), then press START RUN. `
       + 'Until then START RUN plays in turret mode: the Leaper stays put but still shoots.';
+    // The sight readout comes from the service too; say so instead of "connecting".
+    if (this.playtest.sight?.label) this.playtest.sight.label.textContent = 'SIGHT OFFLINE · NEEDS THE BRAIN SERVICE';
     this.onFailed?.(error);
   }
 

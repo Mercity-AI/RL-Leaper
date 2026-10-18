@@ -181,8 +181,16 @@ export class JunkyardPlaytest {
     if (message) this.message.textContent = message;
   }
 
-  // STOP RUN. LeaperCombat also calls this the moment Lola or the Leaper is
-  // down; then the encounter ends instead (and records who won).
+  // A Leaper's combat finished (it is down, or Lola is). The encounter ends once
+  // the fight is decided; with several Leapers the hunt goes on until all are down.
+  combatFinished() {
+    if (!this.encounter.over) return;
+    this.encounter.end();
+    this.message.textContent = ENDED_MESSAGE;
+  }
+
+  // STOP RUN. If the fight is already decided, the encounter ends instead (and
+  // records who won).
   stop(message) {
     if (this.encounter.over) {
       this.encounter.end();

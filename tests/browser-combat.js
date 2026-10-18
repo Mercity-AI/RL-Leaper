@@ -34,7 +34,9 @@ try {
   const bones = target.outfits.map(({ model }) => eyeConfig.targetBones.map(name => model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName(name))));
   const p = { engine, world, target, cameraController, panel: document.querySelector('#junkyardPanel'),
     sight: { bones, lines: new THREE.Group() }, walking: true, brain: { ready: true },
-    simulation: { rig, state: { yaw: 0 } }, stop() { this.walking = false; }, reset() { this.vitals.reset(); this.combat.reset(); } };
+    simulation: { rig, state: { yaw: 0 } }, stop() { this.walking = false; }, reset() { this.vitals.reset(); this.combat.reset(); },
+    // One Leaper here, so a finished combat always ends the run (the game asks its Encounter).
+    combatFinished() { this.stop(); } };
   // The game creates one sound engine and Lola's health (PlayerVitals) and hands them to combat.
   p.audio = new LaserAudio(); p.vitals = new PlayerVitals({ player: target, audio: p.audio });
   p.combat = new LeaperCombat(p); p.pov = new LeaperPov(p);
