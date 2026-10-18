@@ -1,0 +1,5 @@
+{
+  "version": "eye-vision-v1",
+  "eyeOffset": [0, 2.38, 1.156],
+  "targetBones": ["DEF-spine.006", "DEF-spine.003", "DEF-spine.001"]
+}

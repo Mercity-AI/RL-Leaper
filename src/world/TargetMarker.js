@@ -33,7 +33,8 @@ export class TargetMarker {
         (best, item) => (
           Math.hypot(item.x, item.z) < Math.hypot(best.x, best.z) ? item : best
         ),
-        colliders[0],
+        // Maps without circular colliders (the junkyard) fall back to a fixed spot.
+        colliders[0] || { x: 0, z: 10, radius: 1 },
       );
       const direction = new THREE.Vector2(nearest.x, nearest.z).normalize();
       const side = new THREE.Vector2(-direction.y, direction.x);

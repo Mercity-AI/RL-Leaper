@@ -1,3 +1,4 @@
 allowBuilds:
   esbuild: true
-  protobufjs: set this to true or false
+  # protobufjs (an onnxruntime-web dependency) only runs an optional post-install notice.
+  protobufjs: false

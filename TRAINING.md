@@ -7,6 +7,39 @@ For the active September9 seeker research, start with
 Live JSON statuses override snapshots in these documents. Earlier entries below
 record different task stages and must not be ranked as identical evaluations.
 
+### 2026-10-12 — Eye-level junkyard vision (inference experiment)
+
+- The interactive junkyard defaults to three 3D visibility segments from the
+  red eye to Lola's animated head, upper torso, and lower torso bones. Standing,
+  crouching, jumping, and both outfits use their actual animated bone positions.
+  The Python service intersects the same static GLB triangles shown in the browser,
+  double-sided, including low debris, walls, and overhead geometry. Any clear
+  segment reveals Lola only inside the existing body-relative 270-degree field
+  of view and 28-unit planar range (including existing target-radius allowance).
+- The 16 planar obstacle-distance readings, movement collisions, action layout,
+  34-input policy shape, recurrent network, and saved weights are unchanged.
+  Coverage/frontier exploration deliberately keeps its original planar scan;
+  only actual target detection uses eye-level sight. Eye origin includes the
+  rendered body/eye pose, transformed onto the authoritative server position.
+  Body points are sampled at each request, so debug lines show the latest server
+  sample rather than a continuously recomputed display-only ray.
+- Eye mode refreshes visible-target memory before inference and after movement;
+  blocked targets never update last-seen coordinates. Paused sight preview does
+  not advance the policy, steps, or target memory. The Options menu provides
+  old flat vision for comparison; switching modes resets the run and memory.
+- This changes observation semantics and timing despite retaining the input
+  shape. Previous training results are not benchmarks for this mode. No new
+  training, optimizer updates, or model overwrite occurred. Future training
+  with this sensor must be recorded as a new experiment. The saved policy's
+  SHA256 remains 883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594.
+- Validation: production build; five geometry/eye-policy tests, including 120
+  finite steps with the real saved policy; four legacy checkpoint tests; five
+  browser-driver/navigation tests plus two animated-anchor/debug-line tests.
+  Browser checks confirmed the loaded scene, live policy movement, sight status,
+  and switching between old and eye-level modes with a paused reset.
+  A training smoke run is inapplicable here:
+  the training environment is unchanged and this adapter is inference-only.
+
 This file is the human-readable history of reinforcement-learning runs. Generated models, raw logs, plots, checkpoints, and browser replay data stay under `rl_artifacts/` because they are large and ignored by Git. Update this ledger whenever a run is started, stopped, completed, or diagnosed.
 
 ## PPO_27_SEEKER — completed first seeker run (2026-09-02)
@@ -1849,3 +1882,294 @@ New runs evaluate approximately every50k steps. Paired same-scratch-model extens
 to2,031,616 total steps are prepared, not launched: optimizer continuity verified,
 LR0.000015->0.000003, fresh seeded episodes at the continuation boundary. Full
 details and all checkpoint results: docs/SEEKER_SCRATCH_RUN_LOG_2026-09-09.md.
+
+## 2026-09-21: Junkyard transfer playtest — saved brain, no training
+
+- Controller: imported `model_7757824` reverse-urgency ResidualLstmPolicy,
+  7,757,824 collected steps, 34 observations, deterministic inference.
+- Policy-weight SHA256: `883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594`.
+- Observation/memory and action/step recipe preserved from the separate viewer
+  checkout at `7689aca`: frozen copies in `rl/checkpoint_environment.py`,
+  `rl/seeker_env.py` (import path adapted), and `rl/seeker_recurrent_policy.py`.
+- This replaces the junkyard's hand-authored pathfinder controller. Clearance
+  visualization remains an independent design aid and never drives the policy.
+- Map-specific changes: rectangular Blender arena, conservative 0.1 Blender-unit
+  raster of the shared exported triangles for rays/occlusion and 19-point pose
+  collisions. The existing size control scales map geometry relative to the
+  unchanged robot. Coverage extent and distance normalization follow map extent.
+- Preserve signed reverse, 16 rays/270-degree FOV/28-unit range, last-seen target
+  memory, frontier observation, recurrent state, and decoupled collision recovery.
+  Do not expose hidden target coordinates to observation. Target movement and
+  Stop/Start preserve recurrent memory; Reset/size/reload starts a new session.
+- Interactive inference ignores episode termination flags for continuing play
+  (catch, stuck, frozen, timeout). No new rewards are optimized, no training
+  runs are started, and no saved model is overwritten. This adapter is for
+  evaluation/playtesting only; training here would be a new experiment.
+- Validation: three Python integration tests passed, including a real 120-step
+  hidden-target-start rollout and action parity with direct model.predict;
+  four JavaScript lifecycle/navigation tests passed; production build passed.
+- The model can still fail on the new map. This integration establishes that the
+  actual saved policy is driving movement; it does not claim navigation success.
+
+### 2026-10-09 — Interactive Lola contact and jump
+
+- Added opt-in player contact to the Junkyard inference adapter, using shared
+  `src/config/player-contact.json`: a 4.8 robot-unit leg envelope plus Lola's
+  1.0 map-unit radius, including held weapons. Swept contact blocks translation through the player;
+  the existing collision response can still rotate or reverse away.
+- The browser blocks Lola against the displayed/interpolated robot and reserves
+  0.4 robot units for one pending inference step (maximum translation 0.375).
+  Jumping does not bypass player/robot or map contact. Jump height is 0.85 map
+  units with gravity 14 map units per second squared; no authored jump clip yet.
+- This changes interactive collision behavior from the checkpoint's training
+  conditions. The saved weights, training environment, action/observation shapes,
+  and reward definitions are unchanged; no training or model overwrite occurred.
+  Any training with this collision rule must be a new recorded experiment, not
+  treated as equivalent to the original checkpoint benchmark.
+
+
+### 2026-10-12 — First Leaper shooting system (inference-only playtest)
+
+- Continued from `b2ad02c` on `codex/eye-level-vision`; feature branch
+  `codex/leaper-shooting`. Existing untracked owner assets and folders retained.
+- Movement remains exclusively controlled by the saved 7,757,824-step policy.
+  No training, model writes, navigation changes, action/reward changes, movement
+  sensor changes, or observation-layout changes. Policy SHA256 remains
+  `883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594`.
+  Python compatibility tests still verify 34 inputs, 16 movement rays, hidden
+  target memory, and action parity against direct model inference.
+- `AttackController` is a small priority-selector behaviour tree with persistent
+  warning/lock/recovery/cooldown timers. Dead/paused takes priority, then current
+  visibility/range, physical eye alignment, cooldown tracking, and attack.
+  Shooting never drives movement or supplies observations to the trained brain.
+- Detection keeps its committed neutral red-eye anchor and 270-degree field.
+  `EyeVision.pose()` now explicitly uses that neutral anchor so weapon articulation
+  cannot inadvertently change the saved sensing interface. Its animated head and
+  torso points, server map occlusion, memory rules and 16 movement sensors remain
+  unchanged. Physical weapon checks are separate, from the articulated muzzle
+  against the actual rendered 3D map triangles, including double-sided faces.
+  This distinction also applies when selecting the old flat-vision comparison:
+  weapon safety always uses physical 3D cover checks.
+- Local combat selects a clear torso/head/pelvis point, respects +/-45-degree eye
+  yaw and -70/+80-degree pitch, tracks for 0.4 seconds, then holds its world-space
+  direction for the final 0.2 seconds of a 0.6-second bright-eye warning. Losing
+  the selected point to cover or losing alignment cancels the warning with a
+  0.35-second recovery. The locked firing path is rechecked before release.
+- Single straight red bolts, unlimited ammunition, 12 source-map units/second,
+  22 source-map-unit range, 8 damage, no homing. Distances/speed scale with map
+  size. Every frame sweeps the complete bolt segment and takes the nearest hit;
+  cover wins ties. Animated head sphere and torso capsule follow crouch/jump.
+  These are forgiving body hit areas, not per-triangle skinned mesh hitboxes;
+  arms, guns and lower legs are not separate hit regions in this first version.
+- Central tuning: `src/config/combat.js`. Lola starts at 100 HP; Leaper at 600 HP;
+  no regeneration. Two seconds of post-shot cooldown plus the next warning
+  currently yield about 2.6 seconds between uninterrupted shots (never below
+  the requested two-second minimum). Small muzzle/impact pulses, red damage
+  vignette, health HUD, Leaper overhead health bar, defeat and restart added.
+  600 HP targets 60–90 seconds at a future effective player DPS of roughly 7–10;
+  that encounter duration is provisional until real player shooting is added.
+- Inspection confirmed Lola's existing F control only swaps gun models and
+  animations. No player shooting/damage system existed. OPTIONS therefore has
+  an explicitly labelled DEBUG damage button (-100 HP), and the defeat label
+  identifies a debug test. This is not completed player combat.
+- STOP RUN cancels charging and freezes bolts/timers; Lola retains the prior
+  ability to move while the Leaper is paused. Restart/reset clears bolts,
+  effects and timers and restores health. Either defeat stops the encounter;
+  late brain responses cannot animate a defeated encounter. Existing generation
+  tokens prevent reset races. Background tabs hold fire.
+- LEAPER POV is a read-only spectator view of the real muzzle/direction. It
+  preserves the prior camera mode and Lola's movement heading, disables camera
+  look/pan while spectating, and works paused or running. Rig/legs/muzzle pulse
+  and through-wall diagnostic lines are hidden only during POV rendering, then
+  restored immediately. The reticle and attack indicator show charging/lock,
+  firing, cooldown, tracking and hidden-target states. The 70-degree camera
+  view intentionally does not represent the full detection field.
+- Validation: `node --test tests/*.test.js`; `python tests/test_eye_vision.py`;
+  `python tests/test_junkyard_brain.py`; `pnpm build` (existing bundle-size warning).
+  `tests/browser-combat.html` runs 31 real-map/real-Lola browser checks, including
+  warning/lock, cover interruption, extreme-speed thin-cover blocking, damage,
+  crouch/jump, aim limits, range, pause/reset/death/restart, and spectator isolation.
+  Build this separate test entry with Vite's `build({build:{outDir:
+  "tmp/combat-browser-dist",rollupOptions:{input:"tests/browser-combat.html"}}})`
+  and serve that directory locally. It is not part of the production viewer.
+- Corrected an existing test fixture in `tests/player-contact.test.js`: a
+  sense-only request marked `busy` does not reserve a movement step; the fixture
+  now sets the existing `pendingMovement` flag and tests both cases. No contact
+  behavior was changed.
+
+
+### 2026-10-12 — Tire passage and combat presentation revision
+
+- Moved the three loose truck tires beside the bus (`truck_tire_single.006` through
+  `.008`) north by 2.5 source-map units (negative browser Z). Updated the GLB node
+  translations and exactly their 492 collision triangles; all other collision
+  entries are preserved. `scripts/move_junkyard_tires.py` reapplies this change
+  after a fresh original Blender export and refuses a double application. Original
+  Blender source files are untouched. Browser movement, projectile cover, server
+  eye rays, and movement sensors all consume the same revised map; restart the
+  brain service to discard its old geometry cache. No model or policy changes.
+- Default-width passage from map (4,-2.5) to (10,-2.5) was blocked before and is
+  now clear. The maximum 8-unit size has only 14 clear cells; the navigation test
+  now checks all of these rather than accidentally missing them with a stride.
+- Sight debug lines default off; the Options button can explicitly enable them.
+- Replaced the rounded bolt with a narrow dark-red finite laser streak. It grows
+  out of the eye to a 1.4-map-unit visual length, travels with the same swept
+  leading-tip collision and damage, and tapers/fades toward its trailing end.
+  Length/radius remain configurable; there is no continuous beam or homing.
+- Leaper health is now a fixed upper-screen HUD bar, never above the enemy mesh.
+  Ordinary hits highlight Lola's health readout without tinting the screen edges.
+  The red edge warning appears only at 20 HP or less and resets with health.
+- Validation: JS navigation/combat suite, production build, and real-asset browser
+  checks including ordinary-hit tint, critical threshold, reset, and HUD placement.
+
+
+### 2026-10-12 — Fast crimson shots, audio, and opposing movable health bars
+
+- Owner-requested weapon speed increased from 12 to 80 map units/second (6.7x).
+  The 0.6-second warning, final aim lock, damage and cooldown are unchanged;
+  dodging now relies more on the warning. Full-segment collision still prevents
+  fast projectiles crossing cover. Core color is #980c27 with reduced halo.
+- Added a short synthesized laser firing sound through Web Audio, unlocked by
+  the first pointer/key gesture. SOUND ON/OFF is in the toolbar. Audio runs only
+  on actual fire events, not charging/cancellation; voices self-dispose in 0.17s.
+- Leaper health defaults top-left, Lola health top-right. Both health panels now
+  use the existing double-tap/hold-and-drag system, as do the other control groups.
+  Positions persist and clamp to the viewport; heading/camera controls sit below
+  the bars by default. No movement policy, sensing, model or training changes.
+
+
+### 2026-10-12 — Remove impact orb, siren voice, bar-only health
+
+- Removed the expanding impact sphere on both player and cover hits. Damage
+  still drains the bar, with a brief HIT label/readout highlight; character hit
+  animation awaits the owner's asset. Muzzle-only pulse remains at the eye.
+- Replaced the sharp descending chirp with a low triangle-wave siren voice:
+  220 → 390 → 220 → 165 Hz over 0.8 seconds with a softened attack and filter.
+  Triggered only on firing; gesture unlock and mute remain unchanged.
+- Health panels retain names and bars but display no numeric HP. Removed the
+  duplicate numeric readouts in attack status and debug labels. Internal health,
+  damage, projectile timing, sensing and saved-brain movement are unchanged.
+
+### 2026-10-12 — Lola authored shooting and player bullets
+
+- Inspected the supplied Lola_both_animations.blend1.blend without saving it.
+  Scenes 17–20 contain standing/crouched shots for Basic Gun and M416 at 30 fps.
+  Exporter now includes Shoot and CrouchShoot plus their separately animated
+  world-space weapons; existing movement clips and stride profiles are preserved.
+- Q (and the existing F alias/button) switches weapons. Left click fires in
+  CHASE during a running encounter. C selects the authored crouch shot. The
+  first pass uses full-body authored poses, one shot per click, no airborne shot,
+  and no new audio. Moving during a full-body shot can slide the planted feet;
+  an upper-body locomotion blend and weapon-specific fire rates remain polish.
+- PlayerWeapon owns instant camera-reticle aiming, muzzle-to-hit cover checks,
+  brief amber tracer/muzzle flash, damage, and reset cleanup. Actual Leaper body
+  and leg meshes receive damage; nearest cover wins ties. No impact spheres.
+  Both guns currently deal 10 damage every 1 second (600 health takes about
+  60 seconds of perfect hits; misses/cover extend this). Tuning is centralized
+  in PLAYER_WEAPON. Player kills show real victory rather than the debug label.
+- Pause, death, reset, hidden tab, and spectator view cancel the player firing
+  pose/effects. Gun and crouch switches cancel the prior pose. Existing movement
+  controls remain active. Health bars retain no numeric readout.
+- No saved-brain/model/reward/input/sensor/navigation changes. Eye checks continue
+  following the same animated head/torso bones, now including authored recoil.
+- Validation: production build, 29 Node tests, and 45 real-asset browser checks
+  passed, including player bullet damage, thin cover, cadence, crouch, weapon
+  switching, real defeat, pause, reset, POV and existing Leaper combat checks.
+
+### 2026-10-12 — Hit flinch and encounter proportions
+
+- Added a 0.38-second additive torso recoil on bolt damage, peaking at about
+  nine degrees backward. It interrupts Lola's shooting pose, keeps feet/root
+  position unchanged, and returns to the underlying animation without drift.
+  Reset, defeat and stopping the encounter clear the reaction.
+- Lola is 10% shorter vertically (height and animation floor offset x0.9),
+  preserving horizontal dimensions and stride distances. Animated sight/hit
+  anchors follow the shorter skeleton. Player navigation height is adjusted;
+  the existing conservative horizontal contact envelope is unchanged.
+- Default junkyard Leaper clearance width changes from 2.4 to 2.88 (+20%).
+  This uses the existing map-relative size mechanism: rig/gait remain intact,
+  map scale and collision/navigation clearance stay consistent, and the saved
+  brain receives the requested width through its existing reset interface.
+  An explicit width URL/control value still overrides the default. Larger
+  clearance can make narrow passages unavailable. Models and 16 movement
+  sensors/input layout are unchanged; no retraining or navigation behavior added.
+- Proportions and recoil tuning are in src/config/encounter.js. Production build,
+  30 Node tests and 51 real-asset browser checks passed, including backward
+  head displacement, recovery/reset, requested ratios and combat regressions.
+
+### 2026-10-12 — Stronger visible hit flinch
+
+- Increased torso recoil from 0.16 to 0.38 radians (about 9 to 22 degrees)
+  and recovery duration from 0.38 to 0.60 seconds. Root position, movement,
+  damage, character sizes and trained policy remain unchanged.
+- Reviewed roaming: JunkyardBrain takes body translation/yaw from the saved
+  policy; shooting does not hold or face the body. JunkyardEnv deliberately
+  continues inference after catches/timeouts/contact. Close player collision
+  blocks approach without introducing a combat hold state. These are code-level
+  contributors, not a measured diagnosis of the owner's particular episode.
+- Production build and 9 character tests passed; browser regression checked
+  separately before committing.
+- Moved recoil pivot to the lower spine so the whole upper torso participates,
+  rather than mostly the shoulders/head. Final validation: 9 character tests,
+  production build, and 51 browser checks passed.
+
+### 2026-10-12 — Directional hit recoil
+
+- Bolt impacts now pass their actual travel direction into Lola's reaction.
+  The torso bends away from the struck side: front/back/left/right all work,
+  independently of Lola's facing. Direction is retained in world space through
+  recovery and converted into the animated spine parent's space each frame.
+- Retains the 22-degree maximum, 0.6-second recovery, unchanged root position,
+  damage, and reset/death cleanup. Vertical travel is projected to the ground
+  plane for torso leaning. No sensing or policy changes; anchors still follow
+  the actual animated skeleton. Trained model and navigation are untouched.
+- Validated both outfits, crouch/standing and four facings against four hit
+  directions, including turning after impact. 10 character tests, production
+  build and 52 real-asset browser checks passed, including real bolt direction
+  delivery. Visually checked the forward lean from a rear hit.
+
+### 2026-10-12 — Distinct gunshot animation, temporary impact particles
+
+- Pistol is click-per-shot at a 0.60-second interval; M416 fires while holding
+  left click at a 0.12-second minimum interval. Authored standing/crouched recoil
+  clips are retimed to each weapon cycle. Q switching, release, lost pointer
+  lock, blur, pause, death and POV prevent unattended automatic fire.
+- Brief irregular muzzle flashes and short moving pale streaks replace the
+  full-length static tracer. Leaper hits throw 5 pistol/9 rifle spark fragments,
+  fading and disposing in 0.15–0.32 seconds. No decals, casings, persistent debris
+  or residue. No new sound in this animation pass.
+- Added a restrained Leaper body shudder only during rendering; its exact
+  rotation is restored afterward, so saved-brain movement, eye targeting and
+  collision geometry are not changed. No learned-policy/sensor changes.
+- Initial damage balance: pistol 6 per shot (~10 DPS), M416 2 (~16.7 theoretical
+  DPS). With 600 health that is ~60s pistol/~36s rifle perfect-hit firing; cover,
+  missed shots and interruptions extend encounters. Actual 60–90s pacing still
+  needs playtesting; no realism claim for these armor damage values.
+- Validation: full Node suite, production build and browser regression checks
+  covering cadence, release, switching, cover, death/reset, particles expiring,
+  and render-only shudder restoration. Asset/model files remain unchanged.
+
+### 2026-10-12 — Unified left-click firing
+
+- Both guns now fire exactly once per left press; removed M416 hold-to-fire
+  and all held-trigger state. Q still switches weapons. Weapon-specific recoil,
+  effects, cooldowns and damage are retained; rifle visuals no longer depend
+  on an automatic-fire flag.
+- Removed the Leaper running/brain-ready gates from Lola's weapon. Like movement,
+  Lola can now shoot in CHASE while the Leaper run is stopped or loading. Stop
+  still clears existing effects; new deliberate clicks are allowed afterward.
+  Leaper attacks remain paused. Death, hidden tab and spectator POV still block
+  player fire. No policy, movement, sensing or navigation changes.
+- Production build and 33 Node tests passed. All 62 real-asset browser checks
+  passed, now exercising actual pointerdown and Q key events for both guns,
+  stopped/unready brain, no auto-repeat, repeat clicks and effect cleanup.
+  Also clicked both guns and switched with Q in the production browser.
+- Shift no longer suppresses firing in CHASE; browser pointer checks include Shift held. TOP Shift-click teleport remains separate and TOP firing stays disabled.
+
+
+### Player aiming readability — 2026-10-12
+- Both guns remain one shot per left click, Q switches guns. Authored recoil now retains the raised-gun pose for 1.2 seconds after its clip; each shot refreshes it. Hold right mouse to keep aiming with a circular reticle and smooth 1.25× zoom. Release, blur, reset, death and spectator/top view clear aim input.
+- Chase sight line moves beside Lola's shoulder and permits aiming above the horizon. Camera heading and movement controls remain unchanged. Bullet damage still uses camera-to-target and muzzle-to-cover rays; no persistent residue.
+- Flash/tracer lifetimes now survive the playtest's 100ms frame cap; the instant bullet streak is nonzero from creation. This fixes shots disappearing before rendering on slow frames.
+- No saved models, policy observations, movement sensors, navigation, or Leaper sensing/behavior changed.
+- Validation: production build, 35 Node tests, and 70 real-asset browser checks passed; the shot-preview additionally verifies shoulder-view damage. Mouse down/up handles each button independently so left fire works while right aim is held.

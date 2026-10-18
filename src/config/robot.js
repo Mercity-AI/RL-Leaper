@@ -10,7 +10,7 @@ export const LOWER_REACH = Math.sqrt(
 );
 export const COXA_LENGTH = 0.26 * ROBOT_SCALE * LEG_LENGTH_SCALE;
 export const STANDING_HEIGHT = 1.16 * ROBOT_SCALE;
-export const FOOT_HEIGHT = 0.05 * ROBOT_SCALE;
+export const FOOT_HEIGHT = 0.0375 * ROBOT_SCALE;
 export const HOME_RADIUS = 1.62 * ROBOT_SCALE;
 export const BODY_COLLISION_RADIUS = HOME_RADIUS + 0.75;
 export const STEP_DISTANCE = 0.5 * ROBOT_SCALE;

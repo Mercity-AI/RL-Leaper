@@ -1,0 +1,58 @@
+[
+  {
+    "weapon": "basic",
+    "scene": "01 Basic Gun - Original Run",
+    "rig": "rig.001",
+    "bounds": [
+      [
+        -0.3496081233024597,
+        -0.7483121752738953,
+        0.04440946877002716
+      ],
+      [
+        0.39044201374053955,
+        0.31397074460983276,
+        1.9375005960464478
+      ]
+    ],
+    "clips": [
+      "Walk",
+      "Run",
+      "Idle",
+      "CrouchWalk",
+      "CrouchIdle",
+      "StrafeLeft",
+      "StrafeRight",
+      "Shoot",
+      "CrouchShoot"
+    ]
+  },
+  {
+    "weapon": "m416",
+    "scene": "02 M416 - Carry Run",
+    "rig": "Lola_M416_Rig",
+    "bounds": [
+      [
+        -0.36817944049835205,
+        -0.9486328363418579,
+        0.04440946877002716
+      ],
+      [
+        0.5637574791908264,
+        0.31397074460983276,
+        1.9080499410629272
+      ]
+    ],
+    "clips": [
+      "Walk",
+      "Run",
+      "Idle",
+      "CrouchWalk",
+      "CrouchIdle",
+      "StrafeLeft",
+      "StrafeRight",
+      "Shoot",
+      "CrouchShoot"
+    ]
+  }
+]

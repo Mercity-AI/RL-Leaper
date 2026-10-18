@@ -14,6 +14,25 @@ obstacle rays plus target visibility/memory channels.
 > 800k. Display only deterministic checkpoint replays, and include TensorBoard,
 > the live viewer, and automatic completion monitoring with every training launch.
 
+## Junkyard eye-level vision playtest
+
+Start the saved-brain service with `python scripts/run_junkyard_brain.py`, then
+start the browser viewer with `pnpm dev`. Open `http://localhost:5173/?map=junkyard`.
+The junkyard defaults to eye-level vision: three lines from the red eye to Lola's
+animated head and torso, tested against actual 3D cover. The 16 movement rays
+and saved model remain unchanged; this is an inference experiment, not training.
+
+- Move Lola with WASD, crouch with C, and jump with Space. Sight updates even
+  while the Leaper is paused. Press Start Run to let the saved brain chase.
+- Green sight lines reach Lola; orange lines stop at blocking cover. The status
+  reports clear lines, hidden by cover, or outside the viewing angle/range.
+- Under Options, choose old flat vision to compare, or hide the sight lines.
+  Changing vision mode resets the run and memory. Add `&vision=legacy` to the
+  URL to open directly in the original sensing mode.
+- Vision retains the 270-degree viewing angle and original detection range.
+  Seeing over low debris does not make it walkable. Previous training scores
+  do not establish performance with the new sensing rules; see `TRAINING.md`.
+
 ## Setup
 
 ```powershell

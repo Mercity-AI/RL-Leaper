@@ -1,0 +1,338 @@
+[
+  {
+    "asset": "tire_single",
+    "objects": 1,
+    "triangles": 192,
+    "dimensions_xyz_m": [
+      0.7,
+      0.24,
+      0.7
+    ]
+  },
+  {
+    "asset": "tire_heap_12",
+    "objects": 1,
+    "triangles": 2304,
+    "dimensions_xyz_m": [
+      1.839,
+      1.059,
+      1.489
+    ]
+  },
+  {
+    "asset": "scrap_bin_tall",
+    "objects": 1,
+    "triangles": 300,
+    "dimensions_xyz_m": [
+      1.992,
+      1.51,
+      2.52
+    ]
+  },
+  {
+    "asset": "scrap_skip_long",
+    "objects": 1,
+    "triangles": 300,
+    "dimensions_xyz_m": [
+      2.304,
+      1.31,
+      3.92
+    ]
+  },
+  {
+    "asset": "scrap_heap_engines",
+    "objects": 1,
+    "triangles": 956,
+    "dimensions_xyz_m": [
+      2.589,
+      0.835,
+      2.635
+    ]
+  },
+  {
+    "asset": "sorting_crane",
+    "objects": 1,
+    "triangles": 1456,
+    "dimensions_xyz_m": [
+      2.74,
+      5.74,
+      6.909
+    ]
+  },
+  {
+    "asset": "edge_utility_cabinet",
+    "objects": 1,
+    "triangles": 108,
+    "dimensions_xyz_m": [
+      0.8,
+      1.295,
+      0.76
+    ]
+  },
+  {
+    "asset": "tire_heap_20",
+    "objects": 1,
+    "triangles": 3840,
+    "dimensions_xyz_m": [
+      2.199,
+      0.96,
+      1.46
+    ],
+    "tire_count": 20
+  },
+  {
+    "asset": "tire_heap_25_mound",
+    "objects": 1,
+    "triangles": 4800,
+    "dimensions_xyz_m": [
+      2.159,
+      1.2,
+      2.16
+    ],
+    "tire_count": 25
+  },
+  {
+    "asset": "tire_heap_25_long",
+    "objects": 1,
+    "triangles": 4800,
+    "dimensions_xyz_m": [
+      2.948,
+      0.96,
+      1.46
+    ],
+    "tire_count": 25
+  },
+  {
+    "asset": "truck_tire_single",
+    "objects": 1,
+    "triangles": 192,
+    "dimensions_xyz_m": [
+      1.155,
+      0.384,
+      1.155
+    ]
+  },
+  {
+    "asset": "scrap_heap_large",
+    "objects": 1,
+    "triangles": 3340,
+    "dimensions_xyz_m": [
+      5.327,
+      0.835,
+      4.727
+    ]
+  },
+  {
+    "asset": "scrap_heap_extra_large",
+    "objects": 1,
+    "triangles": 4344,
+    "dimensions_xyz_m": [
+      6.477,
+      0.835,
+      4.869
+    ]
+  },
+  {
+    "asset": "scrap_heap_beams_pipes",
+    "objects": 1,
+    "triangles": 544,
+    "dimensions_xyz_m": [
+      3.539,
+      0.672,
+      3.984
+    ]
+  },
+  {
+    "asset": "car_rack_loaded_6",
+    "objects": 1,
+    "triangles": 3432,
+    "dimensions_xyz_m": [
+      8.2,
+      4.1,
+      5.3
+    ],
+    "car_count": 6
+  },
+  {
+    "asset": "car_rack_empty",
+    "objects": 1,
+    "triangles": 576,
+    "dimensions_xyz_m": [
+      8.2,
+      4.1,
+      5.3
+    ]
+  },
+  {
+    "asset": "scrap_hydraulic_press",
+    "objects": 1,
+    "triangles": 528,
+    "dimensions_xyz_m": [
+      4.39,
+      1.78,
+      6.4
+    ]
+  },
+  {
+    "asset": "bus_upright",
+    "objects": 1,
+    "triangles": 1236,
+    "dimensions_xyz_m": [
+      2.83,
+      3.16,
+      9.394
+    ]
+  },
+  {
+    "asset": "barrel_single",
+    "objects": 1,
+    "triangles": 248,
+    "dimensions_xyz_m": [
+      0.614,
+      0.885,
+      0.614
+    ]
+  },
+  {
+    "asset": "barrel_cluster_5",
+    "objects": 1,
+    "triangles": 1240,
+    "dimensions_xyz_m": [
+      1.994,
+      0.905,
+      1.254
+    ]
+  },
+  {
+    "asset": "workshop_open",
+    "objects": 1,
+    "triangles": 376,
+    "dimensions_xyz_m": [
+      8.45,
+      4.41,
+      6.95
+    ]
+  },
+  {
+    "asset": "car_compact_coupe",
+    "objects": 1,
+    "triangles": 740,
+    "dimensions_xyz_m": [
+      2.076,
+      1.34,
+      4.39
+    ]
+  },
+  {
+    "asset": "car_station_wagon",
+    "objects": 1,
+    "triangles": 752,
+    "dimensions_xyz_m": [
+      2.076,
+      1.695,
+      4.79
+    ]
+  },
+  {
+    "asset": "van_panel",
+    "objects": 1,
+    "triangles": 704,
+    "dimensions_xyz_m": [
+      2.384,
+      2.26,
+      5.34
+    ]
+  },
+  {
+    "asset": "motorcycle_single",
+    "objects": 1,
+    "triangles": 1140,
+    "dimensions_xyz_m": [
+      0.8,
+      1.22,
+      2.158
+    ]
+  },
+  {
+    "asset": "playground_pipe_stack_6",
+    "objects": 1,
+    "triangles": 768,
+    "dimensions_xyz_m": [
+      3.6,
+      3.278,
+      2.5
+    ]
+  },
+  {
+    "asset": "barrel_stack_6_horizontal",
+    "objects": 1,
+    "triangles": 1512,
+    "dimensions_xyz_m": [
+      2.14,
+      1.677,
+      0.885
+    ]
+  },
+  {
+    "asset": "scrap_heap_small",
+    "objects": 1,
+    "triangles": 356,
+    "dimensions_xyz_m": [
+      1.403,
+      0.705,
+      1.546
+    ]
+  },
+  {
+    "asset": "garbage_heap_small",
+    "objects": 1,
+    "triangles": 416,
+    "dimensions_xyz_m": [
+      1.481,
+      0.315,
+      1.419
+    ]
+  },
+  {
+    "asset": "car_wreck_missing_hood",
+    "objects": 1,
+    "triangles": 1000,
+    "dimensions_xyz_m": [
+      2.805,
+      1.47,
+      4.393
+    ]
+  },
+  {
+    "asset": "car_wreck_stripped_roof",
+    "objects": 1,
+    "triangles": 876,
+    "dimensions_xyz_m": [
+      3.966,
+      1.288,
+      4.393
+    ]
+  },
+  {
+    "asset": "fallen_gate_simple",
+    "objects": 1,
+    "triangles": 204,
+    "concrete_blocks": 2,
+    "dimensions_xyz_m": [
+      4.811,
+      0.48,
+      2.066
+    ]
+  },
+  {
+    "asset": "fallen_signboard_simple",
+    "objects": 1,
+    "triangles": 72,
+    "concrete_blocks": 2,
+    "dimensions_xyz_m": [
+      3.078,
+      0.353,
+      2.585
+    ]
+  }
+]
