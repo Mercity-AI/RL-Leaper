@@ -22,12 +22,19 @@ try {
   engine.camera.updateMatrixWorld(true);
   const headTop = player.mesh.position.clone(); headTop.y += player.height;
   check(headTop.project(engine.camera).y < -0.02, 'crosshair is above Lola head, not on her neck');
+  // The chase camera only follows the mouse while it is captured (START RUN /
+  // START PLAYER). Headless pages can't lock the pointer, so use the same
+  // fallback capture the game uses when Pointer Lock is refused.
   const yaw = controller.yaw;
   controller.onPointerMove({ pointerType: 'mouse', target: engine.renderer.domElement, pointerId: 99, movementX: 10, movementY: 0 });
-  check(controller.yaw !== yaw && controller.pointerId === null, 'mouse look without any button pressed');
+  check(controller.yaw === yaw, 'an uncaptured mouse does not turn the camera');
+  controller.enableFallbackLook();
+  controller.onPointerMove({ pointerType: 'mouse', target: engine.renderer.domElement, pointerId: 99, movementX: 10, movementY: 0 });
+  check(controller.yaw !== yaw && controller.pointerId === null, 'captured mouse looks without any button pressed');
   const uiYaw = controller.yaw;
   controller.onPointerMove({ pointerType: 'mouse', target: results, pointerId: 99, movementX: 10, movementY: 0 });
   check(controller.yaw === uiYaw, 'moving over controls does not turn camera');
+  controller.releaseMouse();
   const direction = new THREE.Vector3();
   let compressed = false;
   for (let i = 0; i < 72; i++) {
@@ -76,20 +83,25 @@ try {
   player.onFootstep = kind => kinds.push(kind);
   for (let i = 0; i < 60; i++) player.move(1, 0, forward, right, 8, 1 / 60);
   check(kinds.length > 0 && kinds.every(kind => kind === 'run'), 'sprint selects the supplied running recording');
+  // The authored jump plays a step sound at its push-off and touchdown frames;
+  // the run's own footfalls stay muted while airborne.
   kinds.length = 0; player.jump();
   for (let i = 0; i < 12; i++) player.move(1, 0, forward, right, 8, 1 / 60);
-  check(kinds.length === 0, 'airborne movement emits no footfalls');
+  check(kinds.length <= 2 && kinds.every(kind => kind === 'walk'), 'airborne movement emits only the authored jump steps');
   player.resetJump(); player.aimHeld = false;
+  // Lola keeps facing the camera and strafes or backpedals, so her root must
+  // travel along the (eased) movement input, never slide off sideways from it.
   for (const [f, s] of [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1]]) {
     for (let i = 0; i < 40; i++) {
       const before = player.mesh.position.clone();
       player.move(f, s, forward, right, 8, 1 / 120);
-      const travel = player.mesh.position.clone().sub(before);
-      const facing = new THREE.Vector3(Math.sin(player.mesh.rotation.y), 0, Math.cos(player.mesh.rotation.y));
-      if (travel.lengthSq() > 1e-10 && travel.normalize().dot(facing) < 0.999) throw new Error('Root skids sideways during direction change');
+      const travel = player.mesh.position.clone().sub(before).setY(0);
+      const intended = forward.clone().multiplyScalar(player.inputForward).addScaledVector(right, player.inputSide);
+      if (travel.lengthSq() > 1e-10 && intended.lengthSq() > 1e-10
+          && travel.normalize().dot(intended.normalize()) < 0.999) throw new Error('Root skids sideways from the movement input');
     }
   }
-  check(true, 'running direction changes keep root travel aligned with the running pose');
+  check(true, 'direction changes keep root travel on the movement input (strafe and backpedal without skidding)');
   player.aimHeld = true; player.holdAim();
   player.move(1, 0, forward, right, 8, 1 / 60);
   check(player.shot?.upperOnly, 'moving while aiming keeps the running legs active');
