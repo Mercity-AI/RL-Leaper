@@ -24,8 +24,8 @@ const served = (url) => {
 };
 
 // A stand-in Worker: messages are structured-cloned and handled asynchronously,
-// exactly as they would cross a real worker boundary.
-function fakeWorker() {
+// exactly as they would cross a real worker boundary. `serve` can swap files.
+function fakeWorker(serve = served) {
   const worker = {
     onmessage: null, onerror: null, terminated: false,
     postMessage(message) { setTimeout(() => host.handle(structuredClone(message)), 0); },
@@ -35,7 +35,7 @@ function fakeWorker() {
     ort, glbUrl: 'http://brain.test/assets/maps/junkyard/junkyard.glb',
     collisionUrl: 'http://brain.test/assets/maps/junkyard/collision.json',
     post: (message) => { if (!worker.terminated) worker.onmessage?.({ data: structuredClone(message) }); },
-    fetchBytes: async (url) => new Uint8Array(served(url)),
+    fetchBytes: async (url) => new Uint8Array(serve(url)),
   });
   return worker;
 }
@@ -83,6 +83,18 @@ test('legacy flat sight runs through the provider too', async () => {
     const next = await provider.step({ token: frame.token, target: legacy.steps[k].input.target });
     assert.deepEqual(frameDifferences(next, legacy.steps[k].frame).discrete, [], `step ${k}`);
   }
+  provider.dispose();
+});
+
+test('a baked raster listed for another width is ignored and the raster is built instead', async () => {
+  // brain.json wrongly lists raster-5.5.bin as the file for width 5.6.
+  const manifest = JSON.parse(read('public/brains/leaper_7757824/brain.json'));
+  manifest.rasters['5.6'] = manifest.rasters['5.5'];
+  const serve = (url) => (url.endsWith('/brain.json') ? Buffer.from(JSON.stringify(manifest)) : served(url));
+  const provider = new OnnxBrainProvider({ baseUrl: BASE, createWorker: () => fakeWorker(serve) });
+  const frame = await provider.reset({ ...fixture.reset, width: 5.6 });
+  assert.equal(provider.lastWorld.source, 'built', 'the 5.5 file is not used for 5.6');
+  assert.equal(typeof frame.token, 'string');
   provider.dispose();
 });
 

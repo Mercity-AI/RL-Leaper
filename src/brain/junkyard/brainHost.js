@@ -49,7 +49,9 @@ export function createBrainHost({ ort, glbUrl, collisionUrl, post, fetchBytes = 
     const entry = manifest.rasters?.[String(width)];
     if (entry) {
       baked = JunkyardRaster.decode(await fetchBytes(new URL(entry.file, baseUrl).href));
-      if (baked.collisionSha256 !== entry.collision_sha256) baked = null;
+      // Only trust a file made for exactly this width and this map export;
+      // otherwise fall through and build the raster from collision.json.
+      if (baked.collisionSha256 !== entry.collision_sha256 || baked.raster.width !== width) baked = null;
     }
     if (!baked && !collision) collision = JSON.parse(new TextDecoder().decode(await fetchBytes(collisionUrl)));
     const fetchMs = performance.now() - started;
