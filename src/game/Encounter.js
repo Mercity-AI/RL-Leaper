@@ -23,13 +23,19 @@ export class Encounter {
     this.stats = Encounter.emptyStats();
     // Damage bookkeeping comes from the event bus, whoever caused it.
     events.on(GAME_EVENTS.lolaDamaged, ({ amount = 0 } = {}) => { this.stats.damageTaken += amount; });
-    events.on(GAME_EVENTS.leaperDamaged, ({ amount = 0 } = {}) => { this.stats.damageDealt += amount; });
+    events.on(GAME_EVENTS.leaperDamaged, ({ amount = 0, debug = false } = {}) => {
+      this.stats.damageDealt += amount;
+      // Damage from the OPTIONS debug button, or dealt while the Leaper could not
+      // fight back (stopped, exploring, paused), makes the eventual win practice.
+      if (debug || !this.flow.hunting) this.stats.assisted = true;
+    });
     events.on(GAME_EVENTS.jointBroken, () => { this.stats.jointsBroken += 1; });
     flow.onChange((next, previous) => this.onFlowChange(next, previous));
   }
 
+  // Per-fight totals, cleared by every restart.
   static emptyStats() {
-    return { damageTaken: 0, damageDealt: 0, jointsBroken: 0 };
+    return { damageTaken: 0, damageDealt: 0, jointsBroken: 0, assisted: false };
   }
 
   // Add a Leaper. Its body and legs block Lola through the world's collision service.
@@ -116,19 +122,16 @@ export class Encounter {
   begin() {
     if (this.started) return;
     this.started = true;
-    this.elapsed = 0;
-    this.result = null;
-    this.stats = Encounter.emptyStats();
     this.startSnapshot = this.snapshot();
     this.events.emit(GAME_EVENTS.encounterStarted, { snapshot: this.startSnapshot });
   }
 
-  // Someone is down: record the result and end the game state. A win while not
-  // hunting (START PLAYER, stopped, or paused) is practice.
+  // Someone is down: record the result and end the game state. An ending outside
+  // a live hunt, or a win helped by debug or free shots, is practice.
   end() {
     if (this.flow.ended || !this.over) return false;
     const winner = this.lolaDefeated ? 'leaper' : 'lola';
-    const practice = !this.flow.hunting;
+    const practice = !this.flow.hunting || (winner === 'lola' && this.stats.assisted);
     this.result = { winner, practice, seconds: this.elapsed, ...this.stats };
     this.flow.end(winner, practice);
     this.events.emit(GAME_EVENTS.encounterEnded, { winner, practice, stats: this.result });
@@ -173,9 +176,11 @@ export class Encounter {
     this.inputController.jumpBuffer = 0;
     this.cameraController.target.copy(this.player.mesh.position);
     this.cameraController.target.y = this.player.height ? this.player.height * 1.05 : 1;
-    // 4. A new fight: fresh brain sessions, and the next START RUN takes a new snapshot.
+    // 4. A new fight: fresh totals and brain sessions; the next START RUN takes a new snapshot.
     this.started = false;
     this.elapsed = 0;
+    this.result = null;
+    this.stats = Encounter.emptyStats();
     for (const enemy of this.enemies) enemy.brain.reset();
   }
 

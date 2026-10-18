@@ -105,14 +105,30 @@ test('a win during the hunt is real, any other ending is practice, and results a
   leaper.combat.leaperHealth = 0;
   encounter.end();
   assert.deepEqual(flow.state, { name: 'ended', winner: 'lola', practice: false });
-  assert.deepEqual(ended[0].stats, { winner: 'lola', practice: false, seconds: 2, damageTaken: 8, damageDealt: 6, jointsBroken: 1 });
+  assert.deepEqual(ended[0].stats,
+    { winner: 'lola', practice: false, seconds: 2, damageTaken: 8, damageDealt: 6, jointsBroken: 1, assisted: false });
   assert.equal(encounter.end(), false, 'an encounter ends once');
 
+  // Any ending while exploring is practice.
   encounter.restart();
+  assert.equal(encounter.result, null, 'restart clears the result');
   flow.explore();
   leaper.combat.lolaHealth = 0;
   encounter.end();
   assert.deepEqual(flow.state, { name: 'ended', winner: 'leaper', practice: true });
+
+  // Free shots before START RUN, or the debug button, make the hunted kill practice too.
+  for (const [label, prepare] of [
+    ['free shots while stopped', () => events.emit(GAME_EVENTS.leaperDamaged, { amount: 500 })],
+    ['debug button', () => { flow.hunt(); events.emit(GAME_EVENTS.leaperDamaged, { amount: 60, debug: true }); }],
+  ]) {
+    encounter.restart();
+    prepare();
+    flow.hunt();
+    leaper.combat.leaperHealth = 0;
+    encounter.end();
+    assert.deepEqual(flow.state, { name: 'ended', winner: 'lola', practice: true }, label);
+  }
 });
 
 test('RESTART returns Lola, the camera and every Leaper to the start snapshot', () => {

@@ -7,6 +7,7 @@ import { AttackController } from './AttackController.js';
 import { CombatGeometry, aimAngles, withinAim, capsuleHit } from './CombatGeometry.js';
 import { LeaperHealthBar } from './LeaperHealthBar.js';
 import { MOVEMENT } from '../config/robot.js';
+import { GAME_EVENTS } from '../core/events.js';
 
 // Health meter: the solid fill is current health; the pale "trail" shows the chunk
 // just lost, holds briefly, then drains so each hit's size is readable.
@@ -96,7 +97,11 @@ export class LeaperCombat {
   // major: a joint snapped, which always brings up the floating health bar.
   damageLeaper(amount, debug = false, major = false) {
     if (this.dead) return;
+    const before = this.leaperHealth;
     this.leaperHealth = Math.max(0, this.leaperHealth - amount);
+    // Tell the game what happened (results, and later the HUD and sound).
+    this.playtest.events?.emit(GAME_EVENTS.leaperDamaged, { amount: before - this.leaperHealth, health: this.leaperHealth, major, debug });
+    if (major) this.playtest.events?.emit(GAME_EVENTS.jointBroken, { health: this.leaperHealth });
     this.trails.leaper.hold = TRAIL_HOLD;
     this.healthBar.damage(amount, this.config.leaperHealth, major || !this.leaperHealth);
     // A big hit (a leg snapping off, or the kill shot) shakes the camera.
@@ -106,7 +111,9 @@ export class LeaperCombat {
   }
   damageLola(incomingDirection = null) {
     if (this.dead) return;
+    const before = this.lolaHealth;
     this.lolaHealth = Math.max(0, this.lolaHealth - this.config.boltDamage);
+    this.playtest.events?.emit(GAME_EVENTS.lolaDamaged, { amount: before - this.lolaHealth, health: this.lolaHealth, direction: incomingDirection });
     this.trails.lola.hold = TRAIL_HOLD;
     this.damageFlash = 0.4;
     this.playtest.target.reactToHit?.(incomingDirection);
