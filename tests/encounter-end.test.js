@@ -76,3 +76,26 @@ test('once the encounter is over the brain asks for no moves and only settles th
   assert.ok(calls.length === 10 && calls.every(([name, dt]) => name === 'settle' && dt === 0.1));
   assert.equal(brain.describe().label, 'BRAIN 7,757,824 · ENCOUNTER OVER', 'the badge says the fight is over');
 });
+
+// When Lola loses, the Leaper is still alive: it settles its feet but keeps
+// "breathing" (idle sway and knee-glow pulse) instead of turning into a statue.
+test('a Leaper that won keeps idling while it settles; the brain tells it which case it is', () => {
+  const { rig, simulation } = leaper();
+  for (let i = 0; i < 60; i += 1) simulation.settle(1 / 60, { alive: true });
+  const glow = rig.materials.glow.emissiveIntensity, roll = simulation.state.rollTilt;
+  for (let i = 0; i < 30; i += 1) simulation.settle(1 / 60, { alive: true });
+  assert.notEqual(rig.materials.glow.emissiveIntensity, glow, 'the knee glow keeps pulsing');
+  assert.notEqual(simulation.state.rollTilt, roll, 'the idle sway goes on');
+  assert.ok(rig.legs.every((l) => !l.stepping), 'its feet are planted all the same');
+  // The brain passes alive = the Leaper still has health.
+  globalThis.document = { hidden: false };
+  const seen = [];
+  const playtest = { world: { width: 5.5 }, walking: false, message: {}, brainLabel: {},
+    combat: { dead: true, leaperHealth: 120 }, target: { mesh: { position: new THREE.Vector3() } },
+    simulation: { state: { position: new THREE.Vector3(), yaw: 0 }, settle: (dt, options) => seen.push(options.alive) } };
+  const brain = new JunkyardBrain(playtest);
+  brain.update(0.1);
+  playtest.combat.leaperHealth = 0;
+  brain.update(0.1);
+  assert.deepEqual(seen, [true, false], 'alive when Lola lost, not when the Leaper was destroyed');
+});

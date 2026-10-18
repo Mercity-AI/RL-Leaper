@@ -145,3 +145,32 @@ test('an offline brain leaves the run going in turret mode, and START RUN retrie
   assert.equal(driver.ready, true);
   assert.match(driver.describe().label, /^BRAIN 7,757,824 · /);
 });
+
+// The badge tells the player why the Leaper isn't moving, and the "brain loaded"
+// note never tells a run that is already going to press START RUN.
+test('the brain badge says STOPPED, PAUSED or ENCOUNTER OVER, and the loaded note fits the moment', async () => {
+  globalThis.document = { hidden: false };
+  const { driver, playtest } = fixture();
+  driver.request = async () => frame;
+  // Loaded while a run is going: no "Start Run" instruction.
+  await driver.reset();
+  assert.doesNotMatch(playtest.message.textContent, /Start Run/);
+  assert.match(playtest.message.textContent, /hunting/);
+  // Loaded while paused: the pause instructions stay.
+  playtest.paused = true;
+  playtest.walking = false;
+  playtest.message.textContent = 'Paused with Escape.';
+  await driver.reset();
+  assert.equal(playtest.message.textContent, 'Paused with Escape.');
+  assert.match(driver.describe().label, /· PAUSED$/);
+  // Stopped (Ready, or exploring as Lola): the brain is stopped, not paused.
+  playtest.paused = false;
+  await driver.reset();
+  assert.match(playtest.message.textContent, /Start Run/);
+  assert.match(driver.describe().label, /· STOPPED$/);
+  // After the fight, with or without the service.
+  playtest.combat = { dead: true };
+  assert.match(driver.describe().label, /· ENCOUNTER OVER$/);
+  driver.offline = true;
+  assert.equal(driver.describe().label, 'BRAIN OFFLINE · ENCOUNTER OVER', 'no "press START RUN" while it is disabled');
+});

@@ -124,13 +124,14 @@ export class LeaperSimulation {
 
   // After the fight: the Leaper stays where it stopped, its body eases to a halt
   // and any foot still in the air finishes its step and lands, instead of the
-  // whole robot freezing mid-stride (review fix 5.2 step 4). Its lights stay as
-  // combat left them (off once it is destroyed).
-  settle(deltaTime) {
+  // whole robot freezing mid-stride (review fix 5.2 step 4).
+  // alive: true when the Leaper won (Lola is down). It then keeps its idle sway
+  // and glow pulse; a destroyed Leaper keeps its lights as combat left them (off).
+  settle(deltaTime, { alive = false } = {}) {
     const { position, yaw, velocity } = this.state;
     // The last of the body's motion dies away completely (no endless tiny bob).
     if (velocity.lengthSq() < 1e-6) velocity.set(0, 0, 0);
-    this.applyExternalFrame({ x: position.x, z: position.z, yaw, collision: false }, deltaTime, null, { alive: false });
+    this.applyExternalFrame({ x: position.x, z: position.z, yaw, collision: false }, deltaTime, null, { alive });
   }
 
   updateExternal(frame, deltaTime, replay) {

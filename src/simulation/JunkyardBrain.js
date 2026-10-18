@@ -141,9 +141,14 @@ export class JunkyardBrain {
       this.ready = true;
       this.offline = false;
       this.label = 'BRAIN 7,757,824';
-      this.playtest.message.textContent = wasOffline && this.playtest.walking
-        ? 'The brain service is back: the trained brain hunts again (a fresh brain session).'
-        : 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; 1 / 2 switch guns; left click fires whichever gun is equipped, even while the Leaper run is stopped.';
+      // Say what fits the moment: a run already going is not told to "Start Run",
+      // and a pause keeps its own "click to resume" instructions.
+      if (!this.playtest.paused) {
+        this.playtest.message.textContent = !this.playtest.walking
+          ? 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; 1 / 2 switch guns; left click fires whichever gun is equipped, even while the Leaper run is stopped.'
+          : wasOffline ? 'The brain service is back: the trained brain hunts again (a fresh brain session).'
+            : 'Saved brain loaded: the Leaper is hunting. WASD moves Lola; Shift sprints; Space jumps; left click fires; Esc pauses.';
+      }
       this.playtest.brainLabel.title = `Residual LSTM · inference only · policy SHA256 ${frame.policy_sha256}`;
     } catch (error) {
       if (generation !== this.generation) return;
@@ -230,7 +235,8 @@ export class JunkyardBrain {
     }
     if (encounterOver) {
       // 3a. The fight is over: no more moves, but the Leaper's feet finish landing.
-      sim.settle?.(dt);
+      //     A Leaper that won (still has health) keeps idling; a destroyed one goes still.
+      sim.settle?.(dt, { alive: (this.playtest.combat?.leaperHealth ?? 0) > 0 });
     } else if (this.frame) {
       // 3b. Follow each network pose from the current rendered pose. Restarting at
       //     the previous server frame caused snaps whenever replies arrived early or late.
@@ -244,17 +250,22 @@ export class JunkyardBrain {
   // What the brain is doing, for the panel badge and the top-right status line
   // (written by the junkyard's presentation phase).
   describe() {
-    // Offline: a run carries on in turret mode; otherwise say how to fix it.
+    const over = Boolean(this.playtest.combat?.dead);
+    // Offline: a run carries on in turret mode; otherwise say how to fix it
+    // (after the fight START RUN is disabled, so don't tell the player to press it).
     if (this.offline) {
       const turret = Boolean(this.playtest.walking);
+      if (over) return { label: 'BRAIN OFFLINE · ENCOUNTER OVER', status: 'NO BRAIN SERVICE // ENCOUNTER OVER' };
       return {
         label: turret ? BRAIN_TURRET_LABEL : BRAIN_OFFLINE_LABEL,
         status: turret ? 'NO BRAIN SERVICE // TURRET MODE: THE LEAPER STAYS PUT BUT STILL SHOOTS'
           : 'NO BRAIN SERVICE // START IT, THEN PRESS START RUN',
       };
     }
-    // After the fight the brain is idle on purpose: say so rather than "paused".
-    const mode = !this.ready ? this.label : this.playtest.combat?.dead ? 'ENCOUNTER OVER' : !this.running ? 'PAUSED'
+    // While the brain isn't asked for moves, say why: the fight is over, the game
+    // is paused (Escape), or the run is simply stopped (Ready or START PLAYER).
+    const idle = this.playtest.paused ? 'PAUSED' : 'STOPPED';
+    const mode = !this.ready ? this.label : over ? 'ENCOUNTER OVER' : !this.running ? idle
       : this.failedSteps ? 'BRAIN SLOW · RETRYING'
       : this.frame.target_visible ? 'TARGET VISIBLE'
         : this.frame.target_ever_seen ? 'TARGET HIDDEN · MEMORY' : 'SEARCHING';
