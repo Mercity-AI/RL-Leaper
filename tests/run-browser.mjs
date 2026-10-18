@@ -47,7 +47,9 @@ async function runPage(browser, baseUrl, path) {
   const started = Date.now();
   let timedOut = false;
   try {
-    await page.goto(`${baseUrl}/${path}`);
+    // Loading gets the same allowance as the verdict wait: on a slow CI machine
+    // the page's modules alone can take longer than Playwright's default 30 s.
+    await page.goto(`${baseUrl}/${path}`, { timeout: TIMEOUT_SECONDS * 1000 });
     await page.waitForFunction(() => /^(PASS|FAIL)/.test(document.title), null,
       { timeout: TIMEOUT_SECONDS * 1000 });
   } catch (error) {

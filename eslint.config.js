@@ -1,4 +1,4 @@
-// ESLint settings for `pnpm lint` (eslint src tests scripts).
+// ESLint settings for `pnpm lint` (src, tests, scripts, demos and these config files).
 // Only ESLint's recommended correctness rules are used: unused variables,
 // unreachable code, typos in names and similar real mistakes. Code style and
 // formatting are left alone on purpose.

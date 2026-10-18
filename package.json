@@ -16,7 +16,7 @@
     "test:brain": "node --test tests/leaper_world.test.js",
     "test:browser": "node tests/run-browser.mjs",
     "test:py": "node scripts/test-py.mjs",
-    "lint": "eslint src tests scripts",
+    "lint": "eslint src tests scripts demos eslint.config.js vite.config.js",
     "check": "pnpm build && pnpm test && pnpm test:browser"
   },
   "dependencies": {

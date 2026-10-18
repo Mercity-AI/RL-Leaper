@@ -13,17 +13,25 @@ import { createServer } from 'vite';
 import { findPython, PYTHON_SETUP, ROOT } from './python.mjs';
 
 // --- Settings -------------------------------------------------------------------
-function option(name, fallback) {
+// Read `--name <port>`. A missing or invalid number stops here with a clear
+// message, instead of a confusing Python or Vite error much later.
+function portOption(name, fallback, example) {
   const index = process.argv.indexOf(name);
-  return index > 0 ? Number(process.argv[index + 1]) : fallback;
+  if (index < 0) return fallback;
+  const port = Number(process.argv[index + 1]);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    console.error(`${name} needs a port number from 1 to 65535, for example: pnpm play ${name} ${example}`);
+    process.exit(1);
+  }
+  return port;
 }
 // The game page talks to the brain on 8767 (src/simulation/JunkyardBrain.js).
-const BRAIN_PORT = option('--brain-port', 8767);
+const BRAIN_PORT = portOption('--brain-port', 8767, 8781);
 const BRAIN_URL = `http://127.0.0.1:${BRAIN_PORT}/`;
 const MODEL_STEP = 7757824;
 // Loading PyTorch and the checkpoint usually takes a few seconds; allow slow disks.
 const BRAIN_START_SECONDS = 180;
-const GAME_PORT = option('--port', 5173);
+const GAME_PORT = portOption('--port', 5173, 5180);
 
 let brain = null;
 let vite = null;
