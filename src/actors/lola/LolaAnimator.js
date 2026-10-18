@@ -7,7 +7,8 @@ import * as THREE from 'three';
 //      standing stance in the legs (eased in while she stands still);
 //   3. upper-body overlays: the shot or the reload, which drive the arms,
 //      torso and gun over whatever the legs do (one shared weight rule);
-//   4. additive hit flinch: a bend of the spine applied after the pose.
+//   4. after the mixer: the reload and jump guns placed in her hand, the hip
+//      twist toward diagonals, then the additive hit flinch (a spine bend).
 // Clocks run in the 120 Hz movement sub-steps (advance), but the expensive
 // pose is evaluated once per rendered frame for the equipped outfit (pose).
 

@@ -94,7 +94,10 @@ export const RUN_JUMP_MAX_SKIP = 4;
 // How the hit flinch's bend (ENCOUNTER.hitRecoilAngle) is shared along her
 // spine, lowest joint first. One joint bending 26 degrees stretched her shirt
 // at the waist up to 1.5x; spread over four joints it stays under 1.2x. The
-// shares add up to 1.2, so the head still moves about as far as before.
+// shares add up to 1.2: her head tilts 31 degrees at the peak (26 before the
+// spread) but, bending higher up the spine, moves 16-18 cm instead of 21-24;
+// her shoulders, arms and gun now move with it. Raise
+// ENCOUNTER.hitRecoilAngle (or these shares) for a bigger lurch.
 export const LOLA_FLINCH_SPREAD = Object.freeze([
   ['DEF-spine.001', 0.264],
   ['DEF-spine.002', 0.336],
