@@ -186,6 +186,13 @@ export class JunkyardBrain {
     // robot keep the same position while paused. No new step is requested.
   }
 
+  // The game session is over: stop, and ignore any reply still on its way (it
+  // would otherwise redraw sight lines and messages that no longer exist).
+  dispose() {
+    this.stop();
+    this.generation += 1;
+  }
+
   // Ask the server for moves at a steady rate and ease the visible Leaper toward
   // each reply. Lola's own movement is PlayerController's job, not the brain's.
   update(dt) {

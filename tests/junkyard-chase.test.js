@@ -174,3 +174,21 @@ test('the brain badge says STOPPED, PAUSED or ENCOUNTER OVER, and the loaded not
   driver.offline = true;
   assert.equal(driver.describe().label, 'BRAIN OFFLINE · ENCOUNTER OVER', 'no "press START RUN" while it is disabled');
 });
+
+// After the session is torn down, a reply still in flight must not redraw the
+// (removed) sight lines or overwrite the pose.
+test('a disposed brain stops and ignores replies that arrive afterwards', async () => {
+  globalThis.document = { hidden: false };
+  const { driver } = fixture();
+  driver.request = async () => frame;
+  await driver.reset();
+  let finish;
+  driver.request = () => new Promise((resolve) => { finish = resolve; });
+  driver.start();
+  driver.update(1 / 10);
+  driver.dispose();
+  finish({ ...frame, x: 0.375, step: 1 });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(driver.running, false);
+  assert.equal(driver.frame.x, 0, 'the late reply is ignored');
+});

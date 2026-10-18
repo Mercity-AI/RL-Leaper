@@ -33,17 +33,20 @@ export class Encounter {
     this.elapsed = 0;
     this.result = null;
     this.stats = Encounter.emptyStats();
-    // Damage bookkeeping comes from the event bus, whoever caused it.
-    events.on(GAME_EVENTS.lolaDamaged, ({ amount = 0 } = {}) => { this.stats.damageTaken += amount; });
-    events.on(GAME_EVENTS.leaperDamaged, ({ amount = 0, debug = false } = {}) => {
-      this.stats.damageDealt += amount;
-      // Damage from the OPTIONS debug button, or dealt while the Leaper could not
-      // fight back (stopped, exploring, paused), makes the eventual win practice.
-      if (debug || !this.flow.hunting) this.stats.assisted = true;
-      if (debug) this.stats.debugUsed = true;
-    });
-    events.on(GAME_EVENTS.jointBroken, () => { this.stats.jointsBroken += 1; });
-    flow.onChange((next, previous) => this.onFlowChange(next, previous));
+    // Damage bookkeeping comes from the event bus, whoever caused it. Every
+    // subscription is kept so dispose() can unhook it again.
+    this.unsubscribe = [
+      events.on(GAME_EVENTS.lolaDamaged, ({ amount = 0 } = {}) => { this.stats.damageTaken += amount; }),
+      events.on(GAME_EVENTS.leaperDamaged, ({ amount = 0, debug = false } = {}) => {
+        this.stats.damageDealt += amount;
+        // Damage from the OPTIONS debug button, or dealt while the Leaper could not
+        // fight back (stopped, exploring, paused), makes the eventual win practice.
+        if (debug || !this.flow.hunting) this.stats.assisted = true;
+        if (debug) this.stats.debugUsed = true;
+      }),
+      events.on(GAME_EVENTS.jointBroken, () => { this.stats.jointsBroken += 1; }),
+      flow.onChange((next, previous) => this.onFlowChange(next, previous)),
+    ];
   }
 
   // Per-fight totals, cleared by every restart.
@@ -264,11 +267,16 @@ export class Encounter {
     this.audio?.stopRobotSteps();
   }
 
-  // Unhook the Leapers from the world's collision (used when a mode is disposed).
+  // The session is over (a mode is disposed): unhook the Leapers from the world's
+  // collision, stop their brains (late replies are dropped), and stop listening
+  // to the game state and events, so a later session on the same flow or bus
+  // never drives this finished fight.
   dispose() {
     for (const enemy of this.enemies) {
       enemy.removeBlocker?.();
       enemy.brain.stop();
+      enemy.brain.dispose?.();
     }
+    for (const off of this.unsubscribe.splice(0)) off();
   }
 }

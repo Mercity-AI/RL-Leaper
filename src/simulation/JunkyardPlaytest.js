@@ -78,7 +78,7 @@ export class JunkyardPlaytest {
     // 7. The game state drives mouse capture, the toolbar labels and the pause
     //    overlay; Escape (or a lost mouse lock) pauses, a click on the overlay resumes.
     this.pauseOverlay = new PauseOverlay({ onResume: () => this.resume(), signal });
-    this.flow.onChange((next, previous) => this.onFlowChange(next, previous));
+    this.offFlowChange = this.flow.onChange((next, previous) => this.onFlowChange(next, previous));
     cameraController.onPauseRequested = () => this.pause();
     target.setSelected(true);
 
@@ -312,8 +312,10 @@ export class JunkyardPlaytest {
   // on the page or in the scene. Page listeners end with the mode's AbortSignal;
   // the map, rig and Lola are freed by the mode itself.
   dispose() {
-    // 1. The fight: brains stopped, Leaper blockers out of the collision service.
+    // 1. The fight: brains stopped, Leaper blockers out of the collision service,
+    //    and nothing here reacts to the game state any more.
     this.encounter.dispose();
+    this.offFlowChange();
     this.cameraController.releaseMouse();
     // 2. Scene-side leftovers: bolts, debris, gunshot effects, clearance overlay, sight lines.
     this.combat.dispose();

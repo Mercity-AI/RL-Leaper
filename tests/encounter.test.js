@@ -211,6 +211,24 @@ test('each Leaper blocks Lola through the world collision service', () => {
   assert.equal(world.collision.playerBlocked(0, 0.5), false, 'dispose removes the blockers');
 });
 
+// A disposed fight must not keep reacting: a later session that reuses the same
+// game state or event bus would otherwise start its brains or count its damage.
+test('dispose unhooks the encounter from the game state and the event bus, and disposes its brains', () => {
+  const { flow, events, encounter, enemies: [leaper] } = setup();
+  let disposed = 0;
+  leaper.brain.dispose = () => { disposed += 1; };
+  encounter.dispose();
+  assert.equal(disposed, 1, 'late brain replies are dropped');
+  flow.hunt();
+  assert.equal(leaper.brain.running, false, 'a later START RUN no longer starts this brain');
+  assert.equal(encounter.started, false, 'nor takes a start snapshot');
+  events.emit(GAME_EVENTS.lolaDamaged, { amount: 8 });
+  events.emit(GAME_EVENTS.jointBroken, {});
+  assert.equal(encounter.stats.damageTaken, 0);
+  assert.equal(encounter.stats.jointsBroken, 0);
+  encounter.dispose();
+});
+
 test('toolbar labels follow the game state', () => {
   assert.deepEqual(toolbarLabels({ name: 'ready' }), { route: 'START RUN', player: 'START PLAYER', disabled: false });
   assert.deepEqual(toolbarLabels({ name: 'playing', mode: 'hunt' }), { route: 'STOP RUN', player: 'START PLAYER', disabled: false });
