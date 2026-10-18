@@ -32,6 +32,10 @@ export class LeaperSimulation {
     this.cameraController = cameraController;
     this.sun = sun;
     this.statusElement = statusElement;
+    // The lab modes (sandbox, replays, arena) let the animator also move the
+    // camera and sun and write the status line. The junkyard turns this off and
+    // does all three in its own late (presentation) phase.
+    this.drivesPresentation = true;
     this.elapsed = 0;
     this.state = {
       position: new THREE.Vector3(),
@@ -84,10 +88,17 @@ export class LeaperSimulation {
     this.updateBody(speed, deltaTime);
     this.updateGait(speed, deltaTime);
     this.updateEffects(sprinting && hasInput, speed, deltaTime);
-    this.cameraController.update(state, this.rig.eyePivot, deltaTime);
+    if (!this.drivesPresentation) return;
+    this.updatePresentation(deltaTime);
+    this.updateStatus(speed);
+  }
+
+  // Camera follows the robot (or its chase focus) and the sun stays over it.
+  updatePresentation(deltaTime, chaseFocus = null) {
+    const state = this.state;
+    this.cameraController.update(state, this.rig.eyePivot, deltaTime, chaseFocus);
     this.sun.position.set(state.position.x + 8, 15, state.position.z + 6);
     this.sun.target.position.set(state.position.x, 0, state.position.z);
-    this.updateStatus(speed);
   }
 
   // Drive the rig from an externally supplied pose ({x, z, yaw, distance,
@@ -111,13 +122,12 @@ export class LeaperSimulation {
     this.updateBody(speed, deltaTime);
     this.updateGait(speed, deltaTime);
     this.updateEffects(frame.collision, speed, deltaTime);
-    this.cameraController.update(state, this.rig.eyePivot, deltaTime, chaseFocus);
-    this.sun.position.set(state.position.x + 8, 15, state.position.z + 6);
-    this.sun.target.position.set(state.position.x, 0, state.position.z);
+    if (this.drivesPresentation) this.updatePresentation(deltaTime, chaseFocus);
   }
 
   updateExternal(frame, deltaTime, replay) {
     this.applyExternalFrame(frame, deltaTime);
+    if (!this.drivesPresentation) return;
     const collisionLabel = frame.collision
       ? `${frame.collisionPart?.startsWith('leg') ? 'LEG' : 'BODY'} COLLISION`
       : 'MOVING';

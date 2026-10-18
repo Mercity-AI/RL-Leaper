@@ -251,9 +251,15 @@ export class LeaperCombat {
     this.corePulse = (this.corePulse ?? 0) + dt;
     if (this.core) this.core.material.emissiveIntensity = this.leaperHealth
       ? 2.6 + 1.4 * Math.sin(this.corePulse * 5) + charge * 6 + this.fireFlash * 15 : 0;
-    this.healthBar.update(dt, p.engine.camera, rig.robot, this.leaperHealth / c.leaperHealth, this.trails.leaper.value,
-      (p.simulation.state.velocity?.length() ?? 0) / MOVEMENT.sprintSpeed, p.engine.renderer?.domElement);
+    // The floating bar must be placed with this frame's camera; the junkyard sets
+    // healthBarLate and calls updateHealthBar from its late (presentation) phase.
+    if (!this.healthBarLate) this.updateHealthBar(dt);
     this.updateHud();
+  }
+  updateHealthBar(dt) {
+    const p = this.playtest, c = this.config;
+    this.healthBar.update(dt, p.engine.camera, p.simulation.rig.robot, this.leaperHealth / c.leaperHealth, this.trails.leaper.value,
+      (p.simulation.state.velocity?.length() ?? 0) / MOVEMENT.sprintSpeed, p.engine.renderer?.domElement);
   }
   updateHud() {
 

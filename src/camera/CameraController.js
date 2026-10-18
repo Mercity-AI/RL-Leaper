@@ -266,6 +266,9 @@ export class CameraController {
         Math.cos(heading) * Math.cos(this.eyePitch),
       );
       this.camera.lookAt(this.tempC.copy(this.camera.position).add(this.tempB));
+      // Every branch ends with fresh matrices, so world-pinned HUD placed after
+      // this update projects with this frame's view, not the last one.
+      this.camera.updateMatrixWorld();
       return;
     }
 
@@ -273,6 +276,7 @@ export class CameraController {
       this.camera.up.set(0, 0, -1);
       this.camera.position.set(this.topCenter.x, this.topHeight, this.topCenter.y + 0.01);
       this.camera.lookAt(this.topCenter.x, 0, this.topCenter.y);
+      this.camera.updateMatrixWorld();
       return;
     }
 
@@ -326,6 +330,7 @@ export class CameraController {
     if (this.followSubject) this.camera.lookAt(this.tempC.add(this.camera.position));
     else this.camera.lookAt(this.target.x, this.target.y + 0.35, this.target.z);
     this.applyShake();
+    this.camera.updateMatrixWorld();
   }
 
   // Add shake strength (0-1); repeated impacts stack up to full strength.

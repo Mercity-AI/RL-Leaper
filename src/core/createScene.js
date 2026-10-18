@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+// The sun's offset from the point it lights, and its shadow box, at map scale 1.
+// The junkyard scales both by its world scale and centres them on Lola
+// (src/core/sunShadow.js); the lab modes keep these numbers around the robot.
+export const SUN_OFFSET = Object.freeze({ x: 8, y: 15, z: 6 });
+export const SHADOW_BOX = Object.freeze({ halfSize: 13, near: 2, far: 48, mapSize: 2048 });
+
 export function createScene(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -25,15 +31,15 @@ export function createScene(container) {
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x9ca7b2, 0.95));
   const sun = new THREE.DirectionalLight(0xfff7ea, 1.25);
-  sun.position.set(8, 15, 6);
+  sun.position.set(SUN_OFFSET.x, SUN_OFFSET.y, SUN_OFFSET.z);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -13;
-  sun.shadow.camera.right = 13;
-  sun.shadow.camera.top = 13;
-  sun.shadow.camera.bottom = -13;
-  sun.shadow.camera.near = 2;
-  sun.shadow.camera.far = 48;
+  sun.shadow.mapSize.set(SHADOW_BOX.mapSize, SHADOW_BOX.mapSize);
+  sun.shadow.camera.left = -SHADOW_BOX.halfSize;
+  sun.shadow.camera.right = SHADOW_BOX.halfSize;
+  sun.shadow.camera.top = SHADOW_BOX.halfSize;
+  sun.shadow.camera.bottom = -SHADOW_BOX.halfSize;
+  sun.shadow.camera.near = SHADOW_BOX.near;
+  sun.shadow.camera.far = SHADOW_BOX.far;
   sun.shadow.bias = -0.0004;
   scene.add(sun, sun.target);
 

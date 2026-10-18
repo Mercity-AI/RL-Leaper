@@ -9,6 +9,7 @@ import { Encounter } from '../game/Encounter.js';
 import { PlayerController } from '../game/PlayerController.js';
 import { JunkyardPanel, HELP_MESSAGE } from '../game/JunkyardPanel.js';
 import { ClearanceOverlay } from '../game/ClearanceOverlay.js';
+import { JunkyardPresentation } from '../game/JunkyardPresentation.js';
 import { enableTopViewPlacement } from '../game/topViewPlacement.js';
 import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
 import { attachWorldCollision } from '../world/WorldCollision.js';
@@ -78,14 +79,10 @@ export class JunkyardPlaytest {
       applySize: (width) => this.applySize(width),
     });
 
-    // 8. Camera reach and fog at the junkyard's scale.
-    cameraController.mapScale = world.scale;
-    cameraController.followScale = world.defaultWidth / world.width;
-    cameraController.topHeight = 43 * world.scale;
-    engine.camera.far = 500 * world.scale;
-    engine.camera.updateProjectionMatrix();
-    engine.scene.fog.near = 35 * world.scale;
-    engine.scene.fog.far = 64 * world.scale;
+    // 8. Presentation: camera, sun, floating health bar and readouts, updated
+    //    every frame after gameplay (the Leaper animator no longer drives them).
+    this.presentation = new JunkyardPresentation({ engine, world, cameraController, player: target,
+      encounter: this.encounter, pov: this.pov, brainLabel: this.brainLabel, statusElement: simulation.statusElement });
 
     // 9. Designer tools: the clearance overlay and Shift + click placement in TOP view.
     this.overlay = new ClearanceOverlay({ scene: engine.scene, world });
@@ -112,7 +109,7 @@ export class JunkyardPlaytest {
   // ---- Frame phases (called by the junkyard mode) ----
   input(dt) { this.encounter.input(dt); }
   update(dt) { this.encounter.update(dt); }
-  lateUpdate() { this.pov.update(); }
+  lateUpdate(dt) { this.presentation.lateUpdate(dt); }
 
   // ---- Game-state reactions ----
 

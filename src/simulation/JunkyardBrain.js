@@ -161,11 +161,18 @@ export class JunkyardBrain {
         yaw: yaw + turn * tYaw,
       }, dt, { checkpoint: { step: now.model_step } });
     }
+  }
+
+  // What the brain is doing, for the panel badge and the top-right status line
+  // (written by the junkyard's presentation phase).
+  describe() {
     const mode = !this.ready ? this.label : !this.running ? 'PAUSED'
       : this.failedSteps ? 'BRAIN SLOW · RETRYING'
       : this.frame.target_visible ? 'TARGET VISIBLE'
         : this.frame.target_ever_seen ? 'TARGET HIDDEN · MEMORY' : 'SEARCHING';
-    this.playtest.brainLabel.textContent = this.ready ? `BRAIN 7,757,824 · ${mode}` : this.label;
-    sim.statusElement.textContent = `LIVE TRAINED BRAIN // ${mode}${this.frame?.collision ? ' // CONTACT' : ''} // STEP ${this.frame?.step || 0}`;
+    return {
+      label: this.ready ? `BRAIN 7,757,824 · ${mode}` : this.label,
+      status: `LIVE TRAINED BRAIN // ${mode}${this.frame?.collision ? ' // CONTACT' : ''} // STEP ${this.frame?.step || 0}`,
+    };
   }
 }
