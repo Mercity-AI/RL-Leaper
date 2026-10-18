@@ -1,0 +1,213 @@
+{
+ "format": "leaper-junkyard-fixture-v1",
+ "model_step": 7757824,
+ "policy_sha256": "883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594",
+ "contact_version": 3,
+ "sight_version": "eye-vision-v1",
+ "collision_sha256": "8ae92dd855544fdf5a4e6f869daf613d97a70dbc6200de2f5de84eb56bad2d61",
+ "glb_sha256": "b62c56b97871240d27ecf6812e4c07dec961690712a0d9a18ffc6f40621871dc",
+ "worlds": {
+  "2.9": {
+   "width": 2.9,
+   "scale": 2.751724137931035,
+   "raster_shape": [
+    486,
+    455
+   ],
+   "raster_sha256": "5fc8f07a5c344ea4da8ae75b00a73cc0ae6df8093915d36d40e0872c2461745f",
+   "raster_solid": 48317,
+   "cell": 0.2751724137931035,
+   "minimum": [
+    -66.81007344827587,
+    -62.582076827586214
+   ],
+   "maximum": [
+    66.81007344827587,
+    62.582076827586214
+   ]
+  },
+  "5.5": {
+   "width": 5.5,
+   "scale": 1.450909090909091,
+   "raster_shape": [
+    486,
+    455
+   ],
+   "raster_sha256": "5c00ab22b50275dd2f60983313f4cd88aa71984d947a46df825d93ea41d323b5",
+   "raster_solid": 48684,
+   "cell": 0.1450909090909091,
+   "minimum": [
+    -35.227129636363635,
+    -32.99782232727273
+   ],
+   "maximum": [
+    35.227129636363635,
+    32.99782232727273
+   ]
+  },
+  "7.98": {
+   "width": 7.98,
+   "scale": 1.0,
+   "raster_shape": [
+    486,
+    455
+   ],
+   "raster_sha256": "38e95d1caf1f5867ad5d6af583f09eb31ca0bba828e34790b8e4fe1f8e6791d5",
+   "raster_solid": 49344,
+   "cell": 0.1,
+   "minimum": [
+    -24.27935,
+    -22.74286
+   ],
+   "maximum": [
+    24.27935,
+    22.74286
+   ]
+  }
+ },
+ "scenarios": {
+  "eye-5.5-hide-seek": {
+   "file": "eye-5.5-hide-seek.json",
+   "width": 5.5,
+   "sight_mode": "eye",
+   "summary": {
+    "steps": 420,
+    "hidden_before_seen": 32,
+    "visible": 254,
+    "hidden_with_memory": 134,
+    "collisions": {
+     "leg-3": 34,
+     "player": 6,
+     "leg-2": 6
+    },
+    "reverse": 178,
+    "caught": 0,
+    "partial_eye": 7,
+    "moved": 6.97
+   },
+   "bytes": 1115013
+  },
+  "legacy-5.5-hide-seek": {
+   "file": "legacy-5.5-hide-seek.json",
+   "width": 5.5,
+   "sight_mode": "legacy",
+   "summary": {
+    "steps": 360,
+    "hidden_before_seen": 32,
+    "visible": 189,
+    "hidden_with_memory": 139,
+    "collisions": {
+     "leg-3": 24,
+     "leg-2": 1
+    },
+    "reverse": 111,
+    "caught": 24,
+    "partial_eye": 0,
+    "moved": 8.96
+   },
+   "bytes": 817018
+  },
+  "eye-7.98-chase": {
+   "file": "eye-7.98-chase.json",
+   "width": 7.98,
+   "sight_mode": "eye",
+   "summary": {
+    "steps": 300,
+    "hidden_before_seen": 0,
+    "visible": 279,
+    "hidden_with_memory": 21,
+    "collisions": {
+     "leg-2": 93,
+     "leg-3": 200
+    },
+    "reverse": 295,
+    "caught": 0,
+    "partial_eye": 54,
+    "moved": 0.53
+   },
+   "bytes": 773042
+  },
+  "eye-2.9-search": {
+   "file": "eye-2.9-search.json",
+   "width": 2.9,
+   "sight_mode": "eye",
+   "summary": {
+    "steps": 300,
+    "hidden_before_seen": 221,
+    "visible": 58,
+    "hidden_with_memory": 21,
+    "collisions": {},
+    "reverse": 25,
+    "caught": 0,
+    "partial_eye": 4,
+    "moved": 11.38
+   },
+   "bytes": 784376
+  },
+  "eye-5.5-contact": {
+   "file": "eye-5.5-contact.json",
+   "width": 5.5,
+   "sight_mode": "eye",
+   "summary": {
+    "steps": 220,
+    "hidden_before_seen": 0,
+    "visible": 220,
+    "hidden_with_memory": 0,
+    "collisions": {
+     "player": 41,
+     "leg-3": 10
+    },
+    "reverse": 90,
+    "caught": 0,
+    "partial_eye": 0,
+    "moved": 6.18
+   },
+   "bytes": 546144
+  },
+  "scripted-collide-reverse-5.5": {
+   "file": "scripted-collide-reverse-5.5.json",
+   "width": 5.5,
+   "sight_mode": "eye",
+   "summary": {
+    "steps": 220,
+    "hidden_before_seen": 95,
+    "visible": 59,
+    "hidden_with_memory": 66,
+    "collisions": {
+     "leg-3": 95,
+     "leg-2": 2,
+     "leg-1": 18
+    },
+    "reverse": 50,
+    "caught": 0,
+    "partial_eye": 50,
+    "moved": 14.13
+   },
+   "bytes": 399999
+  },
+  "scripted-player-contact-5.5": {
+   "file": "scripted-player-contact-5.5.json",
+   "width": 5.5,
+   "sight_mode": "legacy",
+   "summary": {
+    "steps": 150,
+    "hidden_before_seen": 0,
+    "visible": 150,
+    "hidden_with_memory": 0,
+    "collisions": {
+     "player": 79,
+     "leg-3": 44
+    },
+    "reverse": 21,
+    "caught": 5,
+    "partial_eye": 0,
+    "moved": 0.77
+   },
+   "bytes": 228050
+  }
+ },
+ "glb_triangles": {
+  "count": 98632,
+  "sha256": "07eda2e4fc2b65aa699df3701ea8c4312b6a1c44c7538da08fc5bf9877b6de00"
+ }
+}

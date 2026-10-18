@@ -111,5 +111,16 @@
   "onnxruntime": "1.31.0",
   "python": "3.13.16"
  },
- "rasters": {}
+ "rasters": {
+  "5.5": {
+   "file": "raster-5.5.bin",
+   "shape": [
+    486,
+    455
+   ],
+   "solid": 48684,
+   "raster_sha256": "5c00ab22b50275dd2f60983313f4cd88aa71984d947a46df825d93ea41d323b5",
+   "collision_sha256": "8ae92dd855544fdf5a4e6f869daf613d97a70dbc6200de2f5de84eb56bad2d61"
+  }
+ }
 }

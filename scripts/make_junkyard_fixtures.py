@@ -128,7 +128,7 @@ def lola_inputs(waypoints, step, eye):
     # Small body offsets keep the three bones off one vertical line, like the rig.
     offsets = ((0.02, -0.04), (0.0, -0.02), (-0.01, 0.01))
     points = [[x + dx, y, z + dz] for (dx, dz), y in zip(offsets, BONE_HEIGHTS[posture])]
-    return [float(x), float(z)], dict(eye=list(eye), points=points)
+    return [float(x), float(z)], dict(eye=[float(v) for v in eye], points=points)
 
 
 # --- Recording stand-in for the checkpoint --------------------------------------
@@ -172,7 +172,10 @@ def env_state(env):
 # --- One scripted run ------------------------------------------------------------
 
 def run_scenario(spec, world, model):
-    """Drive BrainSession like the HTTP server would and record every step."""
+    """Drive BrainSession like the HTTP server would and record every step.
+
+    Returns (fixture, seconds per step); timings stay out of the files so a
+    re-run on the same machine reproduces them byte for byte."""
     eye = spec.get("eye", EYE_VISION["eyeOffset"])
     sight_mode = spec["sight_mode"]
     waypoints = spec["lola"]
@@ -193,7 +196,7 @@ def run_scenario(spec, world, model):
                    world_limit=float(env.WORLD_LIMIT), coverage_steps=int(env.coverage_steps))
 
     # Step loop: same call order as the server's /step handler.
-    steps, obs_out = [], []
+    steps, obs_out, senses = [], [], []
     started = time.time()
     for i in range(spec["steps"]):
         target, pose = lola_inputs(waypoints, i + 1, eye)
@@ -203,6 +206,14 @@ def run_scenario(spec, world, model):
                           episode_start=call["episode_start"], frame=frame, state=env_state(env),
                           coverage_new=[int(c) for c in env.coverage_new_cells]))
         obs_out.append(np.array(session.obs, dtype=np.float32))
+        if spec.get("sense_every") and (i + 1) % spec["sense_every"] == 0:
+            # The server's paused /sense preview, verbatim: it stores Lola's position
+            # as float64 (vector()) and the pose, then snapshots. No policy or memory.
+            probe_target, probe_pose = lola_inputs(spec["probe"], i + 1, eye)
+            env.target = np.asarray(probe_target, dtype=float)
+            env.sight_pose = probe_pose if sight_mode == "eye" else None
+            senses.append(dict(after=i, input=dict(target=probe_target, sight_pose=env.sight_pose),
+                               frame=session.snapshot()))
     seconds = time.time() - started
 
     # Packed float32 arrays: the inputs the policy saw, its action and its memory.
@@ -220,8 +231,8 @@ def run_scenario(spec, world, model):
     return dict(format=FORMAT, name=spec["name"], description=spec["description"],
                 model_step=recorder.num_timesteps, scripted_actions=spec.get("actions") is not None,
                 contact_version=PLAYER_CONTACT["version"], sight_version=EYE_VISION["version"],
-                world=world.describe(), reset=reset, initial=initial, steps=steps, arrays=arrays,
-                python_seconds_per_step=seconds / max(1, spec["steps"]))
+                world=world.describe(), reset=reset, initial=initial, steps=steps, senses=senses,
+                arrays=arrays), seconds / max(1, spec["steps"])
 
 
 def summarize(fixture):
@@ -289,14 +300,17 @@ def scenarios():
                          "waits to be found, then runs off behind cover so it must use memory.",
              lola=[(0, 2.0, -11.0, "stand"), (70, 2.0, -11.0, "stand"), (120, 9.0, -9.0, "crouch"),
                    (170, 14.0, -10.0, "stand"), (230, 16.0, 6.0, "stand"), (300, 6.0, 20.0, "jump"),
-                   (330, 6.0, 20.0, "stand"), (420, -12.0, 18.0, "stand")]),
+                   (330, 6.0, 20.0, "stand"), (420, -12.0, 18.0, "stand")],
+             sense_every=30, probe=[(0, 4.0, 6.0, "stand"), (210, 12.0, -4.0, "crouch"),
+                                    (420, -6.0, 10.0, "stand")]),
         dict(name="legacy-5.5-hide-seek", width=5.5, sight_mode="legacy", player_collision=False,
              start=(2.0, -2.0), yaw=0.0, steps=360,
              description="Default size, old flat 2D sight (no eye pose). Same hide, seen, "
                          "run-away script as the eye run.",
              lola=[(0, 2.0, -11.0, "stand"), (70, 2.0, -11.0, "stand"), (120, 9.0, -9.0, "stand"),
                    (170, 14.0, -10.0, "stand"), (230, 16.0, 6.0, "stand"), (300, 6.0, 20.0, "stand"),
-                   (360, -12.0, 18.0, "stand")]),
+                   (360, -12.0, 18.0, "stand")],
+             sense_every=30, probe=[(0, 4.0, 6.0, "stand"), (360, -6.0, 10.0, "stand")]),
         dict(name="eye-7.98-chase", width=7.98, sight_mode="eye", player_collision=True,
              start=(1.5, -3.0), yaw=math.pi / 2, steps=300,
              description="Largest clearance (map scale exactly 1): a tight yard, Lola in front then fleeing.",
@@ -354,7 +368,7 @@ def main():
             print(f"world width {spec['width']}: raster {worlds[spec['width']].geometry.shape.tolist()} "
                   f"built in {worlds[spec['width']].seconds:.1f} s", flush=True)
         world = worlds[spec["width"]]
-        fixture = run_scenario(spec, world, model)
+        fixture, seconds = run_scenario(spec, world, model)
         fixture["policy_sha256"] = digest
         path = args.out / f"{spec['name']}.json"
         path.write_text(json.dumps(fixture, separators=(",", ":"), allow_nan=False))
@@ -363,7 +377,7 @@ def main():
                                                 sight_mode=spec["sight_mode"], summary=summary,
                                                 bytes=path.stat().st_size)
         print(f"{spec['name']}: {summary} ({path.stat().st_size / 1e6:.2f} MB, "
-              f"{fixture['python_seconds_per_step'] * 1000:.0f} ms/step)", flush=True)
+              f"{seconds * 1000:.0f} ms/step in Python)", flush=True)
 
     # World facts the JS port must reproduce bit for bit (rasters, GLB triangles).
     triangles = World._triangles if World._triangles is not None else load_triangles(GLB)
