@@ -97,8 +97,10 @@ export class LeaperSimulation {
 
   // Drive the rig from an externally supplied pose ({x, z, yaw, distance,
   // collision}) — shared by recorded replays and the live brain.
-  applyExternalFrame(frame, deltaTime, chaseFocus = null) {
-    this.elapsed += deltaTime;
+  // alive: false after the Leaper is destroyed: no idle sway and no glow pulse,
+  // only the legs and body finishing their motion (see settle()).
+  applyExternalFrame(frame, deltaTime, chaseFocus = null, { alive = true } = {}) {
+    if (alive) this.elapsed += deltaTime;
     const state = this.state;
     const measuredVelocity = this.v[9].set(
       (frame.x - state.position.x) / Math.max(deltaTime, 1e-4),
@@ -116,8 +118,19 @@ export class LeaperSimulation {
     const speed = state.velocity.length();
     this.updateBody(speed, deltaTime);
     this.updateGait(speed, deltaTime);
-    this.updateEffects(frame.collision, speed, deltaTime);
+    if (alive) this.updateEffects(frame.collision, speed, deltaTime);
     if (this.drivesPresentation) this.updatePresentation(deltaTime, chaseFocus);
+  }
+
+  // After the fight: the Leaper stays where it stopped, its body eases to a halt
+  // and any foot still in the air finishes its step and lands, instead of the
+  // whole robot freezing mid-stride (review fix 5.2 step 4). Its lights stay as
+  // combat left them (off once it is destroyed).
+  settle(deltaTime) {
+    const { position, yaw, velocity } = this.state;
+    // The last of the body's motion dies away completely (no endless tiny bob).
+    if (velocity.lengthSq() < 1e-6) velocity.set(0, 0, 0);
+    this.applyExternalFrame({ x: position.x, z: position.z, yaw, collision: false }, deltaTime, null, { alive: false });
   }
 
   updateExternal(frame, deltaTime, replay) {

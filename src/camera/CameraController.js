@@ -338,6 +338,13 @@ export class CameraController {
     this.shakeStrength = Math.min(1, (this.shakeStrength ?? 0) + amount);
   }
 
+  // A new encounter starts calm: any shake left over from the last fight's
+  // final blow is dropped instead of replaying at the start (review fix 5.2).
+  resetEffects() {
+    this.shakeStrength = 0;
+    this.shakeClock = 0;
+  }
+
   // The shake fades out over SHAKE.duration in every view mode.
   fadeShake(deltaTime) {
     if (!this.shakeStrength) return;

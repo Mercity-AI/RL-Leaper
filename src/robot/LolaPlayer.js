@@ -510,7 +510,13 @@ export class LolaPlayer {
   }
 
   move(forwardAmount, sideAmount, forward, right, speed, deltaTime) {
-    if (this.defeated) return;
+    // Down: no more steering or travel, but her animation keeps running, so she
+    // settles into Idle (and any hit flinch plays out) instead of freezing mid-stride.
+    if (this.defeated) {
+      forwardAmount = 0; sideAmount = 0;
+      this.inputForward = 0; this.inputSide = 0;
+      forward = (this.defeatFacing ??= new THREE.Vector3()).set(Math.sin(this.mesh.rotation.y), 0, Math.cos(this.mesh.rotation.y));
+    }
     // Ease the requested input so starts, stops, and direction changes
     // accelerate smoothly instead of snapping between full speed and zero.
     const steps = Math.max(1, Math.ceil(deltaTime * 120));

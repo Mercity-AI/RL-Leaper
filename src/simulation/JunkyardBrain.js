@@ -143,7 +143,7 @@ export class JunkyardBrain {
     const preview = !encounterOver && !this.running && Boolean(this.playtest.sight);
     // 1. The brain clock only runs while moves (or stopped sight previews) may be
     //    asked for. Damage slows it, so the server and the rendered legs stay in sync.
-    const stepping = this.ready && (this.running || preview) && !document.hidden;
+    const stepping = this.ready && !encounterOver && (this.running || preview) && !document.hidden;
     this.cadence.step = preview ? PREVIEW_INTERVAL : 1 / LEAPER_STEPS_PER_SECOND;
     if (stepping) this.cadence.add(dt * (sim.rig?.mobility ?? 1));
     // 2. One request at a time: a due move waits (keeping its time) until the
@@ -174,9 +174,12 @@ export class JunkyardBrain {
         }
       });
     }
-    if (this.frame && !encounterOver) {
-      // Follow each network pose from the current rendered pose. Restarting at the
-      // previous server frame caused snaps whenever replies arrived early or late.
+    if (encounterOver) {
+      // 3a. The fight is over: no more moves, but the Leaper's feet finish landing.
+      sim.settle?.(dt);
+    } else if (this.frame) {
+      // 3b. Follow each network pose from the current rendered pose. Restarting at
+      //     the previous server frame caused snaps whenever replies arrived early or late.
       const now = this.frame;
       const { position, yaw } = sim.state;
       sim.updateExternal({ ...now, ...followPose({ x: position.x, z: position.z, yaw }, now, dt) },

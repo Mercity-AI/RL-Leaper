@@ -35,7 +35,8 @@ function setup({ enemies = 1 } = {}) {
   const flow = new GameFlow({ events, initial: { name: 'ready' } });
   const player = { isPlayer: true, height: 2, mesh: { position: new THREE.Vector3(0, 0, 20), rotation: { y: 0 } },
     clearHitReaction() {}, resetJump() {} };
-  const weapon = { resets: 0, update: (dt) => log.push(['weapon', dt]), reset() { this.resets += 1; } };
+  const weapon = { cancels: 0, refills: 0, update: (dt) => log.push(['weapon', dt]),
+    cancelActions() { this.cancels += 1; }, resetEncounter() { this.refills += 1; } };
   // Lola's health (PlayerVitals stand-in).
   const vitals = { health: 100, get dead() { return this.health <= 0; },
     reset() { this.health = 100; }, update: (dt) => log.push(['vitals', dt]) };
@@ -78,21 +79,25 @@ test('pausing freezes gameplay time but not the frame', () => {
   assert.equal(encounter.elapsed, 0.1);
 });
 
-test('brains run only while hunting; leaving play drops the gun, ending the fight does not', () => {
+test('brains run only while hunting; stopping drops the gun, pausing and ending the fight do not', () => {
   const { flow, encounter, weapon, enemies: [leaper] } = setup();
   flow.hunt();
   assert.equal(leaper.brain.running, true);
   flow.explore();
   assert.equal(leaper.brain.running, false);
-  assert.equal(weapon.resets, 1, 'switching from the run to exploring resets the gun, as STOP RUN did');
+  assert.equal(weapon.cancels, 1, 'switching from the run to exploring drops the gun, as STOP RUN did');
   flow.pause();
-  assert.equal(weapon.resets, 2);
+  assert.equal(weapon.cancels, 1, 'a pause leaves the gun to let go by itself (a reload resumes)');
   flow.resume();
+  flow.stop();
+  assert.equal(weapon.cancels, 2, 'STOP PLAYER drops the gun');
   flow.hunt();
   leaper.combat.leaperHealth = 0;
   assert.equal(encounter.end(), true);
-  assert.equal(weapon.resets, 2, 'the kill shot keeps its effects');
+  assert.equal(weapon.cancels, 2, 'the kill shot keeps its effects');
   assert.equal(leaper.brain.running, false);
+  encounter.restart();
+  assert.equal(weapon.refills, 1, 'a restart refills both magazines');
 });
 
 test('a win during the hunt is real, any other ending is practice, and results are kept', () => {

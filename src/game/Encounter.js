@@ -115,17 +115,22 @@ export class Encounter {
       this.begin();
       for (const enemy of this.enemies) enemy.brain.start();
     }
-    // Leaving the hunt: brains stop asking for moves (their sessions are kept).
+    // Leaving the hunt (a pause included): brains stop asking for moves until
+    // the run continues (their sessions are kept).
     if (wasHunting && !hunting) {
       for (const enemy of this.enemies) enemy.brain.stop();
       this.quietRobots();
+    }
+    // STOP RUN, STOP PLAYER, or switching between them drops the trigger, aim and
+    // reload and Lola's flinch, as STOP RUN always did; shots already fired keep
+    // fading. A pause and the end of the fight leave both alone: the gun lets go
+    // by itself once it can't be used, a paused reload carries on afterwards, and
+    // the kill shot's tracer, sparks and shake are not wiped before they are drawn.
+    const switchedMode = next.name === 'playing' && wasPlaying && next.mode !== previous.mode;
+    if ((wasPlaying && next.name === 'ready') || switchedMode) {
+      this.playerWeapon.cancelActions();
       this.player.clearHitReaction?.();
     }
-    // Leaving the hunt or play (for Ready, Paused or exploring) drops the trigger,
-    // aim and reload, as STOP RUN always did. At the end of the fight the gun is
-    // left alone, so the kill shot's effects are not wiped before they are drawn.
-    const leftPlay = wasPlaying && next.name !== 'playing';
-    if (next.name !== 'ended' && (leftPlay || (wasHunting && !hunting))) this.playerWeapon.reset();
   }
 
   // ---- Lifecycle ----
@@ -170,12 +175,14 @@ export class Encounter {
     // 1. Fresh health for Lola and every Leaper, no bolts, legs back, attack timers cleared.
     this.vitals.reset();
     for (const enemy of this.enemies) enemy.combat.reset();
-    // 2. Ready, then make sure nothing is still firing, walking or flinching.
+    // 2. Ready, then make sure nothing is still firing, walking, flinching or
+    //    shaking, and both magazines are full again.
     this.flow.stop();
     this.quietRobots();
     for (const enemy of this.enemies) enemy.brain.stop();
-    this.playerWeapon.reset();
+    this.playerWeapon.resetEncounter();
     this.player.clearHitReaction?.();
+    this.cameraController.resetEffects?.();
     // 3. Starting positions.
     const snapshot = spawn ? null : this.startSnapshot;
     if (spawn) this.placePlayer({ x: spawn.target.x, z: spawn.target.z });

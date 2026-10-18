@@ -355,6 +355,30 @@ try {
   p.playerWeapon.fire();
   // The banner text itself is the encounter's (resultText, tested in node); combat reports the kill.
   check(combat.leaperHealth === 0 && combat.outcome.winner === 'lola' && !combat.outcome.debug, 'player gunshot earns a real defeat, not a debug result');
+  // The end of the fight (review 5.2): a kill shot landed while aiming keeps its
+  // tracer, sparks and shake; the aim lets go; Lola is free to walk afterwards.
+  p.vitals.reset(); combat.reset(); p.playerWeapon.reset(); p.walking = true; target.cancelShot();
+  target.weaponIndex = 0; target.showWeapon();
+  pointAimAt(center); p.playerWeapon.setAiming(true); p.playerWeapon.update(1 / 60);
+  combat.leaperHealth = 2; cameraController.shakeStrength = 0;
+  check(p.playerWeapon.fire() && combat.dead, 'an aimed shot can be the kill shot');
+  check(p.playerWeapon.visuals.items.length > 0 && cameraController.shakeStrength > 0, 'the kill shot keeps its tracer, sparks and shake');
+  const killShake = cameraController.shakeStrength;
+  p.playerWeapon.update(1 / 60);
+  check(p.playerWeapon.visuals.items.length > 0, 'a frame later the kill shot effects are still drawn (not wiped)');
+  for (let i = 0; i < 19; i++) { p.playerWeapon.update(1 / 60); cameraController.update(p.simulation.state, rig.eyePivot, 1 / 60); }
+  check(!cameraController.aiming && !target.aimHeld && engine.camera.fov > 50
+    && engine.camera.position.distanceTo(target.eyePosition()) > 1, 'after the kill the aim lets go and the view returns to the chase camera');
+  check(cameraController.shakeStrength < killShake, 'the kill shake plays out after the ending');
+  for (let i = 0; i < 30; i++) p.playerWeapon.update(1 / 60);
+  check(p.playerWeapon.visuals.items.length === 0, 'the kill shot effects fade out by themselves');
+  const winSpot = target.mesh.position.clone();
+  for (let i = 0; i < 10; i++) target.move(1, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, 1 / 30);
+  check(!target.defeated && target.mesh.position.distanceTo(winSpot) > 0, 'after a win Lola can still walk up to the wreck');
+  p.playerWeapon.ammo[0].mag = 3; p.playerWeapon.ammo[1].mag = 0; p.playerWeapon.resetEncounter(); cameraController.resetEffects();
+  check(p.playerWeapon.ammo[0].mag === 20 && p.playerWeapon.ammo[1].mag === 15 && !cameraController.shakeStrength,
+    'a restart refills both magazines and drops any leftover shake');
+  target.mesh.position.copy(winSpot);
   p.playerWeapon.reset(); combat.reset();
   check(!target.shot && !p.playerWeapon.effects.length, 'reset clears shooting pose and transient effects');
   target.mesh.position.copy(base);
