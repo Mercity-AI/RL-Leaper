@@ -1,0 +1,23 @@
+# Python packages for PLAYING the game: the local brain service (rl/junkyard_server.py)
+# and its tests. These are the exact versions the approved 7,757,824-step checkpoint
+# was saved with (model_7757824/system_info.txt), so the saved brain loads and acts
+# the same on every machine. Use Python 3.12.
+#
+#   python3.12 -m venv .venv
+#   .venv/bin/python -m pip install -r requirements-brain.txt      (Windows: .venv\Scripts\python.exe)
+#
+# The training lab has its own, looser list in requirements-rl.txt.
+
+# CPU-only PyTorch: the brain never needs a graphics card, and this index skips the
+# multi-gigabyte CUDA download on Linux. macOS and Windows get the same CPU build.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0
+
+# Reinforcement-learning libraries that define and load the saved recurrent policy.
+stable-baselines3==2.9.0
+sb3-contrib==2.9.0
+gymnasium==1.3.0
+cloudpickle==3.1.2
+
+# Maths used by the observation, collision raster and eye-sight checks.
+numpy==2.5.3

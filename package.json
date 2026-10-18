@@ -11,11 +11,13 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "play": "node scripts/play.mjs",
     "test": "node --test tests/*.test.js",
     "test:brain": "node --test tests/leaper_world.test.js",
     "test:browser": "node tests/run-browser.mjs",
-    "check": "pnpm build && pnpm test && pnpm test:browser",
-    "lint": "eslint src tests scripts"
+    "test:py": "node scripts/test-py.mjs",
+    "lint": "eslint src tests scripts",
+    "check": "pnpm build && pnpm test && pnpm test:browser"
   },
   "dependencies": {
     "onnxruntime-web": "^1.29.0",

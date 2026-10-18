@@ -2,21 +2,39 @@
 
 Leaper is a browser-based Three.js hexapod simulation with a separate Python reinforcement-learning experiment. The browser project uses small JavaScript modules so the robot, environment, target, controls, cameras, and simulation rules can evolve independently.
 
-## Run the browser simulation
+## Play the game
 
-1. Install the current Node.js LTS release from [nodejs.org](https://nodejs.org/).
-2. Open PowerShell in this project folder.
-3. Run:
+The default page is the junkyard fight: Lola against the Leaper. The Leaper's
+movement brain runs in a small Python service on your own computer, so you need
+**Node.js 20.19 or newer** (22 LTS recommended) and **Python 3.12**.
 
-```powershell
+One-time setup, in this folder:
+
+```sh
 corepack enable
 pnpm install
-pnpm dev
+python3.12 -m venv .venv                                   # Windows: py -3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements-brain.txt  # Windows: .venv\Scripts\python.exe -m pip install -r requirements-brain.txt
 ```
 
-4. Open the address shown in the terminal, normally `http://localhost:5173`.
+Then start everything with one command (on Windows, `.\Start-Leaper.ps1` does the
+same and installs the JavaScript packages first):
 
-If you prefer npm, use `npm install` followed by `npm run dev` instead.
+```sh
+pnpm play
+```
+
+It starts the brain service on `127.0.0.1:8767`, waits until it reports the saved
+7,757,824-step brain, starts the game and prints its address, normally
+`http://127.0.0.1:5173/`. Open it and press **START RUN**. The first run at a new
+Leaper size spends about 30 seconds mapping the junkyard; after that, that size
+starts in about a second, even after a restart. Ctrl+C stops the game and the brain.
+
+- Port 5173 already in use? Run `pnpm play --port 5180`.
+- The RL lab pages are on the same server: `/?arena`, `/?training`, `/?free`.
+- `pnpm dev` starts only the web page; without the brain service the Leaper can't move.
+- Checks: `pnpm check` (build, unit tests and browser pages), `pnpm test:py`
+  (Python tests that need no PyTorch) and `pnpm lint`.
 
 ## Build a release version
 
@@ -59,20 +77,14 @@ its checkpoint and whether pink is visible, hidden in memory, or not yet found.
 Hover over the badge for the policy-weight SHA256. If the brain service fails,
 the run stops with an offline message; there is no substitute controller.
 
-Start the local inference service with a Python 3.12 runtime that has the RL
-requirements installed (the launcher can reuse this repository's existing
-Windows .venv packages):
-
-```powershell
-python scripts/run_junkyard_brain.py
-pnpm dev
-```
-
-Run these in separate terminals. Open
-`http://127.0.0.1:5173/?map=junkyard`. A production preview can use port 4173.
-The service listens only on 127.0.0.1:8767. The model is loaded from the local,
-uncommitted `model_7757824/` directory, or supply `--model <checkpoint.zip>`.
-It never trains, modifies weights, or writes to the source Blender file.
+`pnpm play` (see "Play the game") starts the brain service and the game together.
+To run them by hand, use two terminals: `.venv/bin/python -m rl.junkyard_server`
+(Windows: `.venv\Scripts\python.exe -m rl.junkyard_server`) and `pnpm dev`, then
+open `http://127.0.0.1:5173/` (`?map=junkyard` also works). The service listens
+only on 127.0.0.1:8767 and answers pages served from this computer on any port.
+It loads the committed `model_7757824/` checkpoint, or supply
+`--model <checkpoint.zip>`. It never trains, modifies weights, or writes to the
+source Blender file.
 
 - **START RUN / STOP RUN** runs or pauses the brain. Memory survives a pause
   and target movement. **RESET**, a page reload, or applying size starts a new
