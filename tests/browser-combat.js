@@ -358,7 +358,10 @@ try {
   check(Math.abs(target.height / scale - 1.71) < 1e-8, 'Lola is 10 percent shorter');
   target.crouching = false; target.cancelShot(); animatePlayer(0.2);
   combat.damageLola(); animatePlayer(0.08);
-  check(target.hitRecoilTime > 0 && target.outfits.every(o => o.hitBase), 'bolt damage produces torso recoil on both outfits');
+  // Only the outfit on screen is animated; check each one while it is equipped.
+  const recoilShown = () => target.hitRecoilTime > 0 && !!target.outfits[target.weaponIndex].hitBase;
+  const recoilOnFirst = recoilShown(); target.switchWeapon(); const recoilOnSecond = recoilShown(); target.switchWeapon();
+  check(recoilOnFirst && recoilOnSecond, 'bolt damage produces torso recoil on both outfits');
   const active = target.outfits[target.weaponIndex];
   target.mesh.updateMatrixWorld(true);
   const hitHead = bones[target.weaponIndex][0].getWorldPosition(new THREE.Vector3());

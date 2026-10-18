@@ -283,15 +283,18 @@ test('hit recoil bends the torso then recovers without displacing Lola', async (
   const move = dt => player.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, dt);
   move(0.1);
   const start = player.mesh.position.clone();
-  player.reactToHit(); move(0.08);
-  for (const outfit of player.outfits) {
+  // Only the outfit on screen is animated, so check each one while it is equipped.
+  for (const weapon of [0, 1]) {
+    if (player.weaponIndex !== weapon) player.switchWeapon();
+    player.reactToHit(); move(0.08);
+    const outfit = player.outfits[weapon];
     assert.ok(outfit.hitBone && outfit.hitBase);
     assert.ok(outfit.hitBone.quaternion.angleTo(outfit.hitBase) > 0.25);
+    assert.ok(player.mesh.position.equals(start));
+    move(0.7);
+    assert.equal(player.hitRecoilTime, 0);
+    assert.ok(player.outfits.every(item => !item.hitBase));
   }
-  assert.ok(player.mesh.position.equals(start));
-  move(0.7);
-  assert.equal(player.hitRecoilTime, 0);
-  assert.ok(player.outfits.every(outfit => !outfit.hitBase));
   player.reactToHit(); move(0.05); player.clearHitReaction();
   assert.equal(player.hitRecoilTime, 0);
   assert.ok(player.outfits.every(outfit => !outfit.hitBase));
@@ -301,7 +304,9 @@ test('hit recoil follows incoming world direction from every side despite Lola t
   const player = new LolaPlayer(new THREE.Scene(),
     { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
     { addEventListener() {}, classList: { add() {} } }, await Promise.all([load('m416'), load('basic')]));
-  for (const crouching of [false, true]) {
+  // Only the outfit on screen is animated, so check each one while it is equipped.
+  for (const weapon of [0, 1]) for (const crouching of [false, true]) {
+    if (player.weaponIndex !== weapon) player.switchWeapon();
     player.crouching = crouching;
     for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
@@ -312,7 +317,7 @@ test('hit recoil follows incoming world direction from every side despite Lola t
         player.reactToHit(direction);
         // Change facing AFTER impact; recoil must retain the incoming direction.
         player.move(0, 0, forward, right, 4.5, 0.1);
-        for (const outfit of player.outfits) {
+        for (const outfit of [player.outfits[weapon]]) {
           const head = outfit.model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('DEF-spine.006'));
           player.mesh.updateMatrixWorld(true);
           const hit = head.getWorldPosition(new THREE.Vector3());
