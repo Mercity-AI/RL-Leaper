@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 // Lola's animation layers, from bottom to top:
-//   1. base locomotion: the Idle/Run/Strafe/Crouch blend picked by LolaLocomotion;
+//   1. base locomotion: the Idle/Run/Strafe/Crouch blend picked by LolaLocomotion,
+//      eased toward Idle while she pushes into a wall (the "stall" share);
 //   2. full-body replacements: an authored jump (fades in and out) or a
 //      standing shot (replaces the whole pose);
 //   3. upper-body overlays: the shot fired on the move, or the reload, which
@@ -54,27 +55,38 @@ export class LolaAnimator {
   }
 
   // Evaluate one outfit's final pose from its clips and the active layers:
-  // layers = { jump: { action, weight }, shot: { upperOnly }, reload: { action, weight },
-  //            flinch: { strength, angle, direction }, mesh }.
+  // layers = { stall: { share, idle }, jump: { action, weight }, shot: { upperOnly },
+  //            reload: { action, weight }, flinch: { strength, angle, direction }, mesh }.
   pose(outfit, layers) {
     // The flinch is added after the mixer, so start from the clean pose.
     if (outfit.hitBase) outfit.hitBone.quaternion.copy(outfit.hitBase);
     outfit.hitBase = null;
 
-    // Base layer: locomotion, emptied by a full-body shot or faded under a jump.
+    // Base layer: locomotion, eased toward standing while pushing into a wall.
+    // The clips keep their own (travel) weights; only this pose sees the blend.
+    const names = Object.keys(outfit.actions);
     const locomotion = Object.values(outfit.actions);
     const weights = locomotion.map(action => action.getEffectiveWeight());
-    if (layers.shot && !layers.shot.upperOnly) locomotion.forEach(action => action.setEffectiveWeight(0));
+    let base = weights.slice();
+    if (layers.stall?.share > 0) {
+      const total = base.reduce((sum, weight) => sum + weight, 0);
+      base = base.map(weight => weight * (1 - layers.stall.share));
+      base[names.indexOf(layers.stall.idle)] += layers.stall.share * total;
+    }
+    outfit.baseWeights = Object.fromEntries(names.map((name, i) => [name, base[i]]));
+    // A jump fades the base out; a standing (full-body) shot replaces it.
     if (layers.jump?.weight > 0) {
-      locomotion.forEach((action, i) => action.setEffectiveWeight(weights[i] * (1 - layers.jump.weight)));
+      base = base.map(weight => weight * (1 - layers.jump.weight));
       layers.jump.action.setEffectiveWeight(layers.jump.weight);
     }
+    if (layers.shot && !layers.shot.upperOnly) base = base.map(() => 0);
+    locomotion.forEach((action, i) => action.setEffectiveWeight(base[i]));
 
     // Upper-body overlay: the reload shows at its share over whatever the legs do.
     // Legs have no reload track and keep running at full weight.
     if (layers.reload) {
-      const base = locomotion.reduce((sum, action) => sum + action.getEffectiveWeight(), 0) || 1;
-      layers.reload.action.setEffectiveWeight(overlayWeight(layers.reload.weight, base));
+      const total = base.reduce((sum, weight) => sum + weight, 0) || 1;
+      layers.reload.action.setEffectiveWeight(overlayWeight(layers.reload.weight, total));
     }
 
     // One mixer evaluation per frame; the clocks were already advanced.

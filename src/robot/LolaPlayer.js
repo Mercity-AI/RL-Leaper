@@ -7,8 +7,9 @@ import { LolaAnimator } from '../actors/lola/LolaAnimator.js';
 import { LolaActionState } from '../actors/lola/LolaActionState.js';
 import { CharacterMover } from '../actors/lola/CharacterMover.js';
 import {
-  JUMP_FADE_IN, JUMP_FADE_OUT, JUMP_LANDING, JUMP_LIFTOFF, JUMP_RUN_START, JUMP_STANDING_SPEED,
-  LOLA_GRAVITY, LOLA_HOP_HEIGHT, LOLA_INPUT_RESPONSE, LOLA_PACE, LOLA_SPRINT_SPEED, LOLA_SUBSTEP_RATE, LOLA_TURN_RATE,
+  JUMP_FADE_IN, JUMP_FADE_OUT, JUMP_LANDING, JUMP_LIFTOFF, JUMP_RUN_START, JUMP_STANDING_SPEED, LOLA_BLEND_RATE,
+  LOLA_GRAVITY, LOLA_HOP_HEIGHT, LOLA_INPUT_RESPONSE, LOLA_PACE, LOLA_SPRINT_SPEED, LOLA_STALL_END, LOLA_STALL_START,
+  LOLA_SUBSTEP_RATE, LOLA_TURN_RATE,
   RELOAD_FADE_IN, RELOAD_FADE_OUT, RUN_FRAMES, RUN_JUMPS, RUN_JUMP_FADE_OUT, RUN_JUMP_MAX_SKIP, RUN_JUMP_SPEED,
 } from '../actors/lola/lolaTuning.js';
 
@@ -71,6 +72,8 @@ export class LolaPlayer {
     };
     // Counts move() calls, so a stale outfit pose can be refreshed on demand.
     this.poseClock = 0;
+    // Share of the pose eased toward standing because a wall stops her (0..1).
+    this.stall = 0;
 
     // Both outfits, built from copies of the loaded files.
     this.outfits = models.map((gltf, index) => prepareOutfit(gltf, index, { jumps, reloads, runJumps }, world, this.mesh));
@@ -447,10 +450,14 @@ export class LolaPlayer {
     if (!this.grounded) distance = this.locomotion.airborneDistance(this.equipped, sideAmount, forwardAmount, inputStrength, deltaTime);
     distance *= this.world.scale * this.jumpTravel();
 
-    // Collision; a blocked move slows the clips so the feet do not skate.
-    const moved = this.mover.move(this.world, this.mesh.position, this.direction, distance);
+    // Collision slides her along walls; whatever part of the move a wall still
+    // stops slows the clips to match, so the feet do not skate.
+    const { moved } = this.mover.move(this.world, this.mesh.position, this.direction, distance);
     const progress = distance > 1e-8 ? Math.min(1, moved / distance)
       : inputStrength && this.mover.blockedAhead(this.world, this.mesh.position, this.direction) ? 0 : 1;
+    // Pushing into a wall eases her legs toward standing instead of freezing them.
+    const stall = 1 - THREE.MathUtils.smoothstep(progress, LOLA_STALL_START, LOLA_STALL_END);
+    this.stall += (stall - this.stall) * (1 - Math.exp(-LOLA_BLEND_RATE * deltaTime));
     this.hitRecoilTime = Math.max(0, this.hitRecoilTime - deltaTime);
 
     // Shot variant, footsteps, then advance every clip's clock.
@@ -499,6 +506,7 @@ export class LolaPlayer {
   // Evaluate one outfit's pose from the current layers (see LolaAnimator).
   poseOutfit(outfit) {
     const layers = { mesh: this.mesh };
+    if (this.stall > 1e-4) layers.stall = { share: this.stall, idle: this.crouching ? 'CrouchIdle' : 'Idle' };
     const shot = this.shot?.outfit === outfit ? this.shot : null;
     if (shot) layers.shot = { upperOnly: !!shot.upperOnly };
     if (this.jumpState) layers.jump = { action: outfit.jumpClips[this.jumpState.kind].action, weight: this.jumpWeight() };

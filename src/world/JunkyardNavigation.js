@@ -8,6 +8,51 @@ function segmentDistanceSquared(x, z, ax, az, bx, bz) {
   return (x - ax - t * dx) ** 2 + (z - az - t * dz) ** 2;
 }
 
+// Closest point to (x, z) on the segment a-b, written into `out`.
+function closestOnSegment(x, z, ax, az, bx, bz, out) {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+  out.x = ax + t * dx;
+  out.z = az + t * dz;
+  return out;
+}
+
+// Where a disc of `radius` at (x, z) overlaps triangle t: the outward normal
+// (pointing from the solid toward the disc) and the overlap depth, or null.
+export function triangleContact(x, z, t, radius) {
+  const cross = (ax, az, bx, bz) => (bx - ax) * (z - az) - (bz - az) * (x - ax);
+  const a = cross(t[0], t[1], t[2], t[3]);
+  const b = cross(t[2], t[3], t[4], t[5]);
+  const c = cross(t[4], t[5], t[0], t[1]);
+  const area = (t[2] - t[0]) * (t[5] - t[1]) - (t[3] - t[1]) * (t[4] - t[0]);
+  const inside = Math.abs(area) > 1e-10 && ((a >= 0 && b >= 0 && c >= 0) || (a <= 0 && b <= 0 && c <= 0));
+  // Nearest point on the triangle's outline.
+  const edges = [[0, 1, 2, 3], [2, 3, 4, 5], [4, 5, 0, 1]];
+  const point = { x: 0, z: 0 };
+  let best = null;
+  for (const [i, j, k, l] of edges) {
+    closestOnSegment(x, z, t[i], t[j], t[k], t[l], point);
+    const distance = Math.hypot(x - point.x, z - point.z);
+    if (!best || distance < best.distance) best = { distance, x: point.x, z: point.z, edge: [i, j, k, l] };
+  }
+  if (!inside) {
+    if (best.distance >= radius) return null;
+    // Outside: push straight away from the nearest point (rounds corners).
+    const length = best.distance || 1;
+    return { nx: (x - best.x) / length, nz: (z - best.z) / length, depth: radius - best.distance };
+  }
+  // Centre inside the solid: push out through the nearest edge.
+  const [i, j, k, l] = best.edge;
+  let nx = t[l] - t[j], nz = -(t[k] - t[i]);
+  const length = Math.hypot(nx, nz) || 1;
+  nx /= length; nz /= length;
+  // Point the normal away from the triangle's third corner.
+  const third = [0, 1, 2].map(n => n * 2).find(n => n !== i && n !== k);
+  if ((t[third] - t[i]) * nx + (t[third + 1] - t[j]) * nz > 0) { nx = -nx; nz = -nz; }
+  return { nx, nz, depth: radius + best.distance };
+}
+
 export function triangleDistanceSquared(x, z, t) {
   const cross = (ax, az, bx, bz) => (bx - ax) * (z - az) - (bz - az) * (x - ax);
   const a = cross(t[0], t[1], t[2], t[3]);
@@ -65,6 +110,32 @@ export class JunkyardNavigation {
       }
     }
     return false;
+  }
+
+  // The deepest place a disc at (x, z) overlaps the map (a solid triangle or
+  // the map's outer edge): { nx, nz } is the unit normal pointing out of the
+  // solid and `depth` how far the disc overlaps it; null when the disc is
+  // clear. Lola's movement slides along this normal instead of stopping dead.
+  contact(x, z, radius = this.radius) {
+    let deepest = null;
+    const consider = (hit) => { if (hit && hit.depth > 0 && (!deepest || hit.depth > deepest.depth)) deepest = hit; };
+    // The map's outer edges are walls facing inward.
+    const b = this.bounds;
+    consider({ nx: 1, nz: 0, depth: b.minX - (x - radius) });
+    consider({ nx: -1, nz: 0, depth: x + radius - b.maxX });
+    consider({ nx: 0, nz: 1, depth: b.minZ - (z - radius) });
+    consider({ nx: 0, nz: -1, depth: z + radius - b.maxZ });
+    for (let ix = Math.floor((x - radius) / this.bucketSize); ix <= Math.floor((x + radius) / this.bucketSize); ix += 1) {
+      for (let iz = Math.floor((z - radius) / this.bucketSize); iz <= Math.floor((z + radius) / this.bucketSize); iz += 1) {
+        for (const t of this.buckets.get(`${ix},${iz}`) || []) {
+          // Skip triangles whose bounding box the disc cannot reach (most of a bucket).
+          if (x + radius < Math.min(t[0], t[2], t[4]) || x - radius > Math.max(t[0], t[2], t[4])
+            || z + radius < Math.min(t[1], t[3], t[5]) || z - radius > Math.max(t[1], t[3], t[5])) continue;
+          consider(triangleContact(x, z, t, radius));
+        }
+      }
+    }
+    return deepest;
   }
 
   point(i) {

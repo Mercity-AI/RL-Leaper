@@ -85,5 +85,7 @@ export async function createJunkyardWorld(scene) {
     initialTarget: { x: goal.x * scale, z: goal.z * scale },
     positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),
     playerBlocked: (x, z) => playerNavigation.blocked(x / scale, z / scale),
+    // Lola's wall contact (outward normal) so she slides along angled walls.
+    playerContact: (x, z) => playerNavigation.contact(x / scale, z / scale),
   };
 }

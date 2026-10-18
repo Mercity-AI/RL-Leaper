@@ -66,3 +66,9 @@ export const RELOAD_FADE_OUT = 0.15;
 // Collision moves Lola in steps of at most this many units (times the map
 // scale), so she cannot pass through thin walls on a slow frame.
 export const LOLA_COLLISION_STEP = 0.08;
+// Pushing into a wall: when less than STALL_END of the move gets through (she
+// slides slowly or not at all), her legs ease toward standing still instead of
+// freezing mid-stride; below STALL_START she is fully at rest. A glancing
+// slide (more than STALL_END gets through) keeps the full run.
+export const LOLA_STALL_START = 0.2;
+export const LOLA_STALL_END = 0.6;
