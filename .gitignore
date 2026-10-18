@@ -13,7 +13,7 @@ rl_artifacts/
 public/rl_live_state.json
 public/rl_live_state.tmp
 *.zip
-/model_7757824/
+# The small approved model_7757824 checkpoint is versioned for game playback.
 
 # Test, coverage, and tool caches
 .pytest_cache/
