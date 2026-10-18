@@ -199,8 +199,10 @@ test('WASD directions, sprint, wall sliding, and weapon switch preserve player p
   assert.ok(player.mesh.position.z > 0.3, 'slides alongside it');
   const position = player.mesh.position.clone();
   player.switchWeapon();
-  assert.equal(player.outfits[0].model.visible, false);
-  assert.equal(player.outfits[1].model.visible, true);
+  // One body for both guns: switching puts the pistol in her hands and slings the rifle.
+  assert.equal(player.outfits[0].carriedGun.visible, false);
+  assert.equal(player.outfits[1].carriedGun.visible, true);
+  assert.equal(player.outfits[0].stowed.visible, true, 'the rifle is slung on her back');
   assert.ok(player.mesh.position.equals(position));
   for (let i = 0; i < 3; i++) player.move(0, 0, forward, right, 4.5, 0.1);
   assert.equal(player.outfits[1].current, 'Idle');
@@ -281,17 +283,33 @@ test('hit recoil bends the torso then recovers without displacing Lola', async (
   assert.equal(player.height, 1.9 * 0.9);
   for (const outfit of player.outfits) assert.equal(outfit.model.scale.y, 0.9);
   const move = dt => player.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, dt);
+  // The flinch bends the spine over several joints (so the shirt does not
+  // stretch at the waist): measure the head's total tilt with it undone.
+  const tilt = outfit => {
+    player.mesh.updateMatrixWorld(true);
+    const bent = outfit.headBone.getWorldQuaternion(new THREE.Quaternion());
+    const flinched = outfit.flinchBones.map(({ bone }) => bone.quaternion.clone());
+    outfit.flinchBones.forEach(({ bone, base }) => bone.quaternion.copy(base));
+    player.mesh.updateMatrixWorld(true);
+    const neutral = outfit.headBone.getWorldQuaternion(new THREE.Quaternion());
+    outfit.flinchBones.forEach(({ bone }, i) => bone.quaternion.copy(flinched[i]));
+    return bent.angleTo(neutral);
+  };
   move(0.1);
   const start = player.mesh.position.clone();
-  player.reactToHit(); move(0.08);
-  for (const outfit of player.outfits) {
+  // Only the outfit on screen is animated, so check each one while it is equipped.
+  for (const weapon of [0, 1]) {
+    if (player.weaponIndex !== weapon) player.switchWeapon();
+    player.reactToHit(); move(0.08);
+    const outfit = player.outfits[weapon];
     assert.ok(outfit.hitBone && outfit.hitBase);
-    assert.ok(outfit.hitBone.quaternion.angleTo(outfit.hitBase) > 0.25);
+    assert.ok(outfit.hitBone.quaternion.angleTo(outfit.hitBase) > 0, 'the lowest spine joint bends');
+    assert.ok(tilt(outfit) > 0.25, `the torso bends (${tilt(outfit).toFixed(3)} rad)`);
+    assert.ok(player.mesh.position.equals(start));
+    move(0.7);
+    assert.equal(player.hitRecoilTime, 0);
+    assert.ok(player.outfits.every(item => !item.hitBase));
   }
-  assert.ok(player.mesh.position.equals(start));
-  move(0.7);
-  assert.equal(player.hitRecoilTime, 0);
-  assert.ok(player.outfits.every(outfit => !outfit.hitBase));
   player.reactToHit(); move(0.05); player.clearHitReaction();
   assert.equal(player.hitRecoilTime, 0);
   assert.ok(player.outfits.every(outfit => !outfit.hitBase));
@@ -301,7 +319,9 @@ test('hit recoil follows incoming world direction from every side despite Lola t
   const player = new LolaPlayer(new THREE.Scene(),
     { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
     { addEventListener() {}, classList: { add() {} } }, await Promise.all([load('m416'), load('basic')]));
-  for (const crouching of [false, true]) {
+  // Only the outfit on screen is animated, so check each one while it is equipped.
+  for (const weapon of [0, 1]) for (const crouching of [false, true]) {
+    if (player.weaponIndex !== weapon) player.switchWeapon();
     player.crouching = crouching;
     for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
       const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
@@ -312,14 +332,16 @@ test('hit recoil follows incoming world direction from every side despite Lola t
         player.reactToHit(direction);
         // Change facing AFTER impact; recoil must retain the incoming direction.
         player.move(0, 0, forward, right, 4.5, 0.1);
-        for (const outfit of player.outfits) {
+        for (const outfit of [player.outfits[weapon]]) {
           const head = outfit.model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName('DEF-spine.006'));
           player.mesh.updateMatrixWorld(true);
           const hit = head.getWorldPosition(new THREE.Vector3());
-          const rotation = outfit.hitBone.quaternion.clone();
-          outfit.hitBone.quaternion.copy(outfit.hitBase); player.mesh.updateMatrixWorld(true);
+          // Undo the whole flinch (every bent spine joint) for the neutral pose.
+          const rotations = outfit.flinchBones.map(({ bone }) => bone.quaternion.clone());
+          outfit.flinchBones.forEach(({ bone, base }) => bone.quaternion.copy(base));
+          player.mesh.updateMatrixWorld(true);
           const neutral = head.getWorldPosition(new THREE.Vector3());
-          outfit.hitBone.quaternion.copy(rotation);
+          outfit.flinchBones.forEach(({ bone }, i) => bone.quaternion.copy(rotations[i]));
           const displacement = hit.sub(neutral); displacement.y = 0;
           assert.ok(displacement.dot(direction) > 0.03, 'torso bends away from the incoming side');
         }
