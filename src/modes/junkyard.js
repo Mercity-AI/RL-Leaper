@@ -3,6 +3,8 @@ import { attachWorldCollision } from '../world/WorldCollision.js';
 import { LolaPlayer } from '../robot/LolaPlayer.js';
 import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
 import { enableMovableHud } from '../controls/MovableHud.js';
+import { EventBus } from '../core/events.js';
+import { GameFlow } from '../core/GameFlow.js';
 import { createLeaperScene, loadStep, removeFromScene } from './shared.js';
 
 // The game (default page, also ?map=junkyard): Lola vs. the Leaper in the
@@ -14,18 +16,22 @@ import { createLeaperScene, loadStep, removeFromScene } from './shared.js';
 const MAX_DELTA = 0.1;
 
 export async function start({ engine, params }) {
-  // 1. The junkyard map with its collision service, then Lola (her models need
+  // 1. The game state starts in Loading while the assets download.
+  const events = new EventBus();
+  const flow = new GameFlow({ events });
+  // 2. The junkyard map with its collision service, then Lola (her models need
   //    the map's scale).
   const world = await loadStep('LOADING MAP…', 'MAP LOAD FAILED', () => createJunkyardWorld(engine.scene));
   attachWorldCollision(world);
   const target = await loadStep('LOADING LOLA…', 'CHARACTER LOAD FAILED',
     () => LolaPlayer.create(engine.scene, world, document.getElementById('cuboidToggle')));
-  // 2. The Leaper rig, input and a chase camera that follows Lola.
+  // 3. The Leaper rig, input and a chase camera that follows Lola.
   const { rig, cameraController, simulation } = createLeaperScene({ engine, world, target });
   cameraController.followSubject = target;
   cameraController.pitch = 0.16;
-  // 3. The playtest wires brain, combat, weapons and the junkyard panel together.
-  const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController });
+  // 4. The playtest wires brain, combat, weapons and the junkyard panel together,
+  //    then resets the encounter (Loading -> Ready).
+  const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, flow, events });
   enableMovableHud();
   // Testing hook: ?debug exposes the playtest so automated checks can read positions.
   if (params.has('debug')) window.leaperPlaytest = playtest;
