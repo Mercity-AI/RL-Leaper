@@ -261,7 +261,9 @@ export class JunkyardPlaytest {
     try { localStorage.setItem(SAVED_WIDTH_KEY, width); } catch { /* Private storage. */ }
     if (this.sight) url.searchParams.set('vision', this.sight.mode);
     // Without session storage, fall back to the old ?run=1 (the run restarts).
-    if (!saved && this.walking) url.searchParams.set('run', '1');
+    // OPTIONS is only reachable with the mouse free, so a run is usually paused
+    // here: ask the game state, not `walking` (which is false while paused).
+    if (!saved && this.flow.playMode === 'hunt') url.searchParams.set('run', '1');
     else url.searchParams.delete('run');
     location.assign(url);
   }
