@@ -402,7 +402,7 @@ export class LolaPlayer {
       this.locomotion.easeInput(forwardAmount, sideAmount, ease);
       this.moveStep(this.inputForward, this.inputSide, forward, right, speed, deltaTime / steps);
     }
-    // One pose per rendered frame, for the outfit on screen.
+    // One pose per rendered frame, by the equipped gun's view.
     this.poseClock += 1;
     this.poseOutfit(this.equipped);
   }
@@ -438,10 +438,11 @@ export class LolaPlayer {
     }
     const jumpWeight = this.jumpWeight();
 
-    // Base locomotion blend for both outfits; travel from the one on screen.
+    // Base locomotion blend for both guns' views (so switching guns keeps the
+    // stride); travel and the body's height from the equipped one.
     let distance = 0;
     for (const [index, outfit] of this.outfits.entries()) {
-      distance += this.locomotion.update(outfit, { targets, forwardAmount, sideAmount, inputStrength, grounded: this.grounded,
+      distance += this.locomotion.update(outfit, { targets, forwardAmount, inputStrength, grounded: this.grounded,
         countTravel: index === this.weaponIndex, world: this.world }, deltaTime);
     }
     if (!this.grounded) distance = this.locomotion.airborneDistance(this.equipped, sideAmount, forwardAmount, inputStrength, deltaTime);
@@ -478,13 +479,13 @@ export class LolaPlayer {
           && crossedFootContact(outfit.footContacts[outfit.current], stepTime, stepDelta)) {
         this.onFootstep?.(sprint ? 'run' : 'walk', this.crouching);
       }
-      if (shot) shot.elapsed += deltaTime;
-      // The upper-body copy follows the whole-body clip's clock exactly.
       if (shot) {
+        // The upper-body copy follows the whole-body clip's clock exactly.
+        shot.elapsed += deltaTime;
         shot.upper.time = shot.action.time;
         shot.upper.paused = shot.action.paused;
+        if (shot.elapsed >= shot.duration + shot.hold && !this.aimHeld) this.cancelShot();
       }
-      if (shot && shot.elapsed >= shot.duration + shot.hold && !this.aimHeld) this.cancelShot();
     }
   }
 
