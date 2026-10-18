@@ -109,6 +109,31 @@ test('every stick angle keeps a sensible speed, and the run and strafe stay in s
   }
 });
 
+// Both feet in Lola's own space, so her travel itself is not counted.
+function feet(player) {
+  player.mesh.updateMatrixWorld(true);
+  return ['DEF-toe.L', 'DEF-toe.R', 'DEF-foot.L', 'DEF-foot.R']
+    .map(name => player.mesh.worldToLocal(named(player.equipped.model, name).getWorldPosition(new THREE.Vector3())));
+}
+
+test('changing or reversing direction never flicks her hips round in a frame', async () => {
+  // A steady run moves a foot about 4.6 cm per 60 fps frame. An unlimited hip
+  // twist used to swing the feet 9 cm (A to D) and 12 cm (W+D to S+D) in one.
+  for (const [label, from, to] of [['A to D', [0, -1], [0, 1]], ['W+D to S+D', [1, 1], [-1, 1]],
+    ['W to D', [1, 0], [0, 1]], ['W+A to W+D', [1, -1], [1, 1]], ['D to W+D', [0, 1], [1, 1]]]) {
+    const player = await makePlayer();
+    for (let i = 0; i < 90; i += 1) player.move(from[0], from[1], FORWARD, RIGHT, 4.5, 1 / 60);
+    let last = feet(player), worst = 0;
+    for (let i = 0; i < 60; i += 1) {
+      player.move(to[0], to[1], FORWARD, RIGHT, 4.5, 1 / 60);
+      const now = feet(player);
+      worst = Math.max(worst, ...now.map((point, k) => point.distanceTo(last[k])));
+      last = now;
+    }
+    assert.ok(worst < 0.07, `${label}: feet jumped ${(worst * 100).toFixed(1)} cm in one frame`);
+  }
+});
+
 test('the hip twist turns the legs toward the travel but keeps chest and gun facing forward', async () => {
   const { player } = await measure(1, 1);
   const outfit = player.equipped;

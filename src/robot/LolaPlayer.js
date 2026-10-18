@@ -9,7 +9,8 @@ import { CharacterMover } from '../actors/lola/CharacterMover.js';
 import {
   JUMP_FADE_IN, JUMP_FADE_OUT, JUMP_LANDING, JUMP_LIFTOFF, JUMP_RUN_START, JUMP_STANDING_SPEED, LOLA_BLEND_RATE,
   LOLA_GRAVITY, LOLA_HOP_HEIGHT, LOLA_INPUT_RESPONSE, LOLA_PACE, LOLA_SHOT_LEG_RATE, LOLA_SPRINT_SPEED, LOLA_STALL_END,
-  LOLA_STALL_START, LOLA_SUBSTEP_RATE, LOLA_TURN_RATE, LOLA_WARP_HIPS, LOLA_WARP_MAX, LOLA_WARP_RATE,
+  LOLA_STALL_START, LOLA_SUBSTEP_RATE, LOLA_TURN_RATE, LOLA_WARP_FADE, LOLA_WARP_HIPS, LOLA_WARP_MAX, LOLA_WARP_RATE,
+  LOLA_WARP_SPEED,
   RELOAD_FADE_IN, RELOAD_FADE_OUT, RUN_FRAMES, RUN_JUMPS, RUN_JUMP_FADE_OUT, RUN_JUMP_MAX_SKIP, RUN_JUMP_SPEED,
 } from '../actors/lola/lolaTuning.js';
 
@@ -503,10 +504,15 @@ export class LolaPlayer {
       if (Math.hypot(legs.x, legs.y) > 1e-6) {
         const turn = Math.atan2(travelRight, travelForward) - Math.atan2(legs.x, legs.y);
         target = Math.atan2(Math.sin(turn), Math.cos(turn));
-        target = THREE.MathUtils.clamp(target, -LOLA_WARP_MAX, LOLA_WARP_MAX) * (1 - jumpWeight);
+        // Mid-reversal her legs still run the old way: fade the twist out
+        // instead of flicking her hips round for a few frames.
+        const fade = 1 - THREE.MathUtils.smoothstep(Math.abs(target) * 180 / Math.PI, LOLA_WARP_FADE.start, LOLA_WARP_FADE.end);
+        target = THREE.MathUtils.clamp(target, -LOLA_WARP_MAX, LOLA_WARP_MAX) * fade * (1 - jumpWeight);
       }
     }
-    this.warp += (target - this.warp) * (1 - Math.exp(-LOLA_WARP_RATE * deltaTime));
+    // Ease toward the target, never turning faster than LOLA_WARP_SPEED.
+    const limit = LOLA_WARP_SPEED * deltaTime;
+    this.warp += THREE.MathUtils.clamp((target - this.warp) * (1 - Math.exp(-LOLA_WARP_RATE * deltaTime)), -limit, limit);
   }
 
   // Advance an authored jump: its rate, the push-off and touchdown footsteps,

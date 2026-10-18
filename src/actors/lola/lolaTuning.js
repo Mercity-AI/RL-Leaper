@@ -36,6 +36,14 @@ export const LOLA_STRAFE_BLEND = Object.freeze({ start: 45, end: 90 });
 // joints keeps her shirt from stretching at the waist.
 export const LOLA_WARP_MAX = 60 * Math.PI / 180;
 export const LOLA_WARP_RATE = 15;
+// The twist never turns faster than this (radians per second), so a sudden
+// change of direction (W+D to S+D) swings her hips over a few frames instead
+// of snapping her feet across the floor in one.
+export const LOLA_WARP_SPEED = 5;
+// Travel more than a right angle off where her legs run is not a diagonal but
+// a reversal in progress (A to D, or a fast camera whip): no twist can fix
+// that, so the twist fades out between these angles (degrees).
+export const LOLA_WARP_FADE = Object.freeze({ start: 90, end: 135 });
 export const LOLA_WARP_HIPS = 0;
 export const LOLA_WARP_SPINE = Object.freeze([
   ['DEF-spine.001', 0.15],
