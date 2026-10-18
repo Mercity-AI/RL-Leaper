@@ -15,7 +15,23 @@ const UP = new THREE.Vector3(0, 1, 0);
 const scratch = {
   axis: new THREE.Vector3(), worldAxis: new THREE.Vector3(), rotation: new THREE.Quaternion(),
   parent: new THREE.Quaternion(), inverse: new THREE.Quaternion(),
+  matrix: new THREE.Matrix4(), toParent: new THREE.Matrix4(), chain: new THREE.Matrix4(), grip: new THREE.Matrix4(),
+  local: new THREE.Matrix4(), position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3(),
+  held: new THREE.Vector3(), heldRotation: new THREE.Quaternion(), heldScale: new THREE.Vector3(),
+  sampled: { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3() },
 };
+
+// One node's local matrix in a clip at full weight at `time`, from samplers
+// made by LolaAssets (tracks it has, else its rest values), written to `out`.
+function sampleLocal(samplers, time, out) {
+  const { position, quaternion, scale } = scratch.sampled;
+  const read = (property, target) => (samplers[property]
+    ? target.fromArray(samplers[property].evaluate(time)) : target.copy(samplers.rest[property]));
+  read('position', position);
+  read('quaternion', quaternion).normalize();
+  read('scale', scale);
+  return out.compose(position, quaternion, scale);
+}
 
 // Undo the hip twist (see LolaAnimator.warp): put the twisted bones back.
 export function undoWarp(outfit) {
@@ -73,7 +89,7 @@ export class LolaAnimator {
   }
 
   // Evaluate one outfit's final pose from its clips and the active layers:
-  // layers = { stall: { share, idle }, jump: { action, weight }, shot: { action, upper, legs },
+  // layers = { stall: { share, idle }, jump: { action, weight, clip, carried }, shot: { action, upper, legs },
   //            reload: { action, weight }, warp: { angle, hips },
   //            flinch: { strength, angle, direction }, silence: [actions], mesh }.
   pose(outfit, layers) {
@@ -121,8 +137,10 @@ export class LolaAnimator {
     silent.forEach((action, i) => action.setEffectiveWeight(silentWeights[i]));
     locomotion.forEach((action, i) => action.setEffectiveWeight(weights[i]));
 
-    // Post-mixer: glue the reload gun into her hand, twist the hips, then add the flinch.
+    // Post-mixer: glue the reload gun into her hand, hand the jump gun over
+    // while the jump fades, twist the hips, then add the flinch.
     if (layers.reload) this.placeReloadGun(outfit, layers.reload.action.time);
+    if (layers.jump?.clip?.grip && layers.jump.carried && layers.jump.weight < 1) this.blendJumpGun(outfit, layers.jump);
     if (layers.warp) this.warp(outfit, layers.warp.angle, layers.warp.hips);
     if (layers.flinch) this.flinch(outfit, layers.flinch, layers.mesh);
   }
@@ -156,6 +174,32 @@ export class LolaAnimator {
       bone.quaternion.premultiply(rotation.setFromAxisAngle(axis, -pelvisTurn * share / outfit.warpSpineTotal));
       parent.multiply(bone.quaternion);
     }
+  }
+
+  // A jump's gun is animated by the jump clip alone, so while the jump fades
+  // in or out the mixer mixes it with the gun's resting place and it drifted
+  // up to 40 cm out of her hand. Instead the gun goes between two places:
+  //   held    in her right hand as the hand is now, gripped the way the clip
+  //           grips it (exactly the authored gun at full weight), and
+  //   carried where the carried gun sits right now (exactly what shows once
+  //           the jump ends and the carried gun takes over),
+  // blended by the jump's weight, so neither end of the jump pops the gun.
+  // jump = { action, weight, clip: { gun, grip }, carried }.
+  blendJumpGun(outfit, { action, weight, clip, carried }) {
+    const { gun, grip } = clip;
+    const { position, quaternion, scale, held, heldRotation, heldScale } = scratch;
+    outfit.model.updateMatrixWorld(true);
+    const toParent = scratch.toParent.copy(gun.parent.matrixWorld).invert();
+    // Held: the clip's grip (gun relative to hand at full weight) on her hand now.
+    const handFull = scratch.chain.identity();
+    for (const joint of grip.chain) handFull.multiply(sampleLocal(joint, action.time, scratch.local));
+    const gripMatrix = scratch.grip.copy(handFull).invert().multiply(sampleLocal(grip.gun, action.time, scratch.local));
+    scratch.matrix.copy(toParent).multiply(grip.hand.matrixWorld).multiply(gripMatrix).decompose(held, heldRotation, heldScale);
+    // Carried: the carried gun, seen from the same parent (her chest).
+    scratch.matrix.copy(toParent).multiply(carried.matrixWorld).decompose(position, quaternion, scale);
+    gun.position.copy(position).lerp(held, weight);
+    gun.quaternion.copy(quaternion).slerp(heldRotation, weight);
+    gun.scale.copy(scale).lerp(heldScale, weight);
   }
 
   // Put the reload gun where the reload's own rig holds it, relative to the hand.

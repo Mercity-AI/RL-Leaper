@@ -549,7 +549,11 @@ export class LolaPlayer {
     if (Math.abs(this.warp) > 1e-5) layers.warp = { angle: this.warp, hips: LOLA_WARP_HIPS };
     const shot = this.shot?.outfit === outfit ? this.shot : null;
     if (shot) layers.shot = { action: shot.action, upper: shot.upper, legs: this.shotLegs };
-    if (this.jumpState) layers.jump = { action: outfit.jumpClips[this.jumpState.kind].action, weight: this.jumpWeight() };
+    if (this.jumpState) {
+      // The jump gun hands over to and from the carried gun (see blendJumpGun).
+      const clip = outfit.jumpClips[this.jumpState.kind];
+      layers.jump = { action: clip.action, weight: this.jumpWeight(), clip, carried: outfit.carriedGun };
+    }
     if (this.reloadState?.outfit === outfit) layers.reload = { action: outfit.reload.action, weight: this.reloadWeight() };
     if (this.hitRecoilTime > 0) {
       layers.flinch = { strength: this.flinchStrength(), angle: ENCOUNTER.hitRecoilAngle, direction: this.hitDirection };

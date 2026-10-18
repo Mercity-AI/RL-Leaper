@@ -168,3 +168,33 @@ test('the hit flinch carries shoulders, hands and guns with the chest and keeps 
     assert.ok(worst <= 1.2, `${label}: skin stretched ${worst.toFixed(2)}x`);
   }
 });
+
+test('a jump\'s gun stays in her right hand while the jump fades in and out', async () => {
+  // The jump gun is animated by the jump clip alone, so the mixer used to mix
+  // it with its resting place during the fades: it drifted up to 40 cm out of
+  // her hand and popped back when the carried gun took over.
+  const files = await loadAll();
+  const STOWED = new Set(['Basic_Gun_At_Waist', 'M416']);
+  for (const weapon of [0, 1]) for (const [label, input] of [['standing', 0], ['running', 1], ['backward', -1]]) {
+    const player = makePlayer(files);
+    if (weapon) player.switchWeapon();
+    for (let i = 0; i < 60; i += 1) player.move(input, 0, FORWARD, RIGHT, 4.5, 1 / 60);
+    // Distance from her right hand to the middle of the gun in her hands.
+    const reach = () => {
+      player.mesh.updateMatrixWorld(true);
+      const outfit = player.equipped;
+      let gun = null;
+      outfit.model.traverse(node => { if (node.isMesh && !node.isSkinnedMesh && node.visible && !STOWED.has(node.name)) gun = node; });
+      gun.geometry.computeBoundingBox();
+      const middle = gun.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(gun.matrixWorld);
+      return middle.distanceTo(named(outfit.model, 'DEF-hand.R').getWorldPosition(new THREE.Vector3()));
+    };
+    assert.equal(player.jump(), true);
+    const reaches = [];
+    while (player.jumpState && reaches.length < 200) { player.move(input, 0, FORWARD, RIGHT, 4.5, 1 / 60); reaches.push(reach()); }
+    // Mid-jump (full weight) is the authored hold; the fades must stay close to it.
+    const authored = reaches[Math.floor(reaches.length / 2)];
+    const worst = Math.max(...reaches);
+    assert.ok(worst <= authored + 0.04, `${weapon ? 'pistol' : 'M416'} ${label} jump: gun ${(worst * 100).toFixed(1)} cm from her hand (holds it at ${(authored * 100).toFixed(1)})`);
+  }
+});

@@ -178,11 +178,15 @@ function prepareView(body, gltf, index, jumpSources, reloadSource) {
   }
 
   // Every authored jump by kind: 'jump' plus whichever running jumps loaded.
+  // `grip` reads how the clip holds its gun in her right hand, so the gun can
+  // hand over smoothly while the jump fades (see LolaAnimator.blendJumpGun).
   const jumpClips = {};
+  const rightHand = bone(model, 'DEF-hand.R');
   for (const [kind, { clip, gun }] of Object.entries(jumpSources)) {
-    const action = mixer.clipAction(rig.convert(clip)).setLoop(THREE.LoopOnce, 1);
+    const converted = rig.convert(clip);
+    const action = mixer.clipAction(converted).setLoop(THREE.LoopOnce, 1);
     action.clampWhenFinished = true;
-    jumpClips[kind] = { action, gun };
+    jumpClips[kind] = { action, gun, grip: gripSamplers(converted, gun, rightHand) };
   }
   const reload = reloadSource ? createReload(model, mixer, reloadSource, weapon, rig) : null;
 
@@ -213,6 +217,32 @@ function prepareView(body, gltf, index, jumpSources, reloadSource) {
     Object.defineProperty(view, key, { get: () => body[key], set: (value) => { body[key] = value; }, enumerable: true });
   }
   return view;
+}
+
+// One node's pose in a clip at full weight: samplers for whichever of its
+// position, rotation and scale tracks the clip has, and its current (rest)
+// values for the rest. Call while the body is still at its rest pose.
+function nodeSamplers(clip, node) {
+  const samplers = { position: null, quaternion: null, scale: null,
+    rest: { position: node.position.clone(), quaternion: node.quaternion.clone(), scale: node.scale.clone() } };
+  for (const track of clip.tracks) {
+    const [name, property] = track.name.split('.');
+    if (name === node.name && samplers[property] === null) samplers[property] = track.createInterpolant();
+  }
+  return samplers;
+}
+
+// What a jump clip needs to rebuild, at any moment, how it holds its gun in
+// her right hand at full weight: the gun's own track and every joint from the
+// gun's parent (her chest) down to the hand. Null if the clip does not animate
+// the gun or the hand does not hang from the gun's parent.
+function gripSamplers(clip, gun, hand) {
+  const gunSamplers = nodeSamplers(clip, gun);
+  if (!hand || !gunSamplers.position || !gunSamplers.quaternion) return null;
+  const chain = [];
+  for (let node = hand; node && node !== gun.parent; node = node.parent) chain.unshift(node);
+  if (chain[0]?.parent !== gun.parent) return null;
+  return { hand, gun: gunSamplers, chain: chain.map(node => nodeSamplers(clip, node)) };
 }
 
 // Copy the guns of another outfit export onto the shared body, under the
