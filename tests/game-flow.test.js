@@ -91,6 +91,33 @@ test('a change requested by a listener is announced after the current one', () =
   assert.equal(flow.ready, true);
 });
 
+// A broken system (say the HUD) must not stop the brain, the mouse capture or
+// the toolbar from hearing about the change, and queued changes still happen.
+test('a listener that throws is reported, and every other listener and event still runs', () => {
+  const events = new EventBus();
+  const seen = [];
+  const reported = [];
+  const original = globalThis.reportError;
+  globalThis.reportError = (error) => reported.push(error.message);
+  try {
+    events.on(GAME_EVENTS.flowChanged, ({ to }) => seen.push(`event ${to.name}`));
+    const flow = new GameFlow({ events, initial: STATES.ready });
+    flow.onChange((next) => {
+      seen.push(`a ${next.name}`);
+      if (next.name === 'playing') flow.pause();
+    });
+    flow.onChange(() => { throw new Error('broken HUD'); });
+    flow.onChange((next) => seen.push(`c ${next.name}`));
+    assert.equal(flow.hunt(), true);
+    assert.equal(flow.paused, true, 'the change queued by a listener still happened');
+  } finally {
+    if (original) globalThis.reportError = original;
+    else delete globalThis.reportError;
+  }
+  assert.deepEqual(seen, ['a playing', 'c playing', 'event playing', 'a paused', 'c paused', 'event paused']);
+  assert.deepEqual(reported, ['broken HUD', 'broken HUD']);
+});
+
 test('malformed states are programming errors', () => {
   const flow = new GameFlow();
   assert.throws(() => flow.setState({ name: 'playing', mode: 'fly' }), /play mode/);

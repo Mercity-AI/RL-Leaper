@@ -1,4 +1,4 @@
-import { GAME_EVENTS } from './events.js';
+import { GAME_EVENTS, reportListenerError } from './events.js';
 
 // What the game is doing right now, as one explicit state instead of a dozen
 // loose true/false flags. The states:
@@ -98,7 +98,9 @@ export class GameFlow {
   }
 
   // Apply queued changes one at a time: listeners first (they keep the game's
-  // systems in step), then the event bus.
+  // systems in step), then the event bus. A listener that throws is reported but
+  // never stops the others, so one broken system can't leave the brain running,
+  // the mouse captured or the toolbar showing the wrong state.
   drain() {
     this.notifying = true;
     try {
@@ -106,7 +108,13 @@ export class GameFlow {
         const previous = this.current;
         const target = this.queue.shift();
         this.current = target;
-        for (const listener of [...this.listeners]) listener(target, previous);
+        for (const listener of [...this.listeners]) {
+          try {
+            listener(target, previous);
+          } catch (error) {
+            reportListenerError(error);
+          }
+        }
         this.events?.emit(GAME_EVENTS.flowChanged, { from: previous, to: target });
         if ((previous.name === FLOW.paused) !== (target.name === FLOW.paused)) {
           this.events?.emit(GAME_EVENTS.pauseChanged, { paused: target.name === FLOW.paused, state: target });

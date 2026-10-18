@@ -21,7 +21,8 @@ export const GAME_EVENTS = Object.freeze({
 
 // A listener that throws is reported like any other page error, but it never
 // interrupts the code that emitted the event (a broken HUD must not stop damage).
-function reportListenerError(error) {
+// GameFlow uses the same rule for its state-change listeners.
+export function reportListenerError(error) {
   if (typeof globalThis.reportError === 'function') globalThis.reportError(error);
   else console.error(error);
 }
