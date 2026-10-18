@@ -14,13 +14,15 @@
 //   defeated      the encounter ended; nothing new can start
 //
 // Animation priority, highest first: defeated (frozen) > jump (full body)
-// > reload or shoot (upper body; a standing shot is full body) > move/idle.
-// The hit flinch is added on top of whatever plays.
+// > reload or shoot (upper body; standing still a shot also sets the legs)
+// > move/idle. The hit flinch is added on top of whatever plays, so getting
+// hit and shooting never cancel each other.
 export const LOLA_ACTION_RULES = Object.freeze({
-  // Fire a shot (or start the aim pose).
-  shoot: Object.freeze({ blockedBy: ['defeated', 'airborne', 'jump', 'reload'], ends: ['shoot', 'hit'] }),
+  // Fire a shot (or start the aim pose). A flinch keeps playing on top.
+  shoot: Object.freeze({ blockedBy: ['defeated', 'airborne', 'jump', 'reload'], ends: ['shoot'] }),
   // Raise the gun without firing; does nothing if a shot is already up.
-  aim: Object.freeze({ blockedBy: ['shoot', 'hit'], ends: [] }),
+  // Allowed mid-flinch, so a hit never drops her aim.
+  aim: Object.freeze({ blockedBy: ['shoot'], ends: [] }),
   // Reload the equipped gun (the jump moves both hands, so it blocks reloads).
   reload: Object.freeze({ blockedBy: ['defeated', 'jump'], ends: ['shoot', 'reload'] }),
   // Jump; standing up out of a crouch first.
@@ -29,8 +31,8 @@ export const LOLA_ACTION_RULES = Object.freeze({
   crouch: Object.freeze({ blockedBy: ['jump'], ends: ['shoot'] }),
   // Switch guns (1 / 2): the new gun starts lowered and loaded as it was.
   weapon: Object.freeze({ blockedBy: [], ends: ['shoot', 'reload'] }),
-  // Get hit by a bolt.
-  hit: Object.freeze({ blockedBy: ['defeated'], ends: ['shoot'] }),
+  // Get hit by a bolt: the flinch plays over everything; a raised gun stays up.
+  hit: Object.freeze({ blockedBy: ['defeated'], ends: [] }),
 });
 
 export class LolaActionState {

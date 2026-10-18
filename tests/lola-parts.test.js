@@ -68,6 +68,12 @@ test('the action rules table answers the designer questions it documents', () =>
   assert.equal(rules.can('crouch'), false, 'no crouch toggle mid-jump');
   player.jumpState = null;
   assert.ok(LOLA_ACTION_RULES.jump.ends.includes('crouch'), 'jumping stands her up');
+  // Getting hit and shooting stack instead of cancelling each other.
+  assert.deepEqual(LOLA_ACTION_RULES.hit.ends, [], 'a hit does not lower a raised gun');
+  assert.ok(!LOLA_ACTION_RULES.shoot.ends.includes('hit'), 'firing does not cancel the flinch');
+  player.hitRecoilTime = 0.3;
+  assert.equal(rules.can('aim'), true, 'aiming is allowed mid-flinch');
+  player.hitRecoilTime = 0;
   player.defeated = true;
   assert.deepEqual(['shoot', 'reload', 'jump', 'hit'].map(action => rules.can(action)), [false, false, false, false]);
   player.defeated = false;

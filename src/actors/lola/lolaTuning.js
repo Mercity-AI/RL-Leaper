@@ -70,6 +70,12 @@ export const LOLA_FLINCH_SPREAD = Object.freeze([
   ['DEF-spine.004', 0.264],
 ]);
 
+// While a shot is up, how quickly her legs switch between the standing-shot
+// stance (standing still) and the run underneath (moving), in units of
+// 1/second. It is eased twice in a row, so the switch starts gently instead
+// of jerking on its first frame; 20 settles in about a quarter of a second.
+export const LOLA_SHOT_LEG_RATE = 20;
+
 // The reload's fade in and out at its start and end, in seconds.
 export const RELOAD_FADE_IN = 0.12;
 export const RELOAD_FADE_OUT = 0.15;

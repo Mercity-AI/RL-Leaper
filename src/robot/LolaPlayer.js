@@ -8,8 +8,8 @@ import { LolaActionState } from '../actors/lola/LolaActionState.js';
 import { CharacterMover } from '../actors/lola/CharacterMover.js';
 import {
   JUMP_FADE_IN, JUMP_FADE_OUT, JUMP_LANDING, JUMP_LIFTOFF, JUMP_RUN_START, JUMP_STANDING_SPEED, LOLA_BLEND_RATE,
-  LOLA_GRAVITY, LOLA_HOP_HEIGHT, LOLA_INPUT_RESPONSE, LOLA_PACE, LOLA_SPRINT_SPEED, LOLA_STALL_END, LOLA_STALL_START,
-  LOLA_SUBSTEP_RATE, LOLA_TURN_RATE,
+  LOLA_GRAVITY, LOLA_HOP_HEIGHT, LOLA_INPUT_RESPONSE, LOLA_PACE, LOLA_SHOT_LEG_RATE, LOLA_SPRINT_SPEED, LOLA_STALL_END,
+  LOLA_STALL_START, LOLA_SUBSTEP_RATE, LOLA_TURN_RATE,
   RELOAD_FADE_IN, RELOAD_FADE_OUT, RUN_FRAMES, RUN_JUMPS, RUN_JUMP_FADE_OUT, RUN_JUMP_MAX_SKIP, RUN_JUMP_SPEED,
 } from '../actors/lola/lolaTuning.js';
 
@@ -74,6 +74,10 @@ export class LolaPlayer {
     this.poseClock = 0;
     // Share of the pose eased toward standing because a wall stops her (0..1).
     this.stall = 0;
+    // Share of a shot's standing stance in her legs: 1 while she stands still,
+    // easing to 0 (legs keep running) while she moves (eased in two stages).
+    this.shotLegs = 1;
+    this.shotLegsEase = 1;
 
     // Both outfits, built from copies of the loaded files.
     this.outfits = models.map((gltf, index) => prepareOutfit(gltf, index, { jumps, reloads, runJumps }, world, this.mesh));
@@ -209,13 +213,19 @@ export class LolaPlayer {
 
   // ---- Shooting and aiming --------------------------------------------------
 
+  // A shot plays two copies of the authored clip in step: the whole-body one
+  // gives her legs the standing stance (at the shotLegs share), and the
+  // upper-body one always drives her arms, torso and gun, so running and
+  // firing never pops the legs or loosens her grip.
   startShot(duration = 1, hold = 0) {
     if (!this.actionState.begin('shoot', this.enders)) return false;
     const outfit = this.equipped;
     const name = this.crouching ? 'CrouchShoot' : 'Shoot';
-    const action = outfit.shooting[name];
-    action.reset().setEffectiveTimeScale(action.getClip().duration / duration).setEffectiveWeight(1).play();
-    this.shot = { outfit, action, name, elapsed: 0, duration, hold };
+    const action = outfit.shooting[name], upper = outfit.shootingUpper[name];
+    for (const item of [action, upper]) {
+      item.reset().setEffectiveTimeScale(item.getClip().duration / duration).setEffectiveWeight(1).play();
+    }
+    this.shot = { outfit, action, upper, name, elapsed: 0, duration, hold, upperOnly: this.shotLegs < 0.5 };
     outfit.shotGun.visible = true;
     outfit.carriedGun.visible = false;
     // Show the raised gun at once, so a shot fired this frame leaves the muzzle.
@@ -227,32 +237,18 @@ export class LolaPlayer {
     if (!this.actionState.can('aim') || !this.startShot()) return;
     // The authored first frame is the raised-gun pose; aiming alone has no recoil.
     this.shot.action.paused = true;
+    this.shot.upper.paused = true;
   }
 
   cancelShot() {
     if (!this.shot) return;
-    const { outfit, action } = this.shot;
+    const { outfit, action, upper } = this.shot;
     action.stop();
+    upper.stop();
     outfit.shotGun.visible = false;
     outfit.carriedGun.visible = true;
     // Locomotion weights kept advancing underneath the shooting pose.
     this.shot = null;
-  }
-
-  // While moving, the shot plays on the upper body only (legs keep running);
-  // standing still it replaces the whole pose. Swap variants on the same frame.
-  updateShotVariant(shot, moved) {
-    const upperOnly = moved > 1e-7;
-    const action = (upperOnly ? shot.outfit.shootingUpper : shot.outfit.shooting)[shot.name];
-    if (shot.action !== action) {
-      const previous = shot.action;
-      const time = previous.time, paused = previous.paused;
-      previous.stop();
-      action.reset().setEffectiveTimeScale(action.getClip().duration / shot.duration).setEffectiveWeight(1).play();
-      action.time = time; action.paused = paused;
-      shot.action = action;
-    }
-    shot.upperOnly = upperOnly;
   }
 
   eyePosition(out = new THREE.Vector3()) {
@@ -454,13 +450,17 @@ export class LolaPlayer {
     // Pushing into a wall eases her legs toward standing instead of freezing them.
     const stall = 1 - THREE.MathUtils.smoothstep(progress, LOLA_STALL_START, LOLA_STALL_END);
     this.stall += (stall - this.stall) * (1 - Math.exp(-LOLA_BLEND_RATE * deltaTime));
+    // A shot's legs ease between the standing stance and the run, never snap.
+    const legEase = 1 - Math.exp(-LOLA_SHOT_LEG_RATE * deltaTime);
+    this.shotLegsEase += ((moved > 1e-7 ? 0 : 1) - this.shotLegsEase) * legEase;
+    this.shotLegs += (this.shotLegsEase - this.shotLegs) * legEase;
     this.hitRecoilTime = Math.max(0, this.hitRecoilTime - deltaTime);
 
-    // Shot variant, footsteps, then advance every clip's clock.
+    // Footsteps, then advance every clip's clock.
     for (const outfit of this.outfits) {
       this.locomotion.scaleRates(outfit, progress);
       const shot = this.shot?.outfit === outfit ? this.shot : null;
-      if (shot) this.updateShotVariant(shot, moved);
+      if (shot) shot.upperOnly = this.shotLegs < 0.5;
       const stepAction = outfit.actions[outfit.current];
       if (outfit === this.equipped && this.grounded && jumpWeight < 0.5 && moved > 1e-7 && (!shot || shot.upperOnly)
           && crossedFootContact(outfit.footContacts[outfit.current], stepAction.time, deltaTime * stepAction.timeScale)) {
@@ -468,6 +468,11 @@ export class LolaPlayer {
       }
       if (shot) shot.elapsed += deltaTime;
       this.animator.advance(outfit, deltaTime);
+      // The upper-body copy follows the whole-body clip's clock exactly.
+      if (shot) {
+        shot.upper.time = shot.action.time;
+        shot.upper.paused = shot.action.paused;
+      }
       if (shot && shot.elapsed >= shot.duration + shot.hold && !this.aimHeld) this.cancelShot();
     }
   }
@@ -504,7 +509,7 @@ export class LolaPlayer {
     const layers = { mesh: this.mesh };
     if (this.stall > 1e-4) layers.stall = { share: this.stall, idle: this.crouching ? 'CrouchIdle' : 'Idle' };
     const shot = this.shot?.outfit === outfit ? this.shot : null;
-    if (shot) layers.shot = { upperOnly: !!shot.upperOnly };
+    if (shot) layers.shot = { action: shot.action, upper: shot.upper, legs: this.shotLegs };
     if (this.jumpState) layers.jump = { action: outfit.jumpClips[this.jumpState.kind].action, weight: this.jumpWeight() };
     if (this.reloadState?.outfit === outfit) layers.reload = { action: outfit.reload.action, weight: this.reloadWeight() };
     if (this.hitRecoilTime > 0) {
