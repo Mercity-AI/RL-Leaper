@@ -192,3 +192,25 @@ test('a disposed brain stops and ignores replies that arrive afterwards', async 
   assert.equal(driver.running, false);
   assert.equal(driver.frame.x, 0, 'the late reply is ignored');
 });
+
+// The kill can land while a move is still being computed. The wreck stays where
+// it fell, so the late move must not shift the discs that stop Lola walking into it.
+test('a move that arrives after the fight ended does not move the Leaper contact', async () => {
+  globalThis.document = { hidden: false };
+  const { driver, playtest } = fixture();
+  playtest.combat = { dead: false };
+  driver.request = async () => frame;
+  await driver.reset();
+  let finish;
+  driver.request = () => new Promise((resolve) => { finish = resolve; });
+  driver.start();
+  driver.update(1 / 10);
+  playtest.combat.dead = true;
+  finish({ ...frame, x: 0.375, step: 1 });
+  await new Promise((resolve) => setImmediate(resolve));
+  const { from, to, margin } = driver.contactPoses();
+  assert.equal(from.x, 0);
+  assert.equal(to.x, 0, 'the contact stays at the wreck');
+  assert.equal(margin, 0, 'and the in-flight margin is released');
+  assert.equal(driver.busy, false);
+});

@@ -223,6 +223,9 @@ export class JunkyardBrain {
         ...(this.playtest.sight ? { sight_pose: this.playtest.sight.pose() } : {}),
       }).then((frame) => {
         if (generation !== this.generation) return;
+        // A move that arrives after the fight ended is never shown (the Leaper
+        // stays where it fell), so it must not move Lola's contact with it either.
+        if (this.playtest.combat?.dead) return;
         this.previousFrame = this.frame;
         this.frame = frame;
         this.renderAge = 0;
