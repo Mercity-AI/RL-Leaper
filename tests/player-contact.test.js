@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { leaperClearance, leaperReach } from '../src/world/playerContact.js';
+import { leaperClearance, leaperReach, createLeaperBlocker } from '../src/world/playerContact.js';
 import { JunkyardBrain } from '../src/simulation/JunkyardBrain.js';
+import { WorldCollision, attachWorldCollision } from '../src/world/WorldCollision.js';
 
 const facingZ = { x: 0, z: 0, yaw: 0 };
 
@@ -29,6 +30,9 @@ test('Lola cannot walk into the Leaper while paused, running, or awaiting infere
     target: { isPlayer: true, mesh: { position: p } },
     simulation: { state: { position: new THREE.Vector3(), yaw: 0 } } };
   const brain = new JunkyardBrain(playtest);
+  // The Leaper's discs are an explicit moving blocker on the world's collision service.
+  const collision = attachWorldCollision(playtest.world);
+  collision.addDynamicBlocker(createLeaperBlocker(brain, playtest.target, playtest.world));
   assert.equal(playtest.world.playerBlocked(0, 2.2), false, 'walks up between the front legs');
   assert.equal(playtest.world.playerBlocked(0, 1.7), true, 'stops at the body');
   brain.running = true;
@@ -45,4 +49,24 @@ test('Lola cannot walk into the Leaper while paused, running, or awaiting infere
   brain.frame = { x: 10, z: 0, yaw: 0 };
   assert.equal(playtest.world.playerBlocked(10, 1.5), true, 'both ends of the Leaper\'s current move count');
   assert.equal(playtest.world.playerBlocked(51, 20), true, 'map collision preserved');
+});
+
+test('WorldCollision checks the map, then every moving blocker, and blockers can be removed', () => {
+  const asked = [];
+  const collision = new WorldCollision({ mapBlocked: (x) => x > 10 });
+  assert.equal(collision.playerBlocked(11, 0), true, 'the map alone blocks');
+  assert.equal(collision.playerBlocked(0, 0), false);
+  const removeA = collision.addDynamicBlocker((x, z) => { asked.push('a'); return z > 5; });
+  collision.addDynamicBlocker((x, z) => { asked.push('b'); return z < -5; });
+  assert.equal(collision.playerBlocked(0, 6), true);
+  assert.equal(collision.playerBlocked(0, -6), true, 'a second Leaper blocks on its own');
+  assert.equal(collision.playerBlocked(11, 6), true);
+  assert.deepEqual(asked, ['a', 'a', 'b'], 'blockers are skipped once the map already blocks');
+  removeA();
+  assert.equal(collision.playerBlocked(0, 6), false);
+  const world = { playerBlocked: (x) => x > 10 };
+  attachWorldCollision(world);
+  world.collision.addDynamicBlocker((x) => x < -10);
+  assert.equal(world.playerBlocked(11, 0) && world.playerBlocked(-11, 0) && !world.playerBlocked(0, 0), true,
+    'world.playerBlocked keeps the map test and adds the moving blockers');
 });

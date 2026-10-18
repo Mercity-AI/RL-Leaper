@@ -1,4 +1,5 @@
 import { createJunkyardWorld } from '../world/createJunkyardWorld.js';
+import { attachWorldCollision } from '../world/WorldCollision.js';
 import { LolaPlayer } from '../robot/LolaPlayer.js';
 import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
 import { enableMovableHud } from '../controls/MovableHud.js';
@@ -13,8 +14,10 @@ import { createLeaperScene, loadStep, removeFromScene } from './shared.js';
 const MAX_DELTA = 0.1;
 
 export async function start({ engine, params }) {
-  // 1. The junkyard map, then Lola (her models need the map's scale).
+  // 1. The junkyard map with its collision service, then Lola (her models need
+  //    the map's scale).
   const world = await loadStep('LOADING MAP…', 'MAP LOAD FAILED', () => createJunkyardWorld(engine.scene));
+  attachWorldCollision(world);
   const target = await loadStep('LOADING LOLA…', 'CHARACTER LOAD FAILED',
     () => LolaPlayer.create(engine.scene, world, document.getElementById('cuboidToggle')));
   // 2. The Leaper rig, input and a chase camera that follows Lola.

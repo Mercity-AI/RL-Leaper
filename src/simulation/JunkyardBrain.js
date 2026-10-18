@@ -1,4 +1,4 @@
-import { contact, leaperClearance } from '../world/playerContact.js';
+import { contact } from '../world/playerContact.js';
 
 // Option A playback smoothing (inference only; the trained brain is untouched).
 // The rendered Leaper eases toward each brain reply at these rates, in 1/seconds.
@@ -28,25 +28,15 @@ export class JunkyardBrain {
     this.generation = 0;
     this.frame = null;
     this.label = 'BRAIN CONNECTING';
-    if (this.target.isPlayer) {
-      const mapBlocked = playtest.world.playerBlocked;
-      playtest.world.playerBlocked = (x, z) => {
-        if (mapBlocked(x, z)) return true;
-        // The rendered Leaper is somewhere between its last two server poses.
-        const state = this.simulation.state;
-        const from = this.previousFrame || { x: state.position.x, z: state.position.z, yaw: state.yaw };
-        const to = this.frame || from;
-        const scale = playtest.world.scale;
-        // While an inference is in flight, reserve one maximum server step.
-        const margin = this.pendingMovement ? contact.pendingStepMargin : 0;
-        const clearance = (px, pz) => Math.min(leaperClearance(px, pz, from, scale), leaperClearance(px, pz, to, scale)) - margin;
-        const next = clearance(x, z);
-        if (next >= 0) return false;
-        // Touching: block moving further in, but always allow backing out.
-        const p = this.target.mesh.position;
-        return next <= clearance(p.x, p.z);
-      };
-    }
+  }
+
+  // Where Lola must not walk: the rendered Leaper is somewhere between its last
+  // two server poses, and while a move is in flight one maximum server step is
+  // reserved. Registered with WorldCollision through createLeaperBlocker.
+  contactPoses() {
+    const state = this.simulation.state;
+    const from = this.previousFrame || { x: state.position.x, z: state.position.z, yaw: state.yaw };
+    return { from, to: this.frame || from, margin: this.pendingMovement ? contact.pendingStepMargin : 0 };
   }
 
   async request(path, payload) {
