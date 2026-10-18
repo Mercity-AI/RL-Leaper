@@ -27,6 +27,7 @@ export function reportListenerError(error) {
   else console.error(error);
 }
 
+// The bus itself: event name -> the set of functions listening for it.
 export class EventBus {
   constructor() {
     this.listeners = new Map();
@@ -48,6 +49,7 @@ export class EventBus {
     return off;
   }
 
+  // Stop listening (the same function that was passed to on()).
   off(name, listener) {
     const set = this.listeners.get(name);
     if (!set) return;
@@ -75,6 +77,7 @@ export class EventBus {
   }
 }
 
+// Shorthand for code that prefers a factory to `new EventBus()`.
 export function createEventBus() {
   return new EventBus();
 }

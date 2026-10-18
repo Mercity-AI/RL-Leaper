@@ -64,6 +64,8 @@ function allowed(from, to) {
   return sameState(from, to) || TRANSITIONS[from.name].includes(to.name);
 }
 
+// The game-state machine: holds the one current state, refuses moves the
+// table above doesn't allow, and tells listeners and the event bus about each change.
 export class GameFlow {
   constructor({ events = null, initial = { name: FLOW.loading } } = {}) {
     this.events = events;
@@ -75,6 +77,7 @@ export class GameFlow {
     this.notifying = false;
   }
 
+  // The current state (a frozen object, e.g. { name: 'paused', resumeTo }).
   get state() {
     return this.current;
   }

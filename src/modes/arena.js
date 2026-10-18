@@ -41,9 +41,11 @@ export async function start({ engine }) {
   return {
     maxDelta: MAX_DELTA,
     update: (dt) => brainDriver.update(dt),
+    // No late phase: the Leaper animator still moves the camera and sun itself here.
     lateUpdate() {},
     beforeRender: () => cameraController.beforeRender(),
     afterRender: () => cameraController.afterRender(),
+    // Leave the page as it was: no arena styling, the arena out of the scene.
     dispose() {
       document.body.classList.remove('brain-mode');
       removeFromScene(engine.scene, { world, rig, target });

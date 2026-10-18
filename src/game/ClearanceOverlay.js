@@ -5,12 +5,14 @@ import * as THREE from 'three';
 // red = blocked. A conservative design guide, never the brain's route.
 // (Moved unchanged out of JunkyardPlaytest.makeOverlay.)
 export class ClearanceOverlay {
+  // The mesh is only built by rebuild() (on every reset), so it starts empty.
   constructor({ scene, world }) {
     this.scene = scene;
     this.world = world;
     this.mesh = null;
   }
 
+  // SHOW / HIDE CLEARANCE; remembered across rebuilds.
   get visible() {
     return this.mesh?.visible ?? false;
   }
@@ -64,6 +66,7 @@ export class ClearanceOverlay {
     return `Reachable from spawn: ${Math.round(queue.length / Math.max(1, freeCount) * 100)}% of clear floor.`;
   }
 
+  // Take the overlay out of the scene and free its GPU memory.
   dispose() {
     if (!this.mesh) return;
     this.scene.remove(this.mesh);

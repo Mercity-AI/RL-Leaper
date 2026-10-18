@@ -249,6 +249,7 @@ export class LeaperCombat {
     if (!this.healthBarLate) this.updateHealthBar(dt);
     this.updateHud();
   }
+  // Place the floating health bar over the Leaper with the current camera.
   updateHealthBar(dt) {
     const p = this.playtest, c = this.config;
     this.healthBar.update(dt, p.engine.camera, p.simulation.rig.robot, this.leaperHealth / c.leaperHealth, this.trail.value,

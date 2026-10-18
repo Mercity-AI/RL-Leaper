@@ -46,6 +46,7 @@ export class PlayerVitalsHud {
     document.documentElement.style.setProperty('--damage-flash', String(edgeTint));
   }
 
+  // The end-of-fight banner, and hiding it again on a restart.
   showResult(text) {
     this.result.hidden = false;
     this.result.querySelector('strong').textContent = text;
@@ -55,6 +56,7 @@ export class PlayerVitalsHud {
     this.result.hidden = true;
   }
 
+  // The session is over: the panel leaves the page and the red screen edges are cleared.
   dispose() {
     this.element.remove();
     document.documentElement.style.setProperty('--damage-flash', '0');
@@ -77,6 +79,7 @@ export class PlayerVitals {
     return this.hud.element;
   }
 
+  // Lola is down (this decides a lost fight).
   get dead() {
     return this.health <= 0;
   }
@@ -143,6 +146,7 @@ export class PlayerVitals {
     };
   }
 
+  // Hand the current numbers to whatever draws them.
   updateHud({ over = false } = {}) {
     this.hud.render(this.view({ over }));
   }
@@ -152,6 +156,7 @@ export class PlayerVitals {
     this.hud.showResult(text);
   }
 
+  // The session is over: remove the HUD from the page.
   dispose() {
     this.hud.dispose();
   }

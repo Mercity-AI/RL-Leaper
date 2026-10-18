@@ -15,6 +15,7 @@ export class WorldCollision {
     return () => this.removeDynamicBlocker(blocker);
   }
 
+  // Take a moving blocker out again (the same function that was added).
   removeDynamicBlocker(blocker) {
     this.blockers.delete(blocker);
   }

@@ -25,6 +25,7 @@ export function snapToShadowTexels(point, { right, up }, texel, out = new THREE.
   return out;
 }
 
+// Moves the scene's sun (and its shadow box) along with one subject, normally Lola.
 export class SunFollow {
   constructor(sun, { scale = 1 } = {}) {
     this.sun = sun;

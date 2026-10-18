@@ -68,6 +68,7 @@ export class FixedStep {
     return Math.min(1, this.remainder / this.step);
   }
 
+  // Forget any time waiting to be used (a stopped run must not bank moves).
   reset() {
     this.remainder = 0;
   }
@@ -97,6 +98,7 @@ export class GameLoop {
     this.tick = (timestamp) => this.frame(timestamp);
   }
 
+  // Begin calling the mode every animation frame (a second start does nothing).
   start() {
     if (this.running) return;
     this.running = true;
@@ -105,6 +107,7 @@ export class GameLoop {
     this.frameId = this.requestFrame(this.tick);
   }
 
+  // Stop the loop; the frame already requested is cancelled.
   stop() {
     this.running = false;
     if (this.frameId !== null) this.cancelFrame(this.frameId);

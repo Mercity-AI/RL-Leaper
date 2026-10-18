@@ -25,6 +25,7 @@ export async function start({ engine }) {
   return {
     maxDelta: MAX_DELTA,
     update: (dt) => simulation.update(dt),
+    // No late phase: the animator already moved the camera and sun in update().
     lateUpdate() {},
     beforeRender: () => cameraController.beforeRender(),
     afterRender: () => cameraController.afterRender(),

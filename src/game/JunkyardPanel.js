@@ -18,6 +18,7 @@ export function toolbarLabels(state) {
   };
 }
 
+// Builds the panel once per session; the playtest binds what its buttons do.
 export class JunkyardPanel {
   constructor({ world }) {
     // 1. Page chrome for the junkyard: title line, controls help, body class.
@@ -79,6 +80,7 @@ export class JunkyardPanel {
     this.element.addEventListener('pointerdown', (event) => event.stopPropagation());
   }
 
+  // One toolbar / OPTIONS button by its data-action name.
   button(action) {
     return this.element.querySelector(`[data-action=${action}]`);
   }
@@ -115,19 +117,23 @@ export class JunkyardPanel {
     }
   }
 
+  // Unfold OPTIONS (used to show a message that needs the full panel).
   openOptions() {
     if (this.options.hidden) this.button('panel').click();
   }
 
+  // SHOW / HIDE CLEARANCE label and the colour key under it.
   showClearance(visible) {
     this.button('clearance').textContent = visible ? 'HIDE CLEARANCE' : 'SHOW CLEARANCE';
     this.element.querySelector('.clearance-key').hidden = !visible;
   }
 
+  // "Reachable from spawn: …%" after each overlay rebuild.
   setClearanceSummary(text) {
     this.element.querySelector('[data-clearance-summary]').textContent = text;
   }
 
+  // The session is over: the panel leaves the page and the page loses its junkyard styling.
   dispose() {
     this.element.remove();
     document.body.classList.remove('junkyard-mode');

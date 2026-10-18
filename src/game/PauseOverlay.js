@@ -26,6 +26,7 @@ export class PauseOverlay {
     this.element.hidden = state.name !== 'paused';
   }
 
+  // The session is over: the overlay leaves the page (its listeners go with the signal).
   dispose() {
     this.element.remove();
   }

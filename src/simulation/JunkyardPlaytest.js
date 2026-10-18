@@ -173,6 +173,7 @@ export class JunkyardPlaytest {
     this.message.textContent = 'Exploring as Lola. The Leaper stays still. Esc frees the mouse.';
   }
 
+  // STOP PLAYER: back to Ready (the mouse is let go by the flow change).
   stopPlayer(message) {
     this.flow.stop();
     if (message) this.message.textContent = message;
@@ -302,10 +303,12 @@ export class JunkyardPlaytest {
     if (this.overlay.visible) this.topView();
   }
 
+  // Redraw the clearance map for where the Leaper now starts.
   rebuildOverlay(spawn) {
     this.panelView.setClearanceSummary(this.overlay.rebuild(spawn));
   }
 
+  // Switch the camera to the TOP view (VIEW cycles, so toggle until it is there).
   topView() {
     while (this.cameraController.mode !== 'TOP') this.cameraController.toggle();
   }
