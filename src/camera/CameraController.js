@@ -19,7 +19,10 @@ const SHAKE = Object.freeze({ duration: 1, speed: 30, pitch: 0.035, yaw: 0.03, r
 const AIM_ZOOM = 1.35;
 
 export class CameraController {
-  constructor(camera, scene, canvas, toggleButton) {
+  // signal (optional): the game session's AbortSignal. Aborting it removes every
+  // listener below, so a finished mode leaves nothing behind (lab modes omit it).
+  constructor(camera, scene, canvas, toggleButton, { signal = null } = {}) {
+    const session = signal ? { signal } : {};
     this.camera = camera;
     this.scene = scene;
     this.mode = 'CHASE';
@@ -53,8 +56,8 @@ export class CameraController {
         this.releaseMouse();
         this.onPauseRequested?.();
       }
-    });
-    window.addEventListener('blur', () => this.releaseMouse());
+    }, session);
+    window.addEventListener('blur', () => this.releaseMouse(), session);
     document.addEventListener('pointerlockchange', () => {
       const locked = document.pointerLockElement === canvas;
       const wasLocked = this.nativeMouseLook;
@@ -70,18 +73,22 @@ export class CameraController {
       // Browsers can consume Escape before keydown reaches the game. A focus
       // loss or our own camera/menu release must not stop the simulation.
       if (!locked && wasLocked && !intentionalRelease && document.hasFocus?.()) this.onPauseRequested?.();
-    });
+    }, session);
     canvas.addEventListener('pointerenter', event => {
       this.lastX = event.clientX;
       this.lastY = event.clientY;
-    });
+    }, session);
 
-    toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
-    toggleButton.addEventListener('click', () => this.toggle());
+    toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation(), session);
+    toggleButton.addEventListener('click', () => this.toggle(), session);
     canvas.addEventListener('pointerdown', (event) => {
+      // Whether this click only grabs the mouse again (after Alt-Tab, say). The gun
+      // reads it so the same click doesn't also fire (review fix 5.16).
+      this.captureClick = false;
       if (this.spectator?.active) return;
       if (this.gameplayStarted && this.followSubject && this.mode === 'CHASE'
-          && event.pointerType === 'mouse' && document.pointerLockElement !== canvas) {
+          && event.pointerType === 'mouse' && document.pointerLockElement !== canvas && !this.fallbackMouseLook) {
+        this.captureClick = true;
         this.captureMouse();
       }
       this.pointerId = event.pointerId;
@@ -89,10 +96,10 @@ export class CameraController {
       this.lastY = event.clientY;
       if (this.mode === 'TOP') canvas.style.cursor = 'grabbing';
       window.focus();
-    });
-    window.addEventListener('pointermove', (event) => this.onPointerMove(event));
-    window.addEventListener('pointerup', (event) => this.endPointer(event));
-    window.addEventListener('pointercancel', (event) => this.endPointer(event));
+    }, session);
+    window.addEventListener('pointermove', (event) => this.onPointerMove(event), session);
+    window.addEventListener('pointerup', (event) => this.endPointer(event), session);
+    window.addEventListener('pointercancel', (event) => this.endPointer(event), session);
     canvas.addEventListener('wheel', (event) => {
       event.preventDefault();
       if (this.spectator?.active) return;
@@ -109,8 +116,8 @@ export class CameraController {
           22,
         );
       }
-    }, { passive: false });
-    window.addEventListener('contextmenu', (event) => event.preventDefault());
+    }, { passive: false, ...session });
+    window.addEventListener('contextmenu', (event) => event.preventDefault(), session);
   }
 
   get eyeView() {
@@ -130,7 +137,15 @@ export class CameraController {
     try {
       const request = this.canvas.requestPointerLock();
       Promise.resolve(request).then(() => {
-        if (generation === this.captureGeneration) this.capturePending = false;
+        if (generation === this.captureGeneration) {
+          this.capturePending = false;
+        } else if (document.pointerLockElement === this.canvas) {
+          // The lock arrived after the game had already let go of the mouse (for
+          // example a run that stopped at once): undo it instead of leaving the
+          // mouse trapped in a stopped game (review fix 5.11).
+          this.releasingMouse = true;
+          document.exitPointerLock();
+        }
       }, fallback);
     } catch { fallback(); }
   }
@@ -230,6 +245,8 @@ export class CameraController {
   }
 
   endPointer(event) {
+    // The capture click is over once its button comes back up.
+    this.captureClick = false;
     if (event.pointerId === this.pointerId) {
       this.pointerId = null;
       if (this.mode === 'TOP') this.canvas.style.cursor = 'grab';
@@ -266,6 +283,9 @@ export class CameraController {
         Math.cos(heading) * Math.cos(this.eyePitch),
       );
       this.camera.lookAt(this.tempC.copy(this.camera.position).add(this.tempB));
+      // Every branch ends with fresh matrices, so world-pinned HUD placed after
+      // this update projects with this frame's view, not the last one.
+      this.camera.updateMatrixWorld();
       return;
     }
 
@@ -273,6 +293,7 @@ export class CameraController {
       this.camera.up.set(0, 0, -1);
       this.camera.position.set(this.topCenter.x, this.topHeight, this.topCenter.y + 0.01);
       this.camera.lookAt(this.topCenter.x, 0, this.topCenter.y);
+      this.camera.updateMatrixWorld();
       return;
     }
 
@@ -326,11 +347,19 @@ export class CameraController {
     if (this.followSubject) this.camera.lookAt(this.tempC.add(this.camera.position));
     else this.camera.lookAt(this.target.x, this.target.y + 0.35, this.target.z);
     this.applyShake();
+    this.camera.updateMatrixWorld();
   }
 
   // Add shake strength (0-1); repeated impacts stack up to full strength.
   shake(amount) {
     this.shakeStrength = Math.min(1, (this.shakeStrength ?? 0) + amount);
+  }
+
+  // A new encounter starts calm: any shake left over from the last fight's
+  // final blow is dropped instead of replaying at the start (review fix 5.2).
+  resetEffects() {
+    this.shakeStrength = 0;
+    this.shakeClock = 0;
   }
 
   // The shake fades out over SHAKE.duration in every view mode.

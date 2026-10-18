@@ -42,6 +42,8 @@ export class PlayerWeapon {
   constructor(playtest) {
     this.p = playtest;
     this.remaining = 0;
+    // Whether the gun could be used last frame (the controls are let go once when it can't).
+    this.wasAvailable = false;
     this.visuals = new GunshotEffects(playtest.engine.scene, playtest.world.scale);
     this.effects = this.visuals.items;
     this.hitTime = 0;
@@ -71,22 +73,38 @@ export class PlayerWeapon {
     this.gunSlots = [this.ammoReadout.querySelector('[data-gun=m416]'), this.ammoReadout.querySelector('[data-gun=pistol]')];
     document.body.append(this.ammoReadout);
     const canvas = playtest.engine.renderer.domElement;
+    // The game session's AbortSignal (if any) removes all of these listeners at once.
+    const session = playtest.signal ? { signal: playtest.signal } : {};
     // Mouse events fire for each button, including left clicks while right aim is held.
     canvas.addEventListener('mousedown', event => {
+      // The click that grabs the mouse again only does that: no shot, no aim.
+      if (this.p.cameraController.captureClick) return;
       if (event.button === 2 && this.available) this.setAiming(true);
-      if (event.button === 0) { this.triggerHeld = true; this.fire(); }
-    });
+      // A press while the gun can't be used (paused, TOP view…) is ignored entirely.
+      if (event.button === 0 && this.available) { this.triggerHeld = true; this.fire(); }
+    }, session);
     window.addEventListener('mouseup', event => {
       if (event.button === 0) this.triggerHeld = false;
       if (event.button === 2) this.setAiming(false);
-    });
-    window.addEventListener('pointercancel', () => this.setAiming(false));
+    }, session);
+    window.addEventListener('pointercancel', () => this.setAiming(false), session);
     window.addEventListener('keydown', event => {
       if (event.code === 'Escape') this.setAiming(false);
       if (event.code === 'KeyR' && !event.repeat && this.available) this.reload();
-    });
-    window.addEventListener('blur', () => this.reset());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.reset(); });
+    }, session);
+    // Leaving the window drops the trigger, aim and reload; shots already in the
+    // air keep fading normally.
+    window.addEventListener('blur', () => this.cancelActions(), session);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.cancelActions(); }, session);
+  }
+
+  // The session is over: no effects left in the scene, no HUD left on the page.
+  // (Its listeners go with the session's AbortSignal.)
+  dispose() {
+    this.clearEffects();
+    this.reticle.remove();
+    this.ammoReadout.remove();
+    document.documentElement.style.setProperty('--good-flash', '0');
   }
 
   setAiming(active) {
@@ -147,7 +165,7 @@ export class PlayerWeapon {
 
   get available() {
     const p = this.p;
-    return !p.combat.dead && !p.pov.active
+    return !p.combat.dead && !p.pov.active && !p.paused
       && p.cameraController.mode === 'CHASE' && !document.hidden;
   }
 
@@ -175,14 +193,14 @@ export class PlayerWeapon {
       // Pulling the trigger mid-reload on an empty gun still clicks.
       if (ammo.mag <= 0) {
         this.remaining = this.weapon.interval;
-        this.p.combat.audio.playSlot('gunEmpty');
+        this.p.audio.playSlot('gunEmpty');
       }
       return false;
     }
     // An empty magazine clicks and starts the (timed) reload.
     if (ammo.mag <= 0) {
       this.remaining = this.weapon.interval;
-      this.p.combat.audio.playSlot('gunEmpty');
+      this.p.audio.playSlot('gunEmpty');
       this.reload();
       return false;
     }
@@ -203,9 +221,9 @@ export class PlayerWeapon {
     const hit = bulletHit(p.combat.geometry, enemies, origin, direction, range);
     const end = origin.clone().addScaledVector(direction, hit.distance);
     this.visuals.shot(origin, end, this.weapon.rifle);
-    p.combat.audio.play(this.weapon.rifle ? 'm416' : 'pistol');
+    p.audio.play(this.weapon.rifle ? 'm416' : 'pistol');
     // One shared impact recording for the Leaper and all current scenery.
-    if (hit.intersection) p.combat.audio.play('leaper');
+    if (hit.intersection) p.audio.play('leaper');
     this.reticle.dataset.hit = String(hit.enemy);
     if (hit.enemy) {
       const normal = hit.intersection.face.normal.clone()
@@ -226,10 +244,8 @@ export class PlayerWeapon {
     this.bigHitTime = BIG_HIT.crosshairTime;
     this.goodFlash = 1;
     this.reticle.dataset.big = 'true';
-    if (brokeJoint) this.p.combat.audio.playSlot('kneeBreak');
+    if (brokeJoint) this.p.audio.playSlot('kneeBreak');
   }
-
-  clearEffects() { this.visuals.clear(); }
 
   beforeRender() {
     if (!this.p.pov.active) this.visuals.beforeRender(this.p.simulation.rig.robot);
@@ -246,17 +262,52 @@ export class PlayerWeapon {
     }
   }
 
-  reset() {
+  // ---- Stopping and resetting (review fix 5.2) ----
+
+  // Let go of the controls: trigger and aim. Used when the game pauses, so a
+  // reload or a shot already under way freezes with gameplay time and carries on.
+  releaseControls() {
     this.triggerHeld = false;
     this.setAiming(false);
+  }
+
+  // Stop everything Lola is doing with her guns: trigger, aim, reload, shot pose
+  // and the shot cooldown. Shots already fired keep their tracer and sparks, so
+  // ending the fight never erases the kill shot.
+  cancelActions() {
+    this.releaseControls();
     this.remaining = 0;
     this.cancelReload();
+    this.p.target.cancelShot();
+  }
+
+  // Remove every tracer, spark and hit marker at once (a restart, not an ending).
+  clearEffects() {
+    this.visuals.clear();
     this.hitTime = 0;
     this.bigHitTime = 0;
-    this.p.target.cancelShot();
-    this.clearEffects();
+    this.critTime = 0;
     this.reticle.dataset.hit = 'false';
     this.reticle.dataset.big = 'false';
+    this.reticle.dataset.crit = 'false';
+  }
+
+  // Both of the above.
+  reset() {
+    this.cancelActions();
+    this.clearEffects();
+  }
+
+  // A new encounter (RESTART ENCOUNTER, RESET, RESTART RANDOM): as reset(), and
+  // both magazines are full again (review fix 5.23).
+  resetEncounter() {
+    this.reset();
+    this.goodFlash = 0;
+    [PLAYER_WEAPON.m416, PLAYER_WEAPON.pistol].forEach((weapon, index) => {
+      this.ammo[index].mag = weapon.magazine;
+      this.ammo[index].reserve = weapon.reserve;
+    });
+    this.updateAmmoHud();
   }
 
   updateAmmoHud() {
@@ -282,7 +333,19 @@ export class PlayerWeapon {
     // The blue glow fades even while weapons are unavailable (e.g. on the kill shot).
     this.goodFlash = Math.max(0, this.goodFlash - dt / BIG_HIT.edgeGlowTime);
     document.documentElement.style.setProperty('--good-flash', this.goodFlash.toFixed(3));
-    if (!this.available) { this.reset(); return; }
+    if (!this.available) {
+      // The gun just became unavailable (paused, POV, TOP view, the fight is over):
+      // let go of it once. A pause only releases the controls, so a reload resumes.
+      if (this.wasAvailable) {
+        if (this.p.paused) this.releaseControls();
+        else this.cancelActions();
+      }
+      this.wasAvailable = false;
+      // Tracers and sparks keep fading, so the kill shot is seen (frozen while paused).
+      this.visuals.update(dt);
+      return;
+    }
+    this.wasAvailable = true;
     if (this.p.target.aimHeld) this.p.target.holdAim();
     this.remaining = Math.max(0, this.remaining - dt);
     // A reload belongs to the gun it started on; switching guns or jumping abandons it.
@@ -293,7 +356,7 @@ export class PlayerWeapon {
       this.reloadRemaining = Math.max(0, this.reloadRemaining - dt);
       if (!this.reloadSoundPlayed && this.reloadTotal - this.reloadRemaining >= this.weapon.reloadSoundAt) {
         this.reloadSoundPlayed = true;
-        this.reloadVoice = this.p.combat.audio.play(this.weapon.reloadSound);
+        this.reloadVoice = this.p.audio.play(this.weapon.reloadSound);
       }
       if (this.reloadRemaining === 0) this.finishReload();
     } else if (this.ammoState.mag <= 0 && this.remaining === 0) {

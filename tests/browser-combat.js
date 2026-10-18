@@ -13,6 +13,8 @@ import { LeaperPov } from '../src/camera/LeaperPov.js';
 import { CombatGeometry } from '../src/simulation/CombatGeometry.js';
 import { LeaperSimulation } from '../src/simulation/LeaperSimulation.js';
 import { PlayerWeapon, bulletHit } from '../src/simulation/PlayerWeapon.js';
+import { LaserAudio } from '../src/simulation/LaserAudio.js';
+import { PlayerVitals } from '../src/game/PlayerVitals.js';
 import { COMBAT } from '../src/config/combat.js';
 import eyeConfig from '../src/config/eye-vision.json' with { type: 'json' };
 
@@ -32,7 +34,11 @@ try {
   const bones = target.outfits.map(({ model }) => eyeConfig.targetBones.map(name => model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName(name))));
   const p = { engine, world, target, cameraController, panel: document.querySelector('#junkyardPanel'),
     sight: { bones, lines: new THREE.Group() }, walking: true, brain: { ready: true },
-    simulation: { rig, state: { yaw: 0 } }, stop() { this.walking = false; }, reset() { this.combat.reset(); } };
+    simulation: { rig, state: { yaw: 0 } }, stop() { this.walking = false; }, reset() { this.vitals.reset(); this.combat.reset(); },
+    // One Leaper here, so a finished combat always ends the run (the game asks its Encounter).
+    combatFinished() { this.stop(); } };
+  // The game creates one sound engine and Lola's health (PlayerVitals) and hands them to combat.
+  p.audio = new LaserAudio(); p.vitals = new PlayerVitals({ player: target, audio: p.audio });
   p.combat = new LeaperCombat(p); p.pov = new LeaperPov(p);
   const combat = p.combat, scale = world.scale;
   combat.audio.unlock();
@@ -42,7 +48,7 @@ try {
   function animatePlayer(dt = 0.1) { target.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, dt); }
   function tick(dt = 1 / 60) { combat.update(dt); p.pov.update(); }
   function frames(n) { for (let i = 0; i < n; i++) tick(); }
-  function reset() { combat.reset(); p.walking = true; target.crouching = false; target.resetJump(); animatePlayer(); }
+  function reset() { p.vitals.reset(); combat.reset(); p.walking = true; target.crouching = false; target.resetJump(); animatePlayer(); }
   result.textContent = 'REAL-ASSET BROWSER COMBAT CHECKS';
   reset(); tick(0);
   // Find a clear front-facing lane at the real spawn, using physical map rays.
@@ -66,6 +72,11 @@ try {
   check(bolt.mesh.position.distanceTo(boltStart) === 0, 'pause freezes active bolts');
   p.walking = true; tick(); check(bolt.mesh.position.distanceTo(boltStart) > 0, 'resume advances the same bolt');
   combat.reset(); check(combat.bolts.length === 0 && combat.tree.started === null, 'reset clears bolts and pending warning');
+  // Turret mode (review 5.1): with the brain offline a run still tracks and fires.
+  p.brain.ready = false; p.brain.offline = true;
+  target.mesh.position.copy(lane); reset(); tick(0); frames(40);
+  check(combat.tree.shots > 0, 'with the brain offline the run still tracks and fires (turret mode)');
+  p.brain.ready = true; p.brain.offline = false; combat.reset();
 
   target.mesh.position.copy(lane); reset(); tick(0); frames(15);
   // Insert a thin test panel between eye and visible torso, keeping the real map.
@@ -96,7 +107,7 @@ try {
   reset(); target.mesh.position.copy(lane); tick(0); frames(100);
   check(combat.lolaHealth === 92, 'one unobstructed hit deals exactly 8 damage');
   check(target.hitDirection.dot(combat.direction) > 0.8, 'actual bolt collision passes its travel direction into hit recoil');
-  check(combat.hud.querySelector('[data-health-bar]').value === 92 && !combat.hud.textContent.includes('100'), 'damage updates the visible health HUD');
+  check(p.vitals.element.querySelector('[data-health-bar]').value === 92 && !p.vitals.element.textContent.includes('100'), 'damage updates the visible health HUD');
 
   reset(); target.mesh.position.copy(lane); animatePlayer(); tick(0);
   const standingHead = combat.pose()[0].y;
@@ -149,7 +160,7 @@ try {
   check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'ordinary damage does not tint screen edges');
   for (let i = 0; i < 9; i++) combat.damageLola();
   check(combat.lolaHealth === 20 && Number(document.documentElement.style.getPropertyValue('--damage-flash')) > 0, 'screen-edge warning begins at 20 HP');
-  combat.reset();
+  combat.reset(); p.vitals.reset();
   check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'restart clears critical-health screen tint');
   // Floating Leaper health bar: hidden until a burst of real damage, then drains and fades.
   const worldBar = document.querySelector('#leaperWorldBar');
@@ -232,8 +243,10 @@ try {
   check(combat.leaperHealth === beforeCover, 'thin cover blocks instant player bullets');
   combat.geometry = normalGeometry;
   p.playerWeapon.reset(); p.walking = false;
-  check(p.playerWeapon.fire(), 'Lola can fire while the Leaper run is stopped');
-  p.playerWeapon.reset();
+  check(p.playerWeapon.fire(), 'Lola can fire while the Leaper run is stopped (stopped, not paused)');
+  p.playerWeapon.reset(); p.paused = true;
+  check(!p.playerWeapon.fire(), 'nobody can fire while the game is paused (Escape)');
+  p.paused = false; p.playerWeapon.reset();
   p.walking = true; p.pov.toggle();
   check(!p.playerWeapon.fire(), 'spectator POV cannot redirect or fire player weapon');
   p.pov.toggle(); target.switchWeapon(); target.crouching = false;
@@ -249,6 +262,9 @@ try {
     target.weaponIndex = weaponIndex; target.showWeapon(); p.playerWeapon.reset();
     p.walking = false; p.brain.ready = false;
     const health = combat.leaperHealth, damage = p.playerWeapon.weapon.damage;
+    p.paused = true; p.playerWeapon.update(0); clickShot();
+    check(combat.leaperHealth === health, `${weaponIndex ? 'pistol' : 'M416'} left click does nothing while paused`);
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 0 })); p.paused = false;
     clickShot();
     check(combat.leaperHealth === health - damage, `${weaponIndex ? 'pistol' : 'M416'} left click fires without starting the brain`);
     // Holding the button: the M416 is automatic, the pistol one shot per click.
@@ -265,6 +281,16 @@ try {
     p.playerWeapon.update(1);
     check(p.playerWeapon.effects.length === 0, 'click-shot effects leave no residue');
   }
+  // The click that recaptures the mouse (after Alt-Tab, during a run) only does that (review 5.16).
+  cameraController.gameplayStarted = true; p.playerWeapon.reset();
+  const magazineBeforeCapture = p.playerWeapon.ammoState.mag, healthBeforeCapture = combat.leaperHealth;
+  canvas.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', pointerId: 7, button: 0, bubbles: true }));
+  canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+  check(p.playerWeapon.ammoState.mag === magazineBeforeCapture && combat.leaperHealth === healthBeforeCapture && !p.playerWeapon.triggerHeld,
+    'the click that recaptures the mouse does not fire');
+  window.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', pointerId: 7, button: 0 }));
+  window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+  cameraController.releaseMouse(); cameraController.gameplayStarted = false;
   p.walking = true; p.brain.ready = true;
   window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit2', bubbles: true }));
   check(target.weaponIndex === 0, '2 switches from pistol to M416');
@@ -349,7 +375,32 @@ try {
   engine.camera.position.copy(savedCameraPosition); engine.camera.quaternion.copy(savedCameraRotation); engine.camera.updateMatrixWorld(true);
   p.playerWeapon.reset(); combat.leaperHealth = 6;
   p.playerWeapon.fire();
-  check(combat.leaperHealth === 0 && combat.hud.querySelector('[data-result] strong').textContent === 'LEAPER DEFEATED', 'player gunshot earns a real defeat, not a debug result');
+  // The banner text itself is the encounter's (resultText, tested in node); combat reports the kill.
+  check(combat.leaperHealth === 0 && combat.outcome.winner === 'lola' && !combat.outcome.debug, 'player gunshot earns a real defeat, not a debug result');
+  // The end of the fight (review 5.2): a kill shot landed while aiming keeps its
+  // tracer, sparks and shake; the aim lets go; Lola is free to walk afterwards.
+  p.vitals.reset(); combat.reset(); p.playerWeapon.reset(); p.walking = true; target.cancelShot();
+  target.weaponIndex = 0; target.showWeapon();
+  pointAimAt(center); p.playerWeapon.setAiming(true); p.playerWeapon.update(1 / 60);
+  combat.leaperHealth = 2; cameraController.shakeStrength = 0;
+  check(p.playerWeapon.fire() && combat.dead, 'an aimed shot can be the kill shot');
+  check(p.playerWeapon.visuals.items.length > 0 && cameraController.shakeStrength > 0, 'the kill shot keeps its tracer, sparks and shake');
+  const killShake = cameraController.shakeStrength;
+  p.playerWeapon.update(1 / 60);
+  check(p.playerWeapon.visuals.items.length > 0, 'a frame later the kill shot effects are still drawn (not wiped)');
+  for (let i = 0; i < 19; i++) { p.playerWeapon.update(1 / 60); cameraController.update(p.simulation.state, rig.eyePivot, 1 / 60); }
+  check(!cameraController.aiming && !target.aimHeld && engine.camera.fov > 50
+    && engine.camera.position.distanceTo(target.eyePosition()) > 1, 'after the kill the aim lets go and the view returns to the chase camera');
+  check(cameraController.shakeStrength < killShake, 'the kill shake plays out after the ending');
+  for (let i = 0; i < 30; i++) p.playerWeapon.update(1 / 60);
+  check(p.playerWeapon.visuals.items.length === 0, 'the kill shot effects fade out by themselves');
+  const winSpot = target.mesh.position.clone();
+  for (let i = 0; i < 10; i++) target.move(1, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, 1 / 30);
+  check(!target.defeated && target.mesh.position.distanceTo(winSpot) > 0, 'after a win Lola can still walk up to the wreck');
+  p.playerWeapon.ammo[0].mag = 3; p.playerWeapon.ammo[1].mag = 0; p.playerWeapon.resetEncounter(); cameraController.resetEffects();
+  check(p.playerWeapon.ammo[0].mag === 20 && p.playerWeapon.ammo[1].mag === 15 && !cameraController.shakeStrength,
+    'a restart refills both magazines and drops any leftover shake');
+  target.mesh.position.copy(winSpot);
   p.playerWeapon.reset(); combat.reset();
   check(!target.shot && !p.playerWeapon.effects.length, 'reset clears shooting pose and transient effects');
   target.mesh.position.copy(base);
@@ -372,7 +423,7 @@ try {
   check(hitHead.z < neutralHead.z, 'torso flinch moves the head backward rather than forward');
   animatePlayer(0.7);
   check(target.hitRecoilTime === 0 && target.outfits.every(o => !o.hitBase), 'hit recoil recovers without accumulating bone offsets');
-  combat.damageLola(); animatePlayer(0.08); combat.reset();
+  combat.damageLola(); animatePlayer(0.08); combat.reset(); p.vitals.reset();
   check(target.hitRecoilTime === 0 && target.outfits.every(o => !o.hitBase), 'encounter reset clears hit recoil');
   // Exercise direct knee shots through the complete player firing path with real meshes.
   const damageSim = new LeaperSimulation({ rig, cameraController, world });

@@ -1,298 +1,341 @@
-import { FOOT_HEIGHT } from '../config/robot.js';
-import * as THREE from 'three';
 import { JunkyardBrain } from './JunkyardBrain.js';
-import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
-import { contact, leaperReach } from '../world/playerContact.js';
-import { SAVED_WIDTH_KEY } from '../world/createJunkyardWorld.js';
 import { EyeVision } from './EyeVision.js';
 import { PlayerWeapon } from './PlayerWeapon.js';
 import { LeaperCombat } from './LeaperCombat.js';
 import { LeaperPov } from '../camera/LeaperPov.js';
+import { EventBus, GAME_EVENTS } from '../core/events.js';
+import { GameFlow } from '../core/GameFlow.js';
+import { Encounter } from '../game/Encounter.js';
+import { PlayerController } from '../game/PlayerController.js';
+import { PlayerVitals } from '../game/PlayerVitals.js';
+import { PauseOverlay } from '../game/PauseOverlay.js';
+import { captureRunState, restoredPlayerSpot, saveRunState, takeRunState } from '../game/runState.js';
+import { disposeObject3D } from '../core/disposeObject3D.js';
+import { JunkyardPanel, HELP_MESSAGE } from '../game/JunkyardPanel.js';
+import { ClearanceOverlay } from '../game/ClearanceOverlay.js';
+import { JunkyardPresentation } from '../game/JunkyardPresentation.js';
+import { enableTopViewPlacement } from '../game/topViewPlacement.js';
+import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
+import { attachWorldCollision } from '../world/WorldCollision.js';
+import { SAVED_WIDTH_KEY } from '../world/createJunkyardWorld.js';
 
+const ENDED_MESSAGE = 'Encounter over. Press RESTART ENCOUNTER to play again.';
+
+// The junkyard session: builds the fight's systems, connects the toolbar to the
+// game state, and is the shared context the older systems (EyeVision, brain,
+// combat, POV, weapon) still receive. The fight's rules and update order live in
+// Encounter; what the game is doing lives in GameFlow. The old `walking` and
+// `playerMode` flags are now read from GameFlow instead of being stored.
 export class JunkyardPlaytest {
-  constructor({ engine, world, simulation, target, cameraController }) {
-    Object.assign(this, { engine, world, simulation, target, cameraController });
-    this.walking = false;
-    document.body.classList.add('junkyard-mode');
-    document.querySelector('.sub').textContent = 'JUNKYARD // LOLA + LEAPER';
-    this.panel = document.createElement('section');
-    this.panel.id = 'junkyardPanel';
-    this.panel.innerHTML = `
-      <div class="junkyard-toolbar">
-        <button data-action="route">START RUN</button>
-        <button data-action="player" title="Move and shoot as Lola while the Leaper stays still">START PLAYER</button>
-        <button data-action="random">RESTART RANDOM</button>
-        <button data-action="panel" aria-expanded="false" aria-controls="junkyardOptions">OPTIONS</button>
-      </div>
-      <div class="brain-state" aria-live="polite">BRAIN CONNECTING</div>
-      <div data-sight-status aria-live="polite">SIGHT CONNECTING…</div>
-      <div id="junkyardOptions" hidden>
-      <strong>JUNKYARD PLAYTEST</strong>
-      <label>Vision (changing mode resets the run)
-        <select data-sight-mode aria-label="Vision mode">
-          <option value="eye">Eye-level 3D vision</option>
-          <option value="legacy">Old flat vision</option>
-        </select>
-      </label>
-      <button data-action="sight" aria-pressed="false">SHOW SIGHT LINES</button>
-      <small>Green: clear · Orange: blocked at cover. Three eye checks; 16 movement rays unchanged.</small>
-      <label>Leaper clearance width
-        <output>${world.width.toFixed(1)} units</output>
-      </label>
-      <div class="size-controls"><input type="range" aria-label="Leaper clearance width" min="1.2" max="8" step="0.1" value="${world.width}" />
-      <button data-action="size">APPLY SIZE</button></div>
-      <div class="junkyard-actions"><button data-action="reset">RESET</button>
-        <button data-action="clearance">SHOW CLEARANCE</button></div>
-      <p data-message>WASD to explore. In TOP view, Shift + click sets the destination.</p>
-      <small>Live trained brain · 7,757,824 steps · vision and memory · inference only. Clearance overlay is a conservative design guide, not the brain’s route. <span data-clearance-summary></span></small>
-      <p class="clearance-key" hidden>Green: reachable · Amber: disconnected · Red: blocked at this size</p>
-      </div>`;
-    document.body.appendChild(this.panel);
-    this.panel.querySelector('[data-action=panel]').onclick = (event) => {
-      const options = this.panel.querySelector('#junkyardOptions');
-      options.hidden = !options.hidden;
-      this.panel.classList.toggle('expanded', !options.hidden);
-      event.currentTarget.setAttribute('aria-expanded', String(!options.hidden));
-      event.currentTarget.textContent = options.hidden ? 'OPTIONS' : 'HIDE OPTIONS';
-    };
-    this.message = this.panel.querySelector('[data-message]');
-    this.brainLabel = this.panel.querySelector('.brain-state');
+  // audio: the one sound engine (LaserAudio), created by the junkyard mode.
+  // signal: the mode's AbortSignal; every page listener of this session ends with it.
+  constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null, signal = null }) {
+    Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal });
+    // 1. Game state and the event bus every system reports to.
+    this.events = events ?? new EventBus();
+    this.flow = flow ?? new GameFlow({ events: this.events });
+    if (!world.collision) attachWorldCollision(world);
+
+    // 2. The toolbar / OPTIONS panel. Older systems still find it as this.panel.
+    this.panelView = new JunkyardPanel({ world });
+    this.panel = this.panelView.element;
+    this.message = this.panelView.message;
+    this.brainLabel = this.panelView.brainLabel;
+
+    // 3. Lola's health and HUD (no longer owned by the Leaper's combat).
+    this.vitals = new PlayerVitals({ player: target, audio, events: this.events });
+    this.vitals.onRestart = () => this.restartEncounter();
+
+    // 4. Gameplay systems. Each receives this playtest as its context, so the
+    //    order matters (combat, POV and the weapon read the ones before them).
     this.sight = target.isPlayer ? new EyeVision(this) : null;
+    // (If the brain service is offline, a run carries on in turret mode: the
+    // Leaper stands still but still shoots, and the brain's message says why.)
     this.brain = new JunkyardBrain(this);
+    this.playerController = new PlayerController({ player: target, input: simulation.input, cameraController,
+      headingYaw: () => simulation.state.yaw });
     this.combat = new LeaperCombat(this);
-    target.onFootstep = (kind, crouched) => this.combat.audio.step(kind, crouched);
+    this.pov = new LeaperPov(this);
+    this.playerWeapon = new PlayerWeapon(this);
+
+    // 5. The fight: update order, enemies (one Leaper today), start snapshot, results.
+    this.encounter = new Encounter({ flow: this.flow, events: this.events, world, player: target,
+      vitals: this.vitals, audio, playerController: this.playerController, playerWeapon: this.playerWeapon,
+      input: simulation.input, cameraController });
+    this.encounter.addEnemy({ simulation, brain: this.brain, combat: this.combat });
+    // The result banner reads the encounter's verdict (winner, practice, debug).
+    this.events.on(GAME_EVENTS.encounterEnded, ({ stats }) => this.vitals.showResult(stats.text));
+
+    // 6. Footsteps: Lola's always; the Leaper's only while it is really hunting,
+    //    quieter with distance from the camera.
+    target.onFootstep = (kind, crouched) => audio.step(kind, crouched);
     simulation.onFootstep = () => {
       if (!this.walking || this.combat.dead || !this.brain.ready) return;
       const distance = engine.camera.position.distanceTo(simulation.rig.robot.position);
-      this.combat.audio.step('robot', false, 1 / (1 + (distance / (12 * world.scale)) ** 2));
+      audio.step('robot', false, 1 / (1 + (distance / (12 * world.scale)) ** 2));
     };
-    this.pov = new LeaperPov(this);
-    this.playerWeapon = new PlayerWeapon(this);
-    cameraController.onPauseRequested = () => {
-      if (this.walking) this.stop('Paused with Escape. Click Start Run to resume.');
-      else if (this.playerMode) this.stopPlayer('Paused with Escape. Click Start Player to explore again.');
-    };
-    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>1 / 2</b> GUN · <b>LEFT CLICK</b> FIRE · <b>HOLD RIGHT CLICK</b> AIM ×1.25 · MOUSE LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
+
+    // 7. The game state drives mouse capture, the toolbar labels and the pause
+    //    overlay; Escape (or a lost mouse lock) pauses, a click on the overlay resumes.
+    this.pauseOverlay = new PauseOverlay({ onResume: () => this.resume(), signal });
+    this.offFlowChange = this.flow.onChange((next, previous) => this.onFlowChange(next, previous));
+    cameraController.onPauseRequested = () => this.pause();
     target.setSelected(true);
-    const size = this.panel.querySelector('input');
-    size.addEventListener('input', () => {
-      this.panel.querySelector('output').textContent = `${Number(size.value).toFixed(1)} units`;
+
+    // 8. Toolbar and OPTIONS buttons.
+    this.panelView.bind({
+      route: () => (this.walking ? this.stop('Run stopped. Press START RUN to chase Lola again.') : this.start()),
+      player: () => (this.playerMode
+        ? this.stopPlayer('Exploring stopped. Press START PLAYER to explore again.') : this.startPlayer()),
+      random: () => this.restartRandom(),
+      reset: () => this.reset(),
+      clearance: () => this.toggleClearance(),
+      applySize: (width) => this.applySize(width),
+      sound: () => this.toggleSound(),
     });
-    this.panel.querySelector('[data-action=size]').onclick = () => {
-      const url = new URL(location.href);
-      url.searchParams.set('width', size.value);
-      // Remember it, so opening the game from any link keeps this size.
-      try { localStorage.setItem(SAVED_WIDTH_KEY, size.value); } catch { /* Private storage. */ }
-      if (this.sight) url.searchParams.set('vision', this.sight.mode);
-      url.searchParams.set('run', this.walking ? '1' : '0');
-      location.assign(url);
-    };
-    this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.panel.querySelector('[data-action=route]').onclick = () => this.walking ? this.stop('Run stopped. Press START RUN to chase Lola again.') : this.start();
-    this.panel.querySelector('[data-action=player]').onclick = () => this.playerMode
-      ? this.stopPlayer('Exploring stopped. Press START PLAYER to explore again.') : this.startPlayer();
-    this.panel.querySelector('[data-action=reset]').onclick = () => this.reset();
-    this.panel.querySelector('[data-action=random]').onclick = () => {
-      const spawn = randomJunkyardStart(this.world, this.simulation.state.position);
-      if (!spawn) {
-        this.brainLabel.textContent = 'NO ROOM FOR A RANDOM PAIR — TRY A SMALLER SIZE';
-        this.message.textContent = 'No separated, connected spawn pair found at this size. Try a smaller Leaper.';
-        if (this.panel.querySelector('#junkyardOptions').hidden) {
-          this.panel.querySelector('[data-action=panel]').click();
-        }
-        return;
-      }
-      this.reset(spawn);
-      this.makeOverlay(spawn.position);
-      this.start();
-    };
-    this.panel.querySelector('[data-action=clearance]').onclick = (e) => {
-      this.overlay.visible = !this.overlay.visible;
-      e.target.textContent = this.overlay.visible ? 'HIDE CLEARANCE' : 'SHOW CLEARANCE';
-      this.panel.querySelector('.clearance-key').hidden = !this.overlay.visible;
-      if (this.overlay.visible) this.topView();
-    };
-    cameraController.mapScale = world.scale;
-    cameraController.followScale = world.defaultWidth / world.width;
-    cameraController.topHeight = 43 * world.scale;
-    engine.camera.far = 500 * world.scale;
-    engine.camera.updateProjectionMatrix();
-    engine.scene.fog.near = 35 * world.scale;
-    engine.scene.fog.far = 64 * world.scale;
+    this.panelView.renderSound(audio.enabled);
+
+    // 9. Presentation: camera, sun, floating health bar and readouts, updated
+    //    every frame after gameplay (the Leaper animator no longer drives them).
+    this.presentation = new JunkyardPresentation({ engine, world, cameraController, player: target,
+      encounter: this.encounter, pov: this.pov, brainLabel: this.brainLabel, statusElement: simulation.statusElement });
+
+    // 10. Designer tools: the clearance overlay and Shift + click placement in TOP view.
+    this.overlay = new ClearanceOverlay({ scene: engine.scene, world });
+    this.removePlacement = enableTopViewPlacement({
+      engine, cameraController, world, player: target,
+      allowed: () => !this.pov.active && !this.combat.dead,
+      onMessage: (text) => { this.message.textContent = text; },
+      onMoved: () => {
+        if (!this.walking) this.message.textContent = 'Target moved. Press START RUN to chase it.';
+      },
+    });
+
+    // 11. First reset (Loading -> Ready). After APPLY SIZE the session picks up
+    //     where it was (Lola's spot, camera, gun, sound and the mode, paused);
+    //     an old ?run=1 link still starts a run.
     if (!target.isPlayer) this.topView();
+    const resume = takeRunState();
+    if (resume) this.restoreRunState(resume);
     this.reset();
-    this.makeOverlay();
-    const raycaster = new THREE.Raycaster();
-    const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    engine.renderer.domElement.addEventListener('pointerdown', (e) => {
-      if (!e.shiftKey || cameraController.mode !== 'TOP' || this.pov.active || this.combat.dead) return;
-      cameraController.pointerId = null;
-      const rect = engine.renderer.domElement.getBoundingClientRect();
-      raycaster.setFromCamera(new THREE.Vector2(
-        (e.clientX - rect.left) / rect.width * 2 - 1,
-        -(e.clientY - rect.top) / rect.height * 2 + 1,
-      ), engine.camera);
-      const point = raycaster.ray.intersectPlane(ground, new THREE.Vector3());
-      if (!point) return;
-      if (target.isPlayer && world.playerBlocked(point.x, point.z)) {
-        this.message.textContent = 'Choose clear ground for Lola.';
-        return;
-      }
-      target.mesh.position.x = point.x;
-      target.mesh.position.z = point.z;
-      target.resetJump?.();
-      if (!this.walking) this.message.textContent = 'Target moved. Press START RUN to chase it.';
-    });
-    if (new URLSearchParams(location.search).get('run') === '1') this.start();
+    if (resume?.mode) this.resumeAfterResize(resume.mode);
+    else if (new URLSearchParams(location.search).get('run') === '1') this.start();
   }
 
+  // ---- Flags derived from the game state (older systems and test tools read these) ----
+  get walking() { return this.flow.hunting; }
+  get playerMode() { return this.flow.exploring; }
+  get paused() { return this.flow.paused; }
+
+  // ---- Frame phases (called by the junkyard mode) ----
+  input(dt) { this.encounter.input(dt); }
+  update(dt) { this.encounter.update(dt); }
+  lateUpdate(dt) { this.presentation.lateUpdate(dt); }
+
+  // ---- Game-state reactions ----
+
+  onFlowChange(next, previous) {
+    const playing = next.name === 'playing';
+    // Clicking the scene only grabs the mouse again while a mode is running.
+    this.cameraController.gameplayStarted = playing;
+    if (playing) {
+      this.target.setSelected(true);
+      // Requested inside the button click itself, before any asynchronous brain load.
+      this.cameraController.captureMouse();
+    } else if (previous.name === 'playing') {
+      this.cameraController.releaseMouse();
+    }
+    this.panelView.renderFlow(next);
+    this.pauseOverlay.render(next);
+  }
+
+  // ---- Toolbar actions ----
+
+  // START RUN / RESUME RUN: the Leaper's brain runs and the mouse is captured.
+  // With the brain offline, START RUN retries it and otherwise fights in turret mode.
+  start() {
+    if (this.flow.ended || this.encounter.over) {
+      this.message.textContent = ENDED_MESSAGE;
+      return;
+    }
+    if (this.flow.paused && this.flow.playMode === 'hunt') this.flow.resume();
+    else this.flow.hunt();
+  }
+
+  // START PLAYER / RESUME PLAYER: only Lola moves (explore and test the map).
+  startPlayer() {
+    if (this.flow.ended || this.encounter.over) {
+      this.message.textContent = ENDED_MESSAGE;
+      return;
+    }
+    if (this.flow.paused && this.flow.playMode === 'explore') this.flow.resume();
+    else this.flow.explore();
+    this.message.textContent = 'Exploring as Lola. The Leaper stays still. Esc frees the mouse.';
+  }
+
+  // STOP PLAYER: back to Ready (the mouse is let go by the flow change).
+  stopPlayer(message) {
+    this.flow.stop();
+    if (message) this.message.textContent = message;
+  }
+
+  // A Leaper's combat finished (it is down, or Lola is). The encounter ends once
+  // the fight is decided; with several Leapers the hunt goes on until all are down.
+  combatFinished() {
+    if (!this.encounter.over) return;
+    this.encounter.end();
+    this.message.textContent = ENDED_MESSAGE;
+  }
+
+  // STOP RUN. If the fight is already decided, the encounter ends instead (and
+  // records who won).
+  stop(message) {
+    if (this.encounter.over) {
+      this.combatFinished();
+      return;
+    }
+    this.flow.stop();
+    if (message) this.message.textContent = message;
+  }
+
+  // Escape: a real pause. Gameplay time stops for Lola, her guns, the Leaper and
+  // its bolts; the camera and the UI keep running. The overlay or the toolbar resumes.
+  pause() {
+    const mode = this.flow.playMode;
+    if (!this.flow.pause()) return;
+    this.message.textContent = mode === 'hunt'
+      ? 'Paused with Escape. Click the game or RESUME RUN to continue.'
+      : 'Paused with Escape. Click the game or RESUME PLAYER to explore again.';
+  }
+
+  // Back to whatever was paused (the mouse is captured again by the flow change).
+  resume() {
+    if (this.flow.resume()) this.message.textContent = 'Resumed. Esc pauses again.';
+  }
+
+  // RESET / RESTART ENCOUNTER (and a vision-mode change): a clean retry.
+  reset(spawn = null) {
+    this.sight?.clear();
+    this.message.textContent = HELP_MESSAGE;
+    this.encounter.restart(spawn);
+    this.rebuildOverlay(spawn?.position ?? this.simulation.state.position);
+  }
+
+  // The result banner's RESTART ENCOUNTER: a clean retry, straight back into the run.
+  restartEncounter() {
+    this.reset();
+    this.start();
+  }
+
+  // SOUND: ON / OFF for the whole game (guns, laser, footsteps, hurt sounds).
+  toggleSound() {
+    this.audio.enabled = !this.audio.enabled;
+    if (this.audio.enabled) this.audio.unlock();
+    this.panelView.renderSound(this.audio.enabled);
+  }
+
+  // RESTART RANDOM: a fresh separated, connected spawn pair, then run.
+  restartRandom() {
+    const spawn = randomJunkyardStart(this.world, this.simulation.state.position);
+    if (!spawn) {
+      // Said in the always-visible message (the brain badge is rewritten every frame).
+      this.message.textContent = 'NO ROOM FOR A RANDOM PAIR: no separated, connected spawn pair at this size. Try a smaller Leaper.';
+      this.panelView.openOptions();
+      return;
+    }
+    this.reset(spawn);
+    this.start();
+  }
+
+  // APPLY SIZE reloads the page at the new Leaper size (see runState.js for why it
+  // is still a reload) and carries the session over: mode, Lola's spot, camera,
+  // gun, sound, OPTIONS open, vision mode.
+  applySize(width) {
+    // 1. Remember the session for after the reload (this browser tab only).
+    const saved = saveRunState(captureRunState({
+      playMode: this.flow.playMode, player: this.target, cameraController: this.cameraController,
+      world: this.world, soundEnabled: this.audio.enabled, optionsOpen: !this.panelView.options.hidden,
+    }));
+    // 2. The new size in the address, and remembered so any link keeps it.
+    const url = new URL(location.href);
+    url.searchParams.set('width', width);
+    try { localStorage.setItem(SAVED_WIDTH_KEY, width); } catch { /* Private storage. */ }
+    if (this.sight) url.searchParams.set('vision', this.sight.mode);
+    // Without session storage, fall back to the old ?run=1 (the run restarts).
+    // OPTIONS is only reachable with the mouse free, so a run is usually paused
+    // here: ask the game state, not `walking` (which is false while paused).
+    if (!saved && this.flow.playMode === 'hunt') url.searchParams.set('run', '1');
+    else url.searchParams.delete('run');
+    location.assign(url);
+  }
+
+  // After an APPLY SIZE reload: put Lola, the camera, her gun, the sound switch
+  // and the OPTIONS panel back as they were.
+  restoreRunState(state) {
+    const spot = restoredPlayerSpot(state, this.world);
+    if (spot) this.encounter.placePlayer(spot);
+    if (state.camera) {
+      if (Number.isFinite(state.camera.yaw)) this.cameraController.yaw = state.camera.yaw;
+      if (Number.isFinite(state.camera.pitch)) this.cameraController.pitch = state.camera.pitch;
+      if (state.camera.view === 'TOP') this.topView();
+    }
+    if ((state.weaponIndex === 0 || state.weaponIndex === 1) && state.weaponIndex !== this.target.weaponIndex) {
+      this.target.weaponIndex = state.weaponIndex;
+      this.target.showWeapon?.();
+    }
+    if (state.sound === false && this.audio.enabled) this.toggleSound();
+    if (state.options) this.panelView.openOptions();
+  }
+
+  // The mode that was on before APPLY SIZE comes back paused, so the player's
+  // own click resumes it (and can grab the mouse; a reload can't do that itself).
+  resumeAfterResize(mode) {
+    if (mode === 'hunt') this.flow.hunt();
+    else if (mode === 'explore') this.flow.explore();
+    if (this.flow.pause()) this.message.textContent = 'New Leaper size applied. Click the game (or RESUME) to carry on.';
+  }
+
+  // ---- Designer tools ----
+
+  toggleClearance() {
+    this.overlay.visible = !this.overlay.visible;
+    this.panelView.showClearance(this.overlay.visible);
+    if (this.overlay.visible) this.topView();
+  }
+
+  // Redraw the clearance map for where the Leaper now starts.
+  rebuildOverlay(spawn) {
+    this.panelView.setClearanceSummary(this.overlay.rebuild(spawn));
+  }
+
+  // Switch the camera to the TOP view (VIEW cycles, so toggle until it is there).
   topView() {
     while (this.cameraController.mode !== 'TOP') this.cameraController.toggle();
   }
 
-  // START RUN: the Leaper always moves (its brain runs) and the mouse is captured.
-  start() {
-    if (this.combat?.dead) return;
-    if (this.playerMode) this.stopPlayer('', false);
-    this.cameraController.gameplayStarted = true;
-    // Request during the actual button click, before any asynchronous brain load.
-    this.cameraController.captureMouse();
-    this.walking = true;
-    this.target.setSelected(true);
-    this.panel.querySelector('[data-action=route]').textContent = 'STOP RUN';
-    this.brain.start();
-  }
-
-  // START PLAYER: only Lola moves (explore and test the map); the Leaper stays put.
-  startPlayer() {
-    if (this.walking) this.stop('', false);
-    this.playerMode = true;
-    this.cameraController.gameplayStarted = true;
-    this.cameraController.captureMouse();
-    this.panel.querySelector('[data-action=player]').textContent = 'STOP PLAYER';
-    this.message.textContent = 'Exploring as Lola. The Leaper stays still. Esc frees the mouse.';
-  }
-
-  stopPlayer(message, release = true) {
-    this.playerMode = false;
-    this.panel.querySelector('[data-action=player]').textContent = 'START PLAYER';
-    if (release) {
-      this.cameraController.gameplayStarted = false;
-      this.cameraController.releaseMouse();
-      this.playerWeapon?.reset();
+  // Tear the session down: every HUD element, overlay and effect this session put
+  // on the page or in the scene. Page listeners end with the mode's AbortSignal;
+  // the map, rig and Lola are freed by the mode itself.
+  dispose() {
+    // 1. The fight: brains stopped, Leaper blockers out of the collision service,
+    //    and nothing here reacts to the game state any more.
+    this.encounter.dispose();
+    this.offFlowChange();
+    this.cameraController.releaseMouse();
+    // 2. Scene-side leftovers: bolts, debris, gunshot effects, clearance overlay, sight lines.
+    this.combat.dispose();
+    this.playerWeapon.dispose();
+    this.overlay.dispose();
+    if (this.sight) {
+      this.engine.scene.remove(this.sight.lines);
+      disposeObject3D(this.sight.lines);
     }
-    if (message) this.message.textContent = message;
-  }
-
-  // release = false when switching straight into the other mode (keep the mouse).
-  stop(message, release = true) {
-    this.walking = false;
-    if (release) {
-      // Paused: clicking the scene must not grab the mouse again until a Start button.
-      this.cameraController.gameplayStarted = false;
-      this.cameraController.releaseMouse();
-    }
-    this.combat.audio.stopRobotSteps();
-    this.playerWeapon?.reset();
-    this.target.clearHitReaction?.();
-    this.brain.stop();
-    if (message) this.message.textContent = message;
-    this.panel.querySelector('[data-action=route]').textContent = 'START RUN';
-  }
-
-  reset(spawn = null) {
-    this.sight?.clear();
-    this.combat?.reset();
-    this.stop('WASD moves Lola. Shift sprints. Space jumps. C crouches. 1 / 2 switch guns. Left click shoots in CHASE view. Start Run lets the trained brain search and chase; Start Player lets you explore while the Leaper stays still.');
-    const { x, z } = spawn?.position || this.world.spawn;
-    if (spawn) this.target.mesh.position.set(spawn.target.x, this.target.isPlayer ? 0 : 3.5, spawn.target.z);
-    if (this.target.isPlayer) {
-      const minimum = leaperReach(this.world.scale) + contact.pendingStepMargin;
-      if (Math.hypot(this.target.mesh.position.x - x, this.target.mesh.position.z - z) < minimum) {
-        const nav = this.world.navigation;
-        for (let i = 0; i < nav.free.length; i += 1) {
-          if (!nav.free[i]) continue;
-          const point = nav.point(i);
-          const px = point.x * this.world.scale, pz = point.z * this.world.scale;
-          if (Math.hypot(px - x, pz - z) < minimum) continue;
-          this.target.mesh.position.set(px, 0, pz);
-          break;
-        }
-      }
-    }
-    this.target.resetJump?.();
-    this.simulation.input.jumpBuffer = 0;
-    const state = this.simulation.state;
-    state.position.set(x, 0, z);
-    state.previousVelocity.set(0, 0, 0);
-    state.jumpHeight = 0;
-    state.verticalVelocity = 0;
-    state.grounded = true;
-    state.yaw = spawn?.yaw || 0;
-    state.velocity.set(0, 0, 0);
-    this.simulation.rig.legs.forEach((leg) => {
-      const c = Math.cos(state.yaw), s = Math.sin(state.yaw);
-      leg.footPosition.set(x + leg.homeLocal.x * c + leg.homeLocal.z * s, (this.world.floorHeight ?? 0) + FOOT_HEIGHT,
-        z - leg.homeLocal.x * s + leg.homeLocal.z * c);
-      leg.stepping = false;
-    });
-    this.cameraController.target.copy(this.target.mesh.position);
-    this.cameraController.target.y = this.target.height ? this.target.height * 1.05 : 1;
-    this.brain.reset();
-    if (!spawn && this.overlay) this.makeOverlay();
-  }
-
-  makeOverlay(spawn = this.world.spawn) {
-    const visible = this.overlay?.visible || false;
-    if (this.overlay) {
-      this.engine.scene.remove(this.overlay);
-      this.overlay.geometry.dispose();
-      this.overlay.material.map.dispose();
-      this.overlay.material.dispose();
-    }
-    const nav = this.world.navigation;
-    const reachable = new Uint8Array(nav.free.length);
-    const first = nav.nearest({ x: spawn.x / this.world.scale, z: spawn.z / this.world.scale });
-    const queue = [first];
-    reachable[first] = 1;
-    for (let head = 0; head < queue.length; head += 1) {
-      const i = queue[head];
-      const col = i % nav.columns;
-      for (const j of [col ? i - 1 : -1, col < nav.columns - 1 ? i + 1 : -1, i - nav.columns, i + nav.columns]) {
-        if (j < 0 || j >= nav.free.length || !nav.free[j] || reachable[j]) continue;
-        if (!nav.clearLine(nav.point(i), nav.point(j))) continue;
-        reachable[j] = 1;
-        queue.push(j);
-      }
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = nav.columns;
-    canvas.height = nav.rows;
-    const ctx = canvas.getContext('2d');
-    for (let i = 0; i < nav.free.length; i += 1) {
-      ctx.fillStyle = !nav.free[i] ? '#e45555' : reachable[i] ? '#31c98c' : '#ffbb47';
-      ctx.fillRect(i % nav.columns, Math.floor(i / nav.columns), 1, 1);
-    }
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.magFilter = THREE.NearestFilter;
-    const s = this.world.scale;
-    const b = nav.bounds;
-    this.overlay = new THREE.Mesh(new THREE.PlaneGeometry(nav.columns * nav.cell * s, nav.rows * nav.cell * s),
-      new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.42, depthTest: false, depthWrite: false }));
-    this.overlay.rotation.x = -Math.PI / 2;
-    this.overlay.position.set((b.minX + nav.columns * nav.cell / 2) * s, 0.2, (b.minZ + nav.rows * nav.cell / 2) * s);
-    this.overlay.renderOrder = 5;
-    this.overlay.visible = visible;
-    this.engine.scene.add(this.overlay);
-    const freeCount = nav.free.reduce((sum, v) => sum + v, 0);
-    this.panel.querySelector('[data-clearance-summary]').textContent = `Reachable from spawn: ${Math.round(queue.length / Math.max(1, freeCount) * 100)}% of clear floor.`;
-  }
-
-  update(dt) {
-    this.brain.update(dt);
-    this.combat.update(dt);
-    if (!this.walking || this.combat.dead) this.combat.audio.stopRobotSteps();
-    this.playerWeapon.update(dt);
-    this.pov.update();
+    // 3. Page-side: HUD panels, overlays, the LEAPER POV reticle and the toolbar.
+    this.removePlacement();
+    this.pauseOverlay.dispose();
+    this.vitals.dispose();
+    this.pov.reticle.remove();
+    this.panelView.dispose();
+    this.events.clear();
   }
 }

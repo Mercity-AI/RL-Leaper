@@ -13,7 +13,7 @@
 //   hit           the hit flinch is playing
 //   defeated      the encounter ended; nothing new can start
 //
-// Animation priority, highest first: defeated (frozen) > jump (full body)
+// Animation priority, highest first: defeated (no new actions; she settles to Idle) > jump (full body)
 // > reload or shoot (upper body; standing still a shot also sets the legs)
 // > move/idle. The hit flinch is added on top of whatever plays, so getting
 // hit and shooting never cancel each other.

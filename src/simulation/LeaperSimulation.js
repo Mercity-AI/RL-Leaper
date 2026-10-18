@@ -13,15 +13,9 @@ import {
   STANDING_HEIGHT,
   STEP_DISTANCE,
 } from '../config/robot.js';
+import { turnToward, wrapAngle } from '../core/angles.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-function turnToward(current, target, maximumStep) {
-  const difference = (
-    (target - current + Math.PI) % (Math.PI * 2) + Math.PI * 2
-  ) % (Math.PI * 2) - Math.PI;
-  return current + THREE.MathUtils.clamp(difference, -maximumStep, maximumStep);
-}
 
 export class LeaperSimulation {
   constructor({ rig, world, target, input, cameraController, sun, statusElement }) {
@@ -32,6 +26,10 @@ export class LeaperSimulation {
     this.cameraController = cameraController;
     this.sun = sun;
     this.statusElement = statusElement;
+    // The lab modes (sandbox, replays, arena) let the animator also move the
+    // camera and sun and write the status line. The junkyard turns this off and
+    // does all three in its own late (presentation) phase.
+    this.drivesPresentation = true;
     this.elapsed = 0;
     this.state = {
       position: new THREE.Vector3(),
@@ -84,16 +82,25 @@ export class LeaperSimulation {
     this.updateBody(speed, deltaTime);
     this.updateGait(speed, deltaTime);
     this.updateEffects(sprinting && hasInput, speed, deltaTime);
-    this.cameraController.update(state, this.rig.eyePivot, deltaTime);
+    if (!this.drivesPresentation) return;
+    this.updatePresentation(deltaTime);
+    this.updateStatus(speed);
+  }
+
+  // Camera follows the robot (or its chase focus) and the sun stays over it.
+  updatePresentation(deltaTime, chaseFocus = null) {
+    const state = this.state;
+    this.cameraController.update(state, this.rig.eyePivot, deltaTime, chaseFocus);
     this.sun.position.set(state.position.x + 8, 15, state.position.z + 6);
     this.sun.target.position.set(state.position.x, 0, state.position.z);
-    this.updateStatus(speed);
   }
 
   // Drive the rig from an externally supplied pose ({x, z, yaw, distance,
   // collision}) — shared by recorded replays and the live brain.
-  applyExternalFrame(frame, deltaTime, chaseFocus = null) {
-    this.elapsed += deltaTime;
+  // alive: false after the Leaper is destroyed: no idle sway and no glow pulse,
+  // only the legs and body finishing their motion (see settle()).
+  applyExternalFrame(frame, deltaTime, chaseFocus = null, { alive = true } = {}) {
+    if (alive) this.elapsed += deltaTime;
     const state = this.state;
     const measuredVelocity = this.v[9].set(
       (frame.x - state.position.x) / Math.max(deltaTime, 1e-4),
@@ -106,18 +113,30 @@ export class LeaperSimulation {
       state.velocity.setLength(MOVEMENT.sprintSpeed);
     }
     state.position.set(frame.x, 0, frame.z);
-    state.yaw = frame.yaw;
+    // Kept within one turn, like the brain server's own heading (review fix 5.3).
+    state.yaw = wrapAngle(frame.yaw);
     const speed = state.velocity.length();
     this.updateBody(speed, deltaTime);
     this.updateGait(speed, deltaTime);
-    this.updateEffects(frame.collision, speed, deltaTime);
-    this.cameraController.update(state, this.rig.eyePivot, deltaTime, chaseFocus);
-    this.sun.position.set(state.position.x + 8, 15, state.position.z + 6);
-    this.sun.target.position.set(state.position.x, 0, state.position.z);
+    if (alive) this.updateEffects(frame.collision, speed, deltaTime);
+    if (this.drivesPresentation) this.updatePresentation(deltaTime, chaseFocus);
+  }
+
+  // After the fight: the Leaper stays where it stopped, its body eases to a halt
+  // and any foot still in the air finishes its step and lands, instead of the
+  // whole robot freezing mid-stride (review fix 5.2 step 4).
+  // alive: true when the Leaper won (Lola is down). It then keeps its idle sway
+  // and glow pulse; a destroyed Leaper keeps its lights as combat left them (off).
+  settle(deltaTime, { alive = false } = {}) {
+    const { position, yaw, velocity } = this.state;
+    // The last of the body's motion dies away completely (no endless tiny bob).
+    if (velocity.lengthSq() < 1e-6) velocity.set(0, 0, 0);
+    this.applyExternalFrame({ x: position.x, z: position.z, yaw, collision: false }, deltaTime, null, { alive });
   }
 
   updateExternal(frame, deltaTime, replay) {
     this.applyExternalFrame(frame, deltaTime);
+    if (!this.drivesPresentation) return;
     const collisionLabel = frame.collision
       ? `${frame.collisionPart?.startsWith('leg') ? 'LEG' : 'BODY'} COLLISION`
       : 'MOVING';
