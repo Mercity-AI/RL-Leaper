@@ -16,7 +16,8 @@ public/rl_live_state.*.tmp
 *.zip
 # The small approved model_7757824 checkpoint is versioned for game playback.
 
-# Test, coverage, and tool caches
+# Test, coverage, and tool caches. tmp/raster-cache/ holds the brain service's
+# collision rasters (rebuilt automatically when missing).
 tmp/
 .pytest_cache/
 .mypy_cache/

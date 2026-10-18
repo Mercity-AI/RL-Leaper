@@ -28,10 +28,12 @@ BRAIN_READY = ((CHECKPOINT / 'policy.pth').exists()
                and not os.environ.get('LEAPER_SKIP_CHECKPOINT_TESTS'))
 SKIP_REASON = ('brain checkpoint tests skipped: needs model_7757824/ plus PyTorch and '
                'sb3-contrib (pip install -r requirements-brain.txt)')
+# Built once, then reused from tmp/ (gitignored); proven exact in test_junkyard_speedups.py.
+RASTER_CACHE = ROOT / 'tmp' / 'raster-cache'
 
 
 def junkyard_geometry(width=4):
-    return JunkyardGeometry(ROOT / 'assets/maps/junkyard/collision.json', 7.98 / width)
+    return JunkyardGeometry(ROOT / 'assets/maps/junkyard/collision.json', 7.98 / width, cache_dir=RASTER_CACHE)
 
 
 def wall(height):

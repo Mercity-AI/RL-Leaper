@@ -162,9 +162,13 @@ class BrainSession:
             raise ValueError("Invalid checkpoint observation")
         return self.snapshot()
 
-    def snapshot(self):
+    def snapshot(self, fresh_sight=False):
         env = self.env
-        visible, _ = env._target_sensor()
+        # /reset and /step have just run the sight check for this exact pose
+        # (target_visible and sight_debug), so reuse it instead of repeating the
+        # most expensive part of a move. A paused /sense preview moved Lola without
+        # updating memory, so it asks for a fresh check.
+        visible = env._target_sensor()[0] if fresh_sight else env.target_visible
         return dict(x=float(env.position[0]), z=float(env.position[1]), yaw=env.yaw,
             sight_version=EYE_VISION['version'], sight=env.sight_debug,
             sight_visible=bool(visible), sight_mode='eye' if env.sight else 'legacy',
@@ -181,13 +185,15 @@ class BrainSession:
 class JunkyardWorlds:
     """Collision raster and eye-sight mesh for each Leaper width, built on first use.
 
-    Several widths stay in memory (least recently used dropped first), so going
-    back to a size used before does not rebuild the map.
+    Several widths stay in memory (least recently used dropped first), and the
+    slow collision rasters are also saved in `cache_dir`, so going back to a size
+    used before, even after a restart, takes about a second instead of 30.
     """
 
-    def __init__(self, collision_path, sight_triangles, keep=MAX_WORLDS):
+    def __init__(self, collision_path, sight_triangles, cache_dir=None, keep=MAX_WORLDS):
         self.collision_path = Path(collision_path)
         self.sight_triangles = sight_triangles
+        self.cache_dir = cache_dir
         self.keep = keep
         self.worlds = OrderedDict()
         # One build at a time; other sessions keep stepping meanwhile.
@@ -195,16 +201,17 @@ class JunkyardWorlds:
 
     @classmethod
     def shipped(cls, root=ROOT):
-        """The junkyard map that ships with the game."""
+        """The junkyard map that ships with the game; rasters cached in tmp/ (gitignored)."""
         root = Path(root)
         return cls(root / "assets/maps/junkyard/collision.json",
-                   load_triangles(root / "assets/maps/junkyard/junkyard.glb"))
+                   load_triangles(root / "assets/maps/junkyard/junkyard.glb"),
+                   cache_dir=root / "tmp" / "raster-cache")
 
     def get(self, width):
         with self.lock:
             if width not in self.worlds:
                 scale = BODY_COLLISION_DIAMETER / width
-                self.worlds[width] = (JunkyardGeometry(self.collision_path, scale),
+                self.worlds[width] = (JunkyardGeometry(self.collision_path, scale, cache_dir=self.cache_dir),
                                       JunkyardSight(self.sight_triangles * scale))
                 while len(self.worlds) > self.keep:
                     self.worlds.popitem(last=False)
@@ -314,7 +321,7 @@ class BrainService:
             # Preview while paused: no policy, movement, or memory update.
             session.env.target = target
             session.env.sight_pose = pose
-            return session.snapshot()
+            return session.snapshot(fresh_sight=True)
 
     def close(self, data):
         token = data.get('token')

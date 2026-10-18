@@ -32,10 +32,13 @@ BRAIN_READY = ((CHECKPOINT / "policy.pth").exists()
                and not os.environ.get("LEAPER_SKIP_CHECKPOINT_TESTS"))
 SKIP_REASON = ("brain checkpoint tests skipped: needs model_7757824/ plus PyTorch and "
                "sb3-contrib (pip install -r requirements-brain.txt)")
+# A fresh raster takes about 30 seconds, so it is built once and then reused from
+# tmp/ (gitignored); test_junkyard_speedups.py proves the cached copy is exact.
+RASTER_CACHE = ROOT / "tmp" / "raster-cache"
 
 
 def junkyard_geometry(width=4):
-    return JunkyardGeometry(ROOT / "assets/maps/junkyard/collision.json", 7.98 / width)
+    return JunkyardGeometry(ROOT / "assets/maps/junkyard/collision.json", 7.98 / width, cache_dir=RASTER_CACHE)
 
 
 class JunkyardEnvTests(unittest.TestCase):
