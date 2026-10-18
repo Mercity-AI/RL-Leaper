@@ -73,6 +73,8 @@ export class PlayerWeapon {
     this.gunSlots = [this.ammoReadout.querySelector('[data-gun=m416]'), this.ammoReadout.querySelector('[data-gun=pistol]')];
     document.body.append(this.ammoReadout);
     const canvas = playtest.engine.renderer.domElement;
+    // The game session's AbortSignal (if any) removes all of these listeners at once.
+    const session = playtest.signal ? { signal: playtest.signal } : {};
     // Mouse events fire for each button, including left clicks while right aim is held.
     canvas.addEventListener('mousedown', event => {
       // The click that grabs the mouse again only does that: no shot, no aim.
@@ -80,20 +82,29 @@ export class PlayerWeapon {
       if (event.button === 2 && this.available) this.setAiming(true);
       // A press while the gun can't be used (paused, TOP view…) is ignored entirely.
       if (event.button === 0 && this.available) { this.triggerHeld = true; this.fire(); }
-    });
+    }, session);
     window.addEventListener('mouseup', event => {
       if (event.button === 0) this.triggerHeld = false;
       if (event.button === 2) this.setAiming(false);
-    });
-    window.addEventListener('pointercancel', () => this.setAiming(false));
+    }, session);
+    window.addEventListener('pointercancel', () => this.setAiming(false), session);
     window.addEventListener('keydown', event => {
       if (event.code === 'Escape') this.setAiming(false);
       if (event.code === 'KeyR' && !event.repeat && this.available) this.reload();
-    });
+    }, session);
     // Leaving the window drops the trigger, aim and reload; shots already in the
     // air keep fading normally.
-    window.addEventListener('blur', () => this.cancelActions());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.cancelActions(); });
+    window.addEventListener('blur', () => this.cancelActions(), session);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.cancelActions(); }, session);
+  }
+
+  // The session is over: no effects left in the scene, no HUD left on the page.
+  // (Its listeners go with the session's AbortSignal.)
+  dispose() {
+    this.clearEffects();
+    this.reticle.remove();
+    this.ammoReadout.remove();
+    document.documentElement.style.setProperty('--good-flash', '0');
   }
 
   setAiming(active) {

@@ -9,6 +9,8 @@ import { Encounter } from '../game/Encounter.js';
 import { PlayerController } from '../game/PlayerController.js';
 import { PlayerVitals } from '../game/PlayerVitals.js';
 import { PauseOverlay } from '../game/PauseOverlay.js';
+import { captureRunState, restoredPlayerSpot, saveRunState, takeRunState } from '../game/runState.js';
+import { disposeObject3D } from '../core/disposeObject3D.js';
 import { JunkyardPanel, HELP_MESSAGE } from '../game/JunkyardPanel.js';
 import { ClearanceOverlay } from '../game/ClearanceOverlay.js';
 import { JunkyardPresentation } from '../game/JunkyardPresentation.js';
@@ -26,8 +28,9 @@ const ENDED_MESSAGE = 'Encounter over. Press RESTART ENCOUNTER to play again.';
 // `playerMode` flags are now read from GameFlow instead of being stored.
 export class JunkyardPlaytest {
   // audio: the one sound engine (LaserAudio), created by the junkyard mode.
-  constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null }) {
-    Object.assign(this, { engine, world, simulation, target, cameraController, audio });
+  // signal: the mode's AbortSignal; every page listener of this session ends with it.
+  constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null, signal = null }) {
+    Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal });
     // 1. Game state and the event bus every system reports to.
     this.events = events ?? new EventBus();
     this.flow = flow ?? new GameFlow({ events: this.events });
@@ -73,7 +76,7 @@ export class JunkyardPlaytest {
 
     // 7. The game state drives mouse capture, the toolbar labels and the pause
     //    overlay; Escape (or a lost mouse lock) pauses, a click on the overlay resumes.
-    this.pauseOverlay = new PauseOverlay({ onResume: () => this.resume() });
+    this.pauseOverlay = new PauseOverlay({ onResume: () => this.resume(), signal });
     this.flow.onChange((next, previous) => this.onFlowChange(next, previous));
     cameraController.onPauseRequested = () => this.pause();
     target.setSelected(true);
@@ -107,10 +110,15 @@ export class JunkyardPlaytest {
       },
     });
 
-    // 12. First reset (Loading -> Ready). ?run=1 (set by APPLY SIZE) resumes the run.
+    // 12. First reset (Loading -> Ready). After APPLY SIZE the session picks up
+    //     where it was (Lola's spot, camera, gun, sound and the mode, paused);
+    //     an old ?run=1 link still starts a run.
     if (!target.isPlayer) this.topView();
+    const resume = takeRunState();
+    if (resume) this.restoreRunState(resume);
     this.reset();
-    if (new URLSearchParams(location.search).get('run') === '1') this.start();
+    if (resume?.mode) this.resumeAfterResize(resume.mode);
+    else if (new URLSearchParams(location.search).get('run') === '1') this.start();
   }
 
   // ---- Flags derived from the game state (older systems and test tools read these) ----
@@ -234,15 +242,50 @@ export class JunkyardPlaytest {
     this.start();
   }
 
-  // APPLY SIZE reloads the page at the new Leaper size, keeping vision and run state.
+  // APPLY SIZE reloads the page at the new Leaper size (see runState.js for why it
+  // is still a reload) and carries the session over: mode, Lola's spot, camera,
+  // gun, sound, OPTIONS open, vision mode.
   applySize(width) {
+    // 1. Remember the session for after the reload (this browser tab only).
+    const saved = saveRunState(captureRunState({
+      playMode: this.flow.playMode, player: this.target, cameraController: this.cameraController,
+      world: this.world, soundEnabled: this.audio.enabled, optionsOpen: !this.panelView.options.hidden,
+    }));
+    // 2. The new size in the address, and remembered so any link keeps it.
     const url = new URL(location.href);
     url.searchParams.set('width', width);
-    // Remember it, so opening the game from any link keeps this size.
     try { localStorage.setItem(SAVED_WIDTH_KEY, width); } catch { /* Private storage. */ }
     if (this.sight) url.searchParams.set('vision', this.sight.mode);
-    url.searchParams.set('run', this.walking ? '1' : '0');
+    // Without session storage, fall back to the old ?run=1 (the run restarts).
+    if (!saved && this.walking) url.searchParams.set('run', '1');
+    else url.searchParams.delete('run');
     location.assign(url);
+  }
+
+  // After an APPLY SIZE reload: put Lola, the camera, her gun, the sound switch
+  // and the OPTIONS panel back as they were.
+  restoreRunState(state) {
+    const spot = restoredPlayerSpot(state, this.world);
+    if (spot) this.encounter.placePlayer(spot);
+    if (state.camera) {
+      if (Number.isFinite(state.camera.yaw)) this.cameraController.yaw = state.camera.yaw;
+      if (Number.isFinite(state.camera.pitch)) this.cameraController.pitch = state.camera.pitch;
+      if (state.camera.view === 'TOP') this.topView();
+    }
+    if ((state.weaponIndex === 0 || state.weaponIndex === 1) && state.weaponIndex !== this.target.weaponIndex) {
+      this.target.weaponIndex = state.weaponIndex;
+      this.target.showWeapon?.();
+    }
+    if (state.sound === false && this.audio.enabled) this.toggleSound();
+    if (state.options) this.panelView.openOptions();
+  }
+
+  // The mode that was on before APPLY SIZE comes back paused, so the player's
+  // own click resumes it (and can grab the mouse; a reload can't do that itself).
+  resumeAfterResize(mode) {
+    if (mode === 'hunt') this.flow.hunt();
+    else if (mode === 'explore') this.flow.explore();
+    if (this.flow.pause()) this.message.textContent = 'New Leaper size applied. Click the game (or RESUME) to carry on.';
   }
 
   // ---- Designer tools ----
@@ -261,14 +304,26 @@ export class JunkyardPlaytest {
     while (this.cameraController.mode !== 'TOP') this.cameraController.toggle();
   }
 
-  // What can be torn down without a page reload today (the older systems'
-  // listeners and HUD elements still need their own dispose()).
+  // Tear the session down: every HUD element, overlay and effect this session put
+  // on the page or in the scene. Page listeners end with the mode's AbortSignal;
+  // the map, rig and Lola are freed by the mode itself.
   dispose() {
+    // 1. The fight: brains stopped, Leaper blockers out of the collision service.
     this.encounter.dispose();
-    this.removePlacement();
+    this.cameraController.releaseMouse();
+    // 2. Scene-side leftovers: bolts, debris, gunshot effects, clearance overlay, sight lines.
+    this.combat.dispose();
+    this.playerWeapon.dispose();
     this.overlay.dispose();
+    if (this.sight) {
+      this.engine.scene.remove(this.sight.lines);
+      disposeObject3D(this.sight.lines);
+    }
+    // 3. Page-side: HUD panels, overlays, the LEAPER POV reticle and the toolbar.
+    this.removePlacement();
     this.pauseOverlay.dispose();
     this.vitals.dispose();
+    this.pov.reticle.remove();
     this.panelView.dispose();
     this.events.clear();
   }

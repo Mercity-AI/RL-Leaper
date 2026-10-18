@@ -3,8 +3,10 @@ import { ENCOUNTER } from '../config/encounter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BODY_COLLISION_RADIUS, STANDING_HEIGHT } from '../config/robot.js';
 import { JunkyardNavigation } from './JunkyardNavigation.js';
+import { disposeObject3D } from '../core/disposeObject3D.js';
 
-// The Leaper size chosen with APPLY SIZE, remembered in this browser. Change the\n// key's version when startWidth changes, so the new default shows.
+// The Leaper size chosen with APPLY SIZE, remembered in this browser. Change the
+// key's version when startWidth changes, so the new default shows.
 export const SAVED_WIDTH_KEY = 'leaper.junkyard.width.v2';
 
 function savedWidth() {
@@ -58,8 +60,12 @@ export async function createJunkyardWorld(scene) {
         for (let corner = 0; corner < 3; corner += 1) colour.toArray(colours, (i + corner) * 3);
       }
       geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+      // The recoloured copies replace the originals, which are freed right away.
+      object.geometry.dispose();
       object.geometry = geometry;
-      object.material = object.material.clone();
+      const sourceMaterial = object.material;
+      object.material = sourceMaterial.clone();
+      sourceMaterial.dispose();
       object.material.color.setHex(0xffffff);
       object.material.vertexColors = true;
       object.material.roughness = 0.95;
@@ -68,17 +74,32 @@ export async function createJunkyardWorld(scene) {
   });
   scene.add(gltf.scene);
   // Neutral atmosphere and fill lighting keep grey surfaces from turning blue.
+  // The original colours are kept so dispose() can hand the scene back unchanged.
+  const original = { background: scene.background.getHex(), fog: scene.fog.color.getHex(), lights: [] };
   scene.background.setHex(0x555555);
   scene.fog.color.setHex(0x555555);
   scene.traverse((object) => {
     if (!object.isLight) return;
+    original.lights.push([object, object.color.getHex(), object.groundColor?.getHex()]);
     object.color.setHex(0xffffff);
     if (object.isHemisphereLight) object.groundColor.setHex(0x777777);
   });
+  // Take the map out again: off the scene, its GPU memory freed, colours restored.
+  const dispose = () => {
+    scene.remove(gltf.scene);
+    disposeObject3D(gltf.scene);
+    scene.background.setHex(original.background);
+    scene.fog.color.setHex(original.fog);
+    for (const [light, colour, ground] of original.lights) {
+      light.color.setHex(colour);
+      if (ground !== undefined) light.groundColor.setHex(ground);
+    }
+  };
   const initialTarget = { x: spawn.x, z: spawn.z + 5 };
   const goalIndex = navigation.nearest(initialTarget);
   const goal = navigation.point(goalIndex);
   return {
+    dispose,
     colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene,
     floorHeight: Number.isFinite(floorHeight) ? floorHeight : 0,
     spawn: { x: spawn.x * scale, z: spawn.z * scale },

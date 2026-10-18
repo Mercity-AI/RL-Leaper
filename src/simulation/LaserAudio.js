@@ -29,9 +29,11 @@ const FOOTSTEPS = {
   robot: [0.07, 0.62, 1.17, 1.72, 2.27, 2.82],
 };
 
-// Shared recorded combat audio.
+// Shared recorded combat audio: the game's one sound engine (guns, laser, impacts,
+// footsteps, hurt sounds). The junkyard mode creates it once and hands it out.
+// signal: the game session's AbortSignal; aborting it removes the page listeners.
 export class LaserAudio {
-  constructor() {
+  constructor({ signal = null } = {}) {
     this._enabled = true;
     this.context = null;
     this.buffers = {};
@@ -69,10 +71,18 @@ export class LaserAudio {
       }
       if (this.context.state === 'suspended') this.context.resume().catch(() => {});
     };
-    window.addEventListener('pointerdown', this.unlock, { capture: true });
-    window.addEventListener('keydown', this.unlock, { capture: true });
-    window.addEventListener('blur', () => this.stop());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.stop(); });
+    const session = signal ? { signal } : {};
+    window.addEventListener('pointerdown', this.unlock, { capture: true, ...session });
+    window.addEventListener('keydown', this.unlock, { capture: true, ...session });
+    window.addEventListener('blur', () => this.stop(), session);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.stop(); }, session);
+  }
+
+  // The session is over: silence everything and let the browser free the audio device.
+  dispose() {
+    this.stop();
+    this.context?.close?.().catch(() => {});
+    this.context = null;
   }
   get enabled() { return this._enabled; }
   set enabled(value) { this._enabled = value; if (!value) this.stop(); }

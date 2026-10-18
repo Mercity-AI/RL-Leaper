@@ -80,6 +80,17 @@ export class LeaperCombat {
     for (const item of [...this.bolts, ...this.effects]) this.playtest.engine.scene.remove(item.mesh);
     this.bolts.length = 0; this.effects.length = 0;
   }
+  // The session is over: bolts and severed-leg debris leave the scene, this
+  // Leaper's HUD panel and floating bar leave the page. (The rig itself is freed
+  // by the mode, together with the eye materials cloned above.)
+  dispose() {
+    this.clearProjectiles();
+    this.legs.reset();
+    this.enemyHud.remove();
+    this.healthBar.element.remove();
+    this.effectGeometry.dispose();
+    this.effectMaterial.dispose();
+  }
   // major: a joint snapped, which always brings up the floating health bar.
   damageLeaper(amount, debug = false, major = false) {
     if (this.dead) return;

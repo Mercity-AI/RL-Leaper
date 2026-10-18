@@ -29,7 +29,8 @@ export async function loadStep(label, failure, load) {
 
 // The Leaper rig plus the input, camera and animator built around it. The camera
 // looks through the map (or ground and obstacles) for its occlusion checks.
-export function createLeaperScene({ engine, world, target }) {
+// signal (optional): the mode's AbortSignal; the camera's listeners end with it.
+export function createLeaperScene({ engine, world, target, signal = null }) {
   const rig = createHexapod(engine.scene);
   const input = new InputController(() => target.toggle());
   const cameraController = new CameraController(
@@ -37,6 +38,7 @@ export function createLeaperScene({ engine, world, target }) {
     engine.scene,
     engine.renderer.domElement,
     document.getElementById('cameraToggle'),
+    { signal },
   );
   cameraController.setOccluders(world.map ? [world.map] : [world.ground, world.obstacleGroup].filter(Boolean));
   const simulation = new LeaperSimulation({
