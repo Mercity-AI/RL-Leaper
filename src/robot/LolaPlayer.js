@@ -397,6 +397,9 @@ export class LolaPlayer {
   toggle() { /* Lola remains controllable while the Leaper is paused. */ }
   setSelected() { this.selected = true; }
 
+  // True when jump() would start a jump right now (used to keep a buffered press).
+  get canJump() { return !this.defeated && this.grounded && !this.jumpState; }
+
   jump() {
     if (this.defeated || !this.grounded || this.jumpState) return false;
     this.cancelShot();

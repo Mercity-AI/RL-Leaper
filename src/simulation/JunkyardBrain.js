@@ -113,17 +113,10 @@ export class JunkyardBrain {
     // robot keep the same position while paused. No new step is requested.
   }
 
+  // Ask the server for moves at a steady rate and ease the visible Leaper toward
+  // each reply. Lola's own movement is PlayerController's job, not the brain's.
   update(dt) {
     const sim = this.simulation;
-    if (this.target.isPlayer && this.target.grounded && sim.input.consumeJump()) this.target.jump();
-    sim.input.update(dt);
-    const a = sim.input.getMovement();
-    const b = sim.input.getTargetMovement();
-    const heading = sim.cameraController.getMovementHeading(sim.state.yaw);
-    const forward = sim.v[0].set(Math.sin(heading), 0, Math.cos(heading));
-    const right = sim.v[1].set(-forward.z, 0, forward.x);
-    this.target.move(a.forward + b.forward, a.side + b.side, forward, right,
-      sim.input.sprinting ? 8 : 4.5, dt);
     // Slow inference steps with damage so the server and rendered position remain in sync.
     this.clock += dt * (sim.rig?.mobility ?? 1);
     const encounterOver = this.playtest.combat?.dead;

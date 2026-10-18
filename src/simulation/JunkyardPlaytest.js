@@ -1,6 +1,7 @@
 import { FOOT_HEIGHT } from '../config/robot.js';
 import * as THREE from 'three';
 import { JunkyardBrain } from './JunkyardBrain.js';
+import { PlayerController } from '../game/PlayerController.js';
 import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
 import { contact, leaperReach, createLeaperBlocker } from '../world/playerContact.js';
 import { attachWorldCollision } from '../world/WorldCollision.js';
@@ -60,6 +61,9 @@ export class JunkyardPlaytest {
     this.brainLabel = this.panel.querySelector('.brain-state');
     this.sight = target.isPlayer ? new EyeVision(this) : null;
     this.brain = new JunkyardBrain(this);
+    // Keyboard / touch -> Lola's movement and jumps (no longer inside the brain client).
+    this.playerController = new PlayerController({ player: target, input: simulation.input, cameraController,
+      headingYaw: () => simulation.state.yaw });
     // Lola can't walk into the Leaper's body or legs (same discs as the Python server).
     const collision = world.collision ?? attachWorldCollision(world);
     if (target.isPlayer) collision.addDynamicBlocker(createLeaperBlocker(this.brain, target, world));
@@ -293,6 +297,8 @@ export class JunkyardPlaytest {
   }
 
   update(dt) {
+    this.playerController.sample(dt);
+    this.playerController.update(dt);
     this.brain.update(dt);
     this.combat.update(dt);
     if (!this.walking || this.combat.dead) this.combat.audio.stopRobotSteps();
