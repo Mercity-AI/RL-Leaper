@@ -1,7 +1,9 @@
+import { FOOT_HEIGHT } from '../config/robot.js';
 import * as THREE from 'three';
 import { JunkyardBrain } from './JunkyardBrain.js';
 import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
-import { contact, contactRadius } from '../world/playerContact.js';
+import { contact, leaperReach } from '../world/playerContact.js';
+import { SAVED_WIDTH_KEY } from '../world/createJunkyardWorld.js';
 import { EyeVision } from './EyeVision.js';
 import { PlayerWeapon } from './PlayerWeapon.js';
 import { LeaperCombat } from './LeaperCombat.js';
@@ -18,6 +20,7 @@ export class JunkyardPlaytest {
     this.panel.innerHTML = `
       <div class="junkyard-toolbar">
         <button data-action="route">START RUN</button>
+        <button data-action="player" title="Move and shoot as Lola while the Leaper stays still">START PLAYER</button>
         <button data-action="random">RESTART RANDOM</button>
         <button data-action="panel" aria-expanded="false" aria-controls="junkyardOptions">OPTIONS</button>
       </div>
@@ -57,9 +60,19 @@ export class JunkyardPlaytest {
     this.sight = target.isPlayer ? new EyeVision(this) : null;
     this.brain = new JunkyardBrain(this);
     this.combat = new LeaperCombat(this);
+    target.onFootstep = (kind, crouched) => this.combat.audio.step(kind, crouched);
+    simulation.onFootstep = () => {
+      if (!this.walking || this.combat.dead || !this.brain.ready) return;
+      const distance = engine.camera.position.distanceTo(simulation.rig.robot.position);
+      this.combat.audio.step('robot', false, 1 / (1 + (distance / (12 * world.scale)) ** 2));
+    };
     this.pov = new LeaperPov(this);
     this.playerWeapon = new PlayerWeapon(this);
-    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>Q</b> GUN · <b>LEFT CLICK</b> FIRE · <b>HOLD RIGHT CLICK</b> AIM ×1.25 · MOUSE LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
+    cameraController.onPauseRequested = () => {
+      if (this.walking) this.stop('Paused with Escape. Click Start Run to resume.');
+      else if (this.playerMode) this.stopPlayer('Paused with Escape. Click Start Player to explore again.');
+    };
+    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>1 / 2</b> GUN · <b>LEFT CLICK</b> FIRE · <b>HOLD RIGHT CLICK</b> AIM ×1.25 · MOUSE LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
     target.setSelected(true);
     const size = this.panel.querySelector('input');
     size.addEventListener('input', () => {
@@ -68,12 +81,16 @@ export class JunkyardPlaytest {
     this.panel.querySelector('[data-action=size]').onclick = () => {
       const url = new URL(location.href);
       url.searchParams.set('width', size.value);
+      // Remember it, so opening the game from any link keeps this size.
+      try { localStorage.setItem(SAVED_WIDTH_KEY, size.value); } catch { /* Private storage. */ }
       if (this.sight) url.searchParams.set('vision', this.sight.mode);
       url.searchParams.set('run', this.walking ? '1' : '0');
       location.assign(url);
     };
     this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.panel.querySelector('[data-action=route]').onclick = () => this.walking ? this.stop('Run stopped. Press START RUN to chase Lola again.') : this.start();
+    this.panel.querySelector('[data-action=player]').onclick = () => this.playerMode
+      ? this.stopPlayer('Exploring stopped. Press START PLAYER to explore again.') : this.startPlayer();
     this.panel.querySelector('[data-action=reset]').onclick = () => this.reset();
     this.panel.querySelector('[data-action=random]').onclick = () => {
       const spawn = randomJunkyardStart(this.world, this.simulation.state.position);
@@ -96,6 +113,7 @@ export class JunkyardPlaytest {
       if (this.overlay.visible) this.topView();
     };
     cameraController.mapScale = world.scale;
+    cameraController.followScale = world.defaultWidth / world.width;
     cameraController.topHeight = 43 * world.scale;
     engine.camera.far = 500 * world.scale;
     engine.camera.updateProjectionMatrix();
@@ -132,32 +150,64 @@ export class JunkyardPlaytest {
     while (this.cameraController.mode !== 'TOP') this.cameraController.toggle();
   }
 
+  // START RUN: the Leaper always moves (its brain runs) and the mouse is captured.
   start() {
     if (this.combat?.dead) return;
+    if (this.playerMode) this.stopPlayer('', false);
+    this.cameraController.gameplayStarted = true;
+    // Request during the actual button click, before any asynchronous brain load.
+    this.cameraController.captureMouse();
     this.walking = true;
     this.target.setSelected(true);
     this.panel.querySelector('[data-action=route]').textContent = 'STOP RUN';
     this.brain.start();
   }
 
-  stop(message) {
+  // START PLAYER: only Lola moves (explore and test the map); the Leaper stays put.
+  startPlayer() {
+    if (this.walking) this.stop('', false);
+    this.playerMode = true;
+    this.cameraController.gameplayStarted = true;
+    this.cameraController.captureMouse();
+    this.panel.querySelector('[data-action=player]').textContent = 'STOP PLAYER';
+    this.message.textContent = 'Exploring as Lola. The Leaper stays still. Esc frees the mouse.';
+  }
+
+  stopPlayer(message, release = true) {
+    this.playerMode = false;
+    this.panel.querySelector('[data-action=player]').textContent = 'START PLAYER';
+    if (release) {
+      this.cameraController.gameplayStarted = false;
+      this.cameraController.releaseMouse();
+      this.playerWeapon?.reset();
+    }
+    if (message) this.message.textContent = message;
+  }
+
+  // release = false when switching straight into the other mode (keep the mouse).
+  stop(message, release = true) {
     this.walking = false;
+    if (release) {
+      // Paused: clicking the scene must not grab the mouse again until a Start button.
+      this.cameraController.gameplayStarted = false;
+      this.cameraController.releaseMouse();
+    }
+    this.combat.audio.stopRobotSteps();
     this.playerWeapon?.reset();
     this.target.clearHitReaction?.();
     this.brain.stop();
-    this.message.textContent = message;
+    if (message) this.message.textContent = message;
     this.panel.querySelector('[data-action=route]').textContent = 'START RUN';
-
   }
 
   reset(spawn = null) {
     this.sight?.clear();
     this.combat?.reset();
-    this.stop('WASD moves Lola. Shift sprints. Space jumps. C crouches. Q switches guns. Left click shoots in CHASE view. Start Run lets the trained brain search and chase.');
+    this.stop('WASD moves Lola. Shift sprints. Space jumps. C crouches. 1 / 2 switch guns. Left click shoots in CHASE view. Start Run lets the trained brain search and chase; Start Player lets you explore while the Leaper stays still.');
     const { x, z } = spawn?.position || this.world.spawn;
     if (spawn) this.target.mesh.position.set(spawn.target.x, this.target.isPlayer ? 0 : 3.5, spawn.target.z);
     if (this.target.isPlayer) {
-      const minimum = contactRadius(this.world.scale) + contact.pendingStepMargin;
+      const minimum = leaperReach(this.world.scale) + contact.pendingStepMargin;
       if (Math.hypot(this.target.mesh.position.x - x, this.target.mesh.position.z - z) < minimum) {
         const nav = this.world.navigation;
         for (let i = 0; i < nav.free.length; i += 1) {
@@ -182,12 +232,12 @@ export class JunkyardPlaytest {
     state.velocity.set(0, 0, 0);
     this.simulation.rig.legs.forEach((leg) => {
       const c = Math.cos(state.yaw), s = Math.sin(state.yaw);
-      leg.footPosition.set(x + leg.homeLocal.x * c + leg.homeLocal.z * s, 0.1,
+      leg.footPosition.set(x + leg.homeLocal.x * c + leg.homeLocal.z * s, (this.world.floorHeight ?? 0) + FOOT_HEIGHT,
         z - leg.homeLocal.x * s + leg.homeLocal.z * c);
       leg.stepping = false;
     });
     this.cameraController.target.copy(this.target.mesh.position);
-    this.cameraController.target.y = this.target.height ? this.target.height * 0.65 : 1;
+    this.cameraController.target.y = this.target.height ? this.target.height * 1.05 : 1;
     this.brain.reset();
     if (!spawn && this.overlay) this.makeOverlay();
   }
@@ -241,6 +291,7 @@ export class JunkyardPlaytest {
   update(dt) {
     this.brain.update(dt);
     this.combat.update(dt);
+    if (!this.walking || this.combat.dead) this.combat.audio.stopRobotSteps();
     this.playerWeapon.update(dt);
     this.pov.update();
   }

@@ -13,14 +13,18 @@ function setup() {
   return { tree, context, shots, tracked };
 }
 
-test('warning lasts 0.6 seconds, tracks 0.4, locks final 0.2; shot intervals never below 2 seconds', () => {
+test('warning lasts 0.6 seconds, tracks 0.4, locks final 0.2; a shot about every 1.73 seconds', () => {
   for (const hz of [10, 30, 60, 144]) {
     const { tree, context, shots, tracked } = setup();
     tree.tick(0, context);
     for (let i = 0; i < hz * 10; i++) tree.tick(1 / hz, context);
     assert.ok(shots.length >= 3);
     assert.ok(shots[0] >= 0.6 - 1e-8 && shots[0] <= 0.6 + 1 / hz);
-    for (let i = 1; i < shots.length; i++) assert.ok(shots[i] - shots[i - 1] >= 2 - 1e-8);
+    // 1.5x as often as the original 2.6 s cycle, never faster.
+    for (let i = 1; i < shots.length; i++) {
+      const gap = shots[i] - shots[i - 1];
+      assert.ok(gap >= COMBAT.shotInterval + COMBAT.warning - 1e-8 && gap <= 2.6 / 1.5 + 2 / hz, `shot gap ${gap}`);
+    }
     assert.equal(tracked.filter(t => t > 0.4 + 1e-8 && t < 0.6 - 1e-8).length, 0);
     assert.ok(tracked.some(t => t > 0.6 && t < 2), 'tracks during cooldown');
   }

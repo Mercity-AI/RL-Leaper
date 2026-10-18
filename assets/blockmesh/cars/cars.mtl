@@ -1,0 +1,47 @@
+newmtl blue_paint
+Kd 0.2 0.43 0.57
+Ka 0.1 0.1 0.1
+Ks 0 0 0
+illum 1
+
+newmtl burgundy_paint
+Kd 0.28 0.095 0.13
+Ka 0.1 0.1 0.1
+Ks 0 0 0
+illum 1
+
+newmtl dark_windows
+Kd 0.1 0.18 0.23
+Ka 0.1 0.1 0.1
+Ks 0 0 0
+illum 1
+
+newmtl rubber
+Kd 0.075 0.085 0.09
+Ka 0.1 0.1 0.1
+Ks 0 0 0
+illum 1
+
+newmtl wheel_hubs
+Kd 0.43 0.47 0.48
+Ka 0.1 0.1 0.1
+Ks 0 0 0
+illum 1
+
+newmtl bumper
+Kd 0.21 0.24 0.25
+Ka 0.1 0.1 0.1
+Ks 0 0 0
+illum 1
+
+newmtl headlights
+Kd 0.86 0.85 0.7
+Ka 0.1 0.1 0.1
+Ks 0 0 0
+illum 1
+
+newmtl taillights
+Kd 0.57 0.16 0.12
+Ka 0.1 0.1 0.1
+Ks 0 0 0
+illum 1

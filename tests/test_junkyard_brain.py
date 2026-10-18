@@ -48,7 +48,9 @@ class BrainTests(unittest.TestCase):
         self.assertEqual(env._ray_distances(env.position, env.yaw).shape, (16,))
 
     def test_player_contact_blocks_leaper_and_allows_reverse(self):
-        env = JunkyardEnv(self.geometry, [0, 0], 0, [0, 6.9], player_collision=True)
+        # Lola just clear of the two front feet; a step forward would touch her.
+        env = JunkyardEnv(self.geometry, [0, 0], 0, [0, 3.4], player_collision=True)
+        self.assertGreater(env._player_clearance(env.position, env.yaw), 0)
         start = env.position.copy()
         _, _, _, _, info = env.step(np.array([1, 0], dtype=np.float32))
         np.testing.assert_array_equal(env.position, start)
@@ -59,6 +61,14 @@ class BrainTests(unittest.TestCase):
         env.position = np.array([0, -10], dtype=np.float32)
         self.assertEqual(env._collision_for_pose(np.array([0, 10]), 0), 'player',
             'swept contact prevents crossing through the player')
+        # Same shape as the browser: Lola fits between the front legs.
+        env.position = np.array([0, 0], dtype=np.float32)
+        env.yaw = 0.0
+        env.target = np.array([0, 3.5], dtype=np.float32)
+        from rl.junkyard_env import PLAYER_CONTACT
+        player = PLAYER_CONTACT["playerRadius"] * self.geometry.scale
+        self.assertAlmostEqual(env._player_clearance(env.position, 0.0) + player,
+            min(np.hypot(np.sin(0.62) * 3.24, 3.5 - np.cos(0.62) * 3.24) - 0.9, np.hypot(np.sin(0.62) * 2.2, 3.5 - np.cos(0.62) * 2.2) - 0.35, 3.5 - 1.3), places=5)
 
     def test_real_checkpoint_actions_and_persistent_memory(self):
         session = BrainSession(self.model, self.geometry, [0, 0], 0, [0, -15])

@@ -1,9 +1,17 @@
 import * as THREE from 'three';
+import { LeaperLegDamage } from './LeaperLegDamage.js';
 import { LaserAudio } from './LaserAudio.js';
 import { createLaserVisual } from './LaserVisual.js';
 import { COMBAT } from '../config/combat.js';
 import { AttackController } from './AttackController.js';
 import { CombatGeometry, aimAngles, withinAim, capsuleHit } from './CombatGeometry.js';
+import { LeaperHealthBar } from './LeaperHealthBar.js';
+import { MOVEMENT } from '../config/robot.js';
+
+// Health meter: the solid fill is current health; the pale "trail" shows the chunk
+// just lost, holds briefly, then drains so each hit's size is readable.
+const METER = '<div class="health-meter" aria-hidden="true"><i class="hp-trail"></i><i class="hp-fill"></i></div>';
+const TRAIL_HOLD = 0.45, TRAIL_DRAIN = 0.6; // seconds; drain = share of a full bar per second
 
 export class LeaperCombat {
   constructor(playtest) {
@@ -17,11 +25,18 @@ export class LeaperCombat {
     this.selectedPoint = null;
     const rig = playtest.simulation.rig;
     rig.weaponControlled = true;
+    this.legs = new LeaperLegDamage(playtest.engine.scene, rig, this.geometry);
+    // A severed leg piece hitting the ground gives the camera a thud.
+    this.legs.onLanded = () => playtest.cameraController?.shake(COMBAT.cameraShake.legLanding);
     // Eye materials are independent: the warning must not brighten all six legs.
-    this.eyeMaterials = rig.eyePivot.children.filter(o => o.material?.emissive).map(o => {
+    this.eyeMaterials = rig.eyePivot.children.filter(o => o.material?.emissive && !o.userData.weakPoint).map(o => {
       o.material = o.material.clone();
       return { material: o.material, base: o.material.emissiveIntensity };
     });
+    // The red weak-point core pulses on its own rhythm.
+    this.core = rig.eyePivot.children.find(o => o.userData.weakPoint);
+    if (this.core) this.core.material = this.core.material.clone();
+    this.healthBar = new LeaperHealthBar(COMBAT.healthBar);
     this.laser = createLaserVisual(COMBAT);
     this.audio = new LaserAudio();
     const sound = document.createElement('button');
@@ -38,11 +53,13 @@ export class LeaperCombat {
     this.effectMaterial = new THREE.MeshBasicMaterial({ color: 0xb50913, transparent: true, opacity: 0.45 });
     this.enemyHud = document.createElement('div');
     this.enemyHud.id = 'leaperHealthHud';
-    this.enemyHud.innerHTML = '<b>LEAPER</b><progress aria-label="Leaper health"></progress>';
+    // Leaper health is drawn by the floating bar over the Leaper; this panel keeps
+    // its name and attack status (plus a hidden progress value for screen readers).
+    this.enemyHud.innerHTML = `<b>LEAPER</b><progress aria-label="Leaper health"></progress>`;
     document.body.append(this.enemyHud);
     this.hud = document.createElement('div');
     this.hud.id = 'combatHud';
-    this.hud.innerHTML = `<div class="combat-health"><b>LOLA <span data-hit-label hidden>HIT</span></b><progress aria-label="Lola health" data-health-bar max="100" value="100"></progress></div>
+    this.hud.innerHTML = `<div class="combat-health"><b>LOLA <span data-hit-label hidden>HIT</span> <span class="hp-text" data-hp-text></span></b><progress aria-label="Lola health" data-health-bar max="100" value="100"></progress>${METER}</div>
       <div data-attack role="status"></div><div data-result hidden><strong></strong><button data-restart>RESTART ENCOUNTER</button></div>`;
     document.body.appendChild(this.hud);
     this.enemyHud.append(this.hud.querySelector('[data-attack]'));
@@ -53,36 +70,49 @@ export class LeaperCombat {
     debug.onclick = () => this.damageLeaper(COMBAT.debugDamage, true);
     playtest.panel.querySelector('#junkyardOptions').append(debug);
     const note = document.createElement('small');
-    note.textContent = 'Debug health test. Q switches guns; left click fires in CHASE view.';
+    note.textContent = 'Debug health test. 1 / 2 switch guns; left click fires in CHASE view.';
     playtest.panel.querySelector('#junkyardOptions').append(note);
     this.reset();
   }
   get dead() { return this.lolaHealth <= 0 || this.leaperHealth <= 0; }
   reset() {
+    this.legs.reset();
+    this.audio.stop();
     this.clearProjectiles(); this.tree.reset(); this.selectedPoint = null;
     this.lolaHealth = this.config.lolaHealth; this.leaperHealth = this.config.leaperHealth;
     this.damageFlash = 0; this.fireFlash = 0;
+    this.trails = { lola: { value: 1, hold: 0 }, leaper: { value: 1, hold: 0 } };
     this.playtest.target.defeated = false;
     this.playtest.target.clearHitReaction?.();
     this.playtest.simulation.rig.eyePivot.rotation.set(0, 0, 0);
     this.hud.querySelector('[data-result]').hidden = true;
+    this.healthBar.reset();
     this.updateHud();
   }
   clearProjectiles() {
     for (const item of [...this.bolts, ...this.effects]) this.playtest.engine.scene.remove(item.mesh);
     this.bolts.length = 0; this.effects.length = 0;
   }
-  damageLeaper(amount, debug = false) {
+  // major: a joint snapped, which always brings up the floating health bar.
+  damageLeaper(amount, debug = false, major = false) {
     if (this.dead) return;
     this.leaperHealth = Math.max(0, this.leaperHealth - amount);
+    this.trails.leaper.hold = TRAIL_HOLD;
+    this.healthBar.damage(amount, this.config.leaperHealth, major || !this.leaperHealth);
+    // A big hit (a leg snapping off, or the kill shot) shakes the camera.
+    if (major || !this.leaperHealth) this.playtest.cameraController?.shake(COMBAT.cameraShake.bigHit);
     if (!this.leaperHealth) this.finish(debug ? 'LEAPER DEFEATED · DEBUG TEST' : 'LEAPER DEFEATED');
     this.updateHud();
   }
   damageLola(incomingDirection = null) {
     if (this.dead) return;
     this.lolaHealth = Math.max(0, this.lolaHealth - this.config.boltDamage);
+    this.trails.lola.hold = TRAIL_HOLD;
     this.damageFlash = 0.4;
     this.playtest.target.reactToHit?.(incomingDirection);
+    // Layered hurt reaction: a body thud under a voice, heavier when nearly down.
+    this.audio.playSlot('lolaHitThud');
+    this.audio.playSlot(this.lolaHealth <= this.config.lowHealthThreshold ? 'lolaHurtBig' : 'lolaHurt');
     if (!this.lolaHealth) this.finish('LOLA DEFEATED');
     this.updateHud();
   }
@@ -166,6 +196,7 @@ export class LeaperCombat {
   }
   update(dt) {
     const p = this.playtest, rig = p.simulation.rig, c = this.config;
+    if (!document.hidden) this.legs.update(dt);
     const paused = !p.walking || !p.brain.ready || document.hidden;
     const points = this.pose();
     const range = c.weaponRange * p.world.scale;
@@ -202,8 +233,19 @@ export class LeaperCombat {
     this.origin.copy(rig.eyePivot.localToWorld(new THREE.Vector3(0, 0, 0.148)));
     if (!paused) { this.damageFlash = Math.max(0, this.damageFlash - dt); this.fireFlash = Math.max(0, this.fireFlash - dt); }
     const charge = this.tree.started === null ? 0 : Math.min(1, (this.tree.time - this.tree.started) / c.warning);
+    for (const [key, health] of [['lola', this.lolaHealth / c.lolaHealth], ['leaper', this.leaperHealth / c.leaperHealth]]) {
+      const trail = this.trails[key];
+      if (trail.value <= health) { trail.value = health; continue; }
+      if (trail.hold > 0) trail.hold = Math.max(0, trail.hold - dt);
+      else trail.value = Math.max(health, trail.value - TRAIL_DRAIN * dt);
+    }
     for (const { material, base } of this.eyeMaterials) material.emissiveIntensity = this.leaperHealth ? base + charge * 8 + this.fireFlash * 20 : 0;
     rig.eyeLight.intensity = this.leaperHealth ? 1 + charge * 5 + this.fireFlash * 10 : 0;
+    this.corePulse = (this.corePulse ?? 0) + dt;
+    if (this.core) this.core.material.emissiveIntensity = this.leaperHealth
+      ? 2.6 + 1.4 * Math.sin(this.corePulse * 5) + charge * 6 + this.fireFlash * 15 : 0;
+    this.healthBar.update(dt, p.engine.camera, rig.robot, this.leaperHealth / c.leaperHealth, this.trails.leaper.value,
+      (p.simulation.state.velocity?.length() ?? 0) / MOVEMENT.sprintSpeed, p.engine.renderer?.domElement);
     this.updateHud();
   }
   updateHud() {
@@ -220,6 +262,12 @@ export class LeaperCombat {
     // reserved for critical health, including while paused.
     this.hud.dataset.hit = String(this.damageFlash > 0 && !this.dead);
     const low = this.lolaHealth <= this.config.lowHealthThreshold;
+    const lolaShare = this.lolaHealth / this.config.lolaHealth;
+    this.hud.dataset.level = low ? 'low' : lolaShare <= 0.5 ? 'mid' : 'full';
+    const meter = this.hud.querySelector('.health-meter');
+    meter.style.setProperty('--hp', String(lolaShare));
+    meter.style.setProperty('--trail', String(Math.max(lolaShare, this.trails.lola.value)));
+    this.hud.querySelector('[data-hp-text]').textContent = `${Math.ceil(this.lolaHealth)}`;
     const opacity = low ? 0.15 + 0.2 * (1 - this.lolaHealth / this.config.lowHealthThreshold) : 0;
     document.documentElement.style.setProperty('--damage-flash', String(opacity));
   }

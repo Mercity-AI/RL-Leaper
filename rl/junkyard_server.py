@@ -95,7 +95,7 @@ def main():
     geometry_cache = {}
     sight_cache = {}
     sight_triangles = load_triangles(ROOT / 'assets/maps/junkyard/junkyard.glb')
-    origins = {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in (4173, 5173)}
+    origins = {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in (4173, 4175, 5173, 5175)}
 
     def vector(value):
         value = np.asarray(value, dtype=float)
@@ -116,6 +116,10 @@ def main():
         return dict(eye=eye.tolist(), points=points.tolist())
 
     class Handler(BaseHTTPRequestHandler):
+        # Send each small reply immediately. With Nagle's algorithm on, Windows
+        # held the body back behind the headers, adding ~40 ms to every move.
+        disable_nagle_algorithm = True
+
         def log_message(self, *args):
             pass
 

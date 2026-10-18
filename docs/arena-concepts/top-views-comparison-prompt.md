@@ -1,0 +1,5 @@
+# Top-view comparison
+
+Tool: built-in image_gen. Inputs: junkyard-v2-no-blue-lines.png and train-yard-v2-no-blue-lines.png. Originals retained.
+
+Use case: compositing. Create ONE comparison image using the two provided concept sheets. Take ONLY the LEFT TOP VIEW panel from image 1 (junkyard), and ONLY the LEFT TOP VIEW panel from image 2 (train yard). Place those two complete top-down panels SIDE BY SIDE: junkyard LEFT, train yard RIGHT, equal heights, narrow ivory gutter. Omit both front-view panels completely. Preserve the existing top-view images as faithfully as possible, including every object's position, proportions, texture, boundary, labels, orange marks, compass and 120m / 80m dimension markings. No redesign, no added objects, no blue lines. Keep full arena extents, do not crop any arena edges. Add small clean headings 'JUNKYARD' above left and 'TRAIN YARD' above right. Only these two top views, no perspective views, no new illustrations. This is a crop-and-composite presentation of the supplied top views.

@@ -38,3 +38,11 @@ Thumbs.db
 
 # Generated browser combat test build
 /tmp/combat-browser-dist/
+
+# Local previews, exports, and atomic replay scratch files
+/tmp/
+/output/*
+!/output/markdown/
+!/output/pdf/
+public/rl_live_state.*.tmp
+*.blend1

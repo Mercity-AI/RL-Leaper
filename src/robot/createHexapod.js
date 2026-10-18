@@ -53,12 +53,6 @@ function createLegMeshes(scene, materials) {
   const tibiaArm = diamondSegment(0.132, 0.065, SHIN_LENGTH * 0.52, materials.plate);
   tibiaArm.position.y = SHIN_LENGTH * 0.04;
   tibia.add(tibiaArm);
-  const tibiaGlow = new THREE.Mesh(
-    new THREE.BoxGeometry(0.026, SHIN_LENGTH * 0.34, 0.026),
-    materials.glow,
-  );
-  tibiaGlow.position.set(0.098, SHIN_LENGTH * 0.14, 0);
-  tibia.add(tibiaGlow);
 
   const calf = new THREE.Group();
   calf.add(diamondSegment(0.075, 0.026, CALF_LENGTH, materials.leg));
@@ -129,9 +123,16 @@ function createBody(materials) {
   const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.132, 0.15, 0.05, 24), materials.lens);
   lens.geometry.rotateX(Math.PI / 2);
   lens.position.set(0, 0, 0.12);
-  const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.05, 16), materials.glowSoft);
-  pupil.position.set(0, 0, 0.148);
-  eyePivot.add(socket, bezel, eyeRing, lens, pupil);
+  // Weak point: a glowing red core domed in front of the lens. Bullets that hit it
+  // do extra damage (COMBAT.weakPointMultiplier); its glow pulses in LeaperCombat.
+  const weakPoint = new THREE.Mesh(new THREE.SphereGeometry(0.085, 24, 16), new THREE.MeshStandardMaterial({
+    color: 0x2a0000, emissive: 0xff1414, emissiveIntensity: 3, roughness: 0.3,
+  }));
+  weakPoint.name = 'weakPoint';
+  weakPoint.userData.weakPoint = true;
+  weakPoint.scale.z = 0.45;
+  weakPoint.position.set(0, 0, 0.14);
+  eyePivot.add(socket, bezel, eyeRing, lens, weakPoint);
 
   const brow = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.055, 0.13), materials.plate);
   brow.position.set(0, 0.27, 0.42);

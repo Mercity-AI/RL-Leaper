@@ -4,9 +4,18 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BODY_COLLISION_RADIUS, STANDING_HEIGHT } from '../config/robot.js';
 import { JunkyardNavigation } from './JunkyardNavigation.js';
 
+// The Leaper size chosen with APPLY SIZE, remembered in this browser. Change the\n// key's version when startWidth changes, so the new default shows.
+export const SAVED_WIDTH_KEY = 'leaper.junkyard.width.v2';
+
+function savedWidth() {
+  try { return localStorage.getItem(SAVED_WIDTH_KEY); } catch { return null; /* Private storage. */ }
+}
+
 export async function createJunkyardWorld(scene) {
+  // Reference size the camera distance is tuned against (see followScale).
   const defaultWidth = 2.4 * ENCOUNTER.leaperSize;
-  const requestedWidth = Number(new URLSearchParams(location.search).get('width') || defaultWidth);
+  // Size used: the page address, else the last applied size, else the owner's chosen start size.
+  const requestedWidth = Number(new URLSearchParams(location.search).get('width') || savedWidth() || ENCOUNTER.startWidth);
   const width = Number.isFinite(requestedWidth) ? Math.max(1.2, Math.min(8, requestedWidth)) : defaultWidth;
   // Keep the existing rig/gait intact; scale the imported map relative to it.
   const scale = BODY_COLLISION_RADIUS * 2 / width;
@@ -23,6 +32,7 @@ export async function createJunkyardWorld(scene) {
   const spawn = navigation.point(spawnIndex);
   gltf.scene.scale.setScalar(scale);
   gltf.scene.updateMatrixWorld(true);
+  let floorHeight = -Infinity;
   gltf.scene.traverse((object) => {
     if (!object.isMesh) return;
     object.castShadow = true;
@@ -37,11 +47,13 @@ export async function createJunkyardWorld(scene) {
       const floorColour = new THREE.Color(0x626262).convertSRGBToLinear();
       const point = new THREE.Vector3();
       for (let i = 0; i < positions.count; i += 3) {
-        let highest = -Infinity;
+        let highest = -Infinity, lowest = Infinity;
         for (let corner = 0; corner < 3; corner += 1) {
           point.fromBufferAttribute(positions, i + corner).applyMatrix4(object.matrixWorld);
           highest = Math.max(highest, point.y);
+          lowest = Math.min(lowest, point.y);
         }
+        if (highest < 0.15 * scale && highest - lowest < 1e-4) floorHeight = Math.max(floorHeight, highest);
         const colour = highest > 0.15 * scale ? wallColour : floorColour;
         for (let corner = 0; corner < 3; corner += 1) colour.toArray(colours, (i + corner) * 3);
       }
@@ -67,7 +79,8 @@ export async function createJunkyardWorld(scene) {
   const goalIndex = navigation.nearest(initialTarget);
   const goal = navigation.point(goalIndex);
   return {
-    colliders: [], navigation, scale, width, map: gltf.scene,
+    colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene,
+    floorHeight: Number.isFinite(floorHeight) ? floorHeight : 0,
     spawn: { x: spawn.x * scale, z: spawn.z * scale },
     initialTarget: { x: goal.x * scale, z: goal.z * scale },
     positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),

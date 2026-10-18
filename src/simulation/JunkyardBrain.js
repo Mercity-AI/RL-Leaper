@@ -1,4 +1,18 @@
-import { contact, contactRadius, touchesLeaper } from '../world/playerContact.js';
+import { contact, leaperClearance } from '../world/playerContact.js';
+
+// Option A playback smoothing (inference only; the trained brain is untouched).
+// The rendered Leaper eases toward each brain reply at these rates, in 1/seconds.
+// Position stays responsive; heading is smoothed harder so the policy's rapid
+// left/right steering micro-corrections average out instead of showing as a shimmy.
+// Higher = snappier/twitchier, lower = smoother/laggier.
+const LEAPER_FOLLOW_RESPONSE = 18;
+const LEAPER_TURN_RESPONSE = 9;
+// Brain moves per second while running. Each move advances the Leaper a fixed
+// distance, so this sets its speed. A steady rate keeps the Leaper's speed the
+// same on busy and idle computers (a move takes ~40 ms to compute).
+const LEAPER_STEPS_PER_SECOND = 10;
+// A slow or failed move is retried; the run only stops after this many in a row.
+const MAX_FAILED_STEPS = 5;
 
 // Only the checkpoint server chooses movement. No navigation-route fallback.
 export class JunkyardBrain {
@@ -18,24 +32,29 @@ export class JunkyardBrain {
       const mapBlocked = playtest.world.playerBlocked;
       playtest.world.playerBlocked = (x, z) => {
         if (mapBlocked(x, z)) return true;
-        const from = this.previousFrame || this.simulation.state.position;
+        // The rendered Leaper is somewhere between its last two server poses.
+        const state = this.simulation.state;
+        const from = this.previousFrame || { x: state.position.x, z: state.position.z, yaw: state.yaw };
         const to = this.frame || from;
-        const radius = contactRadius(playtest.world.scale);
-        if (touchesLeaper(x, z, from, to, radius)) return true;
+        const scale = playtest.world.scale;
         // While an inference is in flight, reserve one maximum server step.
-        // Allow retreat if that extra reservation has just expanded around Lola.
-        if (!this.running && !this.pendingMovement) return false;
-        if (!touchesLeaper(x, z, from, to, radius + contact.pendingStepMargin)) return false;
+        const margin = this.pendingMovement ? contact.pendingStepMargin : 0;
+        const clearance = (px, pz) => Math.min(leaperClearance(px, pz, from, scale), leaperClearance(px, pz, to, scale)) - margin;
+        const next = clearance(x, z);
+        if (next >= 0) return false;
+        // Touching: block moving further in, but always allow backing out.
         const p = this.target.mesh.position;
-        return Math.hypot(x - to.x, z - to.z) <= Math.hypot(p.x - to.x, p.z - to.z);
+        return next <= clearance(p.x, p.z);
       };
     }
   }
 
   async request(path, payload) {
+    // Plain-text content type makes this a "simple" request: no extra permission
+    // (CORS preflight) round trip before every move. The body is still JSON.
     const response = await fetch(`http://127.0.0.1:8767/${path}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload), signal: AbortSignal.timeout(path === 'reset' ? 90000 : 10000),
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload), signal: AbortSignal.timeout(path === 'reset' ? 90000 : 3000),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Brain service failed');
@@ -47,6 +66,7 @@ export class JunkyardBrain {
     this.ready = false;
     this.busy = true;
     this.pendingMovement = false;
+    this.failedSteps = 0;
     this.token = null;
     this.label = 'LOADING SAVED BRAIN…';
     const state = this.simulation.state;
@@ -70,7 +90,7 @@ export class JunkyardBrain {
       this.playtest.sight?.show(frame);
       this.ready = true;
       this.label = 'BRAIN 7,757,824';
-      this.playtest.message.textContent = 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; Q switches guns; left click fires whichever gun is equipped, even while the Leaper run is stopped.';
+      this.playtest.message.textContent = 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; 1 / 2 switch guns; left click fires whichever gun is equipped, even while the Leaper run is stopped.';
       this.playtest.brainLabel.title = `Residual LSTM · inference only · policy SHA256 ${frame.policy_sha256}`;
     } catch (error) {
       if (generation !== this.generation) return;
@@ -84,7 +104,9 @@ export class JunkyardBrain {
     this.ready = false;
     this.running = false;
     this.playtest.walking = false;
-    this.label = 'BRAIN OFFLINE — RESET TO RETRY';
+    this.playtest.cameraController.gameplayStarted = false;
+    this.playtest.cameraController.releaseMouse();
+    this.label = 'BRAIN OFFLINE — START RUN TO RETRY';
     this.playtest.panel.querySelector('[data-action=route]').textContent = 'START RUN';
     this.playtest.message.textContent = `Brain unavailable: ${error.message}. Start the local brain service, then press Reset. No pathfinder fallback.`;
   }
@@ -112,10 +134,11 @@ export class JunkyardBrain {
     const right = sim.v[1].set(-forward.z, 0, forward.x);
     this.target.move(a.forward + b.forward, a.side + b.side, forward, right,
       sim.input.sprinting ? 8 : 4.5, dt);
-    this.clock += dt;
+    // Slow inference steps with damage so the server and rendered position remain in sync.
+    this.clock += dt * (sim.rig?.mobility ?? 1);
     const encounterOver = this.playtest.combat?.dead;
     const preview = !encounterOver && !this.running && Boolean(this.playtest.sight);
-    if (this.ready && (this.running || preview) && !this.busy && this.clock >= (preview ? 0.1 : 1 / 30) && !document.hidden) {
+    if (this.ready && (this.running || preview) && !this.busy && this.clock >= (preview ? 0.1 : 1 / LEAPER_STEPS_PER_SECOND) && !document.hidden) {
       this.clock = 0;
       this.busy = true;
       this.pendingMovement = !preview;
@@ -128,9 +151,13 @@ export class JunkyardBrain {
         this.previousFrame = this.frame;
         this.frame = frame;
         this.renderAge = 0;
+        this.failedSteps = 0;
         this.playtest.sight?.show(frame);
       }).catch((error) => {
-        if (generation === this.generation) this.fail(error);
+        if (generation !== this.generation) return;
+        // A busy computer can delay one move; keep the run going and try again.
+        this.failedSteps = (this.failedSteps ?? 0) + 1;
+        if (this.failedSteps >= MAX_FAILED_STEPS || /Session expired/.test(error.message)) this.fail(error);
       }).finally(() => {
         if (generation === this.generation) {
           this.busy = false;
@@ -139,17 +166,21 @@ export class JunkyardBrain {
       });
     }
     if (this.frame && !encounterOver) {
-      this.renderAge = (this.renderAge || 0) + dt;
-      const t = Math.min(1, this.renderAge * 30);
-      const prev = this.previousFrame;
+      // Follow each network pose from the current rendered pose. Restarting at the
+      // previous server frame caused snaps whenever replies arrived early or late.
+      const tPos = 1 - Math.exp(-LEAPER_FOLLOW_RESPONSE * dt);
+      const tYaw = 1 - Math.exp(-LEAPER_TURN_RESPONSE * dt);
       const now = this.frame;
-      const turn = ((now.yaw - prev.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      const position = sim.state.position;
+      const yaw = sim.state.yaw;
+      const turn = ((now.yaw - yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
       sim.updateExternal({ ...now,
-        x: prev.x + (now.x - prev.x) * t, z: prev.z + (now.z - prev.z) * t,
-        yaw: prev.yaw + turn * t,
+        x: position.x + (now.x - position.x) * tPos, z: position.z + (now.z - position.z) * tPos,
+        yaw: yaw + turn * tYaw,
       }, dt, { checkpoint: { step: now.model_step } });
     }
     const mode = !this.ready ? this.label : !this.running ? 'PAUSED'
+      : this.failedSteps ? 'BRAIN SLOW · RETRYING'
       : this.frame.target_visible ? 'TARGET VISIBLE'
         : this.frame.target_ever_seen ? 'TARGET HIDDEN · MEMORY' : 'SEARCHING';
     this.playtest.brainLabel.textContent = this.ready ? `BRAIN 7,757,824 · ${mode}` : this.label;

@@ -6,7 +6,7 @@ import { JunkyardBrain } from '../src/simulation/JunkyardBrain.js';
 function fixture() {
   const button = { textContent: 'STOP RUN' };
   const playtest = {
-    world: { width: 4 }, walking: true, message: {}, brainLabel: {},
+    world: { width: 4 }, walking: true, message: {}, brainLabel: {}, cameraController: { releaseMouse() {} },
     panel: { querySelector: () => button },
     target: { mesh: { position: new THREE.Vector3(0, 3.5, 10) }, move() {} },
     simulation: {
@@ -31,14 +31,14 @@ test('Pause/resume preserves the server session; moving pink does not reset memo
   driver.request = async (path, data) => { calls.push({path, data}); return {...frame, step: calls.length}; };
   await driver.reset();
   driver.start();
-  driver.update(1 / 30);
+  driver.update(1 / 10);
   await new Promise(resolve => setImmediate(resolve));
   driver.stop();
   driver.update(1);
   assert.equal(calls.length, 2);
   playtest.target.mesh.position.x = 12;
   driver.start();
-  driver.update(1 / 30);
+  driver.update(1 / 10);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls.length, 3);
   assert.equal(calls[2].path, 'step');
@@ -47,7 +47,7 @@ test('Pause/resume preserves the server session; moving pink does not reset memo
   assert.equal(driver.running, true);
 });
 
-test('A stale reset cannot replace a newer session; failed inference never falls back', async () => {
+test('A stale reset cannot replace a newer session; failed inference retries, then stops without fallback', async () => {
   globalThis.document = { hidden: false };
   const { driver, button } = fixture();
   const pending = [];
@@ -61,8 +61,15 @@ test('A stale reset cannot replace a newer session; failed inference never falls
   assert.equal(driver.token, 'new');
   driver.request = async () => { throw new Error('Service disconnected'); };
   driver.start();
-  driver.update(1 / 30);
+  driver.update(1 / 10);
   await new Promise(resolve => setImmediate(resolve));
+  // One slow or failed move (a busy computer) keeps the run going and retries.
+  assert.equal(driver.running, true);
+  assert.equal(driver.failedSteps, 1);
+  for (let i = 0; i < 4; i++) {
+    driver.update(1 / 10);
+    await new Promise(resolve => setImmediate(resolve));
+  }
   assert.equal(driver.ready, false);
   assert.equal(driver.running, false);
   assert.equal(button.textContent, 'START RUN');
@@ -77,7 +84,7 @@ test('pausing during inference keeps the final authoritative pose for contact', 
   let finish;
   driver.request = () => new Promise(resolve => { finish = resolve; });
   driver.start();
-  driver.update(1 / 30);
+  driver.update(1 / 10);
   driver.stop();
   finish({ ...frame, x: 0.375, step: 1 });
   await new Promise(resolve => setImmediate(resolve));

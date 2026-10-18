@@ -50,6 +50,7 @@ const cameraController = new CameraController(
   engine.renderer.domElement,
   document.getElementById('cameraToggle'),
 );
+cameraController.setOccluders(world.map ? [world.map] : [world.ground, world.obstacleGroup]);
 const simulation = new LeaperSimulation({
   rig,
   world,
@@ -72,6 +73,8 @@ const trainingVisualizer = trainingMode
   : null;
 const playtest = junkyardMode ? new JunkyardPlaytest({ engine, world, simulation, target, cameraController }) : null;
 if (junkyardMode) enableMovableHud();
+// Testing hook: ?debug exposes the playtest so automated checks can read positions.
+if (playtest && new URLSearchParams(window.location.search).has('debug')) window.leaperPlaytest = playtest;
 
 if (trainingMode) {
   document.body.classList.add('training-mode');
@@ -89,11 +92,13 @@ function animate(currentTime) {
     if (playtest) playtest.update(deltaTime);
     else simulation.update(deltaTime);
   }
+  cameraController.beforeRender();
   playtest?.playerWeapon.beforeRender();
   playtest?.pov.beforeRender();
   engine.renderer.render(engine.scene, engine.camera);
   playtest?.pov.afterRender();
   playtest?.playerWeapon.afterRender();
+  cameraController.afterRender();
 }
 
 requestAnimationFrame(animate);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { LolaPlayer } from '../src/robot/LolaPlayer.js';
+import { LolaPlayer, LOLA_PACE } from '../src/robot/LolaPlayer.js';
 import profiles from '../assets/characters/lola/stride-profiles.json' with { type: 'json' };
 import { ENCOUNTER } from '../src/config/encounter.js';
 import contact from '../src/config/player-contact.json' with { type: 'json' };
@@ -20,11 +20,14 @@ async function load(weapon) {
   ));
 }
 
-test('player collision radius contains both outfits and guns throughout their animations', async () => {
+// The contact circle is Lola's body, not her full reach: a circle around her
+// outstretched gun and striding feet stopped her metres short of the Leaper.
+// Hands, gun tips and feet may brush its legs; most of her stays inside.
+test('player collision radius holds Lola\'s body throughout her animations', async () => {
   for (const weapon of ['basic', 'm416']) {
     const gltf = await load(weapon);
     const mixer = new THREE.AnimationMixer(gltf.scene);
-    let maximum = 0;
+    let maximum = 0, inside = 0, total = 0;
     const point = new THREE.Vector3();
     for (const clip of gltf.animations) {
       mixer.stopAllAction();
@@ -40,12 +43,16 @@ test('player collision radius contains both outfits and guns throughout their an
             point.fromBufferAttribute(vertices, i);
             if (mesh.isSkinnedMesh) mesh.boneTransform(i, point);
             point.applyMatrix4(mesh.matrixWorld);
-            maximum = Math.max(maximum, Math.hypot(point.x, point.z));
+            const radius = Math.hypot(point.x, point.z);
+            maximum = Math.max(maximum, radius);
+            total += 1;
+            if (radius <= contact.playerRadius) inside += 1;
           }
         });
       }
     }
-    assert.ok(maximum <= contact.playerRadius, `${weapon} radius ${maximum} exceeds contact envelope`);
+    assert.ok(inside / total >= 0.75, `${weapon}: only ${(100 * inside / total).toFixed(1)}% of Lola inside the contact radius`);
+    assert.ok(maximum <= 2.5 * contact.playerRadius, `${weapon} reach ${maximum} far outside the contact radius`);
   }
 });
 
@@ -72,7 +79,7 @@ test('each complete movement cycle travels its measured stride, with a stable fl
       const frames = 120;
       for (let i = 0; i < frames; i += 1) {
         player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), speed,
-          profile.duration / frames / (crouching ? 2 : speed > 5 ? 2.7 : 2));
+          profile.duration / frames / (crouching ? LOLA_PACE.crouch : speed > 5 ? LOLA_PACE.sprint : LOLA_PACE.run));
         assert.ok(Math.abs(player.outfits[player.weaponIndex].model.position.y - profile.groundOffset * ENCOUNTER.lolaHeight) < 1e-6);
       }
       assert.ok(Math.abs(player.mesh.position.length() - profile.distance) < 0.0001,
@@ -116,7 +123,10 @@ test('C toggles crouch once per press and A/D select authored crossovers for bot
     assert.equal(player.outfits[weapon].current, 'CrouchWalk');
     press('KeyC');
     assert.equal(player.crouching, false);
-    press('KeyQ');
+    press(weapon === 0 ? 'Digit1' : 'Digit2');
+    assert.equal(player.weaponIndex, 1 - weapon, '1 / 2 select the pistol / M416');
+    press(weapon === 0 ? 'Digit1' : 'Digit2');
+    assert.equal(player.weaponIndex, 1 - weapon, 'pressing the equipped gun key keeps it');
   }
   for (const gltf of models) {
     const left = gltf.animations.find(clip => clip.name === 'StrafeLeft');
@@ -329,5 +339,143 @@ test('three spaced shots keep the raised gun, held aim persists, release restore
     player.aimHeld = true; player.holdAim(); move(3);
     assert.ok(player.shot && player.shot.action.paused);
     player.aimHeld = false; move(0.1); assert.equal(player.shot, null);
+  }
+});
+
+test('authored jump plays the exported clip, lifts the feet, keeps run momentum and hands the gun back', async () => {
+  const models = await Promise.all([load('m416'), load('basic')]);
+  const jumps = await Promise.all([load('jump-m416'), load('jump-basic')]);
+  const player = new LolaPlayer(new THREE.Scene(),
+    { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
+    { addEventListener() {}, classList: { add() {} } }, models, jumps);
+  const outfit = player.outfits[0];
+  const foot = outfit.model.getObjectByName('DEF-footL') || outfit.model.getObjectByName('DEF-foot.L');
+  const footY = () => { player.mesh.updateMatrixWorld(true); return foot.getWorldPosition(new THREE.Vector3()).y; };
+  const move = (f, dt) => player.move(f, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, dt);
+  move(0, 0.1);
+  const standing = footY();
+  assert.equal(player.jump(), true);
+  assert.equal(player.jump(), false, 'no double jump');
+  assert.equal(outfit.jump.gun.visible, true);
+  assert.equal(outfit.carriedGun.visible, false);
+  assert.equal(player.startShot(), false, 'no shooting mid-jump');
+  let peak = -Infinity;
+  for (let t = 0; t < 0.9; t += 1 / 60) { move(0, 1 / 60); peak = Math.max(peak, footY()); }
+  assert.ok(peak > standing + 0.3, `feet lift during the authored jump (${peak} vs ${standing})`);
+  assert.equal(player.mesh.position.y, 0, 'height comes from the animation, not physics');
+  for (let t = 0; t < 0.55; t += 1 / 60) move(0, 1 / 60);
+  // The 2.1 s clip plays 50% faster: 1.4 s.
+  assert.equal(player.jumpState, null, 'standing jump finishes 50% faster than authored');
+  assert.equal(outfit.jump.gun.visible, false);
+  assert.equal(outfit.carriedGun.visible, true);
+  // Running: the jump keeps forward travel and blends out soon after touchdown.
+  player.jump();
+  let time = 0;
+  while (player.jumpState && time < 2) { move(1, 1 / 60); time += 1 / 60; }
+  assert.ok(player.mesh.position.z > 0.5, 'run momentum continues through the jump');
+  assert.ok(time < 1.6, `running landing blends straight back to the run (${time.toFixed(2)} s)`);
+});
+
+test('running jumps match the forward foot, keep running speed and land back into the same stride', async () => {
+  const models = await Promise.all([load('m416'), load('basic')]);
+  const jumps = await Promise.all([load('jump-m416'), load('jump-basic')]);
+  const runJumps = {};
+  for (const [name, file] of [['RunJumpRL', 'runjumprl'], ['RunJumpLR', 'runjumplr'], ['BackJumpLR', 'backjumplr'], ['BackJumpRL', 'backjumprl']]) {
+    runJumps[name] = await Promise.all([load(`${file}-m416`), load(`${file}-basic`)]);
+  }
+  const player = new LolaPlayer(new THREE.Scene(),
+    { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
+    { addEventListener() {}, classList: { add() {} } }, models, jumps, [], runJumps);
+  const outfit = player.outfits[0];
+  const run = outfit.actions.Run;
+  const bone = name => outfit.model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName(name));
+  const footL = bone('DEF-foot.L');
+  const y = object => { player.mesh.updateMatrixWorld(true); return object.getWorldPosition(new THREE.Vector3()).y; };
+  const move = (f, s, dt) => player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, dt);
+  move(0, 0, 0.1);
+  const standing = y(footL);
+  for (const [forward, frame, kind] of [[1, 15, 'RunJumpRL'], [1, 3, 'RunJumpLR'], [-1, 6, 'BackJumpLR'], [-1, 18, 'BackJumpRL']]) {
+    for (let i = 0; i < 40; i += 1) move(forward, 0, 1 / 60);
+    // Press jump exactly on the run frame each clip was authored to start from.
+    for (const o of player.outfits) o.actions.Run.time = (frame - 1) / 24 * run.getClip().duration;
+    const z = player.mesh.position.z;
+    assert.equal(player.jump(), true);
+    assert.equal(player.jumpState.kind, kind, `run frame ${frame} picks ${kind}`);
+    assert.equal(player.jumpState.start, 0);
+    assert.equal(outfit.jumpClips[kind].gun.visible, true);
+    const toes = ['DEF-toe.L', 'DEF-toe.R'].map(bone);
+    const toePositions = () => { player.mesh.updateMatrixWorld(true); return toes.map(toe => toe.getWorldPosition(new THREE.Vector3())); };
+    let time = 0, peak = -Infinity, slowest = Infinity, last = z, previous = toePositions(), landed = null, skatingFrames = 0;
+    while ((player.jumpState || time < (landed ?? 9) + 0.4) && time < 2) {
+      move(forward, 0, 1 / 60); time += 1 / 60;
+      peak = Math.max(peak, y(footL));
+      slowest = Math.min(slowest, Math.abs(player.mesh.position.z - last) * 60);
+      last = player.mesh.position.z;
+      if (landed === null && !player.jumpState) landed = time;
+      // After touchdown, a boot on the floor stays put (no skating on one leg).
+      const now = toePositions();
+      if (player.jumpState?.handedBack || landed !== null) {
+        now.forEach((toe, i) => {
+          // Faster than half her run speed (2.27) counts as skating.
+          if (toe.y < 0.025 && previous[i].y < 0.025 && Math.hypot(toe.x - previous[i].x, toe.z - previous[i].z) * 60 > 1.1) skatingFrames++;
+        });
+      }
+      previous = now;
+    }
+    assert.ok(peak > standing + 0.3, `${kind}: feet lift (${peak.toFixed(2)} vs ${standing.toFixed(2)})`);
+    assert.ok(slowest > 0.5, `${kind}: keeps running speed through the jump (${slowest.toFixed(2)})`);
+    assert.ok(landed > 0.6 && landed < 0.8, `${kind}: lands straight into the run (${landed.toFixed(2)} s)`);
+    // Before the fix the landing boot skated at full run speed for ~8 frames.
+    assert.ok(skatingFrames <= 1, `${kind}: planted boot does not skate after landing (${skatingFrames} frames)`);
+    assert.equal(Math.sign(player.mesh.position.z - z), forward);
+    assert.equal(outfit.carriedGun.visible, true);
+  }
+  // Strafing or standing still uses the plain (faster) jump.
+  for (let i = 0; i < 30; i += 1) move(0, 1, 1 / 60);
+  player.jump();
+  assert.equal(player.jumpState.kind, 'jump');
+  assert.equal(player.jumpState.rate, 1.5);
+});
+
+test('authored reload moves the arms over the run, keeps the gun in the right hand, and ends on time', async () => {
+  const models = await Promise.all([load('m416'), load('basic')]);
+  const reloads = await Promise.all([load('reload-m416'), load('reload-basic')]);
+  const player = new LolaPlayer(new THREE.Scene(),
+    { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false },
+    { addEventListener() {}, classList: { add() {} } }, models, [], reloads);
+  for (const weapon of [0, 1]) {
+    if (player.weaponIndex !== weapon) player.switchWeapon();
+    const outfit = player.outfits[weapon];
+    const bone = name => outfit.model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName(name));
+    const hand = bone('DEF-hand.L'), handR = bone('DEF-hand.R'), shin = bone('DEF-shin.L');
+    const move = (f, dt) => player.move(f, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, dt);
+    const local = object => { player.mesh.updateMatrixWorld(true); return player.mesh.worldToLocal(object.getWorldPosition(new THREE.Vector3())); };
+    for (let i = 0; i < 30; i += 1) move(1, 1 / 60);
+    const runningHand = local(hand);
+    assert.ok(Math.abs(player.reloadDuration - 43 / 30) < 1e-3, 'reload lasts the authored 44 frames');
+    assert.equal(player.startReload(), true);
+    assert.equal(outfit.reload.gun.visible, true);
+    assert.equal(outfit.carriedGun.visible, false);
+    assert.equal(player.startShot(), false, 'no shooting mid-reload');
+    let shinMoved = false, handMoved = 0;
+    const shinStart = local(shin);
+    for (let t = 0; t < 0.7; t += 1 / 60) {
+      move(1, 1 / 60);
+      shinMoved ||= local(shin).distanceTo(shinStart) > 0.02;
+      handMoved = Math.max(handMoved, local(hand).distanceTo(runningHand));
+      const gunGap = local(outfit.reload.gun).distanceTo(local(handR));
+      assert.ok(gunGap < 0.6, `gun stays in the right hand (${gunGap.toFixed(3)})`);
+    }
+    assert.ok(shinMoved, 'legs keep running during the reload');
+    assert.ok(handMoved > 0.05, `the reload moves the hands (${handMoved.toFixed(3)})`);
+    assert.ok(player.reloading);
+    for (let t = 0; t < 0.8; t += 1 / 60) move(1, 1 / 60);
+    assert.equal(player.reloading, false, 'reload ends with its clip');
+    assert.equal(outfit.reload.gun.visible, false);
+    assert.equal(outfit.carriedGun.visible, true);
+    player.startReload();
+    player.switchWeapon();
+    assert.equal(player.reloading, false, 'switching guns abandons the reload');
+    player.switchWeapon();
   }
 });

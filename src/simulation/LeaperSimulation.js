@@ -93,11 +93,13 @@ export class LeaperSimulation {
   updateExternal(frame, deltaTime, replay) {
     this.elapsed += deltaTime;
     const state = this.state;
-    state.velocity.set(
+    const measuredVelocity = this.v[9].set(
       (frame.x - state.position.x) / Math.max(deltaTime, 1e-4),
       0,
       (frame.z - state.position.z) / Math.max(deltaTime, 1e-4),
     );
+    // Network timing should not produce rapid body pitch and foot-lead changes.
+    state.velocity.lerp(measuredVelocity, 1 - Math.exp(-10 * deltaTime));
     if (state.velocity.length() > MOVEMENT.sprintSpeed) {
       state.velocity.setLength(MOVEMENT.sprintSpeed);
     }
@@ -118,7 +120,7 @@ export class LeaperSimulation {
 
   updateHorizontalMovement(move, sprinting, deltaTime) {
     const state = this.state;
-    const maximumSpeed = sprinting ? MOVEMENT.sprintSpeed : MOVEMENT.walkSpeed;
+    const maximumSpeed = (sprinting ? MOVEMENT.sprintSpeed : MOVEMENT.walkSpeed) * (this.rig.mobility ?? 1);
     const desired = this.v[3].copy(move).multiplyScalar(maximumSpeed);
     const difference = this.v[4].subVectors(desired, state.velocity);
     const distance = difference.length();
@@ -217,7 +219,9 @@ export class LeaperSimulation {
       ? -Math.abs(Math.sin(state.gaitPhase)) * 0.045 * normalizedSpeed
         + (1 - normalizedSpeed) * Math.sin(this.elapsed * 1.7) * 0.014
       : 0;
-    const bodyHeight = STANDING_HEIGHT + state.jumpHeight + bob - state.crouch * 0.5;
+    // A slight sag per lost leg. Lowering the body more splays the surviving legs flat.
+    const damageCrouch = Math.min(0.1, (this.rig.damagedLegCount || 0) * 0.04);
+    const bodyHeight = (this.world?.floorHeight ?? 0) + STANDING_HEIGHT + state.jumpHeight + bob - state.crouch * 0.5 - damageCrouch;
     this.bodyHeight = bodyHeight;
     this.rig.robot.position.set(state.position.x, bodyHeight, state.position.z);
     this.rig.robot.rotation.set(state.pitchTilt, state.yaw, state.rollTilt);
@@ -231,9 +235,10 @@ export class LeaperSimulation {
 
   updateGait(speed, deltaTime) {
     const state = this.state;
+    this.landedFeet = 0;
     const stepCount = [0, 0];
     this.rig.legs.forEach((leg) => {
-      if (leg.stepping) stepCount[leg.gait] += 1;
+      if (!leg.disabled && leg.stepping) stepCount[leg.gait] += 1;
     });
     const cosine = Math.cos(state.yaw);
     const sine = Math.sin(state.yaw);
@@ -243,7 +248,7 @@ export class LeaperSimulation {
       const offsetZ = -leg.homeLocal.x * sine + leg.homeLocal.z * cosine;
       const desiredFoot = this.v[6].set(
         state.position.x + offsetX,
-        FOOT_HEIGHT,
+        FOOT_HEIGHT + (this.world?.floorHeight ?? 0),
         state.position.z + offsetZ,
       );
       const lead = this.v[7].copy(state.velocity).multiplyScalar(0.16);
@@ -252,6 +257,11 @@ export class LeaperSimulation {
       desiredFoot.z += lead.z;
       if (leg.cooldown > 0) leg.cooldown -= deltaTime;
 
+      if (leg.disabled) {
+        // The attached remnant is posed by HangingLeg, not by the missing foot's IK.
+        leg.stepping = false;
+        return;
+      }
       if (state.grounded) {
         this.updateGroundedLeg(leg, desiredFoot, speed, stepCount, deltaTime);
       } else {
@@ -268,6 +278,9 @@ export class LeaperSimulation {
       }
       this.solveAndPlace(leg);
     });
+    // A tripod often lands together: emit one event for the actual landing,
+    // rather than stacking three copies of the mechanical recording.
+    if (this.landedFeet) this.onFootstep?.(this.landedFeet);
   }
 
   updateGroundedLeg(leg, desiredFoot, speed, stepCount, deltaTime) {
@@ -275,6 +288,7 @@ export class LeaperSimulation {
       leg.replantDelay -= deltaTime;
       if (leg.replantDelay < 0 && !leg.stepping) {
         this.startStep(leg, desiredFoot, speed, 0.13);
+        stepCount[leg.gait] += 1;
       }
     }
     if (leg.stepping) {
@@ -283,12 +297,13 @@ export class LeaperSimulation {
       if (leg.stepProgress >= 1) {
         leg.stepping = false;
         leg.footPosition.copy(leg.stepTo);
-        leg.footPosition.y = FOOT_HEIGHT;
+        leg.footPosition.y = leg.stepTo.y;
         leg.cooldown = 0.06;
+        this.landedFeet = (this.landedFeet || 0) + 1;
       } else {
         const eased = leg.stepProgress ** 2 * (3 - 2 * leg.stepProgress);
         leg.footPosition.lerpVectors(leg.stepFrom, leg.stepTo, eased);
-        leg.footPosition.y = FOOT_HEIGHT + Math.sin(leg.stepProgress * Math.PI) * leg.lift;
+        leg.footPosition.y = leg.stepTo.y + Math.sin(leg.stepProgress * Math.PI) * leg.lift;
       }
       return;
     }
@@ -297,10 +312,9 @@ export class LeaperSimulation {
     const z = desiredFoot.z - leg.footPosition.z;
     const drift = Math.hypot(x, z);
     const otherGait = leg.gait === 0 ? 1 : 0;
-    if (
-      drift > 1.05
-      || (drift > STEP_DISTANCE && stepCount[otherGait] === 0 && leg.cooldown <= 0)
-    ) {
+    // Surviving legs keep the normal alternating gait after a leg is lost. Moving
+    // only one foot at a time let the others trail until they stretched out flat.
+    if (drift > 1.05 || (drift > STEP_DISTANCE && stepCount[otherGait] === 0 && leg.cooldown <= 0)) {
       this.startStep(leg, desiredFoot, speed, 0);
       stepCount[leg.gait] += 1;
     }
@@ -316,7 +330,7 @@ export class LeaperSimulation {
         .setLength(Math.min(0.22, speed * 0.04));
       leg.stepTo.add(velocityLead);
     }
-    leg.stepTo.y = FOOT_HEIGHT;
+    leg.stepTo.y = FOOT_HEIGHT + (this.world?.floorHeight ?? 0);
     leg.stepDuration = forcedDuration
       || THREE.MathUtils.clamp(0.245 - speed * 0.012, 0.125, 0.24);
     leg.lift = (0.28 + Math.min(speed / MOVEMENT.sprintSpeed, 1) * 0.18) * ROBOT_SCALE;

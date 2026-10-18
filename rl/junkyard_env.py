@@ -1,5 +1,6 @@
 """Evaluation-only adapter for the frozen 7,757,824-step seeker recipe."""
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -38,18 +39,37 @@ class JunkyardEnv(SeekerEnv):
 
     def _collision_for_pose(self, position, yaw):
         if self.player_collision:
-            # Conservative full leg envelope; jumping does not bypass contact.
-            radius = PLAYER_CONTACT["leaperRadius"] + PLAYER_CONTACT["playerRadius"] * self.geometry.scale
-            start = self.position
-            delta = np.asarray(position) - start
-            length = float(delta @ delta)
-            t = np.clip(float((self.target - start) @ delta) / length, 0, 1) if length else 0
-            if np.linalg.norm(self.target - start - delta * t) < radius:
-                return "player"
+            # The Leaper's body and legs may not move into Lola; moving away from
+            # her is always allowed. Jumping does not bypass contact.
+            # Sampled along the whole move so a long step cannot pass through her.
+            start = np.asarray(self.position, dtype=np.float64)
+            end = np.asarray(position, dtype=np.float64)
+            turn = (yaw - self.yaw + math.pi) % (2 * math.pi) - math.pi
+            current = self._player_clearance(start, self.yaw)
+            samples = max(1, math.ceil(float(np.linalg.norm(end - start)) / 0.25))
+            for i in range(1, samples + 1):
+                t = i / samples
+                clearance = self._player_clearance(start + (end - start) * t, self.yaw + turn * t)
+                if clearance < 0 and clearance < current:
+                    return "player"
         for point, radius, part in self._collision_points(position, yaw):
             if self.geometry.disk_blocked(point, radius):
                 return part
         return None
+
+    def _player_clearance(self, position, yaw):
+        """Gap between Lola and the nearest Leaper disc (body, three per leg); negative = overlap.
+
+        Same shape as src/world/playerContact.js, read from player-contact.json.
+        """
+        shape = PLAYER_CONTACT["leaperShape"]
+        player_radius = PLAYER_CONTACT["playerRadius"] * self.geometry.scale
+        centre = np.asarray(position, dtype=np.float64)
+        discs = [(centre, shape["bodyRadius"])]
+        for angle in shape["legAngles"]:
+            direction = np.array([math.sin(yaw + angle), math.cos(yaw + angle)])
+            discs.extend((centre + direction * distance, radius) for distance, radius in shape["legPoints"])
+        return min(float(np.linalg.norm(self.target - point)) - radius - player_radius for point, radius in discs)
 
     def _ray_distances(self, position, yaw):
         angles = yaw + self._ray_relative_angles()

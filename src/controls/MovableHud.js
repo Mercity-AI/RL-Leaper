@@ -1,4 +1,5 @@
-const STORAGE_KEY = 'leaper.hud-layout.v1';
+// v2: health and controls moved; older saved drags would hide the new layout.
+const STORAGE_KEY = 'leaper.hud-layout.v2';
 
 export function clampPanelPosition(x, y, width, height, viewportWidth, viewportHeight) {
   return {
@@ -41,6 +42,9 @@ export function enableMovableHud() {
     window.addEventListener('resize', restore);
     if (typeof ResizeObserver !== 'undefined') new ResizeObserver(restore).observe(element);
     element.addEventListener('pointerdown', (event) => {
+      // Buttons inside a panel are actions, not panel drag handles.
+      const control = event.target.closest('button');
+      if (control && control !== element) return;
       if (event.button !== 0 || event.target.closest('input, select')) return;
       const now = performance.now();
       const twice = lastTap && now - lastTap.time < 350
@@ -87,6 +91,7 @@ export function enableMovableHud() {
       }
       const button = event.target.closest('button');
       if (!button) return;
+      if (button !== element) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       clearTimeout(pendingClick);
