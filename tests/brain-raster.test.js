@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { JunkyardRaster, scaleForWidth } from '../src/brain/junkyard/collisionRaster.js';
-import { loadGlbTriangles } from '../src/brain/junkyard/junkyardSight.js';
+import { JunkyardSight, loadGlbTriangles, scaleTriangles } from '../src/brain/junkyard/junkyardSight.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root));
@@ -56,4 +56,25 @@ test('sight triangles read from the GLB match Python load_triangles bit for bit'
   const triangles = loadGlbTriangles(read('assets/maps/junkyard/junkyard.glb'));
   assert.equal(triangles.length / 9, index.glb_triangles.count);
   assert.equal(sha256(new Uint8Array(triangles.buffer)), index.glb_triangles.sha256);
+});
+
+// Python's JunkyardSight.hit on 1,200 recorded lines, half of them aimed exactly
+// at triangle edges and corners: the JS test must agree on every hit / no-hit
+// and give the very same hit point (it rounds its sums in NumPy's order).
+test('eye lines hit the same triangles at the same points as Python, edge cases included', () => {
+  const lines = JSON.parse(read(`tests/fixtures/brain/${index.sight_lines.file}`));
+  const unpack = (packed) => new Float64Array(Uint8Array.from(Buffer.from(packed.b64, 'base64')).buffer);
+  const [origins, ends, points] = ['origins', 'ends', 'points'].map((name) => unpack(lines.arrays[name]));
+  assert.equal(scaleForWidth(lines.width), lines.scale);
+  const sight = new JunkyardSight(scaleTriangles(loadGlbTriangles(read('assets/maps/junkyard/junkyard.glb')), lines.scale));
+  let flips = 0, moved = 0;
+  for (let i = 0; i < lines.count; i += 1) {
+    const at = (array) => Array.from(array.subarray(i * 3, i * 3 + 3));
+    const hit = sight.hit(at(origins), at(ends));
+    if ((hit !== null) !== lines.found[i]) flips += 1;
+    else if (hit && !hit.every((value, k) => Object.is(value, points[i * 3 + k]))) moved += 1;
+  }
+  assert.ok(lines.count >= 1000 && lines.hits > 0 && lines.hits < lines.count, 'lines both hit and miss');
+  assert.equal(flips, 0, 'hit / no-hit decisions');
+  assert.equal(moved, 0, 'hit points are bit-identical');
 });

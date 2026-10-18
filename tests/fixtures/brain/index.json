@@ -206,6 +206,13 @@
    "bytes": 228050
   }
  },
+ "sight_lines": {
+  "file": "sight-lines-5.5.json",
+  "width": 5.5,
+  "count": 1200,
+  "hits": 898,
+  "bytes": 121951
+ },
  "glb_triangles": {
   "count": 98632,
   "sha256": "07eda2e4fc2b65aa699df3701ea8c4312b6a1c44c7538da08fc5bf9877b6de00"

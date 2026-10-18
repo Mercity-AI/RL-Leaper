@@ -10,6 +10,8 @@ position and eye-sight body points), what the brain saw (the 34 inputs), its
 LSTM memory, the action it chose, where the Leaper ended up and the frame the
 HTTP server would have sent. The JavaScript port in src/brain/junkyard/ must
 reproduce these files (tests/brain-parity.test.js, tests/brain-onnx.html).
+It also records the eye-line test on its own (sight-lines-5.5.json, checked by
+tests/brain-raster.test.js); `--only sight-lines` re-records just that file.
 
 Nothing in rl/ is edited or monkey-patched: the checkpoint is wrapped in a small
 recorder that BrainSession calls exactly like the real model.
@@ -235,6 +237,57 @@ def run_scenario(spec, world, model):
                 arrays=arrays), seconds / max(1, spec["steps"])
 
 
+# --- Eye lines on their own: the exact arithmetic of the sight test ----------------
+
+SIGHT_LINE_WIDTH = 5.5
+SIGHT_LINE_FILE = "sight-lines-5.5.json"
+
+
+def pack64(array):
+    """Float64 arrays as base64 (exact bits), like pack() for float32."""
+    array = np.ascontiguousarray(array, dtype="<f8")
+    return dict(dtype="float64", shape=list(array.shape),
+                b64=base64.b64encode(array.tobytes()).decode("ascii"))
+
+
+def record_sight_lines(count=600):
+    """JunkyardSight.hit on random eye-to-Lola lines and on lines aimed exactly
+    at triangle edges and corners, so the JS port's hit points (the debug sight
+    lines) and its edge decisions can be checked bit for bit, independently of
+    the Leaper's heading maths."""
+    scale = BODY_DIAMETER / SIGHT_LINE_WIDTH
+    if World._triangles is None:
+        World._triangles = load_triangles(GLB)
+    sight = JunkyardSight(World._triangles * scale)
+    rng = np.random.default_rng(21)
+    low, high = sight.low.min(axis=0), sight.high.max(axis=0)
+    origins, ends = [], []
+    # Lines like the eye check: eye height to Lola's bones, up to 30 units away.
+    for _ in range(count):
+        origin = [rng.uniform(low[0], high[0]), rng.uniform(1.5, 3.5), rng.uniform(low[2], high[2])]
+        angle, reach = rng.uniform(-math.pi, math.pi), rng.uniform(0.5, 30.0)
+        origins.append(origin)
+        ends.append([origin[0] + math.sin(angle) * reach, rng.uniform(0.4, 2.4), origin[2] + math.cos(angle) * reach])
+    # Knife-edge lines through a point on a triangle's edge or exactly a corner.
+    for _ in range(count):
+        tri = sight.triangles[rng.integers(len(sight.triangles))]
+        i = int(rng.integers(3))
+        w = rng.uniform(0, 1) if rng.random() < 0.8 else float(rng.integers(2))
+        point = tri[i] + (tri[(i + 1) % 3] - tri[i]) * w
+        direction = rng.normal(0, 1, 3)
+        direction /= np.linalg.norm(direction)
+        origins.append((point - direction * rng.uniform(0.2, 8.0)).tolist())
+        ends.append((point + direction * rng.uniform(-0.5, 8.0)).tolist())
+    hits = [sight.hit(np.asarray(o, float), np.asarray(e, float)) for o, e in zip(origins, ends)]
+    found = [h is not None for h in hits]
+    points = [h if h is not None else [0.0, 0.0, 0.0] for h in hits]
+    return dict(format=FORMAT, name="sight-lines-5.5", width=SIGHT_LINE_WIDTH, scale=scale,
+                description="Python JunkyardSight.hit for random eye lines and lines through "
+                            "triangle edges/corners (map scaled for Leaper width 5.5).",
+                count=len(hits), hits=int(sum(found)), found=found,
+                arrays=dict(origins=pack64(origins), ends=pack64(ends), points=pack64(points)))
+
+
 def summarize(fixture):
     """Plain counts so a person can see each scenario covers what it claims."""
     frames = [s["frame"] for s in fixture["steps"]]
@@ -378,6 +431,17 @@ def main():
                                                 bytes=path.stat().st_size)
         print(f"{spec['name']}: {summary} ({path.stat().st_size / 1e6:.2f} MB, "
               f"{seconds * 1000:.0f} ms/step in Python)", flush=True)
+
+    # The eye-line test on its own (`--only sight-lines` re-records just this file).
+    if not args.only or "sight-lines" in args.only:
+        lines = record_sight_lines()
+        path = args.out / SIGHT_LINE_FILE
+        path.write_text(json.dumps(lines, separators=(",", ":"), allow_nan=False))
+        index["sight_lines"] = dict(file=path.name, width=lines["width"], count=lines["count"],
+                                    hits=lines["hits"], bytes=path.stat().st_size)
+        print(f"sight lines: {lines['count']} lines, {lines['hits']} hits", flush=True)
+    elif previous.exists() and "sight_lines" in json.loads(previous.read_text()):
+        index["sight_lines"] = json.loads(previous.read_text())["sight_lines"]
 
     # World facts the JS port must reproduce bit for bit (rasters, GLB triangles).
     triangles = World._triangles if World._triangles is not None else load_triangles(GLB)

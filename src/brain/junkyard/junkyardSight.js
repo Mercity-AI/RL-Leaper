@@ -238,19 +238,25 @@ export class JunkyardSight {
   }
 
   // Moller-Trumbore with Python's tolerances; returns t in [0, 1) or Infinity.
+  // The 3-term dot products are summed in NumPy's own order, so t (the drawn
+  // hit point) and the edge tests round exactly like the server:
+  // np.einsum('ij,ij->i') adds lanes 0 and 2 first, then lane 1 (two-wide SIMD);
+  // `q @ direction` is an OpenBLAS gemv: fma(q2, d2, fma(q0, d0, q1 * d1)).
+  // (With exactly one candidate triangle NumPy uses a dot kernel instead; that
+  // can only shift v by its last bit, and is rare on the real map.)
   intersect(tri, i, ox, oy, oz, dx, dy, dz) {
     const v0x = tri[i], v0y = tri[i + 1], v0z = tri[i + 2];
     const ax = tri[i + 3] - v0x, ay = tri[i + 4] - v0y, az = tri[i + 5] - v0z;
     const bx = tri[i + 6] - v0x, by = tri[i + 7] - v0y, bz = tri[i + 8] - v0z;
     const px = dy * bz - dz * by, py = dz * bx - dx * bz, pz = dx * by - dy * bx;
-    const determinant = ax * px + ay * py + az * pz;
+    const determinant = (ax * px + az * pz) + ay * py;
     if (!(Math.abs(determinant) > 1e-10)) return Infinity;
     const inverse = 1 / determinant;
     const sx = ox - v0x, sy = oy - v0y, sz = oz - v0z;
-    const u = (sx * px + sy * py + sz * pz) * inverse;
+    const u = ((sx * px + sz * pz) + sy * py) * inverse;
     const qx = sy * az - sz * ay, qy = sz * ax - sx * az, qz = sx * ay - sy * ax;
-    const v = (qx * dx + qy * dy + qz * dz) * inverse;
-    const t = (bx * qx + by * qy + bz * qz) * inverse;
+    const v = fma(qz, dz, fma(qx, dx, qy * dy)) * inverse;
+    const t = ((bx * qx + bz * qz) + by * qy) * inverse;
     if (!(u >= -1e-8 && v >= -1e-8 && u + v <= 1 + 1e-8)) return Infinity;
     if (!(t >= 0 && t < 1 - 1e-7)) return Infinity;
     return t;
