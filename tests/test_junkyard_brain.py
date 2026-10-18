@@ -10,7 +10,9 @@ Two groups:
 """
 import importlib.util
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -122,6 +124,31 @@ class CheckpointTests(unittest.TestCase):
         self.assertGreater(np.linalg.norm(np.ptp(positions, axis=0)), .5)
         self.assertEqual(session.env.steps, 120)
         print('Checkpoint searched from a hidden-target start; 120 finite steps; actions match direct model.predict.')
+
+    def test_loads_without_optimizer_file_and_acts_identically(self):
+        # Inference never uses the optimizer, so a checkpoint folder holding only
+        # data + policy.pth must load with the same identity, weights and actions.
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder)
+        for name in ("data", "policy.pth"):
+            shutil.copy(CHECKPOINT / name, folder / name)
+        model, digest = self.load_brain(folder)
+        self.assertEqual(digest, self.digest)
+        self.assertEqual(model.num_timesteps, 7757824)
+        for name, tensor in self.model.policy.state_dict().items():
+            self.assertTrue(tensor.equal(model.policy.state_dict()[name]), name)
+        rng = np.random.default_rng(7757824)
+        state_a = state_b = None
+        for i in range(200):
+            obs = rng.uniform(-1, 1, 34).astype(np.float32)
+            start = np.array([i == 0])
+            action_a, state_a = self.model.predict(obs, state=state_a, episode_start=start, deterministic=True)
+            action_b, state_b = model.predict(obs, state=state_b, episode_start=start, deterministic=True)
+            np.testing.assert_array_equal(action_a, action_b)
+        # A folder without the policy weights is refused with a clear message.
+        (folder / "policy.pth").unlink()
+        with self.assertRaisesRegex(FileNotFoundError, "policy.pth"):
+            self.load_brain(folder)
 
 
 if __name__ == '__main__':
