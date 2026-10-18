@@ -1,24 +1,45 @@
-"""Checkpoint integration tests; inference only, no optimizer or training."""
+"""Junkyard brain adapter tests; inference only, no optimizer or training.
+
+Two groups:
+- JunkyardEnvTests need only numpy and gymnasium. They run on any machine and
+  guard the fairness rules: hidden positions never leak, Lola blocks the Leaper,
+  and it can always back away.
+- CheckpointTests load the real saved brain. They run when model_7757824/ and
+  PyTorch + sb3-contrib are installed (requirements-brain.txt), and are skipped
+  with a clear reason otherwise.
+"""
+import importlib.util
+import os
 import sys
 from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / ".venv/Lib/site-packages"))
+# Lets `python tests/test_junkyard_brain.py` import the project's rl package.
 sys.path.insert(0, str(ROOT))
 import numpy as np
-import torch
 from rl.junkyard_geometry import JunkyardGeometry
-from rl.junkyard_env import JunkyardEnv
-from rl.junkyard_server import BrainSession, load_brain
+from rl.junkyard_env import JunkyardEnv, PLAYER_CONTACT
+
+# The checkpoint tests need the committed brain files plus the ML stack. Setting
+# LEAPER_SKIP_CHECKPOINT_TESTS=1 (pnpm test:py does) keeps a run checkpoint-free.
+CHECKPOINT = ROOT / "model_7757824"
+BRAIN_READY = ((CHECKPOINT / "policy.pth").exists()
+               and importlib.util.find_spec("torch") is not None
+               and importlib.util.find_spec("sb3_contrib") is not None
+               and not os.environ.get("LEAPER_SKIP_CHECKPOINT_TESTS"))
+SKIP_REASON = ("brain checkpoint tests skipped: needs model_7757824/ plus PyTorch and "
+               "sb3-contrib (pip install -r requirements-brain.txt)")
 
 
-class BrainTests(unittest.TestCase):
+def junkyard_geometry(width=4):
+    return JunkyardGeometry(ROOT / "assets/maps/junkyard/collision.json", 7.98 / width)
+
+
+class JunkyardEnvTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        torch.set_num_threads(1)
-        cls.geometry = JunkyardGeometry(ROOT / "assets/maps/junkyard/collision.json", 7.98 / 4)
-        cls.model, cls.digest = load_brain(ROOT / "model_7757824")
+        cls.geometry = junkyard_geometry()
 
     def test_hidden_target_does_not_leak(self):
         a = JunkyardEnv(self.geometry, [0, 0], 0, [0, -15])
@@ -65,13 +86,26 @@ class BrainTests(unittest.TestCase):
         env.position = np.array([0, 0], dtype=np.float32)
         env.yaw = 0.0
         env.target = np.array([0, 3.5], dtype=np.float32)
-        from rl.junkyard_env import PLAYER_CONTACT
         player = PLAYER_CONTACT["playerRadius"] * self.geometry.scale
         self.assertAlmostEqual(env._player_clearance(env.position, 0.0) + player,
             min(np.hypot(np.sin(0.62) * 3.24, 3.5 - np.cos(0.62) * 3.24) - 0.9, np.hypot(np.sin(0.62) * 2.2, 3.5 - np.cos(0.62) * 2.2) - 0.35, 3.5 - 1.3), places=5)
 
+
+@unittest.skipUnless(BRAIN_READY, SKIP_REASON)
+class CheckpointTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # PyTorch is imported here so the model-free tests above never need it.
+        import torch
+        from rl.junkyard_server import BrainSession, load_brain
+        torch.set_num_threads(1)
+        cls.BrainSession = BrainSession
+        cls.load_brain = staticmethod(load_brain)
+        cls.geometry = junkyard_geometry()
+        cls.model, cls.digest = load_brain(CHECKPOINT)
+
     def test_real_checkpoint_actions_and_persistent_memory(self):
-        session = BrainSession(self.model, self.geometry, [0, 0], 0, [0, -15])
+        session = self.BrainSession(self.model, self.geometry, [0, 0], 0, [0, -15])
         self.assertEqual(self.model.num_timesteps, 7757824)
         self.assertEqual(self.digest, '883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594')
         self.assertFalse(session.env.target_visible)

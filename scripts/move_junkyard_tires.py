@@ -9,7 +9,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT), str(ROOT / '.venv/Lib/site-packages')]
+# Lets `python scripts/move_junkyard_tires.py` import the project's rl package.
+# Run it with the project's virtual environment's Python.
+sys.path.insert(0, str(ROOT))
 from rl.junkyard_sight import load_triangles
 
 path = ROOT / 'assets/maps/junkyard/junkyard.glb'

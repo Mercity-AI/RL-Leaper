@@ -7,6 +7,8 @@ from rl.seeker_round2 import ExperimentEnv, model_for, DONOR
 
 
 class RoundTwoTests(unittest.TestCase):
+    # The donor lives in the owner's local rl_artifacts/, which is not in Git.
+    @unittest.skipUnless(DONOR.is_file(), f'Local round-two donor not installed (rl_artifacts/ is not in Git): {DONOR}')
     def test_transfer_all_branches(self):
         torch.set_num_threads(1)
         donor=PPO.load(DONOR,device='cpu')
