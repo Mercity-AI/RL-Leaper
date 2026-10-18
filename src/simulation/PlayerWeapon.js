@@ -175,14 +175,14 @@ export class PlayerWeapon {
       // Pulling the trigger mid-reload on an empty gun still clicks.
       if (ammo.mag <= 0) {
         this.remaining = this.weapon.interval;
-        this.p.combat.audio.playSlot('gunEmpty');
+        this.p.audio.playSlot('gunEmpty');
       }
       return false;
     }
     // An empty magazine clicks and starts the (timed) reload.
     if (ammo.mag <= 0) {
       this.remaining = this.weapon.interval;
-      this.p.combat.audio.playSlot('gunEmpty');
+      this.p.audio.playSlot('gunEmpty');
       this.reload();
       return false;
     }
@@ -203,9 +203,9 @@ export class PlayerWeapon {
     const hit = bulletHit(p.combat.geometry, enemies, origin, direction, range);
     const end = origin.clone().addScaledVector(direction, hit.distance);
     this.visuals.shot(origin, end, this.weapon.rifle);
-    p.combat.audio.play(this.weapon.rifle ? 'm416' : 'pistol');
+    p.audio.play(this.weapon.rifle ? 'm416' : 'pistol');
     // One shared impact recording for the Leaper and all current scenery.
-    if (hit.intersection) p.combat.audio.play('leaper');
+    if (hit.intersection) p.audio.play('leaper');
     this.reticle.dataset.hit = String(hit.enemy);
     if (hit.enemy) {
       const normal = hit.intersection.face.normal.clone()
@@ -226,7 +226,7 @@ export class PlayerWeapon {
     this.bigHitTime = BIG_HIT.crosshairTime;
     this.goodFlash = 1;
     this.reticle.dataset.big = 'true';
-    if (brokeJoint) this.p.combat.audio.playSlot('kneeBreak');
+    if (brokeJoint) this.p.audio.playSlot('kneeBreak');
   }
 
   clearEffects() { this.visuals.clear(); }
@@ -293,7 +293,7 @@ export class PlayerWeapon {
       this.reloadRemaining = Math.max(0, this.reloadRemaining - dt);
       if (!this.reloadSoundPlayed && this.reloadTotal - this.reloadRemaining >= this.weapon.reloadSoundAt) {
         this.reloadSoundPlayed = true;
-        this.reloadVoice = this.p.combat.audio.play(this.weapon.reloadSound);
+        this.reloadVoice = this.p.audio.play(this.weapon.reloadSound);
       }
       if (this.reloadRemaining === 0) this.finishReload();
     } else if (this.ammoState.mag <= 0 && this.remaining === 0) {

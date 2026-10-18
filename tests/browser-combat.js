@@ -13,6 +13,8 @@ import { LeaperPov } from '../src/camera/LeaperPov.js';
 import { CombatGeometry } from '../src/simulation/CombatGeometry.js';
 import { LeaperSimulation } from '../src/simulation/LeaperSimulation.js';
 import { PlayerWeapon, bulletHit } from '../src/simulation/PlayerWeapon.js';
+import { LaserAudio } from '../src/simulation/LaserAudio.js';
+import { PlayerVitals } from '../src/game/PlayerVitals.js';
 import { COMBAT } from '../src/config/combat.js';
 import eyeConfig from '../src/config/eye-vision.json' with { type: 'json' };
 
@@ -32,7 +34,9 @@ try {
   const bones = target.outfits.map(({ model }) => eyeConfig.targetBones.map(name => model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName(name))));
   const p = { engine, world, target, cameraController, panel: document.querySelector('#junkyardPanel'),
     sight: { bones, lines: new THREE.Group() }, walking: true, brain: { ready: true },
-    simulation: { rig, state: { yaw: 0 } }, stop() { this.walking = false; }, reset() { this.combat.reset(); } };
+    simulation: { rig, state: { yaw: 0 } }, stop() { this.walking = false; }, reset() { this.vitals.reset(); this.combat.reset(); } };
+  // The game creates one sound engine and Lola's health (PlayerVitals) and hands them to combat.
+  p.audio = new LaserAudio(); p.vitals = new PlayerVitals({ player: target, audio: p.audio });
   p.combat = new LeaperCombat(p); p.pov = new LeaperPov(p);
   const combat = p.combat, scale = world.scale;
   combat.audio.unlock();
@@ -42,7 +46,7 @@ try {
   function animatePlayer(dt = 0.1) { target.move(0, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, dt); }
   function tick(dt = 1 / 60) { combat.update(dt); p.pov.update(); }
   function frames(n) { for (let i = 0; i < n; i++) tick(); }
-  function reset() { combat.reset(); p.walking = true; target.crouching = false; target.resetJump(); animatePlayer(); }
+  function reset() { p.vitals.reset(); combat.reset(); p.walking = true; target.crouching = false; target.resetJump(); animatePlayer(); }
   result.textContent = 'REAL-ASSET BROWSER COMBAT CHECKS';
   reset(); tick(0);
   // Find a clear front-facing lane at the real spawn, using physical map rays.
@@ -96,7 +100,7 @@ try {
   reset(); target.mesh.position.copy(lane); tick(0); frames(100);
   check(combat.lolaHealth === 92, 'one unobstructed hit deals exactly 8 damage');
   check(target.hitDirection.dot(combat.direction) > 0.8, 'actual bolt collision passes its travel direction into hit recoil');
-  check(combat.hud.querySelector('[data-health-bar]').value === 92 && !combat.hud.textContent.includes('100'), 'damage updates the visible health HUD');
+  check(p.vitals.element.querySelector('[data-health-bar]').value === 92 && !p.vitals.element.textContent.includes('100'), 'damage updates the visible health HUD');
 
   reset(); target.mesh.position.copy(lane); animatePlayer(); tick(0);
   const standingHead = combat.pose()[0].y;
@@ -149,7 +153,7 @@ try {
   check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'ordinary damage does not tint screen edges');
   for (let i = 0; i < 9; i++) combat.damageLola();
   check(combat.lolaHealth === 20 && Number(document.documentElement.style.getPropertyValue('--damage-flash')) > 0, 'screen-edge warning begins at 20 HP');
-  combat.reset();
+  combat.reset(); p.vitals.reset();
   check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'restart clears critical-health screen tint');
   // Floating Leaper health bar: hidden until a burst of real damage, then drains and fades.
   const worldBar = document.querySelector('#leaperWorldBar');
@@ -349,7 +353,8 @@ try {
   engine.camera.position.copy(savedCameraPosition); engine.camera.quaternion.copy(savedCameraRotation); engine.camera.updateMatrixWorld(true);
   p.playerWeapon.reset(); combat.leaperHealth = 6;
   p.playerWeapon.fire();
-  check(combat.leaperHealth === 0 && combat.hud.querySelector('[data-result] strong').textContent === 'LEAPER DEFEATED', 'player gunshot earns a real defeat, not a debug result');
+  // The banner text itself is the encounter's (resultText, tested in node); combat reports the kill.
+  check(combat.leaperHealth === 0 && combat.outcome.winner === 'lola' && !combat.outcome.debug, 'player gunshot earns a real defeat, not a debug result');
   p.playerWeapon.reset(); combat.reset();
   check(!target.shot && !p.playerWeapon.effects.length, 'reset clears shooting pose and transient effects');
   target.mesh.position.copy(base);
@@ -369,7 +374,7 @@ try {
   check(hitHead.z < neutralHead.z, 'torso flinch moves the head backward rather than forward');
   animatePlayer(0.7);
   check(target.hitRecoilTime === 0 && target.outfits.every(o => !o.hitBase), 'hit recoil recovers without accumulating bone offsets');
-  combat.damageLola(); animatePlayer(0.08); combat.reset();
+  combat.damageLola(); animatePlayer(0.08); combat.reset(); p.vitals.reset();
   check(target.hitRecoilTime === 0 && target.outfits.every(o => !o.hitBase), 'encounter reset clears hit recoil');
   // Exercise direct knee shots through the complete player firing path with real meshes.
   const damageSim = new LeaperSimulation({ rig, cameraController, world });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { Encounter } from '../src/game/Encounter.js';
+import { Encounter, resultText } from '../src/game/Encounter.js';
 import { GameFlow } from '../src/core/GameFlow.js';
 import { EventBus, GAME_EVENTS } from '../src/core/events.js';
 import { WorldCollision } from '../src/world/WorldCollision.js';
@@ -22,10 +22,9 @@ function fakeEnemy(log, name, x = 0, z = 0) {
       contactPoses: () => ({ from: { x, z, yaw: 0 }, to: { x, z, yaw: 0 }, margin: 0 }),
     },
     combat: {
-      lolaHealth: 100, leaperHealth: 600,
+      leaperHealth: 600,
       update: (dt) => log.push([`${name}.combat`, dt]),
-      reset() { this.lolaHealth = 100; this.leaperHealth = 600; },
-      audio: { stopRobotSteps() {} },
+      reset() { this.leaperHealth = 600; },
     },
   };
 }
@@ -37,27 +36,31 @@ function setup({ enemies = 1 } = {}) {
   const player = { isPlayer: true, height: 2, mesh: { position: new THREE.Vector3(0, 0, 20), rotation: { y: 0 } },
     clearHitReaction() {}, resetJump() {} };
   const weapon = { resets: 0, update: (dt) => log.push(['weapon', dt]), reset() { this.resets += 1; } };
+  // Lola's health (PlayerVitals stand-in).
+  const vitals = { health: 100, get dead() { return this.health <= 0; },
+    reset() { this.health = 100; }, update: (dt) => log.push(['vitals', dt]) };
   const world = { spawn: { x: 0, z: 0 }, scale: 1, floorHeight: 0, collision: new WorldCollision(),
     navigation: { free: [1, 1], point: (i) => ({ x: 0, z: i ? 40 : 1 }) } };
   const camera = { yaw: 0.5, pitch: 0.16, target: new THREE.Vector3() };
   const encounter = new Encounter({
-    flow, events, world, player, playerWeapon: weapon, input: { jumpBuffer: 0.1 }, cameraController: camera,
+    flow, events, world, player, vitals, audio: { stopRobotSteps() {} },
+    playerWeapon: weapon, input: { jumpBuffer: 0.1 }, cameraController: camera,
     playerController: {
       sample: (dt, { frozen }) => log.push(['sample', dt, frozen]),
       update: (dt) => log.push(['player', dt]),
     },
   });
   const list = Array.from({ length: enemies }, (_, i) => encounter.addEnemy(fakeEnemy(log, `leaper${i}`, i * 10, 0)));
-  return { log, events, flow, player, weapon, world, camera, encounter, enemies: list };
+  return { log, events, flow, player, vitals, weapon, world, camera, encounter, enemies: list };
 }
 
-test('the encounter updates Lola, then every brain, then every combat, then the gun', () => {
+test('the encounter updates Lola, then every brain, then every combat, her health panel, then the gun', () => {
   const { log, flow, encounter } = setup({ enemies: 2 });
   flow.hunt();
   encounter.input(0.1);
   encounter.update(0.1);
   assert.deepEqual(log.map(([name]) => name),
-    ['sample', 'player', 'leaper0.brain', 'leaper1.brain', 'leaper0.combat', 'leaper1.combat', 'weapon']);
+    ['sample', 'player', 'leaper0.brain', 'leaper1.brain', 'leaper0.combat', 'leaper1.combat', 'vitals', 'weapon']);
   assert.ok(log.every(([, dt]) => dt === 0.1));
 });
 
@@ -93,7 +96,7 @@ test('brains run only while hunting; leaving play drops the gun, ending the figh
 });
 
 test('a win during the hunt is real, any other ending is practice, and results are kept', () => {
-  const { events, flow, encounter, enemies: [leaper] } = setup();
+  const { events, flow, vitals, encounter, enemies: [leaper] } = setup();
   const ended = [];
   events.on(GAME_EVENTS.encounterEnded, (payload) => ended.push(payload));
   flow.hunt();
@@ -106,14 +109,15 @@ test('a win during the hunt is real, any other ending is practice, and results a
   encounter.end();
   assert.deepEqual(flow.state, { name: 'ended', winner: 'lola', practice: false });
   assert.deepEqual(ended[0].stats,
-    { winner: 'lola', practice: false, seconds: 2, damageTaken: 8, damageDealt: 6, jointsBroken: 1, assisted: false });
+    { winner: 'lola', practice: false, seconds: 2, damageTaken: 8, damageDealt: 6, jointsBroken: 1, assisted: false,
+      debugUsed: false, text: 'LEAPER DEFEATED' });
   assert.equal(encounter.end(), false, 'an encounter ends once');
 
   // Any ending while exploring is practice.
   encounter.restart();
   assert.equal(encounter.result, null, 'restart clears the result');
   flow.explore();
-  leaper.combat.lolaHealth = 0;
+  vitals.health = 0;
   encounter.end();
   assert.deepEqual(flow.state, { name: 'ended', winner: 'leaper', practice: true });
 
@@ -128,11 +132,20 @@ test('a win during the hunt is real, any other ending is practice, and results a
     leaper.combat.leaperHealth = 0;
     encounter.end();
     assert.deepEqual(flow.state, { name: 'ended', winner: 'lola', practice: true }, label);
+    assert.equal(encounter.result.text, label === 'debug button'
+      ? 'PRACTICE · LEAPER DEFEATED · DEBUG TEST' : 'PRACTICE · LEAPER DEFEATED', label);
   }
 });
 
+test('the result banner says who won, and marks practice and debug results', () => {
+  assert.equal(resultText({ winner: 'lola', practice: false }), 'LEAPER DEFEATED');
+  assert.equal(resultText({ winner: 'lola', practice: true }), 'PRACTICE · LEAPER DEFEATED');
+  assert.equal(resultText({ winner: 'lola', practice: true, debugUsed: true }), 'PRACTICE · LEAPER DEFEATED · DEBUG TEST');
+  assert.equal(resultText({ winner: 'leaper', practice: false }), 'LOLA DEFEATED');
+});
+
 test('RESTART returns Lola, the camera and every Leaper to the start snapshot', () => {
-  const { events, flow, player, camera, encounter, enemies } = setup({ enemies: 2 });
+  const { events, flow, player, vitals, camera, encounter, enemies } = setup({ enemies: 2 });
   const started = [];
   events.on(GAME_EVENTS.encounterStarted, ({ snapshot }) => started.push(snapshot));
   player.mesh.rotation.y = 1.2;
@@ -147,7 +160,7 @@ test('RESTART returns Lola, the camera and every Leaper to the start snapshot', 
   camera.yaw = 3;
   enemies[0].simulation.state.position.set(7, 0, 7);
   enemies[0].simulation.state.yaw = 2;
-  enemies[0].combat.lolaHealth = 0;
+  vitals.health = 0;
   encounter.end();
   encounter.restart();
   assert.equal(flow.ready, true);
@@ -156,7 +169,7 @@ test('RESTART returns Lola, the camera and every Leaper to the start snapshot', 
   const [first, second] = enemies.map(({ simulation: { state } }) => [state.position.x, state.position.z, state.yaw]);
   assert.deepEqual(first, [0, 0, 0]);
   assert.deepEqual(second, [10, 0, -0.4]);
-  assert.equal(enemies[0].combat.lolaHealth, 100, 'health restored');
+  assert.equal(vitals.health, 100, 'health restored');
   assert.ok(enemies.every(({ brain }) => brain.resets === 1), 'fresh brain sessions');
   assert.equal(enemies[0].simulation.rig.legs[0].stepping, false, 'feet planted around the restored pose');
   flow.hunt();

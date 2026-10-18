@@ -5,6 +5,7 @@ import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
 import { enableMovableHud } from '../controls/MovableHud.js';
 import { EventBus } from '../core/events.js';
 import { GameFlow } from '../core/GameFlow.js';
+import { LaserAudio } from '../simulation/LaserAudio.js';
 import { createLeaperScene, loadStep, removeFromScene } from './shared.js';
 
 // The game (default page, also ?map=junkyard): Lola vs. the Leaper in the
@@ -16,9 +17,11 @@ import { createLeaperScene, loadStep, removeFromScene } from './shared.js';
 const MAX_DELTA = 0.1;
 
 export async function start({ engine, params }) {
-  // 1. The game state starts in Loading while the assets download.
+  // 1. The game state starts in Loading while the assets download. The one sound
+  //    engine for the whole game starts fetching its recordings at the same time.
   const events = new EventBus();
   const flow = new GameFlow({ events });
+  const audio = new LaserAudio();
   // 2. The junkyard map with its collision service, then Lola (her models need
   //    the map's scale).
   const world = await loadStep('LOADING MAP…', 'MAP LOAD FAILED', () => createJunkyardWorld(engine.scene));
@@ -31,7 +34,7 @@ export async function start({ engine, params }) {
   cameraController.pitch = 0.16;
   // 4. The playtest wires brain, combat, weapons and the junkyard panel together,
   //    then resets the encounter (Loading -> Ready).
-  const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, flow, events });
+  const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events });
   enableMovableHud();
   // Testing hook: ?debug exposes the playtest so automated checks can read positions.
   if (params.has('debug')) window.leaperPlaytest = playtest;

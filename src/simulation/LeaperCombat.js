@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { LeaperLegDamage } from './LeaperLegDamage.js';
-import { LaserAudio } from './LaserAudio.js';
 import { createLaserVisual } from './LaserVisual.js';
 import { COMBAT } from '../config/combat.js';
 import { AttackController } from './AttackController.js';
@@ -8,15 +7,17 @@ import { CombatGeometry, aimAngles, withinAim, capsuleHit } from './CombatGeomet
 import { LeaperHealthBar } from './LeaperHealthBar.js';
 import { MOVEMENT } from '../config/robot.js';
 import { GAME_EVENTS } from '../core/events.js';
+import { TRAIL_HOLD, TRAIL_DRAIN } from '../game/PlayerVitals.js';
 
-// Health meter: the solid fill is current health; the pale "trail" shows the chunk
-// just lost, holds briefly, then drains so each hit's size is readable.
-const METER = '<div class="health-meter" aria-hidden="true"><i class="hp-trail"></i><i class="hp-fill"></i></div>';
-const TRAIL_HOLD = 0.45, TRAIL_DRAIN = 0.6; // seconds; drain = share of a full bar per second
-
+// One Leaper's side of the fight: its health and weak point, its attack behaviour
+// tree, bolts, leg damage, eye glow and its own HUD panel (#leaperHealthHud).
+// Lola's health and HUD live in PlayerVitals (playtest.vitals), and the shared
+// sound engine is passed in (playtest.audio); this class only uses them.
 export class LeaperCombat {
   constructor(playtest) {
     this.playtest = playtest;
+    // The one sound engine, created by the junkyard mode (it also plays guns and steps).
+    this.audio = playtest.audio;
     this.config = COMBAT;
     this.tree = new AttackController(this.config);
     this.geometry = new CombatGeometry(playtest.world.map);
@@ -39,32 +40,14 @@ export class LeaperCombat {
     if (this.core) this.core.material = this.core.material.clone();
     this.healthBar = new LeaperHealthBar(COMBAT.healthBar);
     this.laser = createLaserVisual(COMBAT);
-    this.audio = new LaserAudio();
-    const sound = document.createElement('button');
-    sound.textContent = 'SOUND: ON';
-    sound.setAttribute('aria-pressed', 'true');
-    sound.onclick = () => {
-      this.audio.enabled = !this.audio.enabled;
-      if (this.audio.enabled) this.audio.unlock();
-      sound.textContent = this.audio.enabled ? 'SOUND: ON' : 'SOUND: OFF';
-      sound.setAttribute('aria-pressed', String(this.audio.enabled));
-    };
-    playtest.panel.querySelector('.junkyard-toolbar').append(sound);
     this.effectGeometry = new THREE.SphereGeometry(1, 10, 8);
     this.effectMaterial = new THREE.MeshBasicMaterial({ color: 0xb50913, transparent: true, opacity: 0.45 });
     this.enemyHud = document.createElement('div');
     this.enemyHud.id = 'leaperHealthHud';
     // Leaper health is drawn by the floating bar over the Leaper; this panel keeps
     // its name and attack status (plus a hidden progress value for screen readers).
-    this.enemyHud.innerHTML = `<b>LEAPER</b><progress aria-label="Leaper health"></progress>`;
+    this.enemyHud.innerHTML = `<b>LEAPER</b><progress aria-label="Leaper health"></progress><div data-attack role="status"></div>`;
     document.body.append(this.enemyHud);
-    this.hud = document.createElement('div');
-    this.hud.id = 'combatHud';
-    this.hud.innerHTML = `<div class="combat-health"><b>LOLA <span data-hit-label hidden>HIT</span> <span class="hp-text" data-hp-text></span></b><progress aria-label="Lola health" data-health-bar max="100" value="100"></progress>${METER}</div>
-      <div data-attack role="status"></div><div data-result hidden><strong></strong><button data-restart>RESTART ENCOUNTER</button></div>`;
-    document.body.appendChild(this.hud);
-    this.enemyHud.append(this.hud.querySelector('[data-attack]'));
-    this.hud.querySelector('[data-restart]').onclick = () => { playtest.reset(); playtest.start(); };
     const debug = document.createElement('button');
     debug.textContent = 'DEBUG: DAMAGE LEAPER';
     debug.dataset.action = 'debug-damage';
@@ -75,18 +58,21 @@ export class LeaperCombat {
     playtest.panel.querySelector('#junkyardOptions').append(note);
     this.reset();
   }
-  get dead() { return this.lolaHealth <= 0 || this.leaperHealth <= 0; }
+  // Lola's health, read from PlayerVitals (kept here for older tools and tests).
+  get lolaHealth() { return this.playtest.vitals.health; }
+  // This Leaper's fight is over once it is down or Lola is.
+  get dead() { return this.leaperHealth <= 0 || this.playtest.vitals.dead; }
+  // A fresh Leaper: full health, legs back on, no bolts, attack timers cleared.
+  // (Lola's own health is reset by PlayerVitals; the encounter resets both.)
   reset() {
     this.legs.reset();
     this.audio.stop();
     this.clearProjectiles(); this.tree.reset(); this.selectedPoint = null;
-    this.lolaHealth = this.config.lolaHealth; this.leaperHealth = this.config.leaperHealth;
-    this.damageFlash = 0; this.fireFlash = 0;
-    this.trails = { lola: { value: 1, hold: 0 }, leaper: { value: 1, hold: 0 } };
-    this.playtest.target.defeated = false;
-    this.playtest.target.clearHitReaction?.();
+    this.leaperHealth = this.config.leaperHealth;
+    this.fireFlash = 0;
+    this.outcome = null;
+    this.trail = { value: 1, hold: 0 };
     this.playtest.simulation.rig.eyePivot.rotation.set(0, 0, 0);
-    this.hud.querySelector('[data-result]').hidden = true;
     this.healthBar.reset();
     this.updateHud();
   }
@@ -102,34 +88,28 @@ export class LeaperCombat {
     // Tell the game what happened (results, and later the HUD and sound).
     this.playtest.events?.emit(GAME_EVENTS.leaperDamaged, { amount: before - this.leaperHealth, health: this.leaperHealth, major, debug });
     if (major) this.playtest.events?.emit(GAME_EVENTS.jointBroken, { health: this.leaperHealth });
-    this.trails.leaper.hold = TRAIL_HOLD;
+    this.trail.hold = TRAIL_HOLD;
     this.healthBar.damage(amount, this.config.leaperHealth, major || !this.leaperHealth);
     // A big hit (a leg snapping off, or the kill shot) shakes the camera.
     if (major || !this.leaperHealth) this.playtest.cameraController?.shake(COMBAT.cameraShake.bigHit);
-    if (!this.leaperHealth) this.finish(debug ? 'LEAPER DEFEATED · DEBUG TEST' : 'LEAPER DEFEATED');
+    if (!this.leaperHealth) this.finish('lola', { debug });
     this.updateHud();
   }
+  // A bolt reached Lola. Her health is PlayerVitals' business; this Leaper only
+  // stops fighting once she is down.
   damageLola(incomingDirection = null) {
     if (this.dead) return;
-    const before = this.lolaHealth;
-    this.lolaHealth = Math.max(0, this.lolaHealth - this.config.boltDamage);
-    this.playtest.events?.emit(GAME_EVENTS.lolaDamaged, { amount: before - this.lolaHealth, health: this.lolaHealth, direction: incomingDirection });
-    this.trails.lola.hold = TRAIL_HOLD;
-    this.damageFlash = 0.4;
-    this.playtest.target.reactToHit?.(incomingDirection);
-    // Layered hurt reaction: a body thud under a voice, heavier when nearly down.
-    this.audio.playSlot('lolaHitThud');
-    this.audio.playSlot(this.lolaHealth <= this.config.lowHealthThreshold ? 'lolaHurtBig' : 'lolaHurt');
-    if (!this.lolaHealth) this.finish('LOLA DEFEATED');
+    this.playtest.vitals.damage(this.config.boltDamage, incomingDirection);
+    if (this.playtest.vitals.dead) this.finish('leaper');
     this.updateHud();
   }
-  finish(message) {
+  // Someone is down. winner: 'lola' | 'leaper'; debug: the debug button landed the
+  // kill. The attack stops here; the game state and the result banner are the
+  // encounter's job, and Lola's `defeated` flag is PlayerVitals'.
+  finish(winner, { debug = false } = {}) {
     this.tree.cancel(); this.tree.state = 'dead'; this.clearProjectiles();
-    this.playtest.target.clearHitReaction?.();
-    this.playtest.target.defeated = true;
+    this.outcome = { winner, debug };
     this.playtest.stop('Encounter ended. Restart to play again.');
-    const result = this.hud.querySelector('[data-result]');
-    result.hidden = false; result.querySelector('strong').textContent = message;
   }
   pose() {
     const { simulation, sight, target } = this.playtest;
@@ -238,14 +218,13 @@ export class LeaperCombat {
     rig.robot.updateMatrixWorld(true);
     rig.eyePivot.getWorldDirection(this.direction);
     this.origin.copy(rig.eyePivot.localToWorld(new THREE.Vector3(0, 0, 0.148)));
-    if (!paused) { this.damageFlash = Math.max(0, this.damageFlash - dt); this.fireFlash = Math.max(0, this.fireFlash - dt); }
+    if (!paused) this.fireFlash = Math.max(0, this.fireFlash - dt);
     const charge = this.tree.started === null ? 0 : Math.min(1, (this.tree.time - this.tree.started) / c.warning);
-    for (const [key, health] of [['lola', this.lolaHealth / c.lolaHealth], ['leaper', this.leaperHealth / c.leaperHealth]]) {
-      const trail = this.trails[key];
-      if (trail.value <= health) { trail.value = health; continue; }
-      if (trail.hold > 0) trail.hold = Math.max(0, trail.hold - dt);
-      else trail.value = Math.max(health, trail.value - TRAIL_DRAIN * dt);
-    }
+    // The floating bar's pale trail: holds briefly after a hit, then drains.
+    const health = this.leaperHealth / c.leaperHealth, trail = this.trail;
+    if (trail.value <= health) trail.value = health;
+    else if (trail.hold > 0) trail.hold = Math.max(0, trail.hold - dt);
+    else trail.value = Math.max(health, trail.value - TRAIL_DRAIN * dt);
     for (const { material, base } of this.eyeMaterials) material.emissiveIntensity = this.leaperHealth ? base + charge * 8 + this.fireFlash * 20 : 0;
     rig.eyeLight.intensity = this.leaperHealth ? 1 + charge * 5 + this.fireFlash * 10 : 0;
     this.corePulse = (this.corePulse ?? 0) + dt;
@@ -258,30 +237,15 @@ export class LeaperCombat {
   }
   updateHealthBar(dt) {
     const p = this.playtest, c = this.config;
-    this.healthBar.update(dt, p.engine.camera, p.simulation.rig.robot, this.leaperHealth / c.leaperHealth, this.trails.leaper.value,
+    this.healthBar.update(dt, p.engine.camera, p.simulation.rig.robot, this.leaperHealth / c.leaperHealth, this.trail.value,
       (p.simulation.state.velocity?.length() ?? 0) / MOVEMENT.sprintSpeed, p.engine.renderer?.domElement);
   }
+  // The Leaper panel: what the attack is doing, plus its health for screen readers.
   updateHud() {
-
-    const bar = this.hud.querySelector('[data-health-bar]');
-    bar.max = this.config.lolaHealth; bar.value = this.lolaHealth;
     const status = this.dead ? (this.leaperHealth ? 'encounter ended' : 'defeated')
       : this.fireFlash > 0 && this.tree.state !== 'paused' ? 'firing' : this.tree.state;
     this.enemyHud.querySelector('[data-attack]').textContent = `${status.toUpperCase()}${this.tree.locked ? ' · AIM LOCKED' : ''}`;
     const enemyBar = this.enemyHud.querySelector('progress');
     enemyBar.max = this.config.leaperHealth; enemyBar.value = this.leaperHealth;
-    this.hud.querySelector('[data-hit-label]').hidden = this.damageFlash <= 0 || this.dead;
-    // Ordinary hits briefly highlight the health readout; screen edges are
-    // reserved for critical health, including while paused.
-    this.hud.dataset.hit = String(this.damageFlash > 0 && !this.dead);
-    const low = this.lolaHealth <= this.config.lowHealthThreshold;
-    const lolaShare = this.lolaHealth / this.config.lolaHealth;
-    this.hud.dataset.level = low ? 'low' : lolaShare <= 0.5 ? 'mid' : 'full';
-    const meter = this.hud.querySelector('.health-meter');
-    meter.style.setProperty('--hp', String(lolaShare));
-    meter.style.setProperty('--trail', String(Math.max(lolaShare, this.trails.lola.value)));
-    this.hud.querySelector('[data-hp-text]').textContent = `${Math.ceil(this.lolaHealth)}`;
-    const opacity = low ? 0.15 + 0.2 * (1 - this.lolaHealth / this.config.lowHealthThreshold) : 0;
-    document.documentElement.style.setProperty('--damage-flash', String(opacity));
   }
 }

@@ -32,6 +32,7 @@ export class JunkyardPanel {
         <button data-action="player" title="Move and shoot as Lola while the Leaper stays still">START PLAYER</button>
         <button data-action="random">RESTART RANDOM</button>
         <button data-action="panel" aria-expanded="false" aria-controls="junkyardOptions">OPTIONS</button>
+        <button data-action="sound" aria-pressed="true">SOUND: ON</button>
       </div>
       <div class="brain-state" aria-live="polite">BRAIN CONNECTING</div>
       <div data-sight-status aria-live="polite">SIGHT CONNECTING…</div>
@@ -81,13 +82,21 @@ export class JunkyardPanel {
   }
 
   // Hook the buttons to the playtest's actions.
-  bind({ route, player, random, reset, clearance, applySize }) {
+  bind({ route, player, random, reset, clearance, applySize, sound }) {
     this.button('route').onclick = route;
     this.button('player').onclick = player;
     this.button('random').onclick = random;
     this.button('reset').onclick = reset;
     this.button('clearance').onclick = clearance;
     this.button('size').onclick = () => applySize(this.size.value);
+    this.button('sound').onclick = sound;
+  }
+
+  // SOUND: ON / OFF follows the sound engine's switch.
+  renderSound(enabled) {
+    const button = this.button('sound');
+    button.textContent = enabled ? 'SOUND: ON' : 'SOUND: OFF';
+    button.setAttribute('aria-pressed', String(enabled));
   }
 
   // Button labels always follow the game state.

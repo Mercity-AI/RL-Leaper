@@ -10,10 +10,20 @@ import { GAME_EVENTS } from '../core/events.js';
 //   - the win / lose bookkeeping (who won, practice or not, time and damage).
 // What the game is doing (playing, paused, ended) lives in GameFlow; the
 // encounter reacts to it and asks it to change.
+
+// The end-of-fight banner text for an encounter result. PRACTICE marks a result
+// that doesn't count as a real fight (see Encounter.end); DEBUG TEST marks that
+// the OPTIONS debug button did damage.
+export function resultText({ winner, practice = false, debugUsed = false }) {
+  const outcome = winner === 'lola' ? 'LEAPER DEFEATED' : 'LOLA DEFEATED';
+  return `${practice ? 'PRACTICE · ' : ''}${outcome}${debugUsed ? ' · DEBUG TEST' : ''}`;
+}
+
 export class Encounter {
-  // input: the InputController (its jump buffer is cleared on restart).
-  constructor({ flow, events, world, player, playerController, playerWeapon, input, cameraController }) {
-    Object.assign(this, { flow, events, world, player, playerController, playerWeapon, cameraController });
+  // vitals: Lola's PlayerVitals (her health decides a loss). audio: the shared
+  // sound engine. input: the InputController (its jump buffer is cleared on restart).
+  constructor({ flow, events, world, player, vitals, audio = null, playerController, playerWeapon, input, cameraController }) {
+    Object.assign(this, { flow, events, world, player, vitals, audio, playerController, playerWeapon, cameraController });
     this.inputController = input;
     this.enemies = [];
     this.started = false;
@@ -28,6 +38,7 @@ export class Encounter {
       // Damage from the OPTIONS debug button, or dealt while the Leaper could not
       // fight back (stopped, exploring, paused), makes the eventual win practice.
       if (debug || !this.flow.hunting) this.stats.assisted = true;
+      if (debug) this.stats.debugUsed = true;
     });
     events.on(GAME_EVENTS.jointBroken, () => { this.stats.jointsBroken += 1; });
     flow.onChange((next, previous) => this.onFlowChange(next, previous));
@@ -35,7 +46,7 @@ export class Encounter {
 
   // Per-fight totals, cleared by every restart.
   static emptyStats() {
-    return { damageTaken: 0, damageDealt: 0, jointsBroken: 0, assisted: false };
+    return { damageTaken: 0, damageDealt: 0, jointsBroken: 0, assisted: false, debugUsed: false };
   }
 
   // Add a Leaper. Its body and legs block Lola through the world's collision service.
@@ -56,7 +67,7 @@ export class Encounter {
 
   // The fight is decided once Lola is down or every Leaper is.
   get lolaDefeated() {
-    return this.enemies.some(({ combat }) => combat.lolaHealth <= 0);
+    return this.vitals.dead;
   }
 
   get leapersDefeated() {
@@ -80,14 +91,15 @@ export class Encounter {
   }
 
   // Gameplay phase, in a fixed order: Lola, each Leaper's brain and animator,
-  // each Leaper's attacks and bolts, then Lola's gun.
+  // each Leaper's attacks and bolts, Lola's health panel, then Lola's gun.
   update(dt) {
     const gameDt = this.gameDelta(dt);
     this.playerController.update(gameDt);
     for (const enemy of this.enemies) enemy.brain.update(gameDt);
     for (const enemy of this.enemies) enemy.combat.update(gameDt);
+    this.vitals.update(gameDt, { over: this.over });
     // The Leaper's walking sound only plays during a live hunt.
-    if (!this.flow.hunting || this.over) for (const enemy of this.enemies) enemy.combat.audio.stopRobotSteps();
+    if (!this.flow.hunting || this.over) this.quietRobots();
     this.playerWeapon.update(gameDt);
     if (this.flow.hunting) this.elapsed += dt;
   }
@@ -133,6 +145,7 @@ export class Encounter {
     const winner = this.lolaDefeated ? 'leaper' : 'lola';
     const practice = !this.flow.hunting || (winner === 'lola' && this.stats.assisted);
     this.result = { winner, practice, seconds: this.elapsed, ...this.stats };
+    this.result.text = resultText(this.result);
     this.flow.end(winner, practice);
     this.events.emit(GAME_EVENTS.encounterEnded, { winner, practice, stats: this.result });
     return true;
@@ -154,7 +167,8 @@ export class Encounter {
   // a RESTART RANDOM spawn pair if given, else this fight's start snapshot (a
   // clean retry), else the map spawn with Lola where she is.
   restart(spawn = null) {
-    // 1. Fresh health, bolts, legs and attack timers.
+    // 1. Fresh health for Lola and every Leaper, no bolts, legs back, attack timers cleared.
+    this.vitals.reset();
     for (const enemy of this.enemies) enemy.combat.reset();
     // 2. Ready, then make sure nothing is still firing, walking or flinching.
     this.flow.stop();
@@ -232,8 +246,9 @@ export class Encounter {
     }
   }
 
+  // Cut the Leapers' walking sounds (one shared sound engine plays them all).
   quietRobots() {
-    for (const enemy of this.enemies) enemy.combat.audio.stopRobotSteps();
+    this.audio?.stopRobotSteps();
   }
 
   // Unhook the Leapers from the world's collision (used when a mode is disposed).

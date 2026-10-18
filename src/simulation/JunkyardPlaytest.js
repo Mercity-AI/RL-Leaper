@@ -3,10 +3,11 @@ import { EyeVision } from './EyeVision.js';
 import { PlayerWeapon } from './PlayerWeapon.js';
 import { LeaperCombat } from './LeaperCombat.js';
 import { LeaperPov } from '../camera/LeaperPov.js';
-import { EventBus } from '../core/events.js';
+import { EventBus, GAME_EVENTS } from '../core/events.js';
 import { GameFlow } from '../core/GameFlow.js';
 import { Encounter } from '../game/Encounter.js';
 import { PlayerController } from '../game/PlayerController.js';
+import { PlayerVitals } from '../game/PlayerVitals.js';
 import { JunkyardPanel, HELP_MESSAGE } from '../game/JunkyardPanel.js';
 import { ClearanceOverlay } from '../game/ClearanceOverlay.js';
 import { JunkyardPresentation } from '../game/JunkyardPresentation.js';
@@ -23,8 +24,9 @@ const ENDED_MESSAGE = 'Encounter over. Press RESTART ENCOUNTER to play again.';
 // Encounter; what the game is doing lives in GameFlow. The old `walking` and
 // `playerMode` flags are now read from GameFlow instead of being stored.
 export class JunkyardPlaytest {
-  constructor({ engine, world, simulation, target, cameraController, flow = null, events = null }) {
-    Object.assign(this, { engine, world, simulation, target, cameraController });
+  // audio: the one sound engine (LaserAudio), created by the junkyard mode.
+  constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null }) {
+    Object.assign(this, { engine, world, simulation, target, cameraController, audio });
     // 1. Game state and the event bus every system reports to.
     this.events = events ?? new EventBus();
     this.flow = flow ?? new GameFlow({ events: this.events });
@@ -36,7 +38,11 @@ export class JunkyardPlaytest {
     this.message = this.panelView.message;
     this.brainLabel = this.panelView.brainLabel;
 
-    // 3. Gameplay systems. Each receives this playtest as its context, so the
+    // 3. Lola's health and HUD (no longer owned by the Leaper's combat).
+    this.vitals = new PlayerVitals({ player: target, audio, events: this.events });
+    this.vitals.onRestart = () => this.restartEncounter();
+
+    // 4. Gameplay systems. Each receives this playtest as its context, so the
     //    order matters (combat, POV and the weapon read the ones before them).
     this.sight = target.isPlayer ? new EyeVision(this) : null;
     this.brain = new JunkyardBrain(this);
@@ -47,28 +53,30 @@ export class JunkyardPlaytest {
     this.pov = new LeaperPov(this);
     this.playerWeapon = new PlayerWeapon(this);
 
-    // 4. The fight: update order, enemies (one Leaper today), start snapshot, results.
+    // 5. The fight: update order, enemies (one Leaper today), start snapshot, results.
     this.encounter = new Encounter({ flow: this.flow, events: this.events, world, player: target,
-      playerController: this.playerController, playerWeapon: this.playerWeapon,
+      vitals: this.vitals, audio, playerController: this.playerController, playerWeapon: this.playerWeapon,
       input: simulation.input, cameraController });
     this.encounter.addEnemy({ simulation, brain: this.brain, combat: this.combat });
+    // The result banner reads the encounter's verdict (winner, practice, debug).
+    this.events.on(GAME_EVENTS.encounterEnded, ({ stats }) => this.vitals.showResult(stats.text));
 
-    // 5. Footsteps: Lola's always; the Leaper's only while it is really hunting,
+    // 6. Footsteps: Lola's always; the Leaper's only while it is really hunting,
     //    quieter with distance from the camera.
-    target.onFootstep = (kind, crouched) => this.combat.audio.step(kind, crouched);
+    target.onFootstep = (kind, crouched) => audio.step(kind, crouched);
     simulation.onFootstep = () => {
       if (!this.walking || this.combat.dead || !this.brain.ready) return;
       const distance = engine.camera.position.distanceTo(simulation.rig.robot.position);
-      this.combat.audio.step('robot', false, 1 / (1 + (distance / (12 * world.scale)) ** 2));
+      audio.step('robot', false, 1 / (1 + (distance / (12 * world.scale)) ** 2));
     };
 
-    // 6. The game state drives mouse capture and the toolbar labels; Escape (or a
+    // 7. The game state drives mouse capture and the toolbar labels; Escape (or a
     //    lost mouse lock) pauses.
     this.flow.onChange((next, previous) => this.onFlowChange(next, previous));
     cameraController.onPauseRequested = () => this.pause();
     target.setSelected(true);
 
-    // 7. Toolbar and OPTIONS buttons.
+    // 8. Toolbar and OPTIONS buttons.
     this.panelView.bind({
       route: () => (this.walking ? this.stop('Run stopped. Press START RUN to chase Lola again.') : this.start()),
       player: () => (this.playerMode
@@ -77,14 +85,16 @@ export class JunkyardPlaytest {
       reset: () => this.reset(),
       clearance: () => this.toggleClearance(),
       applySize: (width) => this.applySize(width),
+      sound: () => this.toggleSound(),
     });
+    this.panelView.renderSound(audio.enabled);
 
-    // 8. Presentation: camera, sun, floating health bar and readouts, updated
-    //    every frame after gameplay (the Leaper animator no longer drives them).
+    // 10. Presentation: camera, sun, floating health bar and readouts, updated
+    //     every frame after gameplay (the Leaper animator no longer drives them).
     this.presentation = new JunkyardPresentation({ engine, world, cameraController, player: target,
       encounter: this.encounter, pov: this.pov, brainLabel: this.brainLabel, statusElement: simulation.statusElement });
 
-    // 9. Designer tools: the clearance overlay and Shift + click placement in TOP view.
+    // 11. Designer tools: the clearance overlay and Shift + click placement in TOP view.
     this.overlay = new ClearanceOverlay({ scene: engine.scene, world });
     this.removePlacement = enableTopViewPlacement({
       engine, cameraController, world, player: target,
@@ -95,7 +105,7 @@ export class JunkyardPlaytest {
       },
     });
 
-    // 10. First reset (Loading -> Ready). ?run=1 (set by APPLY SIZE) resumes the run.
+    // 12. First reset (Loading -> Ready). ?run=1 (set by APPLY SIZE) resumes the run.
     if (!target.isPlayer) this.topView();
     this.reset();
     if (new URLSearchParams(location.search).get('run') === '1') this.start();
@@ -185,6 +195,19 @@ export class JunkyardPlaytest {
     this.rebuildOverlay(spawn?.position ?? this.simulation.state.position);
   }
 
+  // The result banner's RESTART ENCOUNTER: a clean retry, straight back into the run.
+  restartEncounter() {
+    this.reset();
+    this.start();
+  }
+
+  // SOUND: ON / OFF for the whole game (guns, laser, footsteps, hurt sounds).
+  toggleSound() {
+    this.audio.enabled = !this.audio.enabled;
+    if (this.audio.enabled) this.audio.unlock();
+    this.panelView.renderSound(this.audio.enabled);
+  }
+
   // RESTART RANDOM: a fresh separated, connected spawn pair, then run.
   restartRandom() {
     const spawn = randomJunkyardStart(this.world, this.simulation.state.position);
@@ -231,6 +254,7 @@ export class JunkyardPlaytest {
     this.encounter.dispose();
     this.removePlacement();
     this.overlay.dispose();
+    this.vitals.dispose();
     this.panelView.dispose();
     this.events.clear();
   }
