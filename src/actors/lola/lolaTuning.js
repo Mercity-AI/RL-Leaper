@@ -20,6 +20,30 @@ export const LOLA_TURN_RATE = 9;
 // How fast locomotion clips cross-fade, in units of 1/second (12 = ~0.25 s).
 export const LOLA_BLEND_RATE = 12;
 
+// Directional movement. Between straight ahead (or back) and `start` degrees
+// off it she plays the run with her hips twisted toward the diagonal; from
+// `start` to `end` degrees the run hands over to the strafe; beyond `end` she
+// strafes. The strafe clips take 30% shorter strides than the run, so blending
+// them right at the diagonal would make W+D slower and skate; the hip twist
+// keeps the run's full speed and planted boots there instead.
+export const LOLA_STRAFE_BLEND = Object.freeze({ start: 45, end: 90 });
+// Hip twist toward where she is really going (diagonals, sliding along walls,
+// turning): at most this far (radians), eased at this rate (1/second). Her
+// pelvis and legs turn by the twist, minus LOLA_WARP_HIPS of it that the legs
+// turn at the hip joints instead (0: turning the legs there stretched her
+// trousers more than the waist); the spine above untwists by LOLA_WARP_SPINE
+// shares so chest, arms and gun face forward. Spreading the untwist over four
+// joints keeps her shirt from stretching at the waist.
+export const LOLA_WARP_MAX = 60 * Math.PI / 180;
+export const LOLA_WARP_RATE = 15;
+export const LOLA_WARP_HIPS = 0;
+export const LOLA_WARP_SPINE = Object.freeze([
+  ['DEF-spine.001', 0.15],
+  ['DEF-spine.002', 0.25],
+  ['DEF-spine.003', 0.3],
+  ['DEF-spine.004', 0.3],
+]);
+
 // The physics hop used only when the authored jump clips are missing.
 export const LOLA_GRAVITY = 14;
 export const LOLA_HOP_HEIGHT = 0.85;

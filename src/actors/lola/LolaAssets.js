@@ -4,7 +4,8 @@ import strideProfiles from '../../../assets/characters/lola/stride-profiles.json
 import { ENCOUNTER } from '../../config/encounter.js';
 import { measureFootContacts, measureJumpLanding } from '../../robot/footstepContacts.js';
 import { LolaRig } from './LolaRig.js';
-import { LOLA_FLINCH_SPREAD, RUN_JUMPS } from './lolaTuning.js';
+import { STRIDE_CLIPS } from './LolaLocomotion.js';
+import { LOLA_FLINCH_SPREAD, LOLA_WARP_SPINE, RUN_JUMPS } from './lolaTuning.js';
 
 // Lola's two outfits, in weaponIndex order: 0 = M416 rifle, 1 = basic pistol.
 export const OUTFIT_WEAPONS = Object.freeze(['m416', 'basic']);
@@ -105,6 +106,13 @@ export function prepareOutfit(gltf, index, { jumps = [], reloads = [], runJumps 
     .filter(({ bone: item }) => item);
   const hitBone = flinchBones[0]?.bone ?? null;
   const headBone = bone(model, 'DEF-spine.006');
+  // The hip twist turns every bone still hanging from the rig itself (after the
+  // re-parent: hips, pelvis, thighs and the spine root) and untwists the spine.
+  const warpRoots = [];
+  model.traverse(item => { if (item.isBone && !item.parent.isBone) warpRoots.push(item); });
+  const warpLegs = ['DEF-thigh.L', 'DEF-thigh.R'].map(name => bone(model, name)).filter(Boolean);
+  const warpSpine = LOLA_WARP_SPINE.map(([name, share]) => ({ bone: bone(model, name), share })).filter(({ bone: item }) => item);
+  const warpSpineTotal = warpSpine.reduce((sum, { share }) => sum + share, 0) || 1;
 
   // Full-body shots, plus upper-body copies for shooting on the move.
   const shooting = {};
@@ -145,8 +153,11 @@ export function prepareOutfit(gltf, index, { jumps = [], reloads = [], runJumps 
   // Every action the animator advances by hand (see LolaAnimator.advance).
   const timed = [...Object.values(actions), ...Object.values(shooting), ...Object.values(shootingUpper),
     ...Object.values(jumpClips).map(({ action }) => action), ...(reload ? [reload.action] : [])];
+  // The moving clips LolaLocomotion keeps on one stride phase.
+  const strideActions = new Set(STRIDE_CLIPS.map(name => actions[name]));
   return { model, rig, mixer, actions, footContacts, headBone, hitBone, hitBase: null, flinchBones, shooting, shootingUpper, shotGun, carriedGun,
-    jump: jumpClips.jump ?? null, jumpClips, reload, profiles: strideProfiles[weapon], current: 'Idle', timed, posed: -1 };
+    jump: jumpClips.jump ?? null, jumpClips, reload, profiles: strideProfiles[weapon], current: 'Idle', timed, posed: -1,
+    strideActions, warpRoots, warpLegs, warpSpine, warpSpineTotal, warpBases: [] };
 }
 
 // An authored jump clip and a copy of the gun animated with it

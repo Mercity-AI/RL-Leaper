@@ -17,6 +17,15 @@ const scratch = {
   parent: new THREE.Quaternion(), inverse: new THREE.Quaternion(),
 };
 
+// Undo the hip twist (see LolaAnimator.warp): put the twisted bones back.
+export function undoWarp(outfit) {
+  for (const saved of outfit.warpBases ?? []) {
+    saved.bone.position.copy(saved.position);
+    saved.bone.quaternion.copy(saved.quaternion);
+  }
+  outfit.warpBases = [];
+}
+
 // Put the flinched spine joints back to their pose from before the flinch.
 export function undoFlinch(outfit) {
   for (const joint of outfit.flinchBones ?? []) {
@@ -57,17 +66,19 @@ export function advanceAction(action, deltaTime) {
 }
 
 export class LolaAnimator {
-  // Advance every playing clip of one outfit by one movement sub-step.
-  advance(outfit, deltaTime) {
-    for (const action of outfit.timed) advanceAction(action, deltaTime);
+  // Advance every playing clip of one outfit by one movement sub-step, except
+  // those in `skip` (the moving clips, which LolaLocomotion keeps in step).
+  advance(outfit, deltaTime, skip = null) {
+    for (const action of outfit.timed) if (!skip?.has(action)) advanceAction(action, deltaTime);
   }
 
   // Evaluate one outfit's final pose from its clips and the active layers:
   // layers = { stall: { share, idle }, jump: { action, weight }, shot: { action, upper, legs },
   //            reload: { action, weight }, flinch: { strength, angle, direction }, mesh }.
   pose(outfit, layers) {
-    // The flinch is added after the mixer, so start from the clean pose.
+    // The twist and flinch are added after the mixer, so start from the clean pose.
     undoFlinch(outfit);
+    undoWarp(outfit);
 
     // Base layer: locomotion, eased toward standing while pushing into a wall.
     // The clips keep their own (travel) weights; only this pose sees the blend.
@@ -104,9 +115,41 @@ export class LolaAnimator {
     outfit.mixer.update(0);
     locomotion.forEach((action, i) => action.setEffectiveWeight(weights[i]));
 
-    // Post-mixer: glue the reload gun into her hand, then add the flinch.
+    // Post-mixer: glue the reload gun into her hand, twist the hips, then add the flinch.
     if (layers.reload) this.placeReloadGun(outfit, layers.reload.action.time);
+    if (layers.warp) this.warp(outfit, layers.warp.angle, layers.warp.hips);
     if (layers.flinch) this.flinch(outfit, layers.flinch, layers.mesh);
+  }
+
+  // Twist her legs by `angle` (radians, positive = toward her right) about the
+  // upright axis, so they run the way she is really going: the pelvis and both
+  // legs turn together about her centre, then each leg turns a little more at
+  // its own hip joint (LOLA_WARP_HIPS). The spine above then untwists joint by
+  // joint (LOLA_WARP_SPINE) so her chest, arms and gun keep facing forward.
+  // Worked out in the rig's own space, where up is +Y and no scale applies.
+  warp(outfit, angle, hips) {
+    if (Math.abs(angle) < 1e-5) return;
+    const { axis, rotation, parent, inverse } = scratch;
+    const save = bone => outfit.warpBases.push({ bone, position: bone.position.clone(), quaternion: bone.quaternion.clone() });
+    // Bones hanging straight from the rig (pelvis, hips, thighs, spine root).
+    const pelvisTurn = -angle * (1 - hips);
+    rotation.setFromAxisAngle(UP, pelvisTurn);
+    for (const bone of outfit.warpRoots) {
+      save(bone);
+      bone.position.applyQuaternion(rotation);
+      bone.quaternion.premultiply(rotation);
+    }
+    // The rest of the legs' turn happens at the hip joints.
+    rotation.setFromAxisAngle(UP, -angle * hips);
+    for (const bone of outfit.warpLegs) bone.quaternion.premultiply(rotation);
+    // Untwist the spine: each joint turns about up as seen in its parent's frame.
+    parent.copy(outfit.warpSpine[0].bone.parent.quaternion);
+    for (const { bone, share } of outfit.warpSpine) {
+      save(bone);
+      axis.copy(UP).applyQuaternion(inverse.copy(parent).invert()).normalize();
+      bone.quaternion.premultiply(rotation.setFromAxisAngle(axis, -pelvisTurn * share / outfit.warpSpineTotal));
+      parent.multiply(bone.quaternion);
+    }
   }
 
   // Put the reload gun where the reload's own rig holds it, relative to the hand.

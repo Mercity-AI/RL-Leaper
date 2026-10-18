@@ -3,13 +3,13 @@ import { ENCOUNTER } from '../config/encounter.js';
 import { crossedFootContact } from './footstepContacts.js';
 import { loadLolaAssets, prepareOutfit } from '../actors/lola/LolaAssets.js';
 import { LolaLocomotion } from '../actors/lola/LolaLocomotion.js';
-import { LolaAnimator, undoFlinch } from '../actors/lola/LolaAnimator.js';
+import { LolaAnimator, undoFlinch, undoWarp } from '../actors/lola/LolaAnimator.js';
 import { LolaActionState } from '../actors/lola/LolaActionState.js';
 import { CharacterMover } from '../actors/lola/CharacterMover.js';
 import {
   JUMP_FADE_IN, JUMP_FADE_OUT, JUMP_LANDING, JUMP_LIFTOFF, JUMP_RUN_START, JUMP_STANDING_SPEED, LOLA_BLEND_RATE,
   LOLA_GRAVITY, LOLA_HOP_HEIGHT, LOLA_INPUT_RESPONSE, LOLA_PACE, LOLA_SHOT_LEG_RATE, LOLA_SPRINT_SPEED, LOLA_STALL_END,
-  LOLA_STALL_START, LOLA_SUBSTEP_RATE, LOLA_TURN_RATE,
+  LOLA_STALL_START, LOLA_SUBSTEP_RATE, LOLA_TURN_RATE, LOLA_WARP_HIPS, LOLA_WARP_MAX, LOLA_WARP_RATE,
   RELOAD_FADE_IN, RELOAD_FADE_OUT, RUN_FRAMES, RUN_JUMPS, RUN_JUMP_FADE_OUT, RUN_JUMP_MAX_SKIP, RUN_JUMP_SPEED,
 } from '../actors/lola/lolaTuning.js';
 
@@ -78,6 +78,8 @@ export class LolaPlayer {
     // easing to 0 (legs keep running) while she moves (eased in two stages).
     this.shotLegs = 1;
     this.shotLegsEase = 1;
+    // Hip twist toward her real travel direction (radians, + = to her right).
+    this.warp = 0;
 
     // Both outfits, built from copies of the loaded files.
     this.outfits = models.map((gltf, index) => prepareOutfit(gltf, index, { jumps, reloads, runJumps }, world, this.mesh));
@@ -128,10 +130,11 @@ export class LolaPlayer {
   showWeapon() {
     this.outfits.forEach((outfit, index) => {
       outfit.model.visible = index === this.weaponIndex;
-      // A put-away outfit is no longer animated; drop its flinch offset and
-      // pose it afresh when it is shown again.
-      if (outfit.model.visible || !outfit.hitBase) return;
+      // A put-away outfit is no longer animated; drop its flinch and hip twist
+      // and pose it afresh when it is shown again.
+      if (outfit.model.visible || (!outfit.hitBase && !outfit.warpBases.length)) return;
       undoFlinch(outfit);
+      undoWarp(outfit);
       outfit.posed = -1;
     });
     this.toggleButton.textContent = `${this.weaponIndex === 0 ? '2: M416' : '1: BASIC GUN'} · C: ${this.crouching ? 'CROUCHED' : 'STANDING'}`;
@@ -423,7 +426,7 @@ export class LolaPlayer {
     this.mesh.rotation.y += THREE.MathUtils.clamp(turn, -LOLA_TURN_RATE * deltaTime, LOLA_TURN_RATE * deltaTime);
     const sprint = speed > LOLA_SPRINT_SPEED && !this.crouching;
     this.locomotion.runPace = sprint ? LOLA_PACE.sprint : LOLA_PACE.run;
-    const next = this.locomotion.chooseClip(forwardAmount, sideAmount, inputStrength, this.crouching);
+    const targets = this.locomotion.targets(forwardAmount, sideAmount, inputStrength, this.crouching);
 
     // Authored jump and reload clocks.
     this.advanceJump(inputStrength, deltaTime);
@@ -436,7 +439,7 @@ export class LolaPlayer {
     // Base locomotion blend for both outfits; travel from the one on screen.
     let distance = 0;
     for (const [index, outfit] of this.outfits.entries()) {
-      distance += this.locomotion.update(outfit, { next, forwardAmount, inputStrength, grounded: this.grounded,
+      distance += this.locomotion.update(outfit, { targets, forwardAmount, sideAmount, inputStrength, grounded: this.grounded,
         countTravel: index === this.weaponIndex, world: this.world }, deltaTime);
     }
     if (!this.grounded) distance = this.locomotion.airborneDistance(this.equipped, sideAmount, forwardAmount, inputStrength, deltaTime);
@@ -444,7 +447,9 @@ export class LolaPlayer {
 
     // Collision slides her along walls; whatever part of the move a wall still
     // stops slows the clips to match, so the feet do not skate.
+    const startX = this.mesh.position.x, startZ = this.mesh.position.z;
     const { moved } = this.mover.move(this.world, this.mesh.position, this.direction, distance);
+    this.updateWarp(this.mesh.position.x - startX, this.mesh.position.z - startZ, moved, forwardAmount, jumpWeight, deltaTime);
     const progress = distance > 1e-8 ? Math.min(1, moved / distance)
       : inputStrength && this.mover.blockedAhead(this.world, this.mesh.position, this.direction) ? 0 : 1;
     // Pushing into a wall eases her legs toward standing instead of freezing them.
@@ -456,18 +461,22 @@ export class LolaPlayer {
     this.shotLegs += (this.shotLegsEase - this.shotLegs) * legEase;
     this.hitRecoilTime = Math.max(0, this.hitRecoilTime - deltaTime);
 
-    // Footsteps, then advance every clip's clock.
+    // Advance every clip's clock (moving clips on one shared stride phase),
+    // with a footstep each time the leading clip plants a boot.
     for (const outfit of this.outfits) {
       this.locomotion.scaleRates(outfit, progress);
       const shot = this.shot?.outfit === outfit ? this.shot : null;
       if (shot) shot.upperOnly = this.shotLegs < 0.5;
       const stepAction = outfit.actions[outfit.current];
+      const stepTime = stepAction.time;
+      const deltas = this.locomotion.advance(outfit, forwardAmount, deltaTime);
+      this.animator.advance(outfit, deltaTime, deltas ? outfit.strideActions : null);
+      const stepDelta = deltas?.[outfit.current] ?? deltaTime * stepAction.timeScale;
       if (outfit === this.equipped && this.grounded && jumpWeight < 0.5 && moved > 1e-7 && (!shot || shot.upperOnly)
-          && crossedFootContact(outfit.footContacts[outfit.current], stepAction.time, deltaTime * stepAction.timeScale)) {
+          && crossedFootContact(outfit.footContacts[outfit.current], stepTime, stepDelta)) {
         this.onFootstep?.(sprint ? 'run' : 'walk', this.crouching);
       }
       if (shot) shot.elapsed += deltaTime;
-      this.animator.advance(outfit, deltaTime);
       // The upper-body copy follows the whole-body clip's clock exactly.
       if (shot) {
         shot.upper.time = shot.action.time;
@@ -475,6 +484,26 @@ export class LolaPlayer {
       }
       if (shot && shot.elapsed >= shot.duration + shot.hold && !this.aimHeld) this.cancelShot();
     }
+  }
+
+  // Twist her hips toward where she is really going (diagonals, sliding along
+  // a wall, lagging a camera turn) from where her legs' clips carry her, so the
+  // planted boot stays put; eased, and faded out during an authored jump.
+  // (dx, dz) is this sub-step's world displacement.
+  updateWarp(dx, dz, moved, forwardAmount, jumpWeight, deltaTime) {
+    let target = 0;
+    if (moved > 1e-7 && this.grounded) {
+      // Travel in her own frame: forward is +Z, her right is -X.
+      const c = Math.cos(this.mesh.rotation.y), s = Math.sin(this.mesh.rotation.y);
+      const travelForward = s * dx + c * dz, travelRight = -(c * dx - s * dz);
+      const legs = this.locomotion.legsDirection(this.equipped, forwardAmount);
+      if (Math.hypot(legs.x, legs.y) > 1e-6) {
+        const turn = Math.atan2(travelRight, travelForward) - Math.atan2(legs.x, legs.y);
+        target = Math.atan2(Math.sin(turn), Math.cos(turn));
+        target = THREE.MathUtils.clamp(target, -LOLA_WARP_MAX, LOLA_WARP_MAX) * (1 - jumpWeight);
+      }
+    }
+    this.warp += (target - this.warp) * (1 - Math.exp(-LOLA_WARP_RATE * deltaTime));
   }
 
   // Advance an authored jump: its rate, the push-off and touchdown footsteps,
@@ -508,6 +537,7 @@ export class LolaPlayer {
   poseOutfit(outfit) {
     const layers = { mesh: this.mesh };
     if (this.stall > 1e-4) layers.stall = { share: this.stall, idle: this.crouching ? 'CrouchIdle' : 'Idle' };
+    if (Math.abs(this.warp) > 1e-5) layers.warp = { angle: this.warp, hips: LOLA_WARP_HIPS };
     const shot = this.shot?.outfit === outfit ? this.shot : null;
     if (shot) layers.shot = { action: shot.action, upper: shot.upper, legs: this.shotLegs };
     if (this.jumpState) layers.jump = { action: outfit.jumpClips[this.jumpState.kind].action, weight: this.jumpWeight() };
