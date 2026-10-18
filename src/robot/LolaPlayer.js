@@ -441,10 +441,12 @@ export class LolaPlayer {
 
     // Base locomotion blend for both guns' views (so switching guns keeps the
     // stride); travel and the body's height from the equipped one.
+    // The stall share is last sub-step's (it is eased, so the lag is invisible).
     let distance = 0;
+    const stallLayer = this.stallLayer();
     for (const [index, outfit] of this.outfits.entries()) {
       distance += this.locomotion.update(outfit, { targets, forwardAmount, inputStrength, grounded: this.grounded,
-        countTravel: index === this.weaponIndex, world: this.world }, deltaTime);
+        countTravel: index === this.weaponIndex, world: this.world, stall: stallLayer }, deltaTime);
     }
     if (!this.grounded) distance = this.locomotion.airborneDistance(this.equipped, sideAmount, forwardAmount, inputStrength, deltaTime);
     distance *= this.world.scale * this.jumpTravel();
@@ -542,10 +544,17 @@ export class LolaPlayer {
 
   // ---- Posing -----------------------------------------------------------------
 
+  // How much of her pose eases toward standing because a wall stops her, and
+  // which standing clip (null when she is not stalled). Pose and height share it.
+  stallLayer() {
+    return this.stall > 1e-4 ? { share: this.stall, idle: this.crouching ? 'CrouchIdle' : 'Idle' } : null;
+  }
+
   // Evaluate one outfit's pose from the current layers (see LolaAnimator).
   poseOutfit(outfit) {
     const layers = { mesh: this.mesh };
-    if (this.stall > 1e-4) layers.stall = { share: this.stall, idle: this.crouching ? 'CrouchIdle' : 'Idle' };
+    const stall = this.stallLayer();
+    if (stall) layers.stall = stall;
     if (Math.abs(this.warp) > 1e-5) layers.warp = { angle: this.warp, hips: LOLA_WARP_HIPS };
     const shot = this.shot?.outfit === outfit ? this.shot : null;
     if (shot) layers.shot = { action: shot.action, upper: shot.upper, legs: this.shotLegs };

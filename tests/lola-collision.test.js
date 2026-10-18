@@ -23,6 +23,12 @@ async function load(weapon) {
   ));
 }
 const button = () => ({ addEventListener() {}, classList: { add() {} } });
+// Height of her lowest boot bone above the world floor (units).
+function lowestBoot(player) {
+  player.mesh.updateMatrixWorld(true);
+  return Math.min(...['DEF-toe.L', 'DEF-toe.R', 'DEF-foot.L', 'DEF-foot.R']
+    .map(name => player.equipped.model.getObjectByName(THREE.PropertyBinding.sanitizeNodeName(name)).getWorldPosition(new THREE.Vector3()).y));
+}
 const radians = degrees => degrees * Math.PI / 180;
 // Steady W run speed in open ground (units per second).
 const RUN_SPEED = 2.6128;
@@ -101,6 +107,19 @@ test('pushing straight into a wall eases Lola into Idle and keeps her boots plan
   for (let i = 0; i < 18; i += 1) player.move(1, 0, forward, right, 4.5, 1 / 60);
   assert.ok(player.equipped.baseWeights.Idle > 0.5, `Idle shows after 0.3 s (${player.equipped.baseWeights.Idle.toFixed(2)})`);
   assert.ok(Math.abs(player.equipped.actions.Run.time - runTime) < 1e-3, 'the run does not keep striding on the spot');
+  // Standing at the wall her boots rest on the floor like a normal Idle (her
+  // height used to follow the run's stride and left her hovering ~9 cm up).
+  for (const crouching of [false, true]) {
+    player.crouching = crouching;
+    for (let i = 0; i < 60; i += 1) player.move(1, 0, forward, right, 4.5, 1 / 60);
+    const pushing = lowestBoot(player);
+    const idle = new LolaPlayer(new THREE.Scene(), world, button(), await Promise.all([load('m416'), load('basic')]));
+    idle.crouching = crouching;
+    for (let i = 0; i < 60; i += 1) idle.move(0, 0, forward, right, 4.5, 1 / 60);
+    assert.ok(Math.abs(pushing - lowestBoot(idle)) < 0.02,
+      `${crouching ? 'crouched' : 'standing'}: lowest boot ${(pushing * 100).toFixed(1)} cm vs ${(lowestBoot(idle) * 100).toFixed(1)} cm standing still`);
+  }
+  player.crouching = false;
   // Turning away along the wall picks the run straight back up.
   const along = new THREE.Vector3(-1, 0, 0);
   for (let i = 0; i < 30; i += 1) player.move(1, 0, along, new THREE.Vector3(0, 0, 1), 4.5, 1 / 60);

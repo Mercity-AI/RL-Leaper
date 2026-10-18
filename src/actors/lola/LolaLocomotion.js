@@ -88,7 +88,9 @@ export class LolaLocomotion {
   // equipped outfit). The blended clips play on one shared stride phase, so
   // each covers its own cycle's ground at that shared pace; their travel adds
   // up in each clip's own direction (a 50/50 run-strafe blend goes diagonally).
-  update(outfit, { targets, forwardAmount, inputStrength, grounded, countTravel, world }, deltaTime) {
+  // stall (optional) = { share, idle }: the share of the pose LolaAnimator
+  // eases toward standing while a wall stops her; her height follows it too.
+  update(outfit, { targets, forwardAmount, inputStrength, grounded, countTravel, world, stall = null }, deltaTime) {
     // Starting or stopping keeps the stride phase, so the feet do not jump.
     // (Moving clips always share one phase, see advance.)
     if (grounded && outfit.current !== targets.current) {
@@ -98,13 +100,13 @@ export class LolaLocomotion {
       }
       outfit.current = targets.current;
     }
-    const averageWeight = {};
-    let floor = 0, lift = 0;
+    const averageWeight = {}, weights = {};
     for (const [name, action] of Object.entries(outfit.actions)) {
       const oldWeight = action.getEffectiveWeight();
       const weight = grounded
         ? THREE.MathUtils.lerp(oldWeight, targets.weights[name] ?? 0, 1 - Math.exp(-LOLA_BLEND_RATE * deltaTime)) : oldWeight;
       action.setEffectiveWeight(weight);
+      weights[name] = weight;
       averageWeight[name] = (oldWeight + weight) / 2;
       const pace = name.startsWith('Crouch') ? LOLA_PACE.crouch : this.runPace;
       const rate = name.startsWith('Strafe') ? pace
@@ -115,14 +117,23 @@ export class LolaLocomotion {
       // Play the pose at the rate where the planted boot sweeps back exactly as
       // fast as she travels, so it stays put on the ground.
       if (!isIdle(name)) action.timeScale *= strideMatch(profile, outfit.footContacts[name]);
-      floor += profile.groundOffset * weight;
-      lift += footLift(outfit.footContacts[name], action.time) * weight;
     }
     // Each clip's measured floor offset, minus how far its lower boot is lifted at
     // this moment (already in world units), so the run never hovers between steps.
+    // Weighted like the pose she shows, so standing at a wall she stands on the
+    // floor instead of hovering at the run's height (the run lifts her ~9 cm).
     // The junkyard floor sits slightly below y = 0; stand on it, not above it.
     // Only the equipped gun's view places the shared body.
-    if (countTravel) outfit.model.position.y = floor * world.scale * ENCOUNTER.lolaHeight - lift + (world.floorHeight ?? 0);
+    if (countTravel) {
+      const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+      let floor = 0, lift = 0;
+      for (const [name, action] of Object.entries(outfit.actions)) {
+        const shown = stall ? weights[name] * (1 - stall.share) + (name === stall.idle ? stall.share * total : 0) : weights[name];
+        floor += outfit.profiles[name].groundOffset * shown;
+        lift += footLift(outfit.footContacts[name], action.time) * shown;
+      }
+      outfit.model.position.y = floor * world.scale * ENCOUNTER.lolaHeight - lift + (world.floorHeight ?? 0);
+    }
     if (!countTravel || !inputStrength) return 0;
     // Travel at the clips' average speed (one cycle's ground per stride cycle).
     // Following the feet exactly stalls Lola (and the camera locked to her) at
