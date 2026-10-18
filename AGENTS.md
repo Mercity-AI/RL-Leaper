@@ -255,6 +255,8 @@ Use four spaces in Python and two spaces in HTML, CSS, and JavaScript. Follow PE
 
 ## Testing Guidelines
 
+Before committing a game or brain-service change, run `pnpm check` (build, Node tests and both headless browser pages), `pnpm lint` and `pnpm test:py` (`pnpm test:py --checkpoint` also runs the real-brain tests). GitHub Actions (`.github/workflows/ci.yml`) runs the same checks on every push and pull request.
+
 For simulator changes, run `pnpm build`, then verify chase, lens, and top cameras; keyboard/touch controls; obstacle collision; target selection; jumping; and window resizing in `pnpm dev`. For RL changes, run the 20,000-step smoke test and confirm episode rewards appear, `training_progress.csv` is populated, and evaluation completes without NaN values.
 
 ## Commit & Pull Request Guidelines

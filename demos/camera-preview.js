@@ -1,3 +1,5 @@
+// Visual demo, not a test: a before/after view of the chase camera clearing the
+// junkyard scenery. Open /demos/camera-preview.html while `pnpm dev` runs.
 import * as THREE from 'three';
 import { createScene } from '../src/core/createScene.js';
 import { createJunkyardWorld } from '../src/world/createJunkyardWorld.js';

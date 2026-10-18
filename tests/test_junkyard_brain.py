@@ -1,24 +1,50 @@
-"""Checkpoint integration tests; inference only, no optimizer or training."""
+"""Junkyard brain adapter tests; inference only, no optimizer or training.
+
+Two groups:
+- JunkyardEnvTests need only numpy and gymnasium. They run on any machine and
+  guard the fairness rules: hidden positions never leak, Lola blocks the Leaper,
+  and it can always back away.
+- CheckpointTests load the real saved brain. They run when model_7757824/ and
+  PyTorch + sb3-contrib are installed (requirements-brain.txt), and are skipped
+  with a clear reason otherwise.
+"""
+import importlib.util
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / ".venv/Lib/site-packages"))
+# Lets `python tests/test_junkyard_brain.py` import the project's rl package.
 sys.path.insert(0, str(ROOT))
 import numpy as np
-import torch
 from rl.junkyard_geometry import JunkyardGeometry
-from rl.junkyard_env import JunkyardEnv
-from rl.junkyard_server import BrainSession, load_brain
+from rl.junkyard_env import JunkyardEnv, PLAYER_CONTACT
+
+# The checkpoint tests need the committed brain files plus the ML stack. Setting
+# LEAPER_SKIP_CHECKPOINT_TESTS=1 (pnpm test:py does) keeps a run checkpoint-free.
+CHECKPOINT = ROOT / "model_7757824"
+BRAIN_READY = ((CHECKPOINT / "policy.pth").exists()
+               and importlib.util.find_spec("torch") is not None
+               and importlib.util.find_spec("sb3_contrib") is not None
+               and not os.environ.get("LEAPER_SKIP_CHECKPOINT_TESTS"))
+SKIP_REASON = ("brain checkpoint tests skipped: needs model_7757824/ plus PyTorch and "
+               "sb3-contrib (pip install -r requirements-brain.txt)")
+# A fresh raster takes about 30 seconds, so it is built once and then reused from
+# tmp/ (gitignored); test_junkyard_speedups.py proves the cached copy is exact.
+RASTER_CACHE = ROOT / "tmp" / "raster-cache"
 
 
-class BrainTests(unittest.TestCase):
+def junkyard_geometry(width=4):
+    return JunkyardGeometry(ROOT / "assets/maps/junkyard/collision.json", 7.98 / width, cache_dir=RASTER_CACHE)
+
+
+class JunkyardEnvTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        torch.set_num_threads(1)
-        cls.geometry = JunkyardGeometry(ROOT / "assets/maps/junkyard/collision.json", 7.98 / 4)
-        cls.model, cls.digest = load_brain(ROOT / "model_7757824")
+        cls.geometry = junkyard_geometry()
 
     def test_hidden_target_does_not_leak(self):
         a = JunkyardEnv(self.geometry, [0, 0], 0, [0, -15])
@@ -65,13 +91,26 @@ class BrainTests(unittest.TestCase):
         env.position = np.array([0, 0], dtype=np.float32)
         env.yaw = 0.0
         env.target = np.array([0, 3.5], dtype=np.float32)
-        from rl.junkyard_env import PLAYER_CONTACT
         player = PLAYER_CONTACT["playerRadius"] * self.geometry.scale
         self.assertAlmostEqual(env._player_clearance(env.position, 0.0) + player,
             min(np.hypot(np.sin(0.62) * 3.24, 3.5 - np.cos(0.62) * 3.24) - 0.9, np.hypot(np.sin(0.62) * 2.2, 3.5 - np.cos(0.62) * 2.2) - 0.35, 3.5 - 1.3), places=5)
 
+
+@unittest.skipUnless(BRAIN_READY, SKIP_REASON)
+class CheckpointTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # PyTorch is imported here so the model-free tests above never need it.
+        import torch
+        from rl.junkyard_server import BrainSession, load_brain
+        torch.set_num_threads(1)
+        cls.BrainSession = BrainSession
+        cls.load_brain = staticmethod(load_brain)
+        cls.geometry = junkyard_geometry()
+        cls.model, cls.digest = load_brain(CHECKPOINT)
+
     def test_real_checkpoint_actions_and_persistent_memory(self):
-        session = BrainSession(self.model, self.geometry, [0, 0], 0, [0, -15])
+        session = self.BrainSession(self.model, self.geometry, [0, 0], 0, [0, -15])
         self.assertEqual(self.model.num_timesteps, 7757824)
         self.assertEqual(self.digest, '883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594')
         self.assertFalse(session.env.target_visible)
@@ -88,6 +127,31 @@ class BrainTests(unittest.TestCase):
         self.assertGreater(np.linalg.norm(np.ptp(positions, axis=0)), .5)
         self.assertEqual(session.env.steps, 120)
         print('Checkpoint searched from a hidden-target start; 120 finite steps; actions match direct model.predict.')
+
+    def test_loads_without_optimizer_file_and_acts_identically(self):
+        # Inference never uses the optimizer, so a checkpoint folder holding only
+        # data + policy.pth must load with the same identity, weights and actions.
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder)
+        for name in ("data", "policy.pth"):
+            shutil.copy(CHECKPOINT / name, folder / name)
+        model, digest = self.load_brain(folder)
+        self.assertEqual(digest, self.digest)
+        self.assertEqual(model.num_timesteps, 7757824)
+        for name, tensor in self.model.policy.state_dict().items():
+            self.assertTrue(tensor.equal(model.policy.state_dict()[name]), name)
+        rng = np.random.default_rng(7757824)
+        state_a = state_b = None
+        for i in range(200):
+            obs = rng.uniform(-1, 1, 34).astype(np.float32)
+            start = np.array([i == 0])
+            action_a, state_a = self.model.predict(obs, state=state_a, episode_start=start, deterministic=True)
+            action_b, state_b = model.predict(obs, state=state_b, episode_start=start, deterministic=True)
+            np.testing.assert_array_equal(action_a, action_b)
+        # A folder without the policy weights is refused with a clear message.
+        (folder / "policy.pth").unlink()
+        with self.assertRaisesRegex(FileNotFoundError, "policy.pth"):
+            self.load_brain(folder)
 
 
 if __name__ == '__main__':

@@ -2,26 +2,47 @@
 
 0.1 Blender-unit cells conservatively include any triangle touching the cell.
 This is a planar approximation, not a mesh physics engine.
+
+Building the raster takes about 30 seconds, so it can be cached on disk
+(`cache_dir`). A cache file is only reused for the exact same collision.json,
+map scale, cell size, numpy version and rasterizer code, so a cached raster is
+always identical to a freshly built one.
 """
+import hashlib
 import json
 import math
+import os
+import tempfile
 from pathlib import Path
 
 import numpy as np
 
+# Part of every cache key: editing this file automatically retires old rasters.
+_SOURCE_DIGEST = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:16]
+
 
 class JunkyardGeometry:
-    def __init__(self, path, scale, cell=0.1):
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    def __init__(self, path, scale, cell=0.1, cache_dir=None):
+        raw = Path(path).read_bytes()
+        data = json.loads(raw)
         bounds = data["bounds"]
         self.scale = scale
         self.cell = cell * scale
         self.minimum = np.array([bounds["minX"], bounds["minZ"]]) * scale
         self.maximum = np.array([bounds["maxX"], bounds["maxZ"]]) * scale
         self.shape = np.ceil((self.maximum - self.minimum) / self.cell).astype(int)
-        self.solid = np.zeros(tuple(self.shape), dtype=bool)
+        # Reuse a raster saved earlier for exactly this map and size, else build it.
+        cache = self._cache_file(cache_dir, raw, scale, cell)
+        self.solid = self._load_raster(cache)
+        self.raster_cached = self.solid is not None
+        if self.solid is None:
+            self.solid = self._rasterize(data["triangles"], scale, cell)
+            self._save_raster(cache)
+
+    def _rasterize(self, triangles, scale, cell):
+        solid = np.zeros(tuple(self.shape), dtype=bool)
         padding = cell / math.sqrt(2)
-        for raw in data["triangles"]:
+        for raw in triangles:
             if raw[6] > 3.82 / scale or raw[7] <= 0.12:
                 continue
             tri = np.array(raw[:6]).reshape(3, 2)
@@ -41,8 +62,50 @@ class JunkyardGeometry:
                 distance = np.minimum(distance, np.sum((delta - t[..., None] * edge) ** 2, axis=-1))
             area = (tri[1, 0]-tri[0, 0])*(tri[2, 1]-tri[0, 1]) - (tri[1, 1]-tri[0, 1])*(tri[2, 0]-tri[0, 0])
             inside = (np.all(np.array(crosses) >= 0, axis=0) | np.all(np.array(crosses) <= 0, axis=0)) if abs(area) > 1e-10 else False
-            self.solid[ix, iz] |= inside | (distance <= padding ** 2)
+            solid[ix, iz] |= inside | (distance <= padding ** 2)
+        return solid
 
+    # --- Disk cache -------------------------------------------------------------
+    @staticmethod
+    def _cache_file(cache_dir, raw, scale, cell):
+        """Cache file name for this exact map, size and code; None when caching is off."""
+        if cache_dir is None:
+            return None
+        key = "-".join((hashlib.sha256(raw).hexdigest()[:24], _SOURCE_DIGEST, f"np{np.__version__}",
+                        float(scale).hex(), float(cell).hex()))
+        return Path(cache_dir) / f"raster-{key}.npy"
+
+    def _load_raster(self, path):
+        if path is None or not path.is_file():
+            return None
+        # An empty file (EOFError, e.g. after a power cut) or a cut-off one
+        # (ValueError) counts as missing, so it is rebuilt instead of crashing /reset.
+        try:
+            solid = np.load(path, allow_pickle=False)
+        except (OSError, ValueError, EOFError):
+            return None
+        # A damaged or foreign file is ignored and rebuilt.
+        if solid.dtype != bool or solid.shape != tuple(self.shape):
+            return None
+        return solid
+
+    def _save_raster(self, path):
+        if path is None:
+            return
+        # Write to a temporary file, then rename, so readers never see half a file.
+        temporary = None
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".tmp", delete=False) as output:
+                temporary = output.name
+                np.save(output, self.solid, allow_pickle=False)
+            os.replace(temporary, path)
+        except OSError:
+            # Caching only saves time; a read-only folder must not stop the brain.
+            if temporary and os.path.exists(temporary):
+                os.unlink(temporary)
+
+    # --- Sensors ---------------------------------------------------------------
     def occupied(self, points):
         points = np.asarray(points)
         idx = np.floor((points - self.minimum) / self.cell).astype(int)

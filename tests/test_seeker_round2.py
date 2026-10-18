@@ -3,10 +3,14 @@ import unittest
 import numpy as np
 import torch
 from stable_baselines3 import PPO
-from rl.seeker_round2 import ExperimentEnv, model_for, DONOR
+from rl.seeker_round2 import ExperimentEnv, model_for, DONOR, ROOT
 
 
 class RoundTwoTests(unittest.TestCase):
+    # The donor lives in the owner's local rl_artifacts/, which is not in Git:
+    # skip on a fresh clone; on a lab machine a missing donor still fails to load.
+    @unittest.skipUnless(DONOR.is_file() or (ROOT / 'rl_artifacts').is_dir(),
+                         f'Local round-two donor not installed (rl_artifacts/ is not in Git): {DONOR}')
     def test_transfer_all_branches(self):
         torch.set_num_threads(1)
         donor=PPO.load(DONOR,device='cpu')
