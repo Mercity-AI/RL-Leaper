@@ -48,6 +48,21 @@ export class FixedStep {
     return ticks;
   }
 
+  // For a consumer that sometimes has to wait before it can tick (the Leaper's
+  // brain can only ask for one move at a time): add frame time now with add(),
+  // and use up a due step with take() once it is free. At most maxSteps steps of
+  // time wait, so a long wait never turns into a burst of catch-up ticks.
+  add(deltaTime) {
+    if (deltaTime > 0) this.remainder = Math.min(this.remainder + deltaTime, this.step * this.maxSteps);
+  }
+
+  // Use up one whole step if one is due. Returns whether it was.
+  take() {
+    if (this.remainder + TICK_EPSILON < this.step) return false;
+    this.remainder = Math.max(0, this.remainder - this.step);
+    return true;
+  }
+
   // How far (0-1) the clock is into the next step, for smoothing between ticks.
   get alpha() {
     return Math.min(1, this.remainder / this.step);

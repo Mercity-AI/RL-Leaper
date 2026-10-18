@@ -1,5 +1,6 @@
 import { contact } from '../world/playerContact.js';
 import { lerpAngle, wrapAngle } from '../core/angles.js';
+import { FixedStep } from '../core/GameLoop.js';
 
 // Option A playback smoothing (inference only; the trained brain is untouched).
 // The rendered Leaper eases toward each brain reply at these rates, in 1/seconds.
@@ -9,9 +10,14 @@ import { lerpAngle, wrapAngle } from '../core/angles.js';
 const LEAPER_FOLLOW_RESPONSE = 18;
 const LEAPER_TURN_RESPONSE = 9;
 // Brain moves per second while running. Each move advances the Leaper a fixed
-// distance, so this sets its speed. A steady rate keeps the Leaper's speed the
-// same on busy and idle computers (a move takes ~40 ms to compute).
-const LEAPER_STEPS_PER_SECOND = 10;
+// distance (0.375 brain units), so this sets its speed: 3.75 units and 90 degrees
+// of turning per second at 10. A steady rate keeps the Leaper's speed the same on
+// busy and idle computers (a move takes ~40 ms to compute). Keep it at or below
+// about 24, or the legs can no longer keep up and the gait stops looking planted.
+export const LEAPER_STEPS_PER_SECOND = 10;
+// While stopped, the brain is asked what it can see (no movement) this often, in
+// seconds, so the always-visible sight readout stays live.
+const PREVIEW_INTERVAL = 0.1;
 // A slow or failed move is retried; the run only stops after this many in a row.
 const MAX_FAILED_STEPS = 5;
 
@@ -38,7 +44,10 @@ export class JunkyardBrain {
     this.ready = false;
     this.busy = false;
     this.pendingMovement = false;
-    this.clock = 0;
+    // The brain's own clock. Leftover time is carried from frame to frame, so the
+    // Leaper takes LEAPER_STEPS_PER_SECOND moves per second at any frame rate
+    // (review fix 5.13). Up to one move of "debt" is kept while a reply is late.
+    this.cadence = new FixedStep(1 / LEAPER_STEPS_PER_SECOND, { maxSteps: 2 });
     this.generation = 0;
     this.frame = null;
     this.label = 'BRAIN CONNECTING';
@@ -121,7 +130,7 @@ export class JunkyardBrain {
 
   stop() {
     this.running = false;
-    this.clock = 0;
+    this.cadence.reset();
     // Finish displaying a pending server step so collision and the visible
     // robot keep the same position while paused. No new step is requested.
   }
@@ -130,12 +139,16 @@ export class JunkyardBrain {
   // each reply. Lola's own movement is PlayerController's job, not the brain's.
   update(dt) {
     const sim = this.simulation;
-    // Slow inference steps with damage so the server and rendered position remain in sync.
-    this.clock += dt * (sim.rig?.mobility ?? 1);
     const encounterOver = this.playtest.combat?.dead;
     const preview = !encounterOver && !this.running && Boolean(this.playtest.sight);
-    if (this.ready && (this.running || preview) && !this.busy && this.clock >= (preview ? 0.1 : 1 / LEAPER_STEPS_PER_SECOND) && !document.hidden) {
-      this.clock = 0;
+    // 1. The brain clock only runs while moves (or stopped sight previews) may be
+    //    asked for. Damage slows it, so the server and the rendered legs stay in sync.
+    const stepping = this.ready && (this.running || preview) && !document.hidden;
+    this.cadence.step = preview ? PREVIEW_INTERVAL : 1 / LEAPER_STEPS_PER_SECOND;
+    if (stepping) this.cadence.add(dt * (sim.rig?.mobility ?? 1));
+    // 2. One request at a time: a due move waits (keeping its time) until the
+    //    previous reply has arrived.
+    if (stepping && !this.busy && this.cadence.take()) {
       this.busy = true;
       this.pendingMovement = !preview;
       const generation = this.generation;
