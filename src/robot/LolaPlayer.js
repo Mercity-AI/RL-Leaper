@@ -510,17 +510,16 @@ export class LolaPlayer {
     if (this.defeated) return;
     // Ease the requested input so starts, stops, and direction changes
     // accelerate smoothly instead of snapping between full speed and zero.
-    const ease = 1 - Math.exp(-LOLA_INPUT_RESPONSE * deltaTime);
-    this.inputForward += (forwardAmount - this.inputForward) * ease;
-    this.inputSide += (sideAmount - this.inputSide) * ease;
-    // Settle fully to rest once the keys release so facing does not drift.
-    if (forwardAmount === 0 && sideAmount === 0
-        && Math.hypot(this.inputForward, this.inputSide) < 0.02) {
-      this.inputForward = 0;
-      this.inputSide = 0;
-    }
     const steps = Math.max(1, Math.ceil(deltaTime * 120));
+    const ease = 1 - Math.exp(-LOLA_INPUT_RESPONSE * deltaTime / steps);
     for (let i = 0; i < steps; i += 1) {
+      this.inputForward += (forwardAmount - this.inputForward) * ease;
+      this.inputSide += (sideAmount - this.inputSide) * ease;
+      if (forwardAmount === 0 && sideAmount === 0
+          && Math.hypot(this.inputForward, this.inputSide) < 0.02) {
+        this.inputForward = 0;
+        this.inputSide = 0;
+      }
       this.moveStep(this.inputForward, this.inputSide, forward, right, speed, deltaTime / steps);
     }
   }

@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { LolaPlayer, LOLA_PACE } from '../src/robot/LolaPlayer.js';
 import profiles from '../assets/characters/lola/stride-profiles.json' with { type: 'json' };
 import { ENCOUNTER } from '../src/config/encounter.js';
+import { footLift } from '../src/robot/footstepContacts.js';
 import contact from '../src/config/player-contact.json' with { type: 'json' };
 
 // Exercise the real exported skeleton/animations without a browser image decoder.
@@ -76,11 +77,15 @@ test('each complete movement cycle travels its measured stride, with a stable fl
         }
       }
       const profile = profiles[weapon][clip];
+      player.inputForward = f; player.inputSide = s; // skip the input ramp
       const frames = 120;
       for (let i = 0; i < frames; i += 1) {
+        const o = player.outfits[player.weaponIndex];
+        const before = o.actions[clip].time;
         player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), speed,
           profile.duration / frames / (crouching ? LOLA_PACE.crouch : speed > 5 ? LOLA_PACE.sprint : LOLA_PACE.run));
-        assert.ok(Math.abs(player.outfits[player.weaponIndex].model.position.y - profile.groundOffset * ENCOUNTER.lolaHeight) < 1e-6);
+        const expected = profile.groundOffset * ENCOUNTER.lolaHeight - footLift(o.footContacts[clip], before);
+        assert.ok(Math.abs(o.model.position.y - expected) < 1e-6, `floor ${o.model.position.y} vs ${expected}`);
       }
       assert.ok(Math.abs(player.mesh.position.length() - profile.distance) < 0.0001,
         `${weapon} ${clip}: travel must match its foot-derived cycle distance`);
@@ -105,14 +110,16 @@ test('C toggles crouch once per press and A/D select authored crossovers for bot
     { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false }, button, models);
   window.addEventListener = originalListener;
   const press = (code, repeat = false) => keydown({ code, repeat, target: { tagName: 'CANVAS' }, preventDefault() {} });
-  const move = (f, s) => player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, 1 / 60);
+  const move = (f, s) => { for (let i = 0; i < 30; i++) player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, 1 / 60); };
   for (let weapon = 0; weapon < 2; weapon += 1) {
     move(0, -1);
     assert.equal(player.outfits[weapon].current, 'StrafeLeft');
     move(0, 1);
     assert.equal(player.outfits[weapon].current, 'StrafeRight');
     move(-1, 1);
-    assert.ok(Math.abs(player.outfits[weapon].actions.StrafeRight.timeScale - 2) < 1e-6);
+    { const o = player.outfits[weapon], pr = o.profiles.StrafeRight;
+      const match = THREE.MathUtils.clamp(pr.distance / pr.duration / o.footContacts.StrafeRight.stanceSpeed, 0.5, 1.5);
+      assert.ok(Math.abs(o.actions.StrafeRight.timeScale - LOLA_PACE.run * match) < 1e-6, `strafe rate ${o.actions.StrafeRight.timeScale} vs ${LOLA_PACE.run * match}`); }
     press('KeyC');
     press('KeyC', true);
     move(0, 0);
@@ -195,14 +202,14 @@ test('WASD directions, sprint, wall sliding, and weapon switch preserve player p
   assert.equal(player.outfits[0].model.visible, false);
   assert.equal(player.outfits[1].model.visible, true);
   assert.ok(player.mesh.position.equals(position));
-  player.move(0, 0, forward, right, 4.5, 0.1);
+  for (let i = 0; i < 3; i++) player.move(0, 0, forward, right, 4.5, 0.1);
   assert.equal(player.outfits[1].current, 'Idle');
   for (let frame = 0; frame < 120; frame += 1) {
     player.move(1, 0, forward, right, 4.5, 1 / 60);
     for (const outfit of player.outfits) assert.ok(Number.isFinite(outfit.model.position.y));
   }
   player.crouching = true;
-  player.move(0, 0, forward, right, 8, 0.1);
+  for (let i = 0; i < 3; i++) player.move(0, 0, forward, right, 8, 0.1);
   assert.equal(player.outfits[0].current, 'CrouchIdle');
   const crouchStart = player.mesh.position.z;
   player.move(1, 0, forward, right, 8, 0.1);
