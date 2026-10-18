@@ -166,8 +166,11 @@ class StallDonorTests(unittest.TestCase):
                            ('ppo_35_frontier_seed025_500k_s1/leaper_ppo.zip', 31)]:
             with self.subTest(inputs=size):
                 if not (root / path).is_file():
-                    # Donors live in the owner's local rl_artifacts/, which is not in Git.
-                    self.skipTest(f'Local {size}-input donor not installed (rl_artifacts/ is not in Git): {root / path}')
+                    # Donors live in the owner's local rl_artifacts/, which is not in Git:
+                    # skip on a fresh clone, but fail loudly on a lab machine that lost one.
+                    if not root.is_dir():
+                        self.skipTest(f'Local {size}-input donor not installed (rl_artifacts/ is not in Git): {root / path}')
+                    self.fail(f'Required donor missing: {root / path}')
                 donor = PPO.load(root / path, device='cpu')
                 env = StallMemorySeekerEnv()
                 self.addCleanup(env.close)

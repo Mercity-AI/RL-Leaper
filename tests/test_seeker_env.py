@@ -169,8 +169,11 @@ class DonorWideningTests(unittest.TestCase):
         from train_rl import widen_policy_state_dict
         torch.set_num_threads(1)
         if not DONOR.is_file():
-            # The donor lives in the owner's local rl_artifacts/, which is not in Git.
-            raise unittest.SkipTest(f'Local audit donor not installed (rl_artifacts/ is not in Git): {DONOR}')
+            # The donor lives in the owner's local rl_artifacts/, which is not in Git:
+            # skip on a fresh clone, but fail loudly on a lab machine that lost it.
+            if not (ROOT / 'rl_artifacts').is_dir():
+                raise unittest.SkipTest(f'Local audit donor not installed (rl_artifacts/ is not in Git): {DONOR}')
+            raise FileNotFoundError(f'Required audit donor missing: {DONOR}')
         cls.donor = PPO.load(DONOR, device='cpu')
         cls.env = SeekerEnv()
         cls.addClassCleanup(cls.env.close)
