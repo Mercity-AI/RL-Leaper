@@ -241,8 +241,10 @@ try {
   check(combat.leaperHealth === beforeCover, 'thin cover blocks instant player bullets');
   combat.geometry = normalGeometry;
   p.playerWeapon.reset(); p.walking = false;
-  check(p.playerWeapon.fire(), 'Lola can fire while the Leaper run is stopped');
-  p.playerWeapon.reset();
+  check(p.playerWeapon.fire(), 'Lola can fire while the Leaper run is stopped (stopped, not paused)');
+  p.playerWeapon.reset(); p.paused = true;
+  check(!p.playerWeapon.fire(), 'nobody can fire while the game is paused (Escape)');
+  p.paused = false; p.playerWeapon.reset();
   p.walking = true; p.pov.toggle();
   check(!p.playerWeapon.fire(), 'spectator POV cannot redirect or fire player weapon');
   p.pov.toggle(); target.switchWeapon(); target.crouching = false;
@@ -258,6 +260,9 @@ try {
     target.weaponIndex = weaponIndex; target.showWeapon(); p.playerWeapon.reset();
     p.walking = false; p.brain.ready = false;
     const health = combat.leaperHealth, damage = p.playerWeapon.weapon.damage;
+    p.paused = true; p.playerWeapon.update(0); clickShot();
+    check(combat.leaperHealth === health, `${weaponIndex ? 'pistol' : 'M416'} left click does nothing while paused`);
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 0 })); p.paused = false;
     clickShot();
     check(combat.leaperHealth === health - damage, `${weaponIndex ? 'pistol' : 'M416'} left click fires without starting the brain`);
     // Holding the button: the M416 is automatic, the pistol one shot per click.
@@ -274,6 +279,16 @@ try {
     p.playerWeapon.update(1);
     check(p.playerWeapon.effects.length === 0, 'click-shot effects leave no residue');
   }
+  // The click that recaptures the mouse (after Alt-Tab, during a run) only does that (review 5.16).
+  cameraController.gameplayStarted = true; p.playerWeapon.reset();
+  const magazineBeforeCapture = p.playerWeapon.ammoState.mag, healthBeforeCapture = combat.leaperHealth;
+  canvas.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', pointerId: 7, button: 0, bubbles: true }));
+  canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+  check(p.playerWeapon.ammoState.mag === magazineBeforeCapture && combat.leaperHealth === healthBeforeCapture && !p.playerWeapon.triggerHeld,
+    'the click that recaptures the mouse does not fire');
+  window.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', pointerId: 7, button: 0 }));
+  window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+  cameraController.releaseMouse(); cameraController.gameplayStarted = false;
   p.walking = true; p.brain.ready = true;
   window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit2', bubbles: true }));
   check(target.weaponIndex === 0, '2 switches from pistol to M416');

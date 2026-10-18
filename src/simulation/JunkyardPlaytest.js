@@ -8,6 +8,7 @@ import { GameFlow } from '../core/GameFlow.js';
 import { Encounter } from '../game/Encounter.js';
 import { PlayerController } from '../game/PlayerController.js';
 import { PlayerVitals } from '../game/PlayerVitals.js';
+import { PauseOverlay } from '../game/PauseOverlay.js';
 import { JunkyardPanel, HELP_MESSAGE } from '../game/JunkyardPanel.js';
 import { ClearanceOverlay } from '../game/ClearanceOverlay.js';
 import { JunkyardPresentation } from '../game/JunkyardPresentation.js';
@@ -70,8 +71,9 @@ export class JunkyardPlaytest {
       audio.step('robot', false, 1 / (1 + (distance / (12 * world.scale)) ** 2));
     };
 
-    // 7. The game state drives mouse capture and the toolbar labels; Escape (or a
-    //    lost mouse lock) pauses.
+    // 7. The game state drives mouse capture, the toolbar labels and the pause
+    //    overlay; Escape (or a lost mouse lock) pauses, a click on the overlay resumes.
+    this.pauseOverlay = new PauseOverlay({ onResume: () => this.resume() });
     this.flow.onChange((next, previous) => this.onFlowChange(next, previous));
     cameraController.onPauseRequested = () => this.pause();
     target.setSelected(true);
@@ -135,6 +137,7 @@ export class JunkyardPlaytest {
       this.cameraController.releaseMouse();
     }
     this.panelView.renderFlow(next);
+    this.pauseOverlay.render(next);
   }
 
   // The brain went offline. A run carries on in turret mode (the Leaper stands
@@ -182,13 +185,19 @@ export class JunkyardPlaytest {
     if (message) this.message.textContent = message;
   }
 
-  // Escape: freeze everything; the toolbar offers to resume.
+  // Escape: a real pause. Gameplay time stops for Lola, her guns, the Leaper and
+  // its bolts; the camera and the UI keep running. The overlay or the toolbar resumes.
   pause() {
     const mode = this.flow.playMode;
     if (!this.flow.pause()) return;
     this.message.textContent = mode === 'hunt'
-      ? 'Paused with Escape. Click RESUME RUN to continue.'
-      : 'Paused with Escape. Click RESUME PLAYER to explore again.';
+      ? 'Paused with Escape. Click the game or RESUME RUN to continue.'
+      : 'Paused with Escape. Click the game or RESUME PLAYER to explore again.';
+  }
+
+  // Back to whatever was paused (the mouse is captured again by the flow change).
+  resume() {
+    if (this.flow.resume()) this.message.textContent = 'Resumed. Esc pauses again.';
   }
 
   // RESET / RESTART ENCOUNTER (and a vision-mode change): a clean retry.
@@ -258,6 +267,7 @@ export class JunkyardPlaytest {
     this.encounter.dispose();
     this.removePlacement();
     this.overlay.dispose();
+    this.pauseOverlay.dispose();
     this.vitals.dispose();
     this.panelView.dispose();
     this.events.clear();

@@ -79,9 +79,13 @@ export class CameraController {
     toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
     toggleButton.addEventListener('click', () => this.toggle());
     canvas.addEventListener('pointerdown', (event) => {
+      // Whether this click only grabs the mouse again (after Alt-Tab, say). The gun
+      // reads it so the same click doesn't also fire (review fix 5.16).
+      this.captureClick = false;
       if (this.spectator?.active) return;
       if (this.gameplayStarted && this.followSubject && this.mode === 'CHASE'
-          && event.pointerType === 'mouse' && document.pointerLockElement !== canvas) {
+          && event.pointerType === 'mouse' && document.pointerLockElement !== canvas && !this.fallbackMouseLook) {
+        this.captureClick = true;
         this.captureMouse();
       }
       this.pointerId = event.pointerId;
@@ -238,6 +242,8 @@ export class CameraController {
   }
 
   endPointer(event) {
+    // The capture click is over once its button comes back up.
+    this.captureClick = false;
     if (event.pointerId === this.pointerId) {
       this.pointerId = null;
       if (this.mode === 'TOP') this.canvas.style.cursor = 'grab';

@@ -75,8 +75,11 @@ export class PlayerWeapon {
     const canvas = playtest.engine.renderer.domElement;
     // Mouse events fire for each button, including left clicks while right aim is held.
     canvas.addEventListener('mousedown', event => {
+      // The click that grabs the mouse again only does that: no shot, no aim.
+      if (this.p.cameraController.captureClick) return;
       if (event.button === 2 && this.available) this.setAiming(true);
-      if (event.button === 0) { this.triggerHeld = true; this.fire(); }
+      // A press while the gun can't be used (paused, TOP view…) is ignored entirely.
+      if (event.button === 0 && this.available) { this.triggerHeld = true; this.fire(); }
     });
     window.addEventListener('mouseup', event => {
       if (event.button === 0) this.triggerHeld = false;

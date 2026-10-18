@@ -191,3 +191,10 @@ body.junkyard-mode::before { content: ''; position: fixed; inset: 0; pointer-eve
 #junkyardPanel.expanded [data-message] { -webkit-line-clamp: unset; line-clamp: unset; }
 /* START RUN / START PLAYER are disabled while a finished fight waits for a restart. */
 #junkyardPanel button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Escape pauses the game: a dim veil over the 3D view only (review 5.16). It sits
+   under the toolbar, HUD and view buttons, which stay usable while paused. */
+#pauseOverlay { position: fixed; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: #0b0d1059; color: #f3f6f4; font: 600 18px/1.4 ui-monospace, monospace; letter-spacing: 0.12em; text-shadow: 0 1px 4px #000; cursor: pointer; }
+#pauseOverlay[hidden] { display: none; }
+#pauseOverlay small { font-size: 11px; font-weight: 400; letter-spacing: 0.05em; opacity: 0.8; }
