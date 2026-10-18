@@ -74,4 +74,5 @@ test('once the encounter is over the brain asks for no moves and only settles th
   for (let i = 0; i < 10; i += 1) brain.update(0.1);
   assert.equal(requests.length, before, 'no brain moves after the fight');
   assert.ok(calls.length === 10 && calls.every(([name, dt]) => name === 'settle' && dt === 0.1));
+  assert.equal(brain.describe().label, 'BRAIN 7,757,824 · ENCOUNTER OVER', 'the badge says the fight is over');
 });

@@ -253,7 +253,8 @@ export class JunkyardBrain {
           : 'NO BRAIN SERVICE // START IT, THEN PRESS START RUN',
       };
     }
-    const mode = !this.ready ? this.label : !this.running ? 'PAUSED'
+    // After the fight the brain is idle on purpose: say so rather than "paused".
+    const mode = !this.ready ? this.label : this.playtest.combat?.dead ? 'ENCOUNTER OVER' : !this.running ? 'PAUSED'
       : this.failedSteps ? 'BRAIN SLOW · RETRYING'
       : this.frame.target_visible ? 'TARGET VISIBLE'
         : this.frame.target_ever_seen ? 'TARGET HIDDEN · MEMORY' : 'SEARCHING';
