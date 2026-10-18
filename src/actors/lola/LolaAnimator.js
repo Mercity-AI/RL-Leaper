@@ -74,7 +74,8 @@ export class LolaAnimator {
 
   // Evaluate one outfit's final pose from its clips and the active layers:
   // layers = { stall: { share, idle }, jump: { action, weight }, shot: { action, upper, legs },
-  //            reload: { action, weight }, flinch: { strength, angle, direction }, mesh }.
+  //            reload: { action, weight }, warp: { angle, hips },
+  //            flinch: { strength, angle, direction }, silence: [actions], mesh }.
   pose(outfit, layers) {
     // The twist and flinch are added after the mixer, so start from the clean pose.
     undoFlinch(outfit);
@@ -111,8 +112,13 @@ export class LolaAnimator {
     if (layers.shot) layers.shot.upper.setEffectiveWeight(overlayWeight(1, total));
     if (layers.reload) layers.reload.action.setEffectiveWeight(overlayWeight(layers.reload.weight, total));
 
-    // One mixer evaluation per frame; the clocks were already advanced.
+    // One mixer evaluation per frame; the clocks were already advanced. The
+    // other gun's clips share the body's mixer, so they are silent for it.
+    const silent = layers.silence ?? [];
+    const silentWeights = silent.map(action => action.getEffectiveWeight());
+    silent.forEach(action => action.setEffectiveWeight(0));
     outfit.mixer.update(0);
+    silent.forEach((action, i) => action.setEffectiveWeight(silentWeights[i]));
     locomotion.forEach((action, i) => action.setEffectiveWeight(weights[i]));
 
     // Post-mixer: glue the reload gun into her hand, twist the hips, then add the flinch.

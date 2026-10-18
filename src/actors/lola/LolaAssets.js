@@ -9,8 +9,15 @@ import { LOLA_FLINCH_SPREAD, LOLA_WARP_SPINE, RUN_JUMPS } from './lolaTuning.js'
 
 // Lola's two outfits, in weaponIndex order: 0 = M416 rifle, 1 = basic pistol.
 export const OUTFIT_WEAPONS = Object.freeze(['m416', 'basic']);
-// The gun she carries (not fires) in each outfit's model.
+// The gun she carries (not fires) for each weapon.
 const CARRIED_GUNS = Object.freeze(['M416_Carry', 'Lola_Gun_Basic']);
+// Each weapon stowed while the other is out: the rifle slung on her back, the
+// pistol holstered at her waist.
+const STOWED_GUNS = Object.freeze(['M416', 'Basic_Gun_At_Waist']);
+// Guns the pistol outfit export adds to the shared body (the rifle outfit's
+// own guns are already on it): the carried pistol, the rifle on her back and
+// the pistol's shooting copy.
+const GRAFTED_GUNS = Object.freeze(['Lola_Gun_Basic', 'M416', 'basic_ShootingWeapon']);
 // Locomotion clips every outfit export must contain.
 export const LOCOMOTION_CLIPS = Object.freeze(['Walk', 'Run', 'Idle', 'CrouchWalk', 'CrouchIdle', 'StrafeLeft', 'StrafeRight']);
 // Authored standing and crouched shots.
@@ -62,15 +69,23 @@ export function cloneCharacter(source) {
   return clone;
 }
 
-// Build one outfit: its model (added under `parent`, so foot measurements see
-// the real scale), its re-parented skeleton (see LolaRig), mixer, locomotion
-// and shot actions, optional authored jump, running-jump and reload clips, and
-// the measured foot contacts.
-export function prepareOutfit(gltf, index, { jumps = [], reloads = [], runJumps = {} }, world, parent) {
-  const weapon = OUTFIT_WEAPONS[index];
-  const model = cloneCharacter(gltf.scene);
+// Build Lola: ONE body, with one "outfit view" per gun (weaponIndex order).
+//
+// Both outfit exports contain the same seven body meshes, bone names and rest
+// pose; the rifle outfit's skeleton has one extra bone (hips, carrying the
+// holstered pistol), and only the arm and spine poses differ per gun. So the
+// body is built once from the rifle outfit, the pistol outfit's guns are
+// grafted onto the same bones, and each view keeps just that gun's clips
+// (run, strafe, shots, jumps, reload) and guns. Switching guns swaps which
+// view drives the body; there is no second character to keep in step.
+//
+// The body is added under `parent` (so foot measurements see the real scale);
+// its skeleton is re-parented (see LolaRig) and every clip converted to it.
+export function prepareOutfits(models, { jumps = [], reloads = [], runJumps = {} }, world, parent) {
+  const model = cloneCharacter(models[0].scene);
   // Blender's character faces -Y, which exports as +Z.
   model.scale.set(world.scale, world.scale * ENCOUNTER.lolaHeight, world.scale);
+  for (const gltf of models.slice(1)) graftGuns(model, gltf.scene);
   model.traverse((object) => {
     if (object.isMesh) {
       object.castShadow = true;
@@ -80,17 +95,64 @@ export function prepareOutfit(gltf, index, { jumps = [], reloads = [], runJumps 
   });
 
   // Copies of the guns animated with each authored jump, added before the
-  // skeleton is fixed so they move onto her chest with the shooting gun.
-  const jumpSources = {};
-  if (jumps[index]) jumpSources.jump = addJumpGun(model, jumps[index], 'Jump', weapon);
-  for (const [name, files] of Object.entries(runJumps)) {
-    if (files?.[index]) jumpSources[name] = addJumpGun(model, files[index], name, weapon);
-  }
+  // skeleton is fixed so they move onto her chest with the shooting guns.
+  const jumpSources = models.map((_, index) => {
+    const weapon = OUTFIT_WEAPONS[index], sources = {};
+    if (jumps[index]) sources.jump = addJumpGun(model, jumps[index], 'Jump', weapon);
+    for (const [name, files] of Object.entries(runJumps)) {
+      if (files?.[index]) sources[name] = addJumpGun(model, files[index], name, weapon);
+    }
+    return sources;
+  });
   // A proper upper-body skeleton: arms, the gun-carrying chest bone and the
-  // root-level guns hang from her chest. Every clip below is converted to it,
-  // so the authored animation looks the same.
-  const rig = new LolaRig(model, [`${weapon}_ShootingWeapon`, ...Object.values(jumpSources).map(({ gun }) => gun.name)]);
+  // root-level guns hang from her chest. Every clip is converted to it, so the
+  // authored animation looks the same.
+  const guns = models.flatMap((_, index) => [`${OUTFIT_WEAPONS[index]}_ShootingWeapon`,
+    ...Object.values(jumpSources[index]).map(({ gun }) => gun.name)]);
+  const rig = new LolaRig(model, guns);
   const mixer = new THREE.AnimationMixer(model);
+
+  // The body's bones every view shares.
+  // The flinch bends these spine joints (see LOLA_FLINCH_SPREAD); hitBone is
+  // the lowest, kept under that name for the systems that already read it.
+  const flinchBones = LOLA_FLINCH_SPREAD.map(([name, share]) => ({ bone: bone(model, name), share, base: null }))
+    .filter(({ bone: item }) => item);
+  // The hip twist turns every bone still hanging from the rig itself (after the
+  // re-parent: hips, pelvis, thighs and the spine root) and untwists the spine.
+  const warpRoots = [];
+  model.traverse(item => { if (item.isBone && !item.parent.isBone) warpRoots.push(item); });
+  const warpSpine = LOLA_WARP_SPINE.map(([name, share]) => ({ bone: bone(model, name), share })).filter(({ bone: item }) => item);
+  const body = {
+    model, rig, mixer, flinchBones, warpRoots, warpSpine,
+    hitBone: flinchBones[0]?.bone ?? null,
+    headBone: bone(model, 'DEF-spine.006'),
+    warpLegs: ['DEF-thigh.L', 'DEF-thigh.R'].map(name => bone(model, name)).filter(Boolean),
+    warpSpineTotal: warpSpine.reduce((sum, { share }) => sum + share, 0) || 1,
+    // Post-pose offsets currently applied to the shared bones.
+    hitBase: null, warpBases: [],
+  };
+  const views = models.map((gltf, index) => prepareView(body, gltf, index, jumpSources[index], reloads[index]));
+
+  // Measure each view's feet on the real (scaled) body, the other views silent.
+  parent.add(model);
+  for (const view of views) {
+    const others = views.filter(item => item !== view).flatMap(item => item.timed);
+    const weights = others.map(action => action.getEffectiveWeight());
+    others.forEach(action => action.setEffectiveWeight(0));
+    view.footContacts = measureFootContacts(model, mixer, view.actions);
+    for (const name of Object.keys(RUN_JUMPS)) {
+      if (view.jumpClips[name]) view.jumpClips[name].landing = measureJumpLanding(model, mixer, view.actions, view.jumpClips[name].action);
+    }
+    others.forEach((action, i) => action.setEffectiveWeight(weights[i]));
+  }
+  return views;
+}
+
+// One gun's view of the shared body: its clips (converted to the fixed
+// skeleton), its guns, and the stride data its clips were measured with.
+function prepareView(body, gltf, index, jumpSources, reloadSource) {
+  const { model, rig, mixer } = body;
+  const weapon = OUTFIT_WEAPONS[index];
   const authored = (name) => {
     const clip = gltf.animations.find((item) => item.name === name);
     if (!clip) throw new Error(`Lola is missing the ${name} animation`);
@@ -100,19 +162,6 @@ export function prepareOutfit(gltf, index, { jumps = [], reloads = [], runJumps 
   // Locomotion clips, all playing; their weights pick what shows.
   const actions = {};
   for (const name of LOCOMOTION_CLIPS) actions[name] = mixer.clipAction(authored(name));
-  // The flinch bends these spine joints (see LOLA_FLINCH_SPREAD); hitBone is
-  // the lowest, kept under that name for the systems that already read it.
-  const flinchBones = LOLA_FLINCH_SPREAD.map(([name, share]) => ({ bone: bone(model, name), share, base: null }))
-    .filter(({ bone: item }) => item);
-  const hitBone = flinchBones[0]?.bone ?? null;
-  const headBone = bone(model, 'DEF-spine.006');
-  // The hip twist turns every bone still hanging from the rig itself (after the
-  // re-parent: hips, pelvis, thighs and the spine root) and untwists the spine.
-  const warpRoots = [];
-  model.traverse(item => { if (item.isBone && !item.parent.isBone) warpRoots.push(item); });
-  const warpLegs = ['DEF-thigh.L', 'DEF-thigh.R'].map(name => bone(model, name)).filter(Boolean);
-  const warpSpine = LOLA_WARP_SPINE.map(([name, share]) => ({ bone: bone(model, name), share })).filter(({ bone: item }) => item);
-  const warpSpineTotal = warpSpine.reduce((sum, { share }) => sum + share, 0) || 1;
 
   // Full-body shots, plus upper-body copies for shooting on the move.
   const shooting = {};
@@ -127,9 +176,6 @@ export function prepareOutfit(gltf, index, { jumps = [], reloads = [], runJumps 
     shootingUpper[name] = mixer.clipAction(upper).setLoop(THREE.LoopOnce, 1);
     shootingUpper[name].clampWhenFinished = true;
   }
-  const shotGun = model.getObjectByName(`${weapon}_ShootingWeapon`);
-  const carriedGun = model.getObjectByName(CARRIED_GUNS[index]);
-  shotGun.visible = false;
 
   // Every authored jump by kind: 'jump' plus whichever running jumps loaded.
   const jumpClips = {};
@@ -138,26 +184,47 @@ export function prepareOutfit(gltf, index, { jumps = [], reloads = [], runJumps 
     action.clampWhenFinished = true;
     jumpClips[kind] = { action, gun };
   }
-  const reload = reloads[index] ? createReload(model, mixer, reloads[index], weapon, rig) : null;
+  const reload = reloadSource ? createReload(model, mixer, reloadSource, weapon, rig) : null;
 
-  // Start in Idle, then measure the feet on the real (scaled) model.
+  // This gun's objects on the body: in her hands, firing, stowed while the
+  // other gun is out, and the copies shown during a jump or reload.
+  const shotGun = model.getObjectByName(`${weapon}_ShootingWeapon`);
+  const carriedGun = model.getObjectByName(CARRIED_GUNS[index]);
+  const stowed = model.getObjectByName(STOWED_GUNS[index]) ?? null;
+  const guns = [carriedGun, shotGun, ...Object.values(jumpClips).map(({ gun }) => gun), ...(reload ? [reload.gun] : [])];
+  shotGun.visible = false;
+
+  // Start in Idle.
   actions.Idle.play();
-  parent.add(model);
-  for (const [name, action] of Object.entries(actions)) {
-    action.setEffectiveWeight(name === 'Idle' ? 1 : 0).play();
-  }
-  const footContacts = measureFootContacts(model, mixer, actions);
-  for (const name of Object.keys(RUN_JUMPS)) {
-    if (jumpClips[name]) jumpClips[name].landing = measureJumpLanding(model, mixer, actions, jumpClips[name].action);
-  }
+  for (const [name, action] of Object.entries(actions)) action.setEffectiveWeight(name === 'Idle' ? 1 : 0).play();
   // Every action the animator advances by hand (see LolaAnimator.advance).
   const timed = [...Object.values(actions), ...Object.values(shooting), ...Object.values(shootingUpper),
     ...Object.values(jumpClips).map(({ action }) => action), ...(reload ? [reload.action] : [])];
-  // The moving clips LolaLocomotion keeps on one stride phase.
-  const strideActions = new Set(STRIDE_CLIPS.map(name => actions[name]));
-  return { model, rig, mixer, actions, footContacts, headBone, hitBone, hitBase: null, flinchBones, shooting, shootingUpper, shotGun, carriedGun,
+  const view = {
+    model, rig, mixer, actions, footContacts: null, shooting, shootingUpper, shotGun, carriedGun, stowed, guns,
     jump: jumpClips.jump ?? null, jumpClips, reload, profiles: strideProfiles[weapon], current: 'Idle', timed, posed: -1,
-    strideActions, warpRoots, warpLegs, warpSpine, warpSpineTotal, warpBases: [] };
+    // The moving clips LolaLocomotion keeps on one stride phase.
+    strideActions: new Set(STRIDE_CLIPS.map(name => actions[name])),
+    hitBone: body.hitBone, headBone: body.headBone, flinchBones: body.flinchBones,
+    warpRoots: body.warpRoots, warpLegs: body.warpLegs, warpSpine: body.warpSpine, warpSpineTotal: body.warpSpineTotal,
+  };
+  // Offsets added to the shared bones after the pose belong to the body.
+  for (const key of ['hitBase', 'warpBases']) {
+    Object.defineProperty(view, key, { get: () => body[key], set: (value) => { body[key] = value; }, enumerable: true });
+  }
+  return view;
+}
+
+// Copy the guns of another outfit export onto the shared body, under the
+// same-named bone (or the root) they hang from in that export.
+function graftGuns(model, scene) {
+  for (const name of GRAFTED_GUNS) {
+    const gun = scene.getObjectByName(name);
+    if (!gun || model.getObjectByName(name)) continue;
+    const parent = gun.parent === scene ? model : model.getObjectByName(gun.parent.name);
+    if (!parent) throw new Error(`Lola's body has no ${gun.parent.name} for the ${name}`);
+    parent.add(gun.clone());
+  }
 }
 
 // An authored jump clip and a copy of the gun animated with it

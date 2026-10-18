@@ -104,22 +104,63 @@ test('building Lola copies the loaded files, so two Lolas can share one load', a
   assert.equal(players[1].startReload(), false, 'no reload mid-jump');
 });
 
-test('only the equipped outfit is posed, once per rendered frame', async () => {
+test('one body is posed once per rendered frame, by the equipped gun only', async () => {
   const player = new LolaPlayer(new THREE.Scene(), openWorld(), button(), await Promise.all([load('m416'), load('basic')]));
-  const counts = player.outfits.map(outfit => {
-    const count = { updates: 0 };
-    const update = outfit.mixer.update.bind(outfit.mixer);
-    outfit.mixer.update = dt => { count.updates += 1; return update(dt); };
-    return count;
-  });
+  const [rifle, pistol] = player.outfits;
+  assert.equal(rifle.model, pistol.model, 'both guns share one body');
+  assert.equal(rifle.mixer, pistol.mixer);
+  let updates = 0;
+  const update = rifle.mixer.update.bind(rifle.mixer);
+  rifle.mixer.update = dt => { updates += 1; return update(dt); };
   // A slow 10 fps frame runs 12 movement sub-steps but only one pose.
   player.move(1, 0, FORWARD, RIGHT, 4.5, 0.1);
-  assert.deepEqual(counts.map(count => count.updates), [1, 0]);
-  // The hidden outfit's clips still keep time, so switching guns is seamless.
-  const hiddenRun = player.outfits[1].actions.Run;
-  assert.ok(Math.abs(hiddenRun.time - player.outfits[0].actions.Run.time) < 1e-9);
+  assert.equal(updates, 1);
+  // The other gun's clips still keep time, so switching guns is seamless...
+  assert.ok(Math.abs(pistol.actions.Run.time - rifle.actions.Run.time) < 1e-9);
+  // ...but never leak into the pose: the body looks the same whatever they hold.
+  const hand = rifle.model.getObjectByName('DEF-handL');
+  const place = () => { player.mesh.updateMatrixWorld(true); return hand.getWorldPosition(new THREE.Vector3()); };
+  player.poseOutfit(rifle);
+  const clean = place();
+  pistol.actions.Idle.setEffectiveWeight(1);
+  pistol.actions.StrafeLeft.setEffectiveWeight(1);
+  player.poseOutfit(rifle);
+  assert.ok(place().distanceTo(clean) < 1e-9, 'the pistol clips stay out of the rifle pose');
+  updates = 0;
   player.switchWeapon();
-  assert.deepEqual(counts.map(count => count.updates), [1, 1], 'the newly shown outfit is posed at once');
+  assert.equal(updates, 1, 'the newly equipped gun poses the body at once');
   player.move(1, 0, FORWARD, RIGHT, 4.5, 1 / 60);
-  assert.deepEqual(counts.map(count => count.updates), [1, 2]);
+  assert.equal(updates, 2);
+});
+
+test('only the guns that belong on screen are shown on the one body', async () => {
+  const models = await Promise.all([load('m416'), load('basic')]);
+  const jumps = await Promise.all([load('jump-m416'), load('jump-basic')]);
+  const reloads = await Promise.all([load('reload-m416'), load('reload-basic')]);
+  const player = new LolaPlayer(new THREE.Scene(), openWorld(), button(), models, jumps, reloads);
+  const [rifle, pistol] = player.outfits;
+  let skinned = 0;
+  rifle.model.traverse(node => { if (node.isSkinnedMesh) skinned += 1; });
+  assert.equal(skinned, 7, 'one set of body meshes, not two');
+  const shown = () => {
+    const names = [];
+    rifle.model.traverse(node => { if (node.isMesh && !node.isSkinnedMesh && node.visible) names.push(node.name); });
+    return names.sort();
+  };
+  // Rifle out: in her hands, pistol holstered at the hip.
+  assert.deepEqual(shown(), ['Basic_Gun_At_Waist', 'M416_Carry']);
+  player.startShot();
+  assert.deepEqual(shown(), ['Basic_Gun_At_Waist', 'm416_ShootingWeapon']);
+  player.cancelShot();
+  player.startReload();
+  assert.deepEqual(shown(), ['Basic_Gun_At_Waist', 'm416_ReloadWeapon']);
+  player.cancelReload();
+  // Pistol out: in her hand, rifle slung on her back; same for its jump.
+  player.switchWeapon();
+  assert.deepEqual(shown(), ['Lola_Gun_Basic', 'M416']);
+  player.jump();
+  assert.deepEqual(shown(), ['M416', 'basic_JumpWeapon']);
+  player.endJump();
+  assert.deepEqual(shown(), ['Lola_Gun_Basic', 'M416']);
+  assert.ok(pistol.carriedGun.visible && !rifle.carriedGun.visible);
 });

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { ENCOUNTER } from '../config/encounter.js';
 import { crossedFootContact } from './footstepContacts.js';
-import { loadLolaAssets, prepareOutfit } from '../actors/lola/LolaAssets.js';
+import { loadLolaAssets, prepareOutfits } from '../actors/lola/LolaAssets.js';
 import { LolaLocomotion } from '../actors/lola/LolaLocomotion.js';
-import { LolaAnimator, undoFlinch, undoWarp } from '../actors/lola/LolaAnimator.js';
+import { LolaAnimator, undoFlinch } from '../actors/lola/LolaAnimator.js';
 import { LolaActionState } from '../actors/lola/LolaActionState.js';
 import { CharacterMover } from '../actors/lola/CharacterMover.js';
 import {
@@ -17,7 +17,8 @@ export { LOLA_PACE };
 
 // Lola, the player character. This class is the public face other systems use
 // (weapon, combat, camera, brain, eye vision); the work happens in parts:
-//   LolaAssets       loads and copies the 14 exported files into two outfits
+//   LolaAssets       loads the 14 exported files into one body with a view per gun
+//                    (outfits[0] = M416, outfits[1] = pistol; both share .model)
 //   LolaLocomotion   eased input, which clip plays, stride speed, floor height
 //   LolaAnimator     clip clocks and the layered pose (base, jump, shot, reload, flinch)
 //   LolaActionState  the rules for which actions can start when
@@ -81,8 +82,8 @@ export class LolaPlayer {
     // Hip twist toward her real travel direction (radians, + = to her right).
     this.warp = 0;
 
-    // Both outfits, built from copies of the loaded files.
-    this.outfits = models.map((gltf, index) => prepareOutfit(gltf, index, { jumps, reloads, runJumps }, world, this.mesh));
+    // One body with a view per gun, built from copies of the loaded files.
+    this.outfits = prepareOutfits(models, { jumps, reloads, runJumps }, world, this.mesh);
     scene.add(this.mesh);
 
     // The on-screen weapon button and the C / 1 / 2 keys.
@@ -102,7 +103,7 @@ export class LolaPlayer {
 
   // ---- State other systems read ------------------------------------------
 
-  // The outfit for the gun in her hands; only this one is animated and shown.
+  // The view for the gun in her hands; only its clips drive the body.
   get equipped() { return this.outfits[this.weaponIndex]; }
 
   // Smoothed movement input (tests and the running-jump picker read and preset it).
@@ -128,19 +129,27 @@ export class LolaPlayer {
   // ---- Weapons, crouch and the HUD button ---------------------------------
 
   showWeapon() {
-    this.outfits.forEach((outfit, index) => {
-      outfit.model.visible = index === this.weaponIndex;
-      // A put-away outfit is no longer animated; drop its flinch and hip twist
-      // and pose it afresh when it is shown again.
-      if (outfit.model.visible || (!outfit.hitBase && !outfit.warpBases.length)) return;
-      undoFlinch(outfit);
-      undoWarp(outfit);
-      outfit.posed = -1;
-    });
+    this.updateGuns();
     this.toggleButton.textContent = `${this.weaponIndex === 0 ? '2: M416' : '1: BASIC GUN'} · C: ${this.crouching ? 'CROUCHED' : 'STANDING'}`;
     this.toggleButton.classList.add('on');
-    // The newly shown outfit may not have been posed since it was put away.
+    // A newly equipped gun's clips may not have posed the body yet.
     this.ensurePosed();
+  }
+
+  // Show exactly the guns that belong on screen: the equipped gun in her
+  // hands (or its jump, reload or shooting copy while one plays) and the
+  // other gun stowed on her back or hip; every other copy hidden.
+  updateGuns() {
+    this.outfits.forEach((outfit, index) => {
+      const equipped = index === this.weaponIndex;
+      const inHand = !equipped ? null
+        : (this.jumpState && outfit.jumpClips[this.jumpState.kind]?.gun)
+          || (this.reloadState?.outfit === outfit && outfit.reload.gun)
+          || (this.shot?.outfit === outfit && outfit.shotGun)
+          || outfit.carriedGun;
+      for (const gun of outfit.guns) gun.visible = gun === inHand;
+      if (outfit.stowed) outfit.stowed.visible = !equipped;
+    });
   }
 
   switchWeapon() {
@@ -163,8 +172,7 @@ export class LolaPlayer {
     if (!outfit.reload) return true;
     this.reloadState = { outfit, elapsed: 0 };
     outfit.reload.action.reset().setEffectiveWeight(0).play();
-    outfit.reload.gun.visible = true;
-    outfit.carriedGun.visible = false;
+    this.updateGuns();
     this.animator.placeReloadGun(outfit, 0);
     return true;
   }
@@ -174,8 +182,7 @@ export class LolaPlayer {
     const { outfit } = this.reloadState;
     this.reloadState = null;
     outfit.reload.action.stop();
-    outfit.reload.gun.visible = false;
-    outfit.carriedGun.visible = true;
+    this.updateGuns();
   }
 
   // Blend weight of the reload: quick fade in, short fade out at the end.
@@ -229,8 +236,7 @@ export class LolaPlayer {
       item.reset().setEffectiveTimeScale(item.getClip().duration / duration).setEffectiveWeight(1).play();
     }
     this.shot = { outfit, action, upper, name, elapsed: 0, duration, hold, upperOnly: this.shotLegs < 0.5 };
-    outfit.shotGun.visible = true;
-    outfit.carriedGun.visible = false;
+    this.updateGuns();
     // Show the raised gun at once, so a shot fired this frame leaves the muzzle.
     this.poseOutfit(outfit);
     return true;
@@ -245,13 +251,12 @@ export class LolaPlayer {
 
   cancelShot() {
     if (!this.shot) return;
-    const { outfit, action, upper } = this.shot;
+    const { action, upper } = this.shot;
     action.stop();
     upper.stop();
-    outfit.shotGun.visible = false;
-    outfit.carriedGun.visible = true;
     // Locomotion weights kept advancing underneath the shooting pose.
     this.shot = null;
+    this.updateGuns();
   }
 
   eyePosition(out = new THREE.Vector3()) {
@@ -291,13 +296,13 @@ export class LolaPlayer {
       const start = moving ? JUMP_RUN_START : 0;
       this.jumpState = this.runningJump() ?? { kind: 'jump', rate: JUMP_STANDING_SPEED, start, elapsed: start,
         liftoff: JUMP_LIFTOFF, landing: JUMP_LANDING, end: this.outfits[0].jump.action.getClip().duration };
+      // Both guns' views keep the jump's clock, so switching guns mid-air
+      // carries on; showWeapon shows the equipped one's jump gun.
       const { kind } = this.jumpState;
       for (const outfit of this.outfits) {
         const clip = outfit.jumpClips[kind];
         clip.action.reset().setEffectiveTimeScale(this.jumpState.rate).setEffectiveWeight(0).play();
         clip.action.time = this.jumpState.start;
-        clip.gun.visible = true;
-        outfit.carriedGun.visible = false;
       }
     } else {
       this.grounded = false;
@@ -371,11 +376,8 @@ export class LolaPlayer {
     if (!this.jumpState) return;
     const { kind } = this.jumpState;
     this.jumpState = null;
-    for (const outfit of this.outfits) {
-      outfit.jumpClips[kind].action.stop();
-      outfit.jumpClips[kind].gun.visible = false;
-      outfit.carriedGun.visible = true;
-    }
+    for (const outfit of this.outfits) outfit.jumpClips[kind].action.stop();
+    this.updateGuns();
   }
 
   resetJump() {
@@ -545,8 +547,13 @@ export class LolaPlayer {
     if (this.hitRecoilTime > 0) {
       layers.flinch = { strength: this.flinchStrength(), angle: ENCOUNTER.hitRecoilAngle, direction: this.hitDirection };
     }
+    // The other gun's clips share the body: keep them out of this pose.
+    const others = this.outfits.filter(item => item !== outfit && item.mixer === outfit.mixer);
+    layers.silence = others.flatMap(item => item.timed);
     this.animator.pose(outfit, layers);
     outfit.posed = this.poseClock;
+    // The body now shows this gun's pose; another view must pose afresh.
+    for (const item of others) item.posed = -1;
   }
 
   // Pose the equipped outfit if it has not been posed since the last move().

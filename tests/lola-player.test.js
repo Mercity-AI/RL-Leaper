@@ -199,8 +199,10 @@ test('WASD directions, sprint, wall sliding, and weapon switch preserve player p
   assert.ok(player.mesh.position.z > 0.3, 'slides alongside it');
   const position = player.mesh.position.clone();
   player.switchWeapon();
-  assert.equal(player.outfits[0].model.visible, false);
-  assert.equal(player.outfits[1].model.visible, true);
+  // One body for both guns: switching puts the pistol in her hands and slings the rifle.
+  assert.equal(player.outfits[0].carriedGun.visible, false);
+  assert.equal(player.outfits[1].carriedGun.visible, true);
+  assert.equal(player.outfits[0].stowed.visible, true, 'the rifle is slung on her back');
   assert.ok(player.mesh.position.equals(position));
   for (let i = 0; i < 3; i++) player.move(0, 0, forward, right, 4.5, 0.1);
   assert.equal(player.outfits[1].current, 'Idle');

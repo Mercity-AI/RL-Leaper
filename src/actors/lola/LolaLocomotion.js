@@ -121,7 +121,8 @@ export class LolaLocomotion {
     // Each clip's measured floor offset, minus how far its lower boot is lifted at
     // this moment (already in world units), so the run never hovers between steps.
     // The junkyard floor sits slightly below y = 0; stand on it, not above it.
-    outfit.model.position.y = floor * world.scale * ENCOUNTER.lolaHeight - lift + (world.floorHeight ?? 0);
+    // Only the equipped gun's view places the shared body.
+    if (countTravel) outfit.model.position.y = floor * world.scale * ENCOUNTER.lolaHeight - lift + (world.floorHeight ?? 0);
     if (!countTravel || !inputStrength) return 0;
     // Travel at the clips' average speed (one cycle's ground per stride cycle).
     // Following the feet exactly stalls Lola (and the camera locked to her) at
