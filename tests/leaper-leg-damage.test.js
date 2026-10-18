@@ -161,7 +161,6 @@ for (const joint of ['upper', 'lower']) test(`all six ${joint}-knee fragments se
       const direction = new THREE.Vector3(0,1,0).applyQuaternion(shaft.getWorldQuaternion(new THREE.Quaternion()));
       assert.ok(Math.abs(direction.y) < 0.02, `leg ${index} shaft lies parallel to floor`);
     }
-    const box = new THREE.Box3().setFromObject(piece.mesh);
     assert.ok(lowestVertex(piece.mesh) >= 0 && lowestVertex(piece.mesh) < 0.003, 'rests on the ground');
     const q = piece.mesh.quaternion.clone(); damage.update(5);
     assert.ok(q.angleTo(piece.mesh.quaternion) < 1e-7, 'settled piece stays still');

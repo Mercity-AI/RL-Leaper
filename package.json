@@ -14,13 +14,17 @@
     "test": "node --test tests/*.test.js",
     "test:brain": "node --test tests/leaper_world.test.js",
     "test:browser": "node tests/run-browser.mjs",
-    "check": "pnpm build && pnpm test && pnpm test:browser"
+    "check": "pnpm build && pnpm test && pnpm test:browser",
+    "lint": "eslint src tests scripts"
   },
   "dependencies": {
     "onnxruntime-web": "^1.29.0",
     "three": "0.128.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
     "playwright": "1.56.1",
     "vite": "^7.0.0"
   }
