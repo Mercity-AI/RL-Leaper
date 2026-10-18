@@ -96,3 +96,45 @@ test('pausing during inference keeps the final authoritative pose for contact', 
   assert.equal(driver.running, false);
   assert.equal(driver.busy, false);
 });
+
+test('the brain address comes from VITE_BRAIN_URL, then ?brainUrl=, then the local default', async () => {
+  const { brainServiceUrl, DEFAULT_BRAIN_URL } = await import('../src/simulation/JunkyardBrain.js');
+  assert.equal(DEFAULT_BRAIN_URL, 'http://127.0.0.1:8767');
+  assert.equal(brainServiceUrl({ envUrl: undefined, search: '' }), DEFAULT_BRAIN_URL);
+  assert.equal(brainServiceUrl({ envUrl: undefined, search: '?brainUrl=http://10.0.0.5:9000/' }), 'http://10.0.0.5:9000');
+  assert.equal(brainServiceUrl({ envUrl: 'https://brain.example/api/', search: '?brainUrl=http://10.0.0.5:9000' }),
+    'https://brain.example/api', 'the build setting wins');
+  assert.equal(brainServiceUrl({ envUrl: undefined, search: '?brainUrl=javascript:alert(1)' }), DEFAULT_BRAIN_URL,
+    'only http(s) addresses are used');
+  assert.equal(brainServiceUrl({ envUrl: 'not a url', search: '' }), DEFAULT_BRAIN_URL);
+});
+
+test('an offline brain leaves the run going in turret mode, and START RUN retries it (review 5.1)', async () => {
+  globalThis.document = { hidden: false };
+  const { BRAIN_OFFLINE_LABEL, BRAIN_TURRET_LABEL } = await import('../src/simulation/JunkyardBrain.js');
+  const { driver, playtest } = fixture();
+  const paths = [];
+  driver.request = async (path) => { paths.push(path); throw new Error('Failed to fetch'); };
+  playtest.walking = false;
+  await driver.reset();
+  assert.equal(driver.offline, true);
+  assert.equal(driver.describe().label, BRAIN_OFFLINE_LABEL, 'stopped: how to fix it');
+  assert.match(playtest.message.textContent, /see README.*START RUN.*turret mode/);
+  // START RUN: the game keeps the run on; the brain tries again, then says TURRET MODE.
+  playtest.walking = true;
+  driver.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(paths, ['reset', 'reset'], 'START RUN retries the service');
+  assert.equal(driver.describe().label, BRAIN_TURRET_LABEL);
+  // The planted Leaper keeps its pose: no moves are asked for while offline.
+  driver.update(1);
+  assert.deepEqual(paths, ['reset', 'reset']);
+  // The service comes back: the next retry succeeds and the label returns to normal.
+  driver.request = async () => frame;
+  driver.stop();
+  driver.start();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(driver.offline, false);
+  assert.equal(driver.ready, true);
+  assert.match(driver.describe().label, /^BRAIN 7,757,824 · /);
+});

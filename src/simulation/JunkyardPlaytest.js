@@ -137,14 +137,14 @@ export class JunkyardPlaytest {
     this.panelView.renderFlow(next);
   }
 
-  // The brain went offline mid-hunt: back to Ready (its message explains why).
-  brainFailed() {
-    if (this.flow.playMode === 'hunt') this.flow.stop();
-  }
+  // The brain went offline. A run carries on in turret mode (the Leaper stands
+  // still but still shoots); the brain's message says how to bring it back.
+  brainFailed() {}
 
   // ---- Toolbar actions ----
 
   // START RUN / RESUME RUN: the Leaper's brain runs and the mouse is captured.
+  // With the brain offline, START RUN retries it and otherwise fights in turret mode.
   start() {
     if (this.flow.ended || this.encounter.over) {
       this.message.textContent = ENDED_MESSAGE;
@@ -173,8 +173,12 @@ export class JunkyardPlaytest {
   // STOP RUN. LeaperCombat also calls this the moment Lola or the Leaper is
   // down; then the encounter ends instead (and records who won).
   stop(message) {
-    if (this.encounter.over) this.encounter.end();
-    else this.flow.stop();
+    if (this.encounter.over) {
+      this.encounter.end();
+      this.message.textContent = ENDED_MESSAGE;
+      return;
+    }
+    this.flow.stop();
     if (message) this.message.textContent = message;
   }
 
@@ -212,8 +216,8 @@ export class JunkyardPlaytest {
   restartRandom() {
     const spawn = randomJunkyardStart(this.world, this.simulation.state.position);
     if (!spawn) {
-      this.brainLabel.textContent = 'NO ROOM FOR A RANDOM PAIR — TRY A SMALLER SIZE';
-      this.message.textContent = 'No separated, connected spawn pair found at this size. Try a smaller Leaper.';
+      // Said in the always-visible message (the brain badge is rewritten every frame).
+      this.message.textContent = 'NO ROOM FOR A RANDOM PAIR: no separated, connected spawn pair at this size. Try a smaller Leaper.';
       this.panelView.openOptions();
       return;
     }

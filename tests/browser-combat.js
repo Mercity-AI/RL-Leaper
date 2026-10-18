@@ -70,6 +70,11 @@ try {
   check(bolt.mesh.position.distanceTo(boltStart) === 0, 'pause freezes active bolts');
   p.walking = true; tick(); check(bolt.mesh.position.distanceTo(boltStart) > 0, 'resume advances the same bolt');
   combat.reset(); check(combat.bolts.length === 0 && combat.tree.started === null, 'reset clears bolts and pending warning');
+  // Turret mode (review 5.1): with the brain offline a run still tracks and fires.
+  p.brain.ready = false; p.brain.offline = true;
+  target.mesh.position.copy(lane); reset(); tick(0); frames(40);
+  check(combat.tree.shots > 0, 'with the brain offline the run still tracks and fires (turret mode)');
+  p.brain.ready = true; p.brain.offline = false; combat.reset();
 
   target.mesh.position.copy(lane); reset(); tick(0); frames(15);
   // Insert a thin test panel between eye and visible torso, keeping the real map.

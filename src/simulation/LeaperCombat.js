@@ -184,7 +184,9 @@ export class LeaperCombat {
   update(dt) {
     const p = this.playtest, rig = p.simulation.rig, c = this.config;
     if (!document.hidden) this.legs.update(dt);
-    const paused = !p.walking || !p.brain.ready || document.hidden;
+    // The attacks run whenever a run is on, brain or no brain: without the brain
+    // service the Leaper stands still but still tracks and fires (turret mode).
+    const paused = !p.walking || document.hidden;
     const points = this.pose();
     const range = c.weaponRange * p.world.scale;
     const visible = points.map(point => {

@@ -130,7 +130,15 @@ export class CameraController {
     try {
       const request = this.canvas.requestPointerLock();
       Promise.resolve(request).then(() => {
-        if (generation === this.captureGeneration) this.capturePending = false;
+        if (generation === this.captureGeneration) {
+          this.capturePending = false;
+        } else if (document.pointerLockElement === this.canvas) {
+          // The lock arrived after the game had already let go of the mouse (for
+          // example a run that stopped at once): undo it instead of leaving the
+          // mouse trapped in a stopped game (review fix 5.11).
+          this.releasingMouse = true;
+          document.exitPointerLock();
+        }
       }, fallback);
     } catch { fallback(); }
   }

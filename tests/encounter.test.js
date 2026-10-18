@@ -115,7 +115,7 @@ test('a win during the hunt is real, any other ending is practice, and results a
   assert.deepEqual(flow.state, { name: 'ended', winner: 'lola', practice: false });
   assert.deepEqual(ended[0].stats,
     { winner: 'lola', practice: false, seconds: 2, damageTaken: 8, damageDealt: 6, jointsBroken: 1, assisted: false,
-      debugUsed: false, text: 'LEAPER DEFEATED' });
+      debugUsed: false, turret: false, text: 'LEAPER DEFEATED' });
   assert.equal(encounter.end(), false, 'an encounter ends once');
 
   // Any ending while exploring is practice.
@@ -147,6 +147,18 @@ test('the result banner says who won, and marks practice and debug results', () 
   assert.equal(resultText({ winner: 'lola', practice: true }), 'PRACTICE · LEAPER DEFEATED');
   assert.equal(resultText({ winner: 'lola', practice: true, debugUsed: true }), 'PRACTICE · LEAPER DEFEATED · DEBUG TEST');
   assert.equal(resultText({ winner: 'leaper', practice: false }), 'LOLA DEFEATED');
+  assert.equal(resultText({ winner: 'lola', turret: true }), 'LEAPER DEFEATED · TURRET MODE');
+});
+
+test('a hunt with the brain offline still counts, but is marked TURRET MODE', () => {
+  const { flow, encounter, enemies: [leaper] } = setup();
+  flow.hunt();
+  leaper.brain.offline = true;
+  encounter.update(0.5);
+  leaper.combat.leaperHealth = 0;
+  encounter.end();
+  assert.deepEqual(flow.state, { name: 'ended', winner: 'lola', practice: false });
+  assert.equal(encounter.result.text, 'LEAPER DEFEATED · TURRET MODE');
 });
 
 test('RESTART returns Lola, the camera and every Leaper to the start snapshot', () => {
@@ -200,10 +212,12 @@ test('each Leaper blocks Lola through the world collision service', () => {
 });
 
 test('toolbar labels follow the game state', () => {
-  assert.deepEqual(toolbarLabels({ name: 'ready' }), { route: 'START RUN', player: 'START PLAYER' });
-  assert.deepEqual(toolbarLabels({ name: 'playing', mode: 'hunt' }), { route: 'STOP RUN', player: 'START PLAYER' });
-  assert.deepEqual(toolbarLabels({ name: 'playing', mode: 'explore' }), { route: 'START RUN', player: 'STOP PLAYER' });
+  assert.deepEqual(toolbarLabels({ name: 'ready' }), { route: 'START RUN', player: 'START PLAYER', disabled: false });
+  assert.deepEqual(toolbarLabels({ name: 'playing', mode: 'hunt' }), { route: 'STOP RUN', player: 'START PLAYER', disabled: false });
+  assert.deepEqual(toolbarLabels({ name: 'playing', mode: 'explore' }), { route: 'START RUN', player: 'STOP PLAYER', disabled: false });
   assert.deepEqual(toolbarLabels({ name: 'paused', resumeTo: { name: 'playing', mode: 'hunt' } }),
-    { route: 'RESUME RUN', player: 'START PLAYER' });
-  assert.deepEqual(toolbarLabels({ name: 'ended', winner: 'lola', practice: false }), { route: 'START RUN', player: 'START PLAYER' });
+    { route: 'RESUME RUN', player: 'START PLAYER', disabled: false });
+  // After an ending both start buttons are disabled until a restart (review 5.6).
+  assert.deepEqual(toolbarLabels({ name: 'ended', winner: 'lola', practice: false }),
+    { route: 'START RUN', player: 'START PLAYER', disabled: true });
 });

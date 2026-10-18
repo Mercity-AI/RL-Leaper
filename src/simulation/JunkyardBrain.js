@@ -18,8 +18,32 @@ export const LEAPER_STEPS_PER_SECOND = 10;
 // While stopped, the brain is asked what it can see (no movement) this often, in
 // seconds, so the always-visible sight readout stays live.
 const PREVIEW_INTERVAL = 0.1;
-// A slow or failed move is retried; the run only stops after this many in a row.
+// A slow or failed move is retried; the brain only goes offline after this many in a row.
 const MAX_FAILED_STEPS = 5;
+
+// The brain service's address when nothing else is configured (the owner's PC).
+export const DEFAULT_BRAIN_URL = 'http://127.0.0.1:8767';
+// One wording everywhere for "no brain" (review fix 5.11): the badge while
+// stopped, and the badge while a run goes on without it.
+export const BRAIN_OFFLINE_LABEL = 'BRAIN OFFLINE — start the brain service (see README), then press START RUN';
+export const BRAIN_TURRET_LABEL = 'BRAIN OFFLINE · TURRET MODE';
+
+// Where the brain service lives: VITE_BRAIN_URL when the game is built (or the
+// dev server started), else ?brainUrl= in the page address, else the default.
+// Only http(s) addresses are accepted; anything else falls back to the default.
+export function brainServiceUrl({
+  envUrl = import.meta.env?.VITE_BRAIN_URL,
+  search = globalThis.location?.search ?? '',
+} = {}) {
+  for (const candidate of [envUrl, new URLSearchParams(search).get('brainUrl')]) {
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === 'http:' || url.protocol === 'https:') return url.href.replace(/\/+$/, '');
+    } catch { /* Not an address: try the next source. */ }
+  }
+  return DEFAULT_BRAIN_URL;
+}
 
 // One frame of the playback smoothing: ease the rendered pose ({x, z, yaw}) toward
 // the latest brain reply. The heading always turns the short way and stays within
@@ -34,14 +58,19 @@ export function followPose(current, target, dt) {
   };
 }
 
-// Only the checkpoint server chooses movement. No navigation-route fallback.
+// Only the checkpoint server chooses movement. No navigation-route fallback:
+// without the service the Leaper stands still (the game calls that turret mode,
+// because its attacks keep working).
 export class JunkyardBrain {
   constructor(playtest) {
     this.playtest = playtest;
     this.simulation = playtest.simulation;
     this.target = playtest.target;
+    this.url = brainServiceUrl();
     this.running = false;
     this.ready = false;
+    // True after the service could not be reached (or refused); START RUN retries.
+    this.offline = false;
     this.busy = false;
     this.pendingMovement = false;
     // The brain's own clock. Leftover time is carried from frame to frame, so the
@@ -65,7 +94,7 @@ export class JunkyardBrain {
   async request(path, payload) {
     // Plain-text content type makes this a "simple" request: no extra permission
     // (CORS preflight) round trip before every move. The body is still JSON.
-    const response = await fetch(`http://127.0.0.1:8767/${path}`, {
+    const response = await fetch(`${this.url}/${path}`, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload), signal: AbortSignal.timeout(path === 'reset' ? 90000 : 3000),
     });
@@ -77,6 +106,7 @@ export class JunkyardBrain {
   async reset() {
     const generation = ++this.generation;
     this.ready = false;
+    this.offline = false;
     this.busy = true;
     this.pendingMovement = false;
     this.failedSteps = 0;
@@ -114,12 +144,15 @@ export class JunkyardBrain {
   }
 
   // The service is unreachable or refused: stop asking, explain, and let the game
-  // decide what that means for the fight (onFailed; the junkyard returns to Ready).
+  // decide what that means for the fight (onFailed; the junkyard keeps a run
+  // going in turret mode). The Leaper keeps its last pose.
   fail(error) {
     this.ready = false;
     this.running = false;
-    this.label = 'BRAIN OFFLINE — START RUN TO RETRY';
-    this.playtest.message.textContent = `Brain unavailable: ${error.message}. Start the local brain service, then press Reset. No pathfinder fallback.`;
+    this.offline = true;
+    this.label = BRAIN_OFFLINE_LABEL;
+    this.playtest.message.textContent = `Brain offline (${error.message}). Start the brain service (see README), then press START RUN. `
+      + 'Until then START RUN plays in turret mode: the Leaper stays put but still shoots.';
     this.onFailed?.(error);
   }
 
@@ -190,6 +223,15 @@ export class JunkyardBrain {
   // What the brain is doing, for the panel badge and the top-right status line
   // (written by the junkyard's presentation phase).
   describe() {
+    // Offline: a run carries on in turret mode; otherwise say how to fix it.
+    if (this.offline) {
+      const turret = Boolean(this.playtest.walking);
+      return {
+        label: turret ? BRAIN_TURRET_LABEL : BRAIN_OFFLINE_LABEL,
+        status: turret ? 'NO BRAIN SERVICE // TURRET MODE: THE LEAPER STAYS PUT BUT STILL SHOOTS'
+          : 'NO BRAIN SERVICE // START IT, THEN PRESS START RUN',
+      };
+    }
     const mode = !this.ready ? this.label : !this.running ? 'PAUSED'
       : this.failedSteps ? 'BRAIN SLOW · RETRYING'
       : this.frame.target_visible ? 'TARGET VISIBLE'

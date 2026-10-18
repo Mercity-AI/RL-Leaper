@@ -13,6 +13,8 @@ export function toolbarLabels(state) {
   return {
     route: mode === 'hunt' ? 'STOP RUN' : resumeMode === 'hunt' ? 'RESUME RUN' : 'START RUN',
     player: mode === 'explore' ? 'STOP PLAYER' : resumeMode === 'explore' ? 'RESUME PLAYER' : 'START PLAYER',
+    // Nothing can be started once the fight is over (until it is reset).
+    disabled: state.name === 'ended',
   };
 }
 
@@ -36,6 +38,7 @@ export class JunkyardPanel {
       </div>
       <div class="brain-state" aria-live="polite">BRAIN CONNECTING</div>
       <div data-sight-status aria-live="polite">SIGHT CONNECTING…</div>
+      <p data-message role="status">WASD to explore. In TOP view, Shift + click sets the destination.</p>
       <div id="junkyardOptions" hidden>
       <strong>JUNKYARD PLAYTEST</strong>
       <label>Vision (changing mode resets the run)
@@ -53,7 +56,6 @@ export class JunkyardPanel {
       <button data-action="size">APPLY SIZE</button></div>
       <div class="junkyard-actions"><button data-action="reset">RESET</button>
         <button data-action="clearance">SHOW CLEARANCE</button></div>
-      <p data-message>WASD to explore. In TOP view, Shift + click sets the destination.</p>
       <small>Live trained brain · 7,757,824 steps · vision and memory · inference only. Clearance overlay is a conservative design guide, not the brain’s route. <span data-clearance-summary></span></small>
       <p class="clearance-key" hidden>Green: reachable · Amber: disconnected · Red: blocked at this size</p>
       </div>`;
@@ -99,11 +101,18 @@ export class JunkyardPanel {
     button.setAttribute('aria-pressed', String(enabled));
   }
 
-  // Button labels always follow the game state.
+  // Button labels always follow the game state. After an ending both start
+  // buttons are disabled until RESTART ENCOUNTER (or RESET), so START PLAYER can't
+  // capture the mouse with nothing left to play (review fix 5.6).
   renderFlow(state) {
     const labels = toolbarLabels(state);
-    this.button('route').textContent = labels.route;
-    this.button('player').textContent = labels.player;
+    for (const action of ['route', 'player']) {
+      const button = this.button(action);
+      button.textContent = labels[action];
+      button.disabled = labels.disabled;
+      button.title = labels.disabled ? 'The encounter is over: press RESTART ENCOUNTER'
+        : action === 'player' ? 'Move and shoot as Lola while the Leaper stays still' : '';
+    }
   }
 
   openOptions() {

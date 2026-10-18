@@ -12,11 +12,13 @@ import { GAME_EVENTS } from '../core/events.js';
 // encounter reacts to it and asks it to change.
 
 // The end-of-fight banner text for an encounter result. PRACTICE marks a result
-// that doesn't count as a real fight (see Encounter.end); DEBUG TEST marks that
-// the OPTIONS debug button did damage.
-export function resultText({ winner, practice = false, debugUsed = false }) {
+// that doesn't count as a real fight (see Encounter.end); TURRET MODE marks that
+// the brain was offline for part of the hunt (the Leaper fought back but never
+// moved), so brain playtests stay honest; DEBUG TEST marks that the OPTIONS
+// debug button did damage.
+export function resultText({ winner, practice = false, turret = false, debugUsed = false }) {
   const outcome = winner === 'lola' ? 'LEAPER DEFEATED' : 'LOLA DEFEATED';
-  return `${practice ? 'PRACTICE · ' : ''}${outcome}${debugUsed ? ' · DEBUG TEST' : ''}`;
+  return `${practice ? 'PRACTICE · ' : ''}${outcome}${turret ? ' · TURRET MODE' : ''}${debugUsed ? ' · DEBUG TEST' : ''}`;
 }
 
 export class Encounter {
@@ -46,7 +48,7 @@ export class Encounter {
 
   // Per-fight totals, cleared by every restart.
   static emptyStats() {
-    return { damageTaken: 0, damageDealt: 0, jointsBroken: 0, assisted: false, debugUsed: false };
+    return { damageTaken: 0, damageDealt: 0, jointsBroken: 0, assisted: false, debugUsed: false, turret: false };
   }
 
   // Add a Leaper. Its body and legs block Lola through the world's collision service.
@@ -101,7 +103,11 @@ export class Encounter {
     // The Leaper's walking sound only plays during a live hunt.
     if (!this.flow.hunting || this.over) this.quietRobots();
     this.playerWeapon.update(gameDt);
-    if (this.flow.hunting) this.elapsed += dt;
+    if (this.flow.hunting) {
+      this.elapsed += dt;
+      // Remember if the hunt went on without a brain (turret mode) for the result.
+      if (this.enemies.some(({ brain }) => brain.offline)) this.stats.turret = true;
+    }
   }
 
   // ---- Reacting to the game state ----

@@ -183,3 +183,11 @@ body.junkyard-mode::before { content: ''; position: fixed; inset: 0; pointer-eve
 @keyframes bar-danger { from { box-shadow: 0 0 0 1px #ffffff26, 0 0 4px #c41c1866; } to { box-shadow: 0 0 0 1px #ff5a4a, 0 0 14px #c41c18; } }
 /* Weak-point (eye core) hit: brighter crimson glow on the crosshair. */
 #playerReticle[data-crit=true] { color: #ff1a40; text-shadow: 0 0 8px #dc143c, 0 0 2px #000; }
+
+/* The panel's status message sits under the brain badge and is always visible
+   (review 5.11): two lines while the panel is folded, all of it with OPTIONS open. */
+#junkyardPanel [data-message] { margin: 3px 2px 0; max-width: 360px; font-size: 10px; color: #253e36;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+#junkyardPanel.expanded [data-message] { -webkit-line-clamp: unset; line-clamp: unset; }
+/* START RUN / START PLAYER are disabled while a finished fight waits for a restart. */
+#junkyardPanel button:disabled { opacity: 0.45; cursor: not-allowed; }

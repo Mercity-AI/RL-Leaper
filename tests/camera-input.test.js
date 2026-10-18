@@ -54,6 +54,21 @@ test('repeated clicks cannot duplicate capture or restore a released cursor afte
   assert.equal(h.pauses(), 0);
 });
 
+test('a pointer lock that arrives after the game let go of the mouse is undone (review 5.11)', async () => {
+  let grant;
+  const h = mouseHarness(function () {
+    return new Promise((resolve) => { grant = () => { document.pointerLockElement = this; h.events.pointerlockchange(); resolve(); }; });
+  });
+  h.controller.captureMouse();
+  // The run stops before the browser grants the lock (e.g. START RUN, then STOP at once).
+  h.controller.releaseMouse();
+  grant();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(document.pointerLockElement, null, 'the late lock is released again');
+  assert.equal(h.pauses(), 0, 'undoing it is not treated as the player pausing');
+});
+
 test('Start capture hides cursor; release restores it and freezes mouse look for menus', () => {
   const listeners = {};
   globalThis.document = { pointerLockElement: null, addEventListener: (name, fn) => { listeners[name] = fn; },
