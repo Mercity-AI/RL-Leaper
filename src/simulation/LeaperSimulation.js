@@ -13,15 +13,9 @@ import {
   STANDING_HEIGHT,
   STEP_DISTANCE,
 } from '../config/robot.js';
+import { turnToward, wrapAngle } from '../core/angles.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-function turnToward(current, target, maximumStep) {
-  const difference = (
-    (target - current + Math.PI) % (Math.PI * 2) + Math.PI * 2
-  ) % (Math.PI * 2) - Math.PI;
-  return current + THREE.MathUtils.clamp(difference, -maximumStep, maximumStep);
-}
 
 export class LeaperSimulation {
   constructor({ rig, world, target, input, cameraController, sun, statusElement }) {
@@ -117,7 +111,8 @@ export class LeaperSimulation {
       state.velocity.setLength(MOVEMENT.sprintSpeed);
     }
     state.position.set(frame.x, 0, frame.z);
-    state.yaw = frame.yaw;
+    // Kept within one turn, like the brain server's own heading (review fix 5.3).
+    state.yaw = wrapAngle(frame.yaw);
     const speed = state.velocity.length();
     this.updateBody(speed, deltaTime);
     this.updateGait(speed, deltaTime);

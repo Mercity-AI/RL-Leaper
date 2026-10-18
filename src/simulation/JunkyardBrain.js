@@ -1,4 +1,5 @@
 import { contact } from '../world/playerContact.js';
+import { lerpAngle, wrapAngle } from '../core/angles.js';
 
 // Option A playback smoothing (inference only; the trained brain is untouched).
 // The rendered Leaper eases toward each brain reply at these rates, in 1/seconds.
@@ -13,6 +14,19 @@ const LEAPER_TURN_RESPONSE = 9;
 const LEAPER_STEPS_PER_SECOND = 10;
 // A slow or failed move is retried; the run only stops after this many in a row.
 const MAX_FAILED_STEPS = 5;
+
+// One frame of the playback smoothing: ease the rendered pose ({x, z, yaw}) toward
+// the latest brain reply. The heading always turns the short way and stays within
+// one turn, so a Leaper that keeps circling never "whips" round (review fix 5.3).
+export function followPose(current, target, dt) {
+  const tPos = 1 - Math.exp(-LEAPER_FOLLOW_RESPONSE * dt);
+  const tYaw = 1 - Math.exp(-LEAPER_TURN_RESPONSE * dt);
+  return {
+    x: current.x + (target.x - current.x) * tPos,
+    z: current.z + (target.z - current.z) * tPos,
+    yaw: wrapAngle(lerpAngle(current.yaw, target.yaw, tYaw)),
+  };
+}
 
 // Only the checkpoint server chooses movement. No navigation-route fallback.
 export class JunkyardBrain {
@@ -150,16 +164,10 @@ export class JunkyardBrain {
     if (this.frame && !encounterOver) {
       // Follow each network pose from the current rendered pose. Restarting at the
       // previous server frame caused snaps whenever replies arrived early or late.
-      const tPos = 1 - Math.exp(-LEAPER_FOLLOW_RESPONSE * dt);
-      const tYaw = 1 - Math.exp(-LEAPER_TURN_RESPONSE * dt);
       const now = this.frame;
-      const position = sim.state.position;
-      const yaw = sim.state.yaw;
-      const turn = ((now.yaw - yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      sim.updateExternal({ ...now,
-        x: position.x + (now.x - position.x) * tPos, z: position.z + (now.z - position.z) * tPos,
-        yaw: yaw + turn * tYaw,
-      }, dt, { checkpoint: { step: now.model_step } });
+      const { position, yaw } = sim.state;
+      sim.updateExternal({ ...now, ...followPose({ x: position.x, z: position.z, yaw }, now, dt) },
+        dt, { checkpoint: { step: now.model_step } });
     }
   }
 
