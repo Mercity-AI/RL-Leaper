@@ -32,8 +32,10 @@ export async function start({ engine, params }) {
 
   return {
     maxDelta: MAX_DELTA,
+    // Read the player's input, run the fight (Encounter order), then presentation.
+    input: (dt) => playtest.input(dt),
     update: (dt) => playtest.update(dt),
-    lateUpdate() {},
+    lateUpdate: (dt) => playtest.lateUpdate(dt),
     // Render hooks nest: camera -> weapon -> POV before, undone in reverse after.
     beforeRender() {
       cameraController.beforeRender();
@@ -46,7 +48,7 @@ export async function start({ engine, params }) {
       cameraController.afterRender();
     },
     dispose() {
-      playtest.brain.stop();
+      playtest.dispose();
       if (window.leaperPlaytest === playtest) delete window.leaperPlaytest;
       removeFromScene(engine.scene, { world, rig, target });
     },

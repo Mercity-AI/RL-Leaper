@@ -90,15 +90,14 @@ export class JunkyardBrain {
     }
   }
 
+  // The service is unreachable or refused: stop asking, explain, and let the game
+  // decide what that means for the fight (onFailed; the junkyard returns to Ready).
   fail(error) {
     this.ready = false;
     this.running = false;
-    this.playtest.walking = false;
-    this.playtest.cameraController.gameplayStarted = false;
-    this.playtest.cameraController.releaseMouse();
     this.label = 'BRAIN OFFLINE — START RUN TO RETRY';
-    this.playtest.panel.querySelector('[data-action=route]').textContent = 'START RUN';
     this.playtest.message.textContent = `Brain unavailable: ${error.message}. Start the local brain service, then press Reset. No pathfinder fallback.`;
+    this.onFailed?.(error);
   }
 
   start() {

@@ -147,7 +147,7 @@ export class PlayerWeapon {
 
   get available() {
     const p = this.p;
-    return !p.combat.dead && !p.pov.active
+    return !p.combat.dead && !p.pov.active && !p.paused
       && p.cameraController.mode === 'CHASE' && !document.hidden;
   }
 

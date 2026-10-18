@@ -59,6 +59,9 @@ test('A stale reset cannot replace a newer session; failed inference retries, th
   pending[0]({...frame, token: 'old'});
   await old;
   assert.equal(driver.token, 'new');
+  // The game (not the brain client) decides what an offline brain means for the fight.
+  const failures = [];
+  driver.onFailed = (error) => failures.push(error.message);
   driver.request = async () => { throw new Error('Service disconnected'); };
   driver.start();
   driver.update(1 / 10);
@@ -72,7 +75,8 @@ test('A stale reset cannot replace a newer session; failed inference retries, th
   }
   assert.equal(driver.ready, false);
   assert.equal(driver.running, false);
-  assert.equal(button.textContent, 'START RUN');
+  assert.deepEqual(failures, ['Service disconnected'], 'the failure is reported once, after the retries');
+  assert.equal(button.textContent, 'STOP RUN', 'the brain client no longer edits the toolbar itself');
   assert.match(driver.label, /OFFLINE/);
 });
 
