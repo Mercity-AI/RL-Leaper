@@ -129,6 +129,13 @@ test('an offline brain leaves the run going in turret mode, and START RUN retrie
   // The planted Leaper keeps its pose: no moves are asked for while offline.
   driver.update(1);
   assert.deepEqual(paths, ['reset', 'reset']);
+  // During the run the service is tried again every 5 s of play, without the
+  // badge flickering away from TURRET MODE while it waits.
+  driver.update(4.5);
+  assert.equal(driver.describe().label, BRAIN_TURRET_LABEL);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(paths, ['reset', 'reset', 'reset'], 'turret mode retries the service');
+  assert.equal(driver.describe().label, BRAIN_TURRET_LABEL);
   // The service comes back: the next retry succeeds and the label returns to normal.
   driver.request = async () => frame;
   driver.stop();

@@ -20,6 +20,10 @@ export const LEAPER_STEPS_PER_SECOND = 10;
 const PREVIEW_INTERVAL = 0.1;
 // A slow or failed move is retried; the brain only goes offline after this many in a row.
 const MAX_FAILED_STEPS = 5;
+// While a run goes on in turret mode, the brain service is tried again this often
+// (seconds of play), so a short outage or a very busy computer doesn't leave the
+// Leaper planted for the rest of the fight.
+const OFFLINE_RETRY_SECONDS = 5;
 
 // The brain service's address when nothing else is configured (the owner's PC).
 export const DEFAULT_BRAIN_URL = 'http://127.0.0.1:8767';
@@ -103,10 +107,13 @@ export class JunkyardBrain {
     return result;
   }
 
+  // A fresh brain session at the Leaper's current pose. While the service is
+  // offline, `offline` stays set until this succeeds, so the badge doesn't flicker.
   async reset() {
     const generation = ++this.generation;
+    const wasOffline = this.offline;
     this.ready = false;
-    this.offline = false;
+    this.offlineTime = 0;
     this.busy = true;
     this.pendingMovement = false;
     this.failedSteps = 0;
@@ -132,8 +139,11 @@ export class JunkyardBrain {
       this.previousFrame = frame;
       this.playtest.sight?.show(frame);
       this.ready = true;
+      this.offline = false;
       this.label = 'BRAIN 7,757,824';
-      this.playtest.message.textContent = 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; 1 / 2 switch guns; left click fires whichever gun is equipped, even while the Leaper run is stopped.';
+      this.playtest.message.textContent = wasOffline && this.playtest.walking
+        ? 'The brain service is back: the trained brain hunts again (a fresh brain session).'
+        : 'Saved brain loaded. Start Run to search and chase; WASD moves Lola; Shift sprints; Space jumps; C crouches; 1 / 2 switch guns; left click fires whichever gun is equipped, even while the Leaper run is stopped.';
       this.playtest.brainLabel.title = `Residual LSTM · inference only · policy SHA256 ${frame.policy_sha256}`;
     } catch (error) {
       if (generation !== this.generation) return;
@@ -150,6 +160,7 @@ export class JunkyardBrain {
     this.ready = false;
     this.running = false;
     this.offline = true;
+    this.offlineTime = 0;
     this.label = BRAIN_OFFLINE_LABEL;
     this.playtest.message.textContent = `Brain offline (${error.message}). Start the brain service (see README), then press START RUN. `
       + 'Until then START RUN plays in turret mode: the Leaper stays put but still shoots.';
@@ -175,6 +186,14 @@ export class JunkyardBrain {
   update(dt) {
     const sim = this.simulation;
     const encounterOver = this.playtest.combat?.dead;
+    // 0. Turret mode: during the run, try the service again every few seconds.
+    if (this.offline && this.playtest.walking && !this.busy && !encounterOver) {
+      this.offlineTime = (this.offlineTime ?? 0) + dt;
+      if (this.offlineTime >= OFFLINE_RETRY_SECONDS) {
+        this.running = true;
+        this.reset();
+      }
+    }
     const preview = !encounterOver && !this.running && Boolean(this.playtest.sight);
     // 1. The brain clock only runs while moves (or stopped sight previews) may be
     //    asked for. Damage slows it, so the server and the rendered legs stay in sync.
