@@ -78,9 +78,11 @@ class JunkyardGeometry:
     def _load_raster(self, path):
         if path is None or not path.is_file():
             return None
+        # An empty file (EOFError, e.g. after a power cut) or a cut-off one
+        # (ValueError) counts as missing, so it is rebuilt instead of crashing /reset.
         try:
             solid = np.load(path, allow_pickle=False)
-        except (OSError, ValueError):
+        except (OSError, ValueError, EOFError):
             return None
         # A damaged or foreign file is ignored and rebuilt.
         if solid.dtype != bool or solid.shape != tuple(self.shape):

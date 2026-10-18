@@ -86,13 +86,17 @@ class RasterCacheTests(unittest.TestCase):
             edited = JunkyardGeometry(path, 7.98 / 4, cache_dir=cache)
             self.assertFalse(edited.raster_cached)
             self.assertTrue(np.array_equal(edited.solid, JunkyardGeometry(path, 7.98 / 4).solid))
-            # A damaged cache file is ignored and replaced.
-            for file in cache.glob("raster-*.npy"):
-                file.write_bytes(b"not a raster")
-            damaged = JunkyardGeometry(path, 7.98 / 4, cache_dir=cache)
-            self.assertFalse(damaged.raster_cached)
-            self.assertTrue(np.array_equal(damaged.solid, edited.solid))
-            self.assertTrue(JunkyardGeometry(path, 7.98 / 4, cache_dir=cache).raster_cached)
+            # A damaged cache file is ignored and replaced: foreign bytes, an empty
+            # file (left by a crash or power cut) and a file cut off mid-array.
+            good = next(cache.glob("raster-*.npy")).read_bytes()
+            for damage in (b"not a raster", b"", good[:len(good) // 2]):
+                with self.subTest(damaged_bytes=len(damage)):
+                    for file in cache.glob("raster-*.npy"):
+                        file.write_bytes(damage)
+                    damaged = JunkyardGeometry(path, 7.98 / 4, cache_dir=cache)
+                    self.assertFalse(damaged.raster_cached)
+                    self.assertTrue(np.array_equal(damaged.solid, edited.solid))
+                    self.assertTrue(JunkyardGeometry(path, 7.98 / 4, cache_dir=cache).raster_cached)
             self.assertEqual(list(cache.glob("*.tmp")), [])
 
 
