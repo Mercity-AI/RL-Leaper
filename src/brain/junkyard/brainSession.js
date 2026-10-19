@@ -51,16 +51,27 @@ export function checkSightPose(data) {
   return { eye, points: [points.slice(0, 3), points.slice(3, 6), points.slice(6, 9)] };
 }
 
+// Contact v4 (the server's parse_disabled_legs): the Leaper's severed legs as
+// leg indices, optional (missing = every leg intact). Lola's contact only.
+export function checkDisabledLegs(data, legCount) {
+  const legs = data.disabled_legs;
+  if (legs === undefined || legs === null) return [];
+  if (!Array.isArray(legs) || legs.length > legCount
+    || legs.some((leg) => !Number.isInteger(leg) || leg < 0 || leg >= legCount)) throw new Error('Invalid disabled legs');
+  return legs;
+}
+
 // --- Session ------------------------------------------------------------------
 
 export class JunkyardBrainSession {
   // policy.act(obs Float32Array(34), memory|null, episodeStart) -> { action, memory }
-  constructor({ policy, world, contact, sightVersion, contactVersion, position, yaw, target, playerCollision, sightPose }) {
+  constructor({ policy, world, contact, sightVersion, contactVersion, position, yaw, target, playerCollision, sightPose,
+    disabledLegs = [] }) {
     this.policy = policy;
     this.sightVersion = sightVersion;
     this.contactVersion = contactVersion;
     this.env = new FrozenJunkyardEnv({ raster: world.raster, sight: sightPose ? world.sight : null, contact,
-      position, yaw, target, playerCollision, sightPose });
+      position, yaw, target, playerCollision, sightPose, disabledLegs });
     this.obs = this.env.initialObservation();
     this.memory = null;
     this.action = new Float32Array(2);
@@ -181,12 +192,18 @@ export class JunkyardBrainCore {
       position: checkVector(data.position), yaw, target: checkVector(data.target),
       playerCollision: data.player_collision === true,
       sightPose: mode === 'eye' ? checkSightPose(data) : null,
+      disabledLegs: this.disabledLegs(data),
     });
     if (this.sessions.size >= this.maxSessions) this.sessions.delete(this.sessions.keys().next().value);
     this.counter += 1;
     const token = `onnx-${Date.now().toString(16)}-${this.counter}`;
     this.sessions.set(token, session);
     return { ...session.snapshot(), token, policy_sha256: this.policySha256 };
+  }
+
+  // The request's severed legs (contact v4), checked like the server does.
+  disabledLegs(data) {
+    return checkDisabledLegs(data, this.contact.leaperShape.legAngles.length);
   }
 
   session(data) {
@@ -198,14 +215,18 @@ export class JunkyardBrainCore {
   async step(data) {
     const session = this.session(data);
     const target = checkVector(data.target);
+    const legs = this.disabledLegs(data);
     const pose = session.env.sight ? checkSightPose(data) : null;
+    session.env.disabledLegs = new Set(legs);
     return session.step(target, pose);
   }
 
   async sense(data) {
     const session = this.session(data);
     const target = checkVector(data.target);
+    const legs = this.disabledLegs(data);
     const pose = session.env.sight ? checkSightPose(data) : null;
+    session.env.disabledLegs = new Set(legs);
     return session.sense(target, pose);
   }
 
@@ -216,7 +237,9 @@ export class JunkyardBrainCore {
     const target = checkVector(data.target);
     const yaw = data.yaw;
     if (typeof yaw !== 'number' || !Number.isFinite(yaw)) throw new Error('Invalid robot heading');
+    const legs = this.disabledLegs(data);
     const pose = session.env.sight ? checkSightPose(data) : null;
+    session.env.disabledLegs = new Set(legs);
     return session.sync(position, yaw, target, pose);
   }
 

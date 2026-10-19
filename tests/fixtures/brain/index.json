@@ -2,30 +2,11 @@
  "format": "leaper-junkyard-fixture-v1",
  "model_step": 7757824,
  "policy_sha256": "883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594",
- "contact_version": 3,
+ "contact_version": 4,
  "sight_version": "eye-vision-v1",
  "collision_sha256": "8ae92dd855544fdf5a4e6f869daf613d97a70dbc6200de2f5de84eb56bad2d61",
  "glb_sha256": "b62c56b97871240d27ecf6812e4c07dec961690712a0d9a18ffc6f40621871dc",
  "worlds": {
-  "2.9": {
-   "width": 2.9,
-   "scale": 2.751724137931035,
-   "raster_shape": [
-    486,
-    455
-   ],
-   "raster_sha256": "5fc8f07a5c344ea4da8ae75b00a73cc0ae6df8093915d36d40e0872c2461745f",
-   "raster_solid": 48317,
-   "cell": 0.2751724137931035,
-   "minimum": [
-    -66.81007344827587,
-    -62.582076827586214
-   ],
-   "maximum": [
-    66.81007344827587,
-    62.582076827586214
-   ]
-  },
   "5.5": {
    "width": 5.5,
    "scale": 1.450909090909091,
@@ -43,6 +24,25 @@
    "maximum": [
     35.227129636363635,
     32.99782232727273
+   ]
+  },
+  "2.9": {
+   "width": 2.9,
+   "scale": 2.751724137931035,
+   "raster_shape": [
+    486,
+    455
+   ],
+   "raster_sha256": "5fc8f07a5c344ea4da8ae75b00a73cc0ae6df8093915d36d40e0872c2461745f",
+   "raster_solid": 48317,
+   "cell": 0.2751724137931035,
+   "minimum": [
+    -66.81007344827587,
+    -62.582076827586214
+   ],
+   "maximum": [
+    66.81007344827587,
+    62.582076827586214
    ]
   },
   "7.98": {
@@ -204,6 +204,27 @@
     "moved": 0.77
    },
    "bytes": 228050
+  },
+  "scripted-severed-legs-5.5": {
+   "file": "scripted-severed-legs-5.5.json",
+   "width": 5.5,
+   "sight_mode": "legacy",
+   "summary": {
+    "severed_leg_steps": 160,
+    "steps": 240,
+    "hidden_before_seen": 0,
+    "visible": 240,
+    "hidden_with_memory": 0,
+    "collisions": {
+     "leg-3": 153,
+     "player": 80
+    },
+    "reverse": 0,
+    "caught": 0,
+    "partial_eye": 0,
+    "moved": 0.0
+   },
+   "bytes": 353641
   }
  },
  "sight_lines": {

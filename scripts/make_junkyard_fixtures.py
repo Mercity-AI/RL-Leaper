@@ -191,6 +191,9 @@ def run_scenario(spec, world, model):
     env = session.env
     reset = dict(width=world.width, position=start, yaw=float(spec["yaw"]), target=target,
                  player_collision=spec["player_collision"], sight_mode=sight_mode)
+    # Contact v4: scenarios may sever legs as they go (spec["disabled_legs"](step)
+    # -> leg indices). The server sets them on the env before each request.
+    severed = spec.get("disabled_legs")
     if sight_mode == "eye":
         reset["sight_pose"] = pose
     initial = dict(obs=pack(session.obs), frame=session.snapshot(), state=env_state(env),
@@ -202,9 +205,13 @@ def run_scenario(spec, world, model):
     started = time.time()
     for i in range(spec["steps"]):
         target, pose = lola_inputs(waypoints, i + 1, eye)
+        request = dict(target=target, sight_pose=pose if sight_mode == "eye" else None)
+        if severed is not None:
+            request["disabled_legs"] = sorted(severed(i))
+            env.disabled_legs = frozenset(request["disabled_legs"])
         frame = session.step(target, pose if sight_mode == "eye" else None)
         call = recorder.calls[-1]
-        steps.append(dict(input=dict(target=target, sight_pose=pose if sight_mode == "eye" else None),
+        steps.append(dict(input=request,
                           episode_start=call["episode_start"], frame=frame, state=env_state(env),
                           coverage_new=[int(c) for c in env.coverage_new_cells]))
         obs_out.append(np.array(session.obs, dtype=np.float32))
@@ -215,7 +222,7 @@ def run_scenario(spec, world, model):
             env.target = np.asarray(probe_target, dtype=float)
             env.sight_pose = probe_pose if sight_mode == "eye" else None
             senses.append(dict(after=i, input=dict(target=probe_target, sight_pose=env.sight_pose),
-                               frame=session.snapshot()))
+                               frame=session.snapshot(fresh_sight=True)))
     seconds = time.time() - started
 
     # Packed float32 arrays: the inputs the policy saw, its action and its memory.
@@ -296,7 +303,10 @@ def summarize(fixture):
     for f in frames:
         if f["collision"]:
             parts[f["collisionPart"]] = parts.get(f["collisionPart"], 0) + 1
+    # Contact v4 runs also count the steps taken with severed legs.
+    severed = sum(1 for s in fixture["steps"] if s["input"].get("disabled_legs"))
     return dict(
+        **({"severed_leg_steps": severed} if severed else {}),
         steps=len(frames),
         hidden_before_seen=sum(not f["target_ever_seen"] for f in frames),
         visible=sum(f["target_visible"] for f in frames),
@@ -342,6 +352,16 @@ def scripted_contact(i):
     if i < 110:
         return [1.0, 0.15]
     return [-0.5 if i % 7 == 0 else 0.8, -0.2]
+
+
+def scripted_sweep(i):
+    """Physics only: turn on the spot, 20 steps one way, 20 back (legs sweep past Lola)."""
+    return [0.0, 1.0] if i % 40 < 20 else [0.0, -1.0]
+
+
+def severed_left_legs(i):
+    """Contact v4: all legs intact for 80 steps, then the three left legs shot off."""
+    return [] if i < 80 else [0, 2, 4]
 
 
 def scenarios():
@@ -391,6 +411,15 @@ def scenarios():
                          "by 'player' contact, reversing away is allowed, Lola then walks in.",
              lola=[(0, 6.6, 18.0, "stand"), (100, 6.6, 18.0, "stand"), (130, 5.0, 18.6, "stand"),
                    (150, 5.0, 18.6, "stand")]),
+        dict(name="scripted-severed-legs-5.5", width=5.5, sight_mode="legacy", player_collision=True,
+             start=(2.0, 18.0), yaw=math.pi / 2, steps=240, actions=scripted_sweep,
+             disabled_legs=severed_left_legs,
+             description="Contact rules v4, physics only: the Leaper sweeps its legs past Lola on its "
+                         "left. Intact legs are blocked by her ('player'); once the three left legs are "
+                         "severed (step 80) only their stumps remain and the sweep passes. Then Lola "
+                         "stands on the right, where the intact legs still bump into her.",
+             lola=[(0, 2.0, 22.4, "stand"), (160, 2.0, 22.4, "stand"), (161, 2.0, 13.6, "stand"),
+                   (240, 2.0, 13.6, "stand")]),
     ]
 
 

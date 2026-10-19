@@ -278,6 +278,31 @@ class BrainServerTests(unittest.TestCase):
         status, reply, _ = self.harness.post("/sync", body | dict(token="gone"))
         self.assertEqual((status, reply["error"]), (400, SESSION_EXPIRED))
 
+    def test_disabled_legs_reach_the_session_contact_v4(self):
+        # Contact rules v4: every request may say which legs are shot off.
+        status, frame, _ = self.harness.post("/reset", reset_body(disabled_legs=[3]))
+        self.assertEqual(status, 200, frame)
+        self.assertEqual(frame["contact_version"], 4)
+        token = frame["token"]
+        session = self.harness.service.sessions[token]
+        self.assertEqual(session.env.disabled_legs, frozenset({3}))
+        pose = reset_body()["sight_pose"]
+        body = dict(token=token, target=[0, 6], sight_pose=pose)
+        for path, legs in (("/step", [0, 2]), ("/sense", [0, 2, 4]), ("/sync", [5])):
+            with self.subTest(path=path):
+                extra = dict(position=[0, 0], yaw=0) if path == "/sync" else {}
+                status, reply, _ = self.harness.post(path, body | extra | dict(disabled_legs=legs))
+                self.assertEqual(status, 200, reply)
+                self.assertEqual(session.env.disabled_legs, frozenset(legs))
+        # Leaving it out means every leg is intact again (the v3 behaviour).
+        status, reply, _ = self.harness.post("/step", body)
+        self.assertEqual(status, 200, reply)
+        self.assertEqual(session.env.disabled_legs, frozenset())
+        for bad in ([6], [-1], [True], ["0"], 1, [0.5], [0, 1, 2, 3, 4, 5, 0]):
+            with self.subTest(bad=bad):
+                status, reply, _ = self.harness.post("/step", body | dict(disabled_legs=bad))
+                self.assertEqual((status, reply["error"]), (400, "Invalid disabled legs"))
+
     def test_idle_connection_does_not_stall_moves(self):
         # A browser may open a connection and send nothing; moves must still flow.
         idle = socket.create_connection(("127.0.0.1", self.harness.port))

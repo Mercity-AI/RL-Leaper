@@ -1,4 +1,4 @@
-import { contact } from '../world/playerContact.js';
+import { contact, severedLegs } from '../world/playerContact.js';
 import { lerpAngle, wrapAngle } from '../core/angles.js';
 import { FixedStep } from '../core/GameLoop.js';
 import { ENCOUNTER } from '../config/encounter.js';
@@ -130,7 +130,15 @@ export class JunkyardBrain {
   contactPoses() {
     const state = this.simulation.state;
     const from = this.previousFrame || { x: state.position.x, z: state.position.z, yaw: state.yaw };
-    return { from, to: this.frame || from, margin: this.pendingMovement ? contact.pendingStepMargin : 0 };
+    return { from, to: this.frame || from, margin: this.pendingMovement ? contact.pendingStepMargin : 0,
+      disabledLegs: severedLegs(this.simulation.rig) };
+  }
+
+  // Contact rules v4: every request says which legs are shot off, so the brain
+  // stops treating Lola as blocked by a leg that is no longer there. Only the
+  // Lola-contact rule reads it; what the brain observes never changes.
+  contactPayload() {
+    return { disabled_legs: severedLegs(this.simulation.rig) };
   }
 
   // Every brain request goes through here (tests replace it with a stand-in).
@@ -152,7 +160,7 @@ export class JunkyardBrain {
     return {
       width: this.playtest.world.width, position: [pose.x, pose.z],
       yaw: pose.yaw, target: [this.target.mesh.position.x, this.target.mesh.position.z],
-      player_collision: Boolean(this.target.isPlayer),
+      player_collision: Boolean(this.target.isPlayer), ...this.contactPayload(),
       ...(this.playtest.sight ? { sight_mode: this.playtest.sight.mode, sight_pose: this.playtest.sight.pose() } : {}),
     };
   }
@@ -354,7 +362,7 @@ export class JunkyardBrain {
     try {
       frame = await this.request('sync', {
         token: this.token, position: [pose.x, pose.z], yaw: pose.yaw,
-        target: [this.target.mesh.position.x, this.target.mesh.position.z],
+        target: [this.target.mesh.position.x, this.target.mesh.position.z], ...this.contactPayload(),
         ...(this.playtest.sight ? { sight_pose: this.playtest.sight.pose() } : {}),
       });
     } catch (error) {
@@ -473,7 +481,7 @@ export class JunkyardBrain {
       this.pendingMovement = !preview;
       const generation = this.generation;
       this.request(preview ? 'sense' : 'step', { token: this.token,
-        target: [this.target.mesh.position.x, this.target.mesh.position.z],
+        target: [this.target.mesh.position.x, this.target.mesh.position.z], ...this.contactPayload(),
         ...(this.playtest.sight ? { sight_pose: this.playtest.sight.pose() } : {}),
       }).then((frame) => {
         if (generation !== this.generation) return;

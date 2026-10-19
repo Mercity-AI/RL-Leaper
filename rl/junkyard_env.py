@@ -12,12 +12,17 @@ EYE_VISION = json.loads((Path(__file__).resolve().parents[1] / "src/config/eye-v
 
 
 class JunkyardEnv(SeekerEnv):
-    def __init__(self, geometry, position, yaw, target, player_collision=False, sight=None, sight_pose=None):
+    def __init__(self, geometry, position, yaw, target, player_collision=False, sight=None, sight_pose=None,
+                 disabled_legs=()):
         self.geometry = geometry
         self.sight = sight
         self.sight_pose = sight_pose
         self.sight_debug = None
         self.player_collision = False
+        # Contact rules v4: the Leaper's severed legs (indices into legAngles, the
+        # rig's leg order). Only Lola's contact reads them; the trained
+        # map-collision discs (_collision_points) always keep all six legs.
+        self.disabled_legs = frozenset(disabled_legs)
         # Keep distances in original robot units; map size affects normalization.
         self.WORLD_LIMIT = float(np.max(np.abs([geometry.minimum, geometry.maximum])))
         super().__init__()
@@ -61,14 +66,19 @@ class JunkyardEnv(SeekerEnv):
         """Gap between Lola and the nearest Leaper disc (body, three per leg); negative = overlap.
 
         Same shape as src/world/playerContact.js, read from player-contact.json.
+        Contact v4: a severed leg (in disabled_legs) keeps only its first
+        severedLegPoints disc(s), the stump by the hip, so Lola can walk through
+        the gap it leaves. This is the junkyard's Lola-contact rule only.
         """
         shape = PLAYER_CONTACT["leaperShape"]
         player_radius = PLAYER_CONTACT["playerRadius"] * self.geometry.scale
+        stump = shape["legPoints"][:shape.get("severedLegPoints", len(shape["legPoints"]))]
         centre = np.asarray(position, dtype=np.float64)
         discs = [(centre, shape["bodyRadius"])]
-        for angle in shape["legAngles"]:
+        for index, angle in enumerate(shape["legAngles"]):
             direction = np.array([math.sin(yaw + angle), math.cos(yaw + angle)])
-            discs.extend((centre + direction * distance, radius) for distance, radius in shape["legPoints"])
+            points = stump if index in self.disabled_legs else shape["legPoints"]
+            discs.extend((centre + direction * distance, radius) for distance, radius in points)
         return min(float(np.linalg.norm(self.target - point)) - radius - player_radius for point, radius in discs)
 
     def _ray_distances(self, position, yaw):
