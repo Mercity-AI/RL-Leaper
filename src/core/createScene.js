@@ -25,7 +25,17 @@ export function createScene(container, { quality = pickQuality().name, glow: all
 
   // 1. Renderer: ACES filmic tone mapping with sRGB output (the art's look),
   //    sharpness and shadow filtering from the preset.
-  const renderer = new THREE.WebGLRenderer({ antialias: preset.antialias && !wantGlow, powerPreference: 'high-performance' });
+  const makeRenderer = (antialias) => new THREE.WebGLRenderer({ antialias, powerPreference: 'high-performance' });
+  let renderer = makeRenderer(preset.antialias && !wantGlow);
+  // A browser can know WebGL2 yet not hand this page a WebGL2 context (a
+  // blocklisted graphics card); three.js then quietly uses WebGL1. No glow is
+  // possible there, so start again with the screen's own anti-aliasing instead
+  // of drawing with none at all.
+  if (wantGlow && !GlowRenderer.supported(renderer)) {
+    renderer.dispose();
+    renderer.forceContextLoss();
+    renderer = makeRenderer(preset.antialias);
+  }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatio));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;

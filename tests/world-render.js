@@ -62,6 +62,22 @@ try {
   check(!labEngine.glow && labEngine.renderer.getContext().getContextAttributes().antialias === true,
     'a page that does not ask for glow (the lab views) draws plain, anti-aliased on screen');
   labEngine.dispose();
+  // A browser that can't give the page a WebGL2 context (three.js falls back to
+  // WebGL1): no glow there, and the screen keeps its own anti-aliasing.
+  const getContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+    return type === 'webgl2' ? null : getContext.call(this, type, ...rest);
+  };
+  let webgl1Engine;
+  try {
+    webgl1Engine = createScene(document.createElement('div'), { quality: 'high', glow: true });
+  } finally {
+    HTMLCanvasElement.prototype.getContext = getContext;
+  }
+  check(!webgl1Engine.renderer.capabilities.isWebGL2 && !webgl1Engine.glow
+    && webgl1Engine.renderer.getContext().getContextAttributes().antialias === true,
+  'on WebGL1 the game draws without glow but still anti-aliased on screen');
+  webgl1Engine.dispose();
 
   // 2. Glow: a red light in front of a dark wall gets a halo; walls in front hide it.
   const dark = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: 0x202020 }));
