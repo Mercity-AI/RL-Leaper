@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BODY_COLLISION_RADIUS, STANDING_HEIGHT } from '../config/robot.js';
 import { JunkyardNavigation } from './JunkyardNavigation.js';
 import { disposeObject3D } from '../core/disposeObject3D.js';
+import { accelerateStaticMeshes, releaseStaticMeshes } from './raycastAcceleration.js';
 
 // The Leaper size chosen with APPLY SIZE, remembered in this browser. Change the
 // key's version when startWidth changes, so the new default shows.
@@ -32,10 +33,57 @@ export async function createJunkyardWorld(scene) {
   const spawnIndex = navigation.nearest({ x: 0, z: 0 });
   if (spawnIndex < 0) throw new Error('No open starting position at this robot size.');
   const spawn = navigation.point(spawnIndex);
-  gltf.scene.scale.setScalar(scale);
-  gltf.scene.updateMatrixWorld(true);
+  const { floorHeight } = prepareJunkyardMap(gltf.scene, scale);
+  scene.add(gltf.scene);
+  // Neutral atmosphere and fill lighting keep grey surfaces from turning blue.
+  // The original colours are kept so dispose() can hand the scene back unchanged.
+  const original = { background: scene.background.getHex(), fog: scene.fog.color.getHex(), lights: [] };
+  scene.background.setHex(0x555555);
+  scene.fog.color.setHex(0x555555);
+  scene.traverse((object) => {
+    if (!object.isLight) return;
+    original.lights.push([object, object.color.getHex(), object.groundColor?.getHex()]);
+    object.color.setHex(0xffffff);
+    if (object.isHemisphereLight) object.groundColor.setHex(0x777777);
+  });
+  // Take the map out again: off the scene, its GPU memory freed, colours restored.
+  const dispose = () => {
+    scene.remove(gltf.scene);
+    releaseStaticMeshes(gltf.scene);
+    disposeObject3D(gltf.scene);
+    scene.background.setHex(original.background);
+    scene.fog.color.setHex(original.fog);
+    for (const [light, colour, ground] of original.lights) {
+      light.color.setHex(colour);
+      if (ground !== undefined) light.groundColor.setHex(ground);
+    }
+  };
+  const initialTarget = { x: spawn.x, z: spawn.z + 5 };
+  const goalIndex = navigation.nearest(initialTarget);
+  const goal = navigation.point(goalIndex);
+  return {
+    dispose,
+    colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene,
+    floorHeight,
+    spawn: { x: spawn.x * scale, z: spawn.z * scale },
+    initialTarget: { x: goal.x * scale, z: goal.z * scale },
+    positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),
+    playerBlocked: (x, z) => playerNavigation.blocked(x / scale, z / scale),
+    // Lola's wall contact (outward normal) so she slides along angled walls.
+    playerContact: (x, z) => playerNavigation.contact(x / scale, z / scale),
+  };
+}
+
+// Get the loaded map ready for play (also used by tests on the real export):
+// scale it around the rig, colour the floor and walls, measure the floor height,
+// and build the fast-ray hierarchy for every map mesh.
+export function prepareJunkyardMap(map, scale, { accelerate = true } = {}) {
+  // 1. Scale the map around the fixed-size rig.
+  map.scale.setScalar(scale);
+  map.updateMatrixWorld(true);
+  // 2. Shadows, and the floor / wall colouring of the exported Cube.
   let floorHeight = -Infinity;
-  gltf.scene.traverse((object) => {
+  map.traverse((object) => {
     if (!object.isMesh) return;
     object.castShadow = true;
     object.receiveShadow = true;
@@ -72,41 +120,7 @@ export async function createJunkyardWorld(scene) {
       object.material.metalness = 0;
     }
   });
-  scene.add(gltf.scene);
-  // Neutral atmosphere and fill lighting keep grey surfaces from turning blue.
-  // The original colours are kept so dispose() can hand the scene back unchanged.
-  const original = { background: scene.background.getHex(), fog: scene.fog.color.getHex(), lights: [] };
-  scene.background.setHex(0x555555);
-  scene.fog.color.setHex(0x555555);
-  scene.traverse((object) => {
-    if (!object.isLight) return;
-    original.lights.push([object, object.color.getHex(), object.groundColor?.getHex()]);
-    object.color.setHex(0xffffff);
-    if (object.isHemisphereLight) object.groundColor.setHex(0x777777);
-  });
-  // Take the map out again: off the scene, its GPU memory freed, colours restored.
-  const dispose = () => {
-    scene.remove(gltf.scene);
-    disposeObject3D(gltf.scene);
-    scene.background.setHex(original.background);
-    scene.fog.color.setHex(original.fog);
-    for (const [light, colour, ground] of original.lights) {
-      light.color.setHex(colour);
-      if (ground !== undefined) light.groundColor.setHex(ground);
-    }
-  };
-  const initialTarget = { x: spawn.x, z: spawn.z + 5 };
-  const goalIndex = navigation.nearest(initialTarget);
-  const goal = navigation.point(goalIndex);
-  return {
-    dispose,
-    colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene,
-    floorHeight: Number.isFinite(floorHeight) ? floorHeight : 0,
-    spawn: { x: spawn.x * scale, z: spawn.z * scale },
-    initialTarget: { x: goal.x * scale, z: goal.z * scale },
-    positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),
-    playerBlocked: (x, z) => playerNavigation.blocked(x / scale, z / scale),
-    // Lola's wall contact (outward normal) so she slides along angled walls.
-    playerContact: (x, z) => playerNavigation.contact(x / scale, z / scale),
-  };
+  // 3. Fast rays: one bounding-volume hierarchy per map mesh (same hits, far fewer tests).
+  if (accelerate) accelerateStaticMeshes(map);
+  return { floorHeight: Number.isFinite(floorHeight) ? floorHeight : 0 };
 }
