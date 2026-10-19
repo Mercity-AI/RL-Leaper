@@ -1,4 +1,4 @@
-import { SHOOTING } from '../config/weapons.js';
+import { SHOOTING } from '../config/tuning/index.js';
 
 // One gun's rules with no page, scene or character attached, so they can be
 // tested in Node: its ammunition, when it may fire next, its reload timer and how

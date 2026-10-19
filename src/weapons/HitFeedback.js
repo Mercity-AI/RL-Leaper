@@ -1,4 +1,4 @@
-import { HIT_FEEDBACK } from '../config/weapons.js';
+import { HIT_FEEDBACK } from '../config/tuning/index.js';
 
 // The player's reward for landing hits, as timers (no page code, testable in
 // Node): the crosshair kick, the weak-point flash, the "big hit" hold and blue
