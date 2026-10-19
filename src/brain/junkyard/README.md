@@ -167,7 +167,9 @@ to compare.
 - `tests/brain-provider-contract.test.js`: the same contract for both providers
   (the worker code, and the HTTP client against a stand-in server): reset, 60
   moves and previews against the recording, sync, close, refusals, progress,
-  crashed workers, the wire format and `pagehide` beacons.
+  crashed workers, the wire format and `pagehide` beacons; and the worker's
+  progress-reporting raster build (the in-game path for every unbaked size)
+  bit-identical to the Python raster at 2.9, 5.5 and 7.98.
 - `tests/brain-provider-sync.test.js`: the pose-sync recordings (115 moves, 4
   syncs, 2 refused syncs, eye and legacy sight) replay bit-identically: inputs,
   frames and coverage after every move and every sync.

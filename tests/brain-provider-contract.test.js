@@ -8,9 +8,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import * as ort from 'onnxruntime-web';
 import { OnnxBrainProvider } from '../src/brain/junkyard/OnnxBrainProvider.js';
 import { createBrainHost } from '../src/brain/junkyard/brainHost.js';
+import { createJunkyardWorld } from '../src/brain/junkyard/junkyardWorld.js';
+import { loadGlbTriangles } from '../src/brain/junkyard/junkyardSight.js';
 import { frameDifferences } from '../src/brain/junkyard/fixtureReplay.js';
 import { HttpBrainProvider } from '../src/brain/HttpBrainProvider.js';
 import { BrainUnavailableError, describeProgress } from '../src/brain/BrainProvider.js';
@@ -168,6 +171,26 @@ test('ONNX: loading and other Leaper sizes report progress; the default size use
   await provider.reset({ ...fixture.reset, width: 6 });
   assert.equal(provider.lastWorld.cached, true);
   provider.dispose();
+});
+
+test('ONNX: the worker\'s progress-reporting raster build is the Python raster, bit for bit, at every recorded size', () => {
+  // In the game every size but the baked one is built through this path
+  // (brainHost.loadWorld -> createJunkyardWorld with onProgress), which feeds
+  // the triangles one by one to report progress. It must change nothing.
+  const collision = JSON.parse(read('assets/maps/junkyard/collision.json'));
+  const glbTriangles = loadGlbTriangles(read('assets/maps/junkyard/junkyard.glb'));
+  const { worlds } = JSON.parse(read('tests/fixtures/brain/index.json'));
+  for (const [width, recorded] of Object.entries(worlds)) {
+    const updates = [];
+    const world = createJunkyardWorld({ width: Number(width), glbTriangles, collision,
+      onProgress: (stage, fraction) => updates.push([stage, fraction]) });
+    assert.deepEqual([world.raster.nx, world.raster.nz], recorded.raster_shape, `shape at width ${width}`);
+    assert.equal(createHash('sha256').update(world.raster.solid).digest('hex'), recorded.raster_sha256, `raster bits at width ${width}`);
+    const raster = updates.filter(([stage]) => stage === 'raster').map(([, fraction]) => fraction);
+    assert.ok(raster.length >= 50 && raster.at(-1) === 1, `raster progress reported (${raster.length} updates)`);
+    assert.ok(raster.every((fraction, i) => i === 0 || fraction >= raster[i - 1]), 'raster progress only goes up');
+    assert.deepEqual(updates.slice(-2), [['sight', 0], ['sight', 1]]);
+  }
 });
 
 test('ONNX: dispose stops the worker; a crashed worker is replaced on the next request', async () => {
