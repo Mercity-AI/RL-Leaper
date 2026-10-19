@@ -29,19 +29,19 @@ export function createTuningPanel({ container, registry = tuning }) {
   pane.addButton({ title: 'COPY JSON' }).on('click', () => copyJson(registry.changesJson(), container));
   pane.addButton({ title: 'RESET ALL' }).on('click', () => registry.reset());
 
-  // 2. One folder per config, its note first. Sliders write through
-  //    registry.set, which changes the live copy, remembers it and tells everyone.
+  // 2. One folder per config. Sliders write through registry.set, which
+  //    changes the live copy, remembers it and tells everyone. Read-only rows
+  //    show their value in full (Tweakpane would round 1.156 to 1.16).
   const holders = [];
   for (const id of registry.ids()) {
     const entry = registry.entry(id);
     const folder = pane.addFolder({ title: entry.label + (entry.readOnly ? ' (read-only)' : ''), expanded: false });
-    if (entry.note) addNote(folder, entry.note);
     for (const field of registry.fields(id)) {
       const holder = { value: field.value, id, path: field.path };
       holders.push(holder);
       const readonly = field.readOnly || !registry.live;
       const options = { label: field.path, readonly };
-      if (readonly) options.interval = 0;
+      if (readonly) Object.assign(options, { interval: 0 }, field.type === 'number' ? { format: String } : {});
       else if (field.type === 'number') Object.assign(options, { min: field.min, max: field.max }, field.step ? { step: field.step } : {});
       const binding = folder.addBinding(holder, 'value', options);
       if (readonly) continue;
@@ -55,6 +55,8 @@ export function createTuningPanel({ container, registry = tuning }) {
       });
     }
     if (!entry.readOnly && registry.live) folder.addButton({ title: 'RESET' }).on('click', () => registry.reset(id));
+    // The config's note goes on top last (Tweakpane places rows by position).
+    if (entry.note) addNote(folder, entry.note);
   }
 
   // 3. Any change (a slider, a reset) shows in every slider and the count.

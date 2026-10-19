@@ -45,7 +45,7 @@ export function registerGameConfigs(registry) {
   };
 
   // ---- Read-only (shown for reference) ----
-  registry.register('encounter', { label: 'Encounter (read at load)', source: ENCOUNTER, readOnly: true,
+  registry.register('encounter', { label: 'Encounter', source: ENCOUNTER, readOnly: true,
     note: 'Read when the game loads: edit src/config/encounter.js. The Leaper size and the soft restart feed the frozen brain.' });
   registry.register('brainEyeVision', { label: 'BRAIN CONTRACT: eye vision', source: eyeVision, readOnly: true,
     note: 'Frozen brain contract (src/config/eye-vision.json): never tuned.' });
