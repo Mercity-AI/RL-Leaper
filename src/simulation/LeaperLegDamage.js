@@ -92,7 +92,11 @@ export class LeaperLegDamage {
       copy.position.sub(pivot);
       copy.traverse(o => {
         o.userData = {};
-        if (o.isMesh) o.material = o.material.clone();
+        if (o.isMesh) {
+          o.material = o.material.clone();
+          // A piece cut off during a hit flash keeps the hull's resting glow, not the flash.
+          if (o.material.userData?.hitFlashBase) o.material.emissive.copy(o.material.userData.hitFlashBase);
+        }
       });
       group.add(copy);
       original.visible = false;

@@ -82,3 +82,42 @@ test('animated-height capsules support crouch, jump, head hits, caps, misses and
   assert.equal(capsuleHit(new THREE.Vector3(0, 1.5, 5), dir, new THREE.Vector3(0, 1, 5), new THREE.Vector3(0, 2, 5), 0.2), 0);
   assert.ok(capsuleHit(new THREE.Vector3(0, 3, 5), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 1, 5), new THREE.Vector3(0, 2, 5), 0.2) < 1);
 });
+
+// ---- The behaviour layer's controls over the eye's attack ----
+
+test('held by the behaviour layer: no wind-up, but the cooldown keeps running', () => {
+  const { tree, context, shots } = setup();
+  for (let i = 0; i < 60; i++) tree.tick(1 / 60, context);
+  assert.equal(shots.length, 1, 'one bolt in the first second');
+  for (let i = 0; i < 180; i++) tree.tick(1 / 60, { ...context, held: true });
+  assert.equal(tree.state, 'holding');
+  assert.equal(tree.started, null);
+  assert.equal(shots.length, 1, 'nothing fires while held');
+  // Released: the cooldown has long passed, so the next wind-up starts at once.
+  tree.tick(1 / 60, context);
+  assert.equal(tree.state, 'charging');
+});
+
+test('a stagger interrupts a wind-up and delays the next bolt', () => {
+  const { tree, context, shots } = setup();
+  tree.tick(0, context);
+  tree.tick(0.5, context);
+  assert.equal(tree.state, 'charging');
+  tree.interrupt(1.2);
+  assert.equal(tree.started, null);
+  tree.tick(1.1, context);
+  assert.notEqual(tree.state, 'charging', 'still waiting');
+  tree.tick(0.2, context);
+  assert.equal(tree.state, 'charging');
+  assert.equal(shots.length, 0);
+});
+
+test('wind-up hooks: onStart when it starts charging, onLock when the aim locks, onCancel when called off', () => {
+  const heard = [];
+  const tree = new AttackController(COMBAT, { onStart: () => heard.push('start'), onLock: () => heard.push('lock'), onCancel: () => heard.push('cancel') });
+  const context = { dead: false, paused: false, visible: true, canAim: true, track() {}, pathClear: () => true, fire() {} };
+  tree.tick(0, context);
+  tree.tick(COMBAT.warning - COMBAT.aimLock + 0.01, context);
+  tree.tick(0.05, { ...context, visible: false });
+  assert.deepEqual(heard, ['start', 'lock', 'cancel']);
+});
