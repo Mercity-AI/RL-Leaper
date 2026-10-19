@@ -3,6 +3,14 @@
 Run once from the original export. Source Blender files are never modified.
 The marker prevents accidentally applying the move twice.
 """
+# Retired: the tire move now lives in the map's source file,
+# assets/blockmesh/junkyard/junkyard_arranged.blend (review fix 5.29 step 2), so
+# a fresh export already has the three tires in place. A fresh export carries
+# no marker, so running this on it would move them a second time and close the
+# passage again; it stops here instead. The old steps stay below for reference.
+raise SystemExit('Retired: the tire move is now in junkyard_arranged.blend; '
+                 'a fresh export from it needs no patch.')
+
 import json
 import struct
 import sys
