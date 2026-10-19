@@ -55,7 +55,8 @@ test('teacher-forced: every recorded step matches the Python server exactly', as
     console.log(`${fixture.name}: ${report.steps} steps, ${report.senses} sense probes, obs max ${report.obsIn}/${report.obsOut}, `
       + `pose max ${report.pose}, flips ${report.flips}, sight hit max ${report.sight.toExponential(1)}, ${report.msPerStep.toFixed(2)} ms/step`);
     assert.deepEqual(report.problems, [], fixture.name);
-    assert.ok(report.obsIn < 1e-5 && report.obsOut < 1e-5, `${fixture.name}: observations`);
+    assert.equal(report.obsIn, 0, `${fixture.name}: the 34 inputs handed to the network are bit-identical`);
+    assert.equal(report.obsOut, 0, `${fixture.name}: the observation after each step is bit-identical`);
     assert.equal(report.pose, 0, `${fixture.name}: next pose is bit-identical`);
     assert.equal(report.flips, 0, `${fixture.name}: no collision/sight/memory flips`);
     assert.equal(report.stateDiffs, 0, `${fixture.name}: env memory`);
@@ -71,6 +72,9 @@ test('free run with the recorded actions stays bit-identical for every step', as
     const report = await freeRun(fixture, worldFor(fixture.world.width), config);
     assert.deepEqual(report.problems, [], fixture.name);
     assert.equal(report.lockstep, fixture.steps.length, `${fixture.name}: lockstep ${report.lockstep}/${fixture.steps.length}`);
+    assert.equal(report.obsIn, 0, `${fixture.name}: inputs stay bit-identical`);
+    assert.equal(report.obsOut, 0, `${fixture.name}: observations stay bit-identical`);
+    assert.equal(report.pose + report.distance + report.vision, 0, `${fixture.name}: pose, distance and rays stay bit-identical`);
   }
 });
 
