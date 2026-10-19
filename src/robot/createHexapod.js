@@ -10,7 +10,7 @@ import {
 } from '../config/robot.js';
 
 function createMaterials() {
-  return {
+  const materials = {
     core: new THREE.MeshStandardMaterial({ color: 0x121318, roughness: 0.38, metalness: 0.88 }),
     leg: new THREE.MeshStandardMaterial({ color: 0x121318, roughness: 0.46, metalness: 0.85, flatShading: true }),
     plate: new THREE.MeshStandardMaterial({ color: 0x1e2027, roughness: 0.55, metalness: 0.8, flatShading: true }),
@@ -20,6 +20,11 @@ function createMaterials() {
     glow: new THREE.MeshStandardMaterial({ color: 0x1a0402, emissive: 0xff2e10, emissiveIntensity: 2, roughness: 0.4 }),
     glowSoft: new THREE.MeshStandardMaterial({ color: 0x1a0402, emissive: 0xff5a30, emissiveIntensity: 1, roughness: 0.4 }),
   };
+  // The red lights shine with a soft halo where the quality preset has glow
+  // (src/core/postprocessing.js); the copies LeaperCombat makes keep the mark.
+  materials.glow.userData.glow = true;
+  materials.glowSoft.userData.glow = true;
+  return materials;
 }
 
 function diamondSegment(topRadius, bottomRadius, length, material) {
@@ -128,7 +133,7 @@ function createBody(materials) {
   // Weak point: a glowing red core domed in front of the lens. Bullets that hit it
   // do extra damage (COMBAT.weakPointMultiplier); its glow pulses in LeaperCombat.
   const weakPoint = new THREE.Mesh(new THREE.SphereGeometry(0.085, 24, 16), new THREE.MeshStandardMaterial({
-    color: 0x2a0000, emissive: 0xff1414, emissiveIntensity: 3, roughness: 0.3,
+    color: 0x2a0000, emissive: 0xff1414, emissiveIntensity: 3, roughness: 0.3, userData: { glow: true },
   }));
   weakPoint.name = 'weakPoint';
   weakPoint.userData.weakPoint = true;
@@ -208,7 +213,7 @@ export function createHexapod(scene) {
   });
   // Parts that sit inside a bigger part's shadow (the band round the body, the
   // lens and lights inside the eye socket) add nothing to the shadow on the
-  // ground but cost a shadow draw each.
+  // ground but cost a shadow draw each; the glowing ones shouldn't block light.
   for (const part of shadowless) part.castShadow = false;
 
   return { robot, eyePivot, eyeLight, legs, materials };

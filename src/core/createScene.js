@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { pickQuality, QUALITY_PRESETS } from './Quality.js';
+import { GlowRenderer } from './postprocessing.js';
 
 // The sun's offset from the point it lights, and its shadow box, at map scale 1.
 // The junkyard scales both by its world scale and centres them on Lola
@@ -9,16 +10,22 @@ export const SHADOW_BOX = Object.freeze({ halfSize: 13, near: 2, far: 48, mapSiz
 
 // The renderer, scene, camera and lights every mode shares, set up for one
 // graphics quality preset (src/core/Quality.js): picked automatically, or with
-// ?quality=low|medium|high, or passed in as options.quality.
-// Returns { renderer, scene, camera, sun, quality, frame, render(), dispose() };
-// draw a frame with engine.render().
-export function createScene(container, { quality = pickQuality().name } = {}) {
+// ?quality=low|medium|high, or passed in as options.quality. options.glow:
+// whether this page wants the bloom pass at all (the game does; the preset
+// still decides, see Quality.js).
+// Returns { renderer, scene, camera, sun, quality, glow, frame, render(), dispose() };
+// draw a frame with engine.render() (it adds the glow when there is one).
+export function createScene(container, { quality = pickQuality().name, glow: allowGlow = true } = {}) {
   const name = QUALITY_PRESETS[quality] ? quality : 'high';
   const preset = QUALITY_PRESETS[name];
+  // With glow, the picture is drawn off-screen first (anti-aliased there), so the
+  // screen itself needs no anti-aliasing buffer of its own (it would only cost
+  // graphics memory). Glow needs WebGL2, which three.js picks when the browser has it.
+  const wantGlow = allowGlow && Boolean(preset.bloom) && typeof WebGL2RenderingContext !== 'undefined';
 
   // 1. Renderer: ACES filmic tone mapping with sRGB output (the art's look),
   //    sharpness and shadow filtering from the preset.
-  const renderer = new THREE.WebGLRenderer({ antialias: preset.antialias, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: preset.antialias && !wantGlow, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatio));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
@@ -61,13 +68,21 @@ export function createScene(container, { quality = pickQuality().name } = {}) {
   rim.position.set(-7, 9, -9);
   scene.add(rim);
 
-  // 4. One frame. frame.calls / frame.triangles keep the last frame's counts
-  //    (shadow pass included) for tests and a future performance overlay.
+  // 4. Glow (bloom) on the presets that have it; otherwise draw straight to screen.
+  //    frame.calls / frame.triangles add up every pass of the last frame (three.js's
+  //    own renderer.info only counts the last pass).
+  const glow = wantGlow && GlowRenderer.supported(renderer)
+    ? new GlowRenderer(renderer, scene, camera, preset.bloom, { antialias: preset.antialias }) : null;
   const frame = { calls: 0, triangles: 0 };
   const render = () => {
-    renderer.render(scene, camera);
-    frame.calls = renderer.info.render.calls;
-    frame.triangles = renderer.info.render.triangles;
+    if (glow) {
+      glow.render();
+      Object.assign(frame, glow.frame);
+    } else {
+      renderer.render(scene, camera);
+      frame.calls = renderer.info.render.calls;
+      frame.triangles = renderer.info.render.triangles;
+    }
   };
 
   // 5. Follow the window size.
@@ -75,13 +90,18 @@ export function createScene(container, { quality = pickQuality().name } = {}) {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    if (glow) {
+      const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+      glow.setSize(size.x, size.y);
+    }
   };
   window.addEventListener('resize', onResize);
 
   // 6. Let go of the window listener and the GPU resources.
   const dispose = () => {
     window.removeEventListener('resize', onResize);
+    glow?.dispose();
     renderer.dispose();
   };
-  return { renderer, scene, camera, sun, quality: { name, ...preset }, frame, render, dispose };
+  return { renderer, scene, camera, sun, quality: { name, ...preset }, glow, frame, render, dispose };
 }

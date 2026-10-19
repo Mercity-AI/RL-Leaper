@@ -8,13 +8,19 @@ export { pickMode } from './pickMode.js';
 // Modes are downloaded only when picked: the game page never fetches the RL
 // lab's replay viewer, live-brain arena or sandbox code (and the arena's
 // in-browser brain engine), and the lab pages never fetch the game.
-const lazy = (load) => Object.freeze({
+//
+// Each entry also says what it wants from the shared renderer (createScene
+// options), decided before the renderer exists: `glow` = the bloom pass on
+// medium and high quality. Only the game wants it; the lab views stay plain
+// (a glowing coverage map or debug overlay would only get in the way).
+const lazy = (load, engine = {}) => Object.freeze({
   load,
   start: async (context) => (await load()).start(context),
+  engine: Object.freeze({ glow: false, ...engine }),
 });
 
 export const MODES = Object.freeze({
-  junkyard: lazy(() => import('./junkyard.js')),
+  junkyard: lazy(() => import('./junkyard.js'), { glow: true }),
   arena: lazy(() => import('./arena.js')),
   training: lazy(() => import('./training.js')),
   sandbox: lazy(() => import('./sandbox.js')),
