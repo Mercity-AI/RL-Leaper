@@ -1,7 +1,9 @@
 // The real game page (index.html, the junkyard) in an iframe, with the default
 // in-browser (ONNX) brain and NO Python server: the brain-server address points
 // at a closed port, so falling back to it would fail. After START RUN the
-// Leaper must take brain steps, change its pose and fire at Lola.
+// Leaper must take brain steps, change its pose and fire at Lola. Last, the
+// game at another Leaper size: the worker builds that size's collision map
+// (with progress) instead of the page.
 // The title becomes "PASS ..." or "FAIL ..." for headless runs (tests/run-browser.mjs).
 
 const results = document.querySelector('#results');
@@ -87,6 +89,64 @@ try {
   await until(() => p.brain.ready && p.brain.provider.kind === 'onnx', 120, 'the browser brain again');
   check(!new win.URL(win.location.href).searchParams.has('brain'), 'back to the browser brain (address cleared)');
   check(errors.length === 0, `still no errors (${errors.join(' | ') || 'none'})`);
+
+  // 7. Another Leaper size (APPLY SIZE reloads the page at ?width=): no baked
+  //    raster exists for it, so the worker builds it, and its progress reaches
+  //    the loading line or the badge.
+  const shown = [];
+  frame.src = `/?debug&width=6.5&brainUrl=${encodeURIComponent(DEAD_SERVER)}`;
+  // Watch every text change on the new page from as early as it exists (the
+  // raster is only built after the map has loaded, seconds later).
+  const oldDocument = win.document;
+  const doc = await until(() => {
+    const current = frame.contentDocument;
+    return current && current !== oldDocument && current.body ? current : null;
+  }, 120, 'the page at the new size');
+  const sizedErrors = [];
+  frame.contentWindow.addEventListener('error', (event) => sizedErrors.push(event.message));
+  frame.contentWindow.addEventListener('unhandledrejection', (event) => sizedErrors.push(String(event.reason?.message ?? event.reason)));
+  // The loading line (#status) and the brain badge, read as text even while hidden.
+  new frame.contentWindow.MutationObserver(() => {
+    for (const element of [doc.getElementById('status'), doc.querySelector('.brain-state')]) {
+      const text = element?.textContent ?? '';
+      if (/PREPARING LEAPER SIZE 6\.5/.test(text)) shown.push(text.trim());
+    }
+  }).observe(doc.documentElement, { subtree: true, childList: true, characterData: true });
+  const sized = await until(() => frame.contentWindow.leaperPlaytest?.brain, 180, 'the game at size 6.5');
+  await until(() => sized.ready || sized.offline, 180, 'the brain at size 6.5');
+  const world = sized.provider.active?.lastWorld;
+  check(sized.ready && world?.width === 6.5 && world.source === 'built',
+    `size 6.5: the worker built its collision map (${world?.source}, ${Math.round(world?.rasterMs ?? 0)} ms)`);
+  // The badge is redrawn once per frame, so a slow (software-rendered) page may
+  // only catch one or two of the build's progress lines; any one proves it shows.
+  check(shown.some((line) => /ONNX · IN BROWSER · \d+% · /.test(line)),
+    `the loading UI showed that size's progress ("${shown.at(-1) ?? 'none'}")`);
+
+  // 8. The same build, measured directly (independent of the frame rate): a
+  //    size the worker has not seen yet, with the progress events the page
+  //    receives while it builds and the page's own timers still ticking.
+  const events = [];
+  const off = sized.provider.onProgress((event) => events.push(event));
+  let ticks = 0;
+  let building = true;
+  const tick = () => {
+    if (!building) return;
+    ticks += 1;
+    frame.contentWindow.setTimeout(tick, 0);
+  };
+  tick();
+  await sized.provider.prepare(7);
+  building = false;
+  off();
+  const raster = events.filter((event) => event.task === 'world' && event.width === 7 && event.stage === 'raster');
+  const builtSeven = sized.provider.active.lastWorld;
+  check(builtSeven?.width === 7 && builtSeven.source === 'built', `size 7.0 built in the worker too (${Math.round(builtSeven?.rasterMs ?? 0)} ms)`);
+  // The worker posts at most one update per 40 ms per stage (plus the stage's
+  // start and end), so a quick build sends only a few.
+  check(raster.length >= 2 && raster.at(-1).fraction > raster[0].fraction,
+    `the page received the build's progress (${raster.length} raster updates, ${Math.round(raster[0]?.fraction * 100)}% -> ${Math.round(raster.at(-1)?.fraction * 100)}%)`);
+  check(ticks >= 2, `the page kept running while the worker built it (${ticks} timer ticks meanwhile)`);
+  check(sizedErrors.length === 0, `no errors at the new sizes (${sizedErrors.join(' | ') || 'none'})`);
 
   say(`\nALL ${passed} CHECKS PASSED`);
   document.title = `PASS ${passed} · Game with the in-browser brain`;
