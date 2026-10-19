@@ -329,3 +329,35 @@ test('standing next to a dormant Leaper does not count toward a stomp', () => {
   run(d, B.stomp.trigger, sense({ distance: 3, inReach: true }));
   assert.equal(d.state, 'stomp', 'but after the trigger time of the hunt');
 });
+
+test('a joint snapping on a leg already lost is no new leg: it never keeps it down nor knocks it down again', () => {
+  // A severed leg's stump still has joints (its thigh, its hip) that bullets can
+  // snap. That is a big hit, but not another leg lost.
+  const d = director();
+  const seen = sense({ aware: true });
+  d.update(DT, seen);
+  d.legBroken({ lost: COMBAT.legs.maxLost });
+  run(d, B.downed.sinkTime + 0.1, seen);
+  assert.equal(d.phase, 'down');
+  d.legBroken({ lost: COMBAT.legs.maxLost });
+  assert.equal(d.permanent, false, 'a stump snapping while down does not keep it down for good');
+  run(d, B.downed.recoverTime + B.downed.getUpTime + 0.2, seen);
+  assert.equal(d.state, 'chase', 'it still gets up');
+  // Up again and limping: a stump snapping is a stagger, not another fall.
+  d.legBroken({ lost: COMBAT.legs.maxLost });
+  d.update(DT, seen);
+  assert.equal(d.state, 'stagger');
+  assert.equal(d.reason, 'joint break');
+  run(d, B.stagger.time + 0.1, seen);
+  // A really new leg after getting up: down for good.
+  d.legBroken({ lost: COMBAT.legs.maxLost + 1 });
+  d.update(DT, seen);
+  assert.equal(d.state, 'downed');
+  assert.equal(d.permanent, true);
+  // reset() forgets the lost legs: the next fight counts from zero.
+  d.reset();
+  d.update(DT, seen);
+  d.legBroken({ lost: 1 });
+  d.update(DT, seen);
+  assert.equal(d.state, 'stagger', 'a first leg in a new fight is a stagger again');
+});

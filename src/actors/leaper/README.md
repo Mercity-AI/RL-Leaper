@@ -63,7 +63,8 @@ sync from the landing spot so it looks around from there before it walks on.
 **Legs.** Every broken joint is a big hit (a stagger) until `maxLost` legs are
 gone: then it goes down. It gets up limping after `downed.recoverTime`, unless
 another leg breaks (while down, while getting up, or later): then it stays down
-for good. Severed legs no longer block Lola (player contact rules v4). Each
+for good. A joint snapping on a leg that is already gone (a stump's thigh or
+hip) is no new leg: it only staggers the Leaper (and does nothing while down). Severed legs no longer block Lola (player contact rules v4). Each
 lost leg slows the brain's step clock (the limp, played back without stop-go)
 and the body leans toward the side that lost legs (`crippled`).
 

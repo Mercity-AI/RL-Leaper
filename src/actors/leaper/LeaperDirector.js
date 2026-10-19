@@ -89,6 +89,8 @@ export class LeaperDirector {
     this.pendingStagger = null;
     this.pendingDowned = false;
     this.permanent = false;
+    // Legs lost so far (from legBroken), so a stump snapping is not counted again.
+    this.lostLegs = 0;
     this.transitions = 0;
   }
 
@@ -127,12 +129,18 @@ export class LeaperDirector {
 
   // ---- Things that happen to the Leaper (called by LeaperActor) ----
 
-  // A leg snapped (LeaperLegDamage.onBroken). Losing maxLost legs knocks it
-  // down; one more while down (or after getting up) keeps it down for good.
-  // Any other break is a big hit: a stagger.
+  // A leg snapped (LeaperLegDamage.onBroken; lost = legs gone now). Losing
+  // maxLost legs knocks it down; one more while down (or after getting up)
+  // keeps it down for good. Any other break is a big hit: a stagger.
   legBroken({ lost }) {
     if (this.state === 'dying' || this.state === 'dead') return;
-    if (this.state === 'downed') {
+    // A joint snapping on a leg already lost (a stump's thigh or hip) is no new
+    // leg: only a stagger, never a fall or "down for good".
+    const newLeg = lost > this.lostLegs;
+    this.lostLegs = Math.max(this.lostLegs, lost);
+    if (!newLeg) {
+      this.pendingStagger = 'joint break';
+    } else if (this.state === 'downed') {
       this.permanent = true;
       if (this.phase === 'rising') this.pendingDowned = true;
     } else if (lost >= this.legs.maxLost) {
