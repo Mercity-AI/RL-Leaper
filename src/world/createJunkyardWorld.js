@@ -6,6 +6,7 @@ import { loadJunkyardCollision } from './loadJunkyardCollision.js';
 import metrics from '../../assets/maps/junkyard/metrics.json' with { type: 'json' };
 import { disposeObject3D } from '../core/disposeObject3D.js';
 import { accelerateStaticMeshes, releaseStaticMeshes } from './raycastAcceleration.js';
+import { batchStaticMeshes } from './staticBatching.js';
 import { limitShadowCasters, QUALITY_PRESETS } from '../core/Quality.js';
 
 // The Leaper size chosen with APPLY SIZE, remembered in this browser. Change the
@@ -46,8 +47,11 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   const { floorHeight, floor } = prepareJunkyardMap(gltf.scene, scale);
   scene.add(gltf.scene);
   // Shadows only from props big enough to show one at this quality (the floor
-  // and perimeter walls always cast).
+  // and perimeter walls always cast), then one draw per material and yard patch
+  // for the map (see staticBatching.js).
   limitShadowCasters(gltf.scene, quality.shadowMinSize, { keep: [floor] });
+  const batching = batchStaticMeshes(gltf.scene, scene, { scale });
+  scene.add(batching.group);
   // Neutral atmosphere and fill lighting keep grey surfaces from turning blue.
   // The original colours are kept so dispose() can hand the scene back unchanged.
   const original = { background: scene.background.getHex(), fog: scene.fog.color.getHex(), lights: [] };
@@ -61,6 +65,7 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   });
   // Take the map out again: off the scene, its GPU memory freed, colours restored.
   const dispose = () => {
+    batching.dispose();
     scene.remove(gltf.scene);
     releaseStaticMeshes(gltf.scene);
     disposeObject3D(gltf.scene);
@@ -77,6 +82,9 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   return {
     dispose,
     colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene,
+    // The combined map meshes actually drawn (the map's own meshes stay for rays)
+    // and how many map meshes they replace.
+    batches: batching.group, batchStats: batching.stats,
     // Where the collision grids were built ('worker' normally, 'page' as a fallback).
     collisionBuiltBy: builtBy,
     // The largest Leaper size at which RESTART RANDOM still works (the size
