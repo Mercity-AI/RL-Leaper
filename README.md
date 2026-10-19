@@ -31,8 +31,9 @@ the game to GitHub Pages once Pages is switched on (see
 searches, chases and fires back), **EXPLORE** (practice: Lola roams and the
 Leaper stands still), **SETTINGS**, **CONTROLS** and **CREDITS**. The Leaper
 has 600 health. Shooting its knees breaks legs: each lost leg slows it, and
-after four it falls for about 6 seconds and takes 1.5x damage meanwhile. Its
-eye core is a weak point. Watch for the red ring on the ground: that is a stomp or a leap
+after four it falls for about 6 seconds and takes 1.5x damage meanwhile. A leg
+cut below its lower knee keeps walking on its stump; with no standing leg left
+on one side, it tips over onto that side for good. Its eye core is a weak point. Watch for the red ring on the ground: that is a stomp or a leap
 about to land. **Escape** (gamepad Start, touch PAUSE) pauses. The end screen
 shows the time, damage dealt and taken, and knees broken. Settings (quality,
 look sensitivity, invert look, field of view, sound volumes, large text,
@@ -131,9 +132,21 @@ automatically for the device), `?softRestart=1` (an experiment, off by
 default), and the lab pages `?arena`, `?training` and `?free`.
 
 **Art pipeline.** The map's Blender source is
-`assets/blockmesh/junkyard/junkyard_arranged.blend`; after editing it, export
-with `blender -b assets/blockmesh/junkyard/junkyard_arranged.blend --python scripts/export_junkyard.py`,
-then run `pnpm assets`. Lola is exported by `scripts/export_lola.py` from
+`assets/blockmesh/junkyard/junkyard_v2.blend` (the owner's
+`Junkyard_Lola_walk_final_bus_textured.blend` without the preview Lola). Its
+rust, wear and colour variation are procedural shader nodes, which the browser
+cannot show, so they are baked into one texture first. After editing the map:
+
+1. `blender -b assets/blockmesh/junkyard/junkyard_v2.blend --python scripts/bake_junkyard_textures.py`
+   (about 10 minutes on the GPU; writes `junkyard_v2_baked.blend`).
+2. `blender -b assets/blockmesh/junkyard/junkyard_v2_baked.blend --python scripts/export_junkyard.py`
+   (writes `assets/maps/junkyard/junkyard.glb` and `collision.json`).
+3. `pnpm assets` (compressed copy and level metrics).
+4. If the walls moved: `python scripts/bake_junkyard_raster.py`, then
+   `python scripts/make_junkyard_fixtures.py` and `python scripts/make_sync_fixture.py`
+   (the brain's collision raster and parity recordings).
+
+The first junkyard's source, `junkyard_arranged.blend`, stays in the same folder. Lola is exported by `scripts/export_lola.py` from
 Blender files that are not in the repository yet (they live on the owner's PC),
 then `node scripts/measure_lola_steps.mjs` measures her strides.
 

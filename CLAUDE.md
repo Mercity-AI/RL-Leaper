@@ -1,66 +1,51 @@
 # Claude handoff — Leaper
 
-Read `AGENTS.md`, `TRAINING.md`, and `RL_SPEC.md` before editing. The owner is a
-game designer, not a programmer; explain results in plain language.
+Read `AGENTS.md` first: Part 1 is the game, Part 2 the RL lab. The owner is a
+game designer, not a programmer: explain results in plain language, ask about
+creative intent, and never push, force-push or merge without their say-so.
 
-## Paste-ready task
+## Where things stand (2026-10-19)
 
-Continue the Leaper RL project in `E:\Leaper`. Do not change the target sensor,
-arena, vision, movement speeds, or seeker reward unless required below.
+- **Working branch:** `claude/zen-davinci-ku9f5z` (pushed to
+  `Mercity-AI/RL-Leaper`). It holds the code-review overhaul and the owner's
+  evening requests; `main` does not have them yet. What changed for players:
+  `docs/game/CHANGELOG.md`.
+- **The game** runs with `pnpm dev` at http://localhost:5173/ (title screen:
+  PLAY, EXPLORE, SETTINGS, CONTROLS, CREDITS). The Leaper's frozen brain
+  (7,757,824 steps) runs in the browser (ONNX); it must never be retrained or
+  edited in place (`AGENTS.md`, "Non-negotiables").
+- **The map** is the owner's own yard, `junkyard_v2` (about 78 x 73 map units).
+  Its look is procedural in Blender and is baked into one texture before export:
+  the four steps are in `README.md`, "Art pipeline". Re-run them whenever the
+  owner sends a new version of the yard. The owner's working files live in
+  `C:\Blender\`; never modify them.
+- **Owner choices to keep** (from the owner, 2026-10-19): the plain "+"
+  crosshair (spread ticks, hit-marker X and OBSTRUCTED look stay off in
+  `src/styles/ui/reticle.css`); leg pieces take 11-13 (knees) and 32-34 (long
+  pieces) bullets; a leg cut below its lower knee walks on its stump; no
+  standing leg on one side means the Leaper tips over for good. Save every
+  setting the owner picks as a real default, never only in a URL.
 
-PPO_28 is complete in `rl_artifacts/ppo_28_slow_seeker_500k/`. Its final
-100-episode deterministic result was 71% success, but 56.73% of deterministic
-steps had zero throttle. Diagnosis showed that every stopped action had a
-negative raw Gaussian throttle which the asymmetric `[0,1]` action space clipped
-to zero. About 89.8% of stopped steps happened before first target sight.
+## Open items
 
-Implement the next run as follows:
+- **Sounds the owner still needs:** a female pain voice for Lola's `lolaHurt`
+  slot (silent now; male and unclear-voiced takes were rejected) and a sound
+  for a cut-off leg piece landing (no slot yet). See `src/audio/sounds.json`.
+- **Animation:** the owner is making a new 3-second reload clip; swap it in
+  when it arrives rather than stretching the old one.
+- **Leg damage vs health:** the owner floated making lost legs cost more of the
+  Leaper's health. Not done; ask before changing balance.
+- **Tests:** `pnpm test` (466) is green. Three in-browser pages still stage
+  scenes on the old map layout and fail: the weak-point shot in
+  `tests/browser-combat.js`, a shot in `tests/leaper-behaviour.js`, and the
+  loading-progress check in `tests/brain-game.html`.
+- **History:** `docs/How-the-Leaper-Works.pdf` was pushed by mistake and then
+  removed; it is still in the branch history. The owner keeps it locally and
+  does not want it in the repository.
 
-1. Change the policy throttle action range from `[0,1]` to normalized `[-1,1]`.
-2. Keep movement forward-only. Convert the policy command internally with
-   `physical_throttle = (action[0] + 1) / 2`. Thus `-1=stop`, `0=half speed`, and
-   `1=full speed`; negative values must never mean reverse.
-3. Keep turning action at `[-1,1]` and physical turn speed at 9 degrees/step.
-4. Keep physical movement speed at 0.375 units/step and `MAX_STEPS=1000`.
-5. Add a non-collision freeze rule: 60 consecutive steps with no physical
-   translation ends the episode as a true terminal failure with a one-time `-10`
-   penalty. Any real translation resets the counter. Turning in place counts as
-   no translation; 60 steps still allows three 180-degree scans at 9 degrees/step.
-6. Preserve the existing 40-step collision-stuck rule unless tests reveal a
-   conflict. Report the new freeze penalty separately in diagnostics if practical.
-7. Warm-transfer PPO_28's policy/value weights into a newly constructed PPO model
-   with the normalized action space. Do not use `PPO.load(..., env=new_env)` if
-   Stable-Baselines3 rejects the changed bounds. Build the new model, selectively
-   load compatible policy weights, and reset optimizer state. Observation shape
-   remains 26.
-8. Update Python tests for the normalized mapping, no reverse, freeze counter
-   reset, terminal failure at step 60, and compatibility of transferred weights.
-9. Keep browser replays deterministic-only. Preserve the target status display:
-   `NOT DISCOVERED`, `VISIBLE`, and `REMEMBERED / CURRENTLY HIDDEN`.
-10. Update `RL_SPEC.md`, `TRAINING.md`, and the current handoff in `AGENTS.md`.
-11. Run validation and a separate 20k smoke test first. Only start an isolated
-    500k run if the smoke is healthy. Do not run PPO_28 unchanged for 800k.
-12. Whenever training starts, show the owner the live replay viewer and
-    TensorBoard links, attach a completion watcher/heartbeat, and automatically
-    report final deterministic results without waiting for the owner to ask.
+## RL lab
 
-Use a new run name and artifact directory (suggested:
-`PPO_29_NORMALIZED_THROTTLE` and `rl_artifacts/ppo_29_normalized_throttle_500k/`).
-Never overwrite PPO_27 or PPO_28 artifacts. Generated RL artifacts stay ignored.
-
-## Current facts
-
-- PPO_27 seeker: `rl_artifacts/ppo_27_seeker_500k/`, 64% deterministic success.
-- PPO_28 slow seeker: `rl_artifacts/ppo_28_slow_seeker_500k/`, natural seed
-  742698, 507,904 transitions, 71% deterministic success, 29% timeout, 1.90%
-  collision steps.
-- Current seeker: randomized tagged target, target coordinates hidden until
-  unobstructed sight, 120-step age channel with remembered position, 16 obstacle
-  rays over 270 degrees at range 28, world limit 31.25, six random obstacles.
-- PPO_28 reward: first-ever sight `+0.5`; exploration only before discovery;
-  post-sight symmetric distance progress; time `-0.002`; idle `-0.04`; collision
-  `-0.18`; collision-stuck `-10`; goal `+25`.
-- Local viewer: `http://127.0.0.1:5173/?training=1` when Vite is running.
-- TensorBoard: `http://127.0.0.1:6006/` when launched against `rl_artifacts`.
-- The current code does **not yet** contain the normalized throttle or 60-step
-  general freeze rule. Those are the next implementation task.
+The PPO_29 normalized-throttle task this file used to describe is done; runs
+continued to PPO_35. Start from `AGENTS.md` Part 2 and
+`docs/SEEKER_HANDOFF.md`. Generated artifacts in `rl_artifacts/` stay
+git-ignored and are never overwritten.

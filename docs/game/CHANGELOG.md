@@ -3,6 +3,46 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-10-19 (evening): the owner's junkyard, tougher legs, plain crosshair
+
+Branch `claude/zen-davinci-ku9f5z`, on top of the overhaul below.
+
+### For players
+
+- **A new, bigger junkyard.** The owner's own yard (about 78 x 73 map units,
+  was about 48 x 45): toppled containers with their spilled salvage, poles,
+  skips, a second crane and the textured bus. Its rust, wear and colour
+  variation are baked into one texture, so the game looks like Blender. All
+  props share one matte finish (no metallic shine), which also keeps drawing
+  fast (about 64 draw calls).
+- **Tougher legs.** Every leg piece takes about 30% more bullets: knees 11-13
+  (were 8-10), long pieces 32-34 (were 24-26).
+- **Stumps.** A leg cut below its lower knee keeps walking on its stump, the
+  shin's tip on the floor, instead of curling up while the Leaper floats. It
+  limps a little and leans toward the shorter side.
+- **Tipping over.** With no standing leg left on one side (all three cut at
+  the upper knee or higher), the Leaper tips over onto that side and stays
+  down for good (DOWN FOR GOOD), however many legs it has left.
+- **The original crosshair is back:** the plain "+" with its hit colour and
+  kick. The spread ticks, hit-marker X and OBSTRUCTED look listed below are
+  switched off (`src/styles/ui/reticle.css`; their states are still tracked).
+- **No pain grunt for now.** Lola's hit grunt is silent until a female voice
+  is chosen; the hit thud and the low-health cry stay.
+
+### For developers
+
+- Map pipeline: `scripts/bake_junkyard_textures.py`, then
+  `scripts/export_junkyard.py` (the yard's size now comes from its floor;
+  characters are left out), then `pnpm assets` (see README, "Art pipeline").
+- The brain's eye-sight readers (`rl/junkyard_sight.py`,
+  `src/brain/junkyard/junkyardSight.js`) accept the WebP texture extension.
+- The collision raster and brain parity recordings were re-made for the new
+  walls; recorded contact scenes moved to open ground (`CONTACT_SHIFT` in
+  `scripts/make_junkyard_fixtures.py`).
+- Open: two in-browser test scenes (`tests/browser-combat.js` weak-point
+  shot, `tests/leaper-behaviour.js` shot) and the brain-game loading check
+  still assume the old layout; `pnpm test` is fully green.
+
 ## 2026-10-19: the code-review overhaul
 
 Branch `claude/zen-davinci-ku9f5z`. What the review

@@ -7,8 +7,8 @@ This repository holds two projects in one tree:
    junkyard. A frozen RL policy (7,757,824 steps) drives the Leaper's movement
    inside the page, under an authored behaviour layer.
 2. **The RL lab** (Part 2): Python PPO training and research on Leaper brains
-   (seeker runs PPO_27 to PPO_35 and earlier walker runs). The training handoff
-   that `CLAUDE.md` refers to lives there.
+   (seeker runs PPO_27 to PPO_35 and earlier walker runs). Its handoff is
+   Part 2 below; `CLAUDE.md` is a short current-state summary of both parts.
 
 The owner is a game designer, not a programmer; the project is open source and
 non-commercial. Read "Working With the Project Owner" before reporting back.
@@ -34,6 +34,12 @@ done and open, plus the owner's pending decisions, is in
 `docs/reviews/2026-10-19-implementation-report.md`. Player-facing changes are
 in `docs/game/CHANGELOG.md`.
 
+Later on 2026-10-19 the owner asked for, and got (same branch, see the
+changelog's evening entry): their own bigger junkyard (`junkyard_v2`, with its
+procedural look baked into one texture), about 30% tougher legs, Leapers that
+walk on leg stumps and tip over for good when one side has no standing leg,
+the original plain crosshair, and no pain grunt until a female voice is found.
+
 ## Repo map
 
 | Area | Where |
@@ -48,7 +54,7 @@ in `docs/game/CHANGELOG.md`.
 | Input, UI, audio | `src/input/`, `src/ui/`, `src/styles/`, `src/audio/` (`sounds.json` manifest) |
 | Designer numbers | `src/config/` (`camera`, `combat`, `encounter`, `leaper-behaviour`, `weapons`); `src/config/tuning/` is the live registry |
 | Developer tools | `src/debug/` (DEV drawer, TUNING panel, perf timer), only with `?dev` or `pnpm dev` |
-| World | `src/world/` (map, collision, collision worker, navigation, BVH raycasts), `assets/maps/junkyard/` (metrics, passages) |
+| World | `src/world/` (map, collision, collision worker, navigation, BVH raycasts), `assets/maps/junkyard/` (export, metrics, passages); map source `assets/blockmesh/junkyard/junkyard_v2.blend`, baked `junkyard_v2_baked.blend` (README "Art pipeline") |
 | Art | `assets/` (sources and `assets/build/` compressed copies), `public/` |
 | **Frozen brain** | `model_7757824/` (checkpoint), `rl/frozen_7757824/` (recipe), `rl/junkyard_env.py`, `rl/junkyard_sight.py`, `rl/junkyard_server.py` (Python reference), `public/brains/leaper_7757824/` (`actor.onnx`, `brain.json`, baked raster), `src/brain/junkyard/` (JS port), `src/config/eye-vision.json` and `player-contact.json` (brain contract), `tests/fixtures/brain/` |
 | RL lab | `rl_environment.py`, `train_rl.py`, `rl/seeker_*.py`, `README-RL.md`, `TRAINING.md`, `RL_SPEC.md`, `docs/SEEKER_*`, `rl_artifacts/` (ignored) |
@@ -110,7 +116,18 @@ Page options: `?dev` / `?dev=0`, `?brain=onnx|http|turret`,
 - After changing a binding in `src/input/actions.js`, run
   `node scripts/print-controls.mjs --write` (a test checks the README table).
 - After editing map or art sources, run `pnpm assets` (tests fail until the
-  compressed copies and baked metrics match).
+  compressed copies and baked metrics match). A map change is: bake
+  (`scripts/bake_junkyard_textures.py`), export (`scripts/export_junkyard.py`),
+  `pnpm assets`, and when the walls moved the brain raster and parity
+  recordings (README, "Art pipeline").
+- On the owner's Windows PC: Git and Node.js 24 are installed system-wide;
+  ffmpeg is not, so `pnpm assets` stops at Lola's textures and sounds (install
+  ffmpeg, or rebuild only the map as in commit `81a6146`). Python lives in
+  `.venv/` (`.venv/Scripts/python.exe`). Blender 4.3 is at
+  `C:/Program Files/Blender Foundation/Blender 4.3/blender.exe`, with an RTX
+  3050 for baking. `tests/test_frozen_recipe.py` reports the frozen files as
+  changed on this checkout only because Git gave them Windows line endings;
+  their contents match.
 
 ## How to add features
 
@@ -193,9 +210,9 @@ Pull requests should explain player-visible and behavioral changes, list validat
 Everything below is the RL training handoff, kept as written. Notes added on
 2026-10-19 are marked as such.
 
-**Note (2026-10-19): the PPO_29 normalized-throttle task in `CLAUDE.md` has
-been carried out.** `CLAUDE.md`'s "Current facts" still describe it as not yet
-implemented; the record below (section "Prior Handoff — PPO_31 …", the PPO_29
+**Note (2026-10-19): the PPO_29 normalized-throttle task that `CLAUDE.md`
+used to list has been carried out** (`CLAUDE.md` was rewritten that evening).
+The record below (section "Prior Handoff — PPO_31 …", the PPO_29
 line) and the code say otherwise: `rl_environment.py` has the
 `NORMALIZED_THROTTLE` flag and `FREEZE_LIMIT = 60`, `train_rl.py` has
 `--normalized-throttle`, `--freeze-limit` and `--warm-transfer`, and
