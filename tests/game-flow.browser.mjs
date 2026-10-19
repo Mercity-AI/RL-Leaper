@@ -1,6 +1,7 @@
 // The game's front end in a real browser, driven like a player: the title
 // screen, PLAY, the pause menu, the end screen and RESTART, with the mouse, the
-// keyboard and a gamepad stand-in; the developer panel only with ?dev; no HUD
+// keyboard and a gamepad stand-in; the developer panel and its live tuning
+// panel only with ?dev (a change applies, is saved and resets); no HUD
 // or menu panel covering another at 1280 x 720 (menus open and closed); and no
 // page writes from the HUD while nothing changes. Run by tests/run-browser.mjs
 // (tests/hud-layout.browser.mjs repeats the overlap check on a phone).
@@ -67,6 +68,8 @@ export default async function gameFlow(page, { baseUrl, check }) {
   await page.waitForTimeout(1500);
   check(!(await page.locator('.dev-toggle, #devPanel').count()) && !(await page.evaluate(() => document.body.contains(document.getElementById('junkyardPanel')))),
     'a player gets no developer tools: no DEV button, no drawer, no old toolbar on the page');
+  check(!(await page.locator('.tp-rotv, .tuning-note').count()) && !(await page.evaluate(() => performance.getEntriesByType('resource')
+    .some((entry) => /tweakpane|TuningPanel/i.test(entry.name)))), 'no tuning panel either: Tweakpane is never even downloaded');
   check(!(await page.evaluate(() => [...document.querySelectorAll('[aria-live]')].some((element) => element.closest('#junkyardPanel')))),
     'no per-frame readout is a live region');
   check(await page.evaluate(() => !/maximum-scale|user-scalable/.test(document.querySelector('meta[name=viewport]').content)), 'pinch zoom is allowed');
@@ -189,6 +192,44 @@ export default async function gameFlow(page, { baseUrl, check }) {
   await page.waitForFunction(() => /\d+ fps/.test(document.querySelector('.dev-perf')?.textContent ?? ''), null, { timeout: 60000 });
   check(true, 'the perf overlay shows frames per second, phases and renderer counters');
   await page.uncheck('[data-dev=perf]');
+
+  // 7. The drawer's live tuning panel (Tweakpane, downloaded on demand): one
+  //    folder per config, the brain contract read-only, a change applies to the
+  //    game at once, is remembered over a reload, and RESET ALL undoes it.
+  const tuning = '#devPanel [data-dev-section=tuning]';
+  await page.locator(`${tuning} .tp-rotv`).waitFor({ state: 'visible', timeout: 120000 });
+  const folders = await page.$$eval(`${tuning} .tp-fldv_t`, (titles) => titles.map((title) => title.textContent));
+  check(['Camera', 'Guns', 'Shooting feel', 'Hit feedback', 'Combat'].every((name) => folders.includes(name))
+    && folders.includes('BRAIN CONTRACT: eye vision (read-only)') && folders.includes('BRAIN CONTRACT: player contact (read-only)'),
+  `?dev: the tuning panel lists every config, the brain contract labelled read-only (${folders.join(', ')})`);
+  const brainInputs = await page.evaluate((root) => [...document.querySelectorAll(`${root} .tp-fldv`)]
+    .filter((folder) => /^BRAIN CONTRACT/.test(folder.querySelector('.tp-fldv_t')?.textContent ?? ''))
+    .map((folder) => ({ editable: folder.querySelectorAll('input:not([readonly]), button:not(.tp-fldv_b)').length, rows: folder.querySelectorAll('.tp-lblv').length })), tuning);
+  check(brainInputs.length === 2 && brainInputs.every(({ editable, rows }) => editable === 0 && rows > 0),
+    `the brain contract folders show their numbers with nothing editable (${JSON.stringify(brainInputs)})`);
+  const gunDamage = () => page.evaluate(() => ({
+    damage: window.leaperPlaytest.playerWeapon.states[0].weapon.damage,
+    saved: localStorage.getItem('leaper.tuning.v1'),
+  }));
+  check((await gunDamage()).damage === 2, 'the M416 starts as written (2 damage a bullet)');
+  await page.locator(`${tuning} .tp-fldv_t`, { hasText: /^Guns$/ }).click();
+  const damageRow = page.locator(`${tuning} .tp-lblv`).filter({ has: page.locator('.tp-lblv_l', { hasText: /^m416\.damage$/ }) });
+  const damageInput = damageRow.locator('input.tp-txtv_i');
+  await damageInput.fill('3');
+  await damageInput.press('Enter');
+  await page.waitForFunction(() => window.leaperPlaytest.playerWeapon.states[0].weapon.damage === 3, null, { timeout: 30000 });
+  let gun = await gunDamage();
+  check(JSON.parse(gun.saved ?? '{}')?.guns?.['m416.damage'] === 3, 'typing 3 into m416.damage changes the running gun at once and saves it in this browser');
+  await page.locator(`${tuning} button`, { hasText: /^COPY JSON$/ }).click();
+  const copied = await page.locator(`${tuning} textarea.tuning-json`).inputValue();
+  check(JSON.parse(copied)?.guns?.['m416.damage'] === 3, 'COPY JSON gives the changed values');
+  await page.reload({ timeout: 300000 });
+  await page.waitForFunction(() => window.leaperPlaytest?.playerWeapon, null, { timeout: 300000 });
+  check((await gunDamage()).damage === 3, 'after a reload the saved change is back');
+  await page.locator(`${tuning} button`, { hasText: /^RESET ALL$/ }).waitFor({ state: 'visible', timeout: 120000 });
+  await page.locator(`${tuning} button`, { hasText: /^RESET ALL$/ }).click();
+  gun = await gunDamage();
+  check(gun.damage === 2 && gun.saved === null, 'RESET ALL puts the gun back as written and forgets the saved change');
   await page.click('.dev-toggle');
-  return 'Game flow (title, pause, end, dev panel, HUD layout)';
+  return 'Game flow (title, pause, end, dev panel, tuning, HUD layout)';
 }
