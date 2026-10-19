@@ -139,6 +139,13 @@ and last action are kept: a sync is not a new episode. While a leap animates,
 game logic decides whether the brain keeps stepping (`brain.stop()` /
 `brain.start()`), then syncs at the landing spot.
 
+The Leaper's behaviour layer (`src/actors/leaper/README.md`) does exactly
+that: it pauses the brain outside Search and Chase, syncs the landing pose
+during the leap's crouch (a refusal, or a sync that fails for any reason,
+calls the leap off and the take-off pose is synced back), syncs again on
+landing, and syncs the heading after a turn in place. It also animates the
+rig itself (`JunkyardBrain.drivesAnimator = false`).
+
 **Severed legs (contact rules v4, review fix 5.19).** `/reset`, `/step`,
 `/sense` and `/sync` may carry `disabled_legs`: the indices (0-5, the order of
 `legAngles` in `src/config/player-contact.json`) of the Leaper's shot-off legs.

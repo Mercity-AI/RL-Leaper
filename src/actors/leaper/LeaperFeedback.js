@@ -44,7 +44,9 @@ export class LeaperFeedback {
     // 3. Ground rings: a flat ring mesh, scaled to each use.
     this.ringGeometry = new THREE.RingGeometry(0.9, 1, 72);
     this.ringGeometry.rotateX(-Math.PI / 2);
-    this.rings = { stomp: this.makeRing(0xff2a10), landing: this.makeRing(0xff4020), wave: this.makeRing(0xffb070) };
+    // Warnings are drawn plainly so they read red on the pale yard floor; the
+    // shockwave is added light.
+    this.rings = { stomp: this.makeRing(0xe0160a), landing: this.makeRing(0xff3a14), wave: this.makeRing(0xffb070, true) };
     this.waves = [];
     this.flashes = [];
     // 4. Debris and the joint flash share a few simple pieces.
@@ -56,9 +58,9 @@ export class LeaperFeedback {
       blending: THREE.AdditiveBlending, depthWrite: false });
   }
 
-  makeRing(colour) {
+  makeRing(colour, additive = false) {
     const material = new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0,
-      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: false, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(this.ringGeometry, material);
     mesh.visible = false;
     mesh.renderOrder = 2;
