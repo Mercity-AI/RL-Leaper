@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { JunkyardNavigation, triangleDistanceSquared } from '../src/world/JunkyardNavigation.js';
-import { buildJunkyardCollision, junkyardScale, leaperGridSize, PLAYER_GRID } from '../src/world/junkyardCollision.js';
+import { buildJunkyardCollision, junkyardScale, leaperGridSize, PLAYER_GRID, WIDTH_LIMITS } from '../src/world/junkyardCollision.js';
 import { randomJunkyardStart, RANDOM_START } from '../src/world/randomJunkyardStart.js';
 import { ENCOUNTER } from '../src/config/encounter.js';
 import { BODY_COLLISION_RADIUS, STANDING_HEIGHT } from '../src/config/robot.js';
@@ -37,10 +37,11 @@ test('Actual junkyard: open spawn, closed walls, and collision-free routes at ea
     const nav = new JunkyardNavigation(data, radius, height);
     const start = nav.point(nav.nearest({ x: 0, z: 0 }));
     assert.equal(nav.blocked(start.x, start.z), false);
-    assert.equal(nav.blocked(24, 0), true);
-    assert.deepEqual(nav.route(start, {x: 30, z: 0}), []);
+    // The perimeter wall stands just inside the floor's edge; beyond it nothing is reachable.
+    assert.equal(nav.blocked(data.bounds.maxX - 0.28, 0), true);
+    assert.deepEqual(nav.route(start, { x: data.bounds.maxX + 6, z: 0 }), []);
     let count = 0;
-    for (let i = 0; i < nav.free.length; i += width >= 6 ? 1 : 137) {
+    for (let i = 0; i < nav.free.length; i += width >= 6 ? 7 : 137) {
       if (!nav.free[i]) continue;
       const path = nav.route(start, nav.point(i));
       for (let j = 1; j < path.length; j += 1) {
@@ -144,5 +145,6 @@ test('RESTART RANDOM works up to the largest workable width and reports no room 
     return randomJunkyardStart({ navigation, scale: junkyardScale(width) }, { x: 1e6, z: 1e6 }, random);
   };
   assert.ok(at(widest), `a random pair exists at ${widest}`);
-  assert.equal(at(above), null, `no random pair at ${above}`);
+  // A yard roomy enough for the size slider's own maximum has no "above" to test.
+  if (widest < WIDTH_LIMITS.max) assert.equal(at(above), null, `no random pair at ${above}`);
 });

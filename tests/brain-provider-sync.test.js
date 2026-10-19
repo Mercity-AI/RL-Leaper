@@ -121,7 +121,7 @@ test('the core checks sync requests like the server does', async () => {
   for (const [bad, message] of [[{ yaw: null }, /Invalid robot heading/], [{ yaw: '0.3' }, /Invalid robot heading/],
     [{ yaw: true }, /Invalid robot heading/], [{ position: [0, 1e6] }, /finite map position/],
     [{ target: [0] }, /finite map position/], [{ sight_pose: { eye: [0, 1] } }, /eye vision pose/],
-    [{ position: [24, 3] }, /intersects the junkyard/], [{ token: 'gone' }, /Session expired/]]) {
+    [{ position: [29, 3] }, /intersects the junkyard/], [{ token: 'gone' }, /Session expired/]]) {
     await assert.rejects(core.sync({ ...body, ...bad }), message, JSON.stringify(bad));
   }
   assert.deepEqual(core.close({ token }), { closed: true });
@@ -194,7 +194,7 @@ test('a refused sync puts the Leaper back at the brain\'s pose; offline it just 
     return { ...frame, x: 1 };
   };
   await brain.reset();
-  await assert.rejects(brain.syncPose({ x: 24, z: 3, yaw: 0 }), /intersects the junkyard/);
+  await assert.rejects(brain.syncPose({ x: 29, z: 3, yaw: 0 }), /intersects the junkyard/);
   assert.equal(brain.frame.x, 1);
   assert.equal(brain.contactPoses().to.x, 1);
   // Turret mode: no brain session to tell; the planted Leaper moves.
@@ -325,6 +325,6 @@ test('Encounter.teleportLeaper stands the Leaper at the new pose and syncs its b
   assert.deepEqual(enemy.simulation.rig.legs[0].stepping, false, 'standing, feet planted');
   // A refused spot: back to where the brain still has the Leaper.
   brain.request = async () => { throw new Error('Leaper pose intersects the junkyard; choose a clear spot'); };
-  await assert.rejects(encounter.teleportLeaper(enemy, { x: 24, z: 3, yaw: 0 }), /intersects/);
+  await assert.rejects(encounter.teleportLeaper(enemy, { x: 29, z: 3, yaw: 0 }), /intersects/);
   assert.deepEqual([enemy.simulation.state.position.x, enemy.simulation.state.position.z], [4, -3]);
 });

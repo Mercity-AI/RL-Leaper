@@ -146,11 +146,12 @@ try {
   hidden.forEach((object) => { object.visible = false; });
   check(batched.calls < unbatched.calls,
     `batching cuts the map's draw calls (${unbatched.calls} -> ${batched.calls} per frame, triangles ${unbatched.triangles} -> ${batched.triangles})`);
-  // High quality keeps every map prop's shadow (the smallest prop, a loose tire,
-  // is above its size limit); lower tiers drop small ones (tests/world-batching.test.js).
+  // High quality keeps nearly every map prop's shadow: only tiny details (junkyard_v2's
+  // cabinet handles and insulators) are under its size limit; lower tiers drop
+  // more small ones (tests/world-quality.test.js).
   let casters = 0, meshes = 0;
   world.map.traverse((object) => { if (object.isMesh) { meshes += 1; if (object.castShadow) casters += 1; } });
-  check(casters === meshes && engine.quality.shadowMinSize < 0.5, `high quality: every map prop casts its shadow (${casters} of ${meshes})`);
+  check(meshes - casters <= 10 && engine.quality.shadowMinSize < 0.5, `high quality: nearly every map prop casts its shadow (${casters} of ${meshes})`);
   check(scene.getObjectByName('sky') && scene.fog.color.getHex() === JUNKYARD_ATMOSPHERE.horizon,
     'the junkyard has its sky gradient and horizon-coloured fog');
 

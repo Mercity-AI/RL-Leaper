@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { ENCOUNTER } from '../src/config/encounter.js';
 import { measureJunkyard, workableWidth } from '../src/world/junkyardMetrics.js';
+import { WIDTH_LIMITS } from '../src/world/junkyardCollision.js';
 import metrics from '../assets/maps/junkyard/metrics.json' with { type: 'json' };
 
 // Level metrics: the baked assets/maps/junkyard/metrics.json must still describe
@@ -27,7 +28,8 @@ test('the size slider maximum is the largest workable Leaper width', () => {
   const widest = metrics.maxWorkableWidth;
   assert.ok(workableWidth(data, widest), `RESTART RANDOM works at ${widest}`);
   const above = Math.round((widest + 0.1) * 10) / 10;
-  assert.equal(workableWidth(data, above), false, `RESTART RANDOM has no pair at ${above}`);
+  // A yard roomy enough for the size slider's own maximum has no "above" to test.
+  if (widest < WIDTH_LIMITS.max) assert.equal(workableWidth(data, above), false, `RESTART RANDOM has no pair at ${above}`);
   assert.ok(widest >= ENCOUNTER.startWidth, 'the default Leaper size is inside the slider range');
 });
 

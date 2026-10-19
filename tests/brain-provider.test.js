@@ -106,7 +106,7 @@ test('provider refuses bad requests with the server\'s messages', async () => {
   await assert.rejects(provider.reset({ ...fixture.reset, position: [0, Infinity] }), /Expected a finite map position/);
   await assert.rejects(provider.reset({ ...fixture.reset, sight_pose: { eye: [0, 99, 0], points: fixture.reset.sight_pose.points } }), /Invalid eye vision pose/);
   // A pose inside a wall: the server's own wording.
-  await assert.rejects(provider.reset({ ...fixture.reset, position: [24, 3] }), /Leaper start intersects the junkyard/);
+  await assert.rejects(provider.reset({ ...fixture.reset, position: [29, 3] }), /Leaper start intersects the junkyard/);
   await assert.rejects(provider.request('train', {}), /Unknown brain request/);
   // After errors the session machinery still works.
   const frame = await provider.reset(fixture.reset);

@@ -115,12 +115,12 @@
   "5.5": {
    "file": "raster-5.5.bin",
    "shape": [
-    486,
-    455
+    780,
+    731
    ],
-   "solid": 48684,
-   "raster_sha256": "5c00ab22b50275dd2f60983313f4cd88aa71984d947a46df825d93ea41d323b5",
-   "collision_sha256": "8ae92dd855544fdf5a4e6f869daf613d97a70dbc6200de2f5de84eb56bad2d61"
+   "solid": 73504,
+   "raster_sha256": "ead955a09000ab1f13ad1c78cb9a02c4ec9160d44e7a1e4ee041bb6000e4e3fe",
+   "collision_sha256": "17a979d3f6634bcaa87a44a4420017529ee35fab965e98129756f05ae276a5d9"
   }
  }
 }

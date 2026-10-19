@@ -3,10 +3,10 @@
   "outputs": {
     "maps/junkyard.glb": {
       "source": "assets/maps/junkyard/junkyard.glb",
-      "sourceBytes": 3073540,
-      "sourceSha256": "b62c56b97871240d27ecf6812e4c07dec961690712a0d9a18ffc6f40621871dc",
-      "bytes": 1383092,
-      "sha256": "6cfb00a90df1dfd3963ec3cf7ba6790adc14ceb6eee05a3c36a3bf049ff74d37"
+      "sourceBytes": 7531692,
+      "sourceSha256": "aff7c5cf5d494a31f00eb620220b330b21b25304f072633760d5c132bc05c4be",
+      "bytes": 1735432,
+      "sha256": "a025fd70253532a77363d92ae397783685123cac5e6d4045750497a31e5f313a"
     },
     "lola/lola-m416.glb": {
       "source": "assets/characters/lola/lola-m416.glb",

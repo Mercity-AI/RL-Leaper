@@ -98,45 +98,54 @@ export function prepareJunkyardMap(map, scale, { accelerate = true } = {}) {
   // 1. Scale the map around the fixed-size rig.
   map.scale.setScalar(scale);
   map.updateMatrixWorld(true);
-  // 2. Shadows, and the floor / wall colouring of the exported Cube.
-  let floorHeight = -Infinity, floor = null;
+  // 2. Shadows, the floor height, and the floor / wall colouring of the exported
+  //    Cube (the floor with its perimeter walls). A Cube with one material (the
+  //    first junkyard) is coloured here: contrasting neutral greys for walls and
+  //    floor. A Cube with its own wall and ground materials (junkyard_v2, a
+  //    multi-material node: a group of meshes) keeps the colours it was made with.
+  let floorHeight = -Infinity;
+  const floor = map.getObjectByName('Cube') ?? null;
+  const floorParts = new Set();
+  floor?.traverse((object) => { if (object.isMesh) floorParts.add(object); });
+  const point = new THREE.Vector3();
   map.traverse((object) => {
     if (!object.isMesh) return;
     object.castShadow = true;
     object.receiveShadow = true;
-    // The exported Cube contains both the floor and perimeter walls. Give
-    // elevated wall faces and the floor contrasting, neutral grey colours.
-    if (object.name === 'Cube') {
-      floor = object;
-      const geometry = object.geometry.index ? object.geometry.toNonIndexed() : object.geometry.clone();
-      const positions = geometry.attributes.position;
-      const colours = new Float32Array(positions.count * 3);
-      const wallColour = new THREE.Color(0x303030).convertSRGBToLinear();
-      const floorColour = new THREE.Color(0x626262).convertSRGBToLinear();
-      const point = new THREE.Vector3();
-      for (let i = 0; i < positions.count; i += 3) {
-        let highest = -Infinity, lowest = Infinity;
-        for (let corner = 0; corner < 3; corner += 1) {
-          point.fromBufferAttribute(positions, i + corner).applyMatrix4(object.matrixWorld);
-          highest = Math.max(highest, point.y);
-          lowest = Math.min(lowest, point.y);
-        }
-        if (highest < 0.15 * scale && highest - lowest < 1e-4) floorHeight = Math.max(floorHeight, highest);
-        const colour = highest > 0.15 * scale ? wallColour : floorColour;
-        for (let corner = 0; corner < 3; corner += 1) colour.toArray(colours, (i + corner) * 3);
+    if (!floorParts.has(object)) return;
+    const recolour = object === floor;
+    const geometry = object.geometry.index ? object.geometry.toNonIndexed() : object.geometry.clone();
+    const positions = geometry.attributes.position;
+    const colours = recolour ? new Float32Array(positions.count * 3) : null;
+    const wallColour = new THREE.Color(0x303030).convertSRGBToLinear();
+    const floorColour = new THREE.Color(0x626262).convertSRGBToLinear();
+    for (let i = 0; i < positions.count; i += 3) {
+      let highest = -Infinity, lowest = Infinity;
+      for (let corner = 0; corner < 3; corner += 1) {
+        point.fromBufferAttribute(positions, i + corner).applyMatrix4(object.matrixWorld);
+        highest = Math.max(highest, point.y);
+        lowest = Math.min(lowest, point.y);
       }
-      geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
-      // The recoloured copies replace the originals, which are freed right away.
-      object.geometry.dispose();
-      object.geometry = geometry;
-      const sourceMaterial = object.material;
-      object.material = sourceMaterial.clone();
-      sourceMaterial.dispose();
-      object.material.color.setHex(0xffffff);
-      object.material.vertexColors = true;
-      object.material.roughness = 0.95;
-      object.material.metalness = 0;
+      if (highest < 0.15 * scale && highest - lowest < 1e-4) floorHeight = Math.max(floorHeight, highest);
+      if (!recolour) continue;
+      const colour = highest > 0.15 * scale ? wallColour : floorColour;
+      for (let corner = 0; corner < 3; corner += 1) colour.toArray(colours, (i + corner) * 3);
     }
+    if (!recolour) {
+      geometry.dispose();
+      return;
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+    // The recoloured copies replace the originals, which are freed right away.
+    object.geometry.dispose();
+    object.geometry = geometry;
+    const sourceMaterial = object.material;
+    object.material = sourceMaterial.clone();
+    sourceMaterial.dispose();
+    object.material.color.setHex(0xffffff);
+    object.material.vertexColors = true;
+    object.material.roughness = 0.95;
+    object.material.metalness = 0;
   });
   // 3. Fast rays: one bounding-volume hierarchy per map mesh (same hits, far fewer tests).
   if (accelerate) accelerateStaticMeshes(map);

@@ -81,16 +81,28 @@ test('compressed models decode to exactly the original geometry and animation', 
     const original = await loadGlb(source), packed = await loadGlb(`assets/build/${file}`);
     // Meshes by name: three.js adds a loaded scene's children as their data
     // arrives, so the child order is not fixed (shared meshes arrive sooner).
+    // Each mesh is keyed by what it is: its node's name (unique in the file; for
+    // one primitive of a multi-material node, that node's) and its vertices.
+    // Mesh and material names are no key: merging identical meshes or materials
+    // keeps one of their names. (three.js numbers repeated mesh
+    // names, and orders a node's children, by load order, which shared meshes
+    // change, so neither can pair the two files.)
     const listMeshes = (gltf) => {
       const list = [];
-      gltf.scene.traverse(o => { if (o.isMesh) list.push(o); });
-      return list.sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
+      gltf.scene.traverse(o => {
+        if (!o.isMesh) return;
+        const p = o.geometry.attributes.position;
+        o.userData.pairKey = `${o.parent === gltf.scene ? o.name : o.parent.name}`
+          + `|${p.count}|${sha256(Buffer.from(p.array.buffer, p.array.byteOffset, p.array.byteLength))}`;
+        list.push(o);
+      });
+      return list.sort((x, y) => (x.userData.pairKey < y.userData.pairKey ? -1 : x.userData.pairKey > y.userData.pairKey ? 1 : 0));
     };
     const a = listMeshes(original), b = listMeshes(packed);
     assert.equal(b.length, a.length, `${file}: mesh count`);
     a.forEach((meshA, i) => {
       const meshB = b[i];
-      assert.equal(meshB.name, meshA.name, `${file}: mesh ${i} name`);
+      assert.equal(meshB.userData.pairKey, meshA.userData.pairKey, `${file}: mesh ${i} is the same piece`);
       assert.equal(meshB.parent.name, meshA.parent.name, `${file}: ${meshA.name} parent`);
       assert.equal(Boolean(meshB.material.map), Boolean(meshA.material.map), `${file}: ${meshA.name} keeps its texture`);
       for (const [key, attribute] of Object.entries(meshA.geometry.attributes)) {

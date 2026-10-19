@@ -131,13 +131,13 @@ for (const [name, make] of Object.entries(providers)) {
     assert.equal(moved.step, 1);
     assert.ok(Math.hypot(moved.x - 2, moved.z + 5) <= 0.375 + 1e-6, 'one move from the synced spot');
     // 2. A spot inside a wreck is refused and changes nothing.
-    await assert.rejects(provider.sync({ token: frame.token, position: [24, 3], yaw: 0, ...input }), /intersects the junkyard/);
+    await assert.rejects(provider.sync({ token: frame.token, position: [29, 3], yaw: 0, ...input }), /intersects the junkyard/);
     await assert.rejects(provider.sync({ token: frame.token, position: [2, -5], yaw: 'north', ...input }), /Invalid robot heading/);
     const after = await provider.sense({ token: frame.token, ...input });
     assert.deepEqual([after.x, after.z, after.step], [moved.x, moved.z, 1]);
     // 3. Other refusals keep the server's wording.
     await assert.rejects(provider.reset({ ...fixture.reset, width: 0.5 }), /Invalid robot size or heading/);
-    await assert.rejects(provider.reset({ ...fixture.reset, position: [24, 3] }), /Leaper start intersects the junkyard/);
+    await assert.rejects(provider.reset({ ...fixture.reset, position: [29, 3] }), /Leaper start intersects the junkyard/);
     await assert.rejects(provider.request('train', {}), /Unknown brain request/);
     // 4. A closed session is gone; closing it again is harmless.
     assert.deepEqual(await provider.close(frame.token), { closed: true });

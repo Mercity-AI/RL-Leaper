@@ -33,8 +33,9 @@ FORMAT = "leaper-junkyard-sync-fixture-v1"
 
 # --- The scripted runs ---------------------------------------------------------------
 # Each run: a reset, then events. ("step", n) makes n brain moves; ("sync", near,
-# yaw) leaps to the first free spot near `near`; ("refuse", position, yaw) tries a
-# spot inside the junkyard, which must be refused without changing anything.
+# yaw) leaps to the first free spot near `near`; ("refuse", near, yaw) tries the
+# first spot near `near` inside the junkyard's scenery, which must be refused
+# without changing anything.
 def scenarios():
     lola = [(0, 2.0, -11.0, "stand"), (40, 2.0, -11.0, "stand"), (80, 9.0, -9.0, "crouch"),
             (120, 14.0, -10.0, "stand"), (160, 16.0, 6.0, "stand")]
@@ -50,6 +51,21 @@ def scenarios():
              start=(2.0, -2.0), yaw=0.0, lola=lola, events=events[:5],
              description="Default size, old flat sight: moves, a leap, a refused leap, moves."),
     ]
+
+
+def blocked_spot(world, near, yaw):
+    """First Leaper pose on a small spiral around `near` that hits the scenery (deterministic)."""
+    for radius in np.arange(0, 12.01, 0.25):
+        count = max(1, int(round(2 * math.pi * radius / 0.25)))
+        for i in range(count):
+            angle = 2 * math.pi * i / count
+            x = float(np.float32(near[0] + radius * math.sin(angle)))
+            z = float(np.float32(near[1] + radius * math.cos(angle)))
+            try:
+                base.JunkyardEnv(world.geometry, [x, z], yaw, [x, z])
+            except ValueError:
+                return (x, z)
+    raise RuntimeError(f"No scenery near {near} to refuse a leap into")
 
 
 def run(spec, world, model):
@@ -91,7 +107,8 @@ def run(spec, world, model):
                                coverage_new=[int(c) for c in env.coverage_new_cells]))
             obs_after.append(np.array(session.obs, dtype=np.float32))
         else:
-            position, yaw = args
+            near, yaw = args
+            position = blocked_spot(world, near, yaw)
             before = (base.floats(env.position), env.yaw, np.array(session.obs))
             try:
                 session.sync(np.asarray(position, dtype=float), yaw, np.asarray(target, dtype=float),

@@ -61,11 +61,17 @@ try {
   // Find a clear front-facing lane at the real spawn, using physical map rays.
   const base = target.mesh.position.clone();
   let lane = null;
-  for (const distance of [5, 7, 9, 12]) {
-    target.mesh.position.set(world.spawn.x, 0, world.spawn.z + distance * scale);
-    animatePlayer(); combat.tree.reset(); tick(0);
-    if (combat.tree.state === 'charging') { lane = target.mesh.position.clone(); break; }
+  // Straight ahead first, then a little to either side (within the eye's turn):
+  // junkyard_v2 has scenery straight in front of the spawn at some distances.
+  search: for (const angle of [0, 0.35, -0.35, 0.7, -0.7]) {
+    for (const distance of [5, 7, 9, 12]) {
+      target.mesh.position.set(world.spawn.x + Math.sin(angle) * distance * scale, 0, world.spawn.z + Math.cos(angle) * distance * scale);
+      animatePlayer(); combat.tree.reset(); tick(0);
+      if (combat.tree.state === 'charging') { lane = target.mesh.position.clone(); break search; }
+    }
   }
+  // Lola facing the Leaper from the lane.
+  const laneFacing = lane ? Math.atan2(world.spawn.x - lane.x, world.spawn.z - lane.z) : Math.PI;
   check(Boolean(lane), 'real junkyard has a visible, aligned firing lane');
   frames(25);
   check(combat.tree.locked, 'aim locks after tracking during the warning');
@@ -231,9 +237,11 @@ try {
   const leaperTarget = [...p.playerWeapon.targets.targets][0];
   check(leaperTarget?.hitboxes.volumes.length === 45, 'the Leaper is shot through 45 hit volumes (body, 6 hip fins, eye, core, 6 per leg), not its meshes');
   target.mesh.position.copy(lane);
-  target.mesh.rotation.y = Math.PI;
+  target.mesh.rotation.y = laneFacing;
   const center = rig.robot.getWorldPosition(new THREE.Vector3());
-  engine.camera.position.copy(target.mesh.position).add(new THREE.Vector3(0, 1.5 * scale, 2 * scale));
+  // The camera just behind Lola, on the far side of her from the Leaper.
+  engine.camera.position.copy(target.mesh.position)
+    .add(new THREE.Vector3(-Math.sin(laneFacing) * 2 * scale, 1.5 * scale, -Math.cos(laneFacing) * 2 * scale));
   // Aim at the upper shell: dead centre from the front is the eye's weak-point core.
   rig.robot.updateMatrixWorld(true);
   const bodyPoint = rig.robot.localToWorld(new THREE.Vector3(0, 0.3, 0.1));
@@ -612,7 +620,7 @@ try {
   // ---- OBSTRUCTED: cover between the barrel and the crosshair's point ----
   // A low fence under the chase camera's sight line but in front of the gun: the
   // crosshair is on the Leaper, the bullet would hit the fence, and the reticle says so.
-  target.mesh.position.copy(lane); target.mesh.rotation.y = Math.PI; animatePlayer(0.2);
+  target.mesh.position.copy(lane); target.mesh.rotation.y = laneFacing; animatePlayer(0.2);
   cameraController.yaw = 0; cameraController.pitch = 0.16;
   cameraController.update(p.simulation.state, rig.eyePivot, 1);
   frame(1 / 60);

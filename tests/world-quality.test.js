@@ -123,7 +123,7 @@ test('warm-up uploads each texture once, compiles every shader and can draw one 
   assert.deepEqual(result, { textures: 2, programs: 3 });
 });
 
-test('the shadow budget: low quality drops the small loose tires, never the floor and walls', async () => {
+test('the shadow budget: lower quality drops more small props, never the floor and walls', async () => {
   const counts = {};
   for (const name of ['low', 'medium', 'high']) {
     const map = (await loadGlb(MAP)).scene;
@@ -131,12 +131,19 @@ test('the shadow budget: low quality drops the small loose tires, never the floo
     limitShadowCasters(map, QUALITY_PRESETS[name].shadowMinSize, { keep: [floor] });
     const off = [];
     map.traverse((object) => { if (object.isMesh && !object.castShadow) off.push(object.name); });
-    assert.ok(floor.castShadow, `${name}: the floor and perimeter walls cast`);
+    // (The Cube is one mesh, or a group of meshes when it has its own wall and ground materials.)
+    const floorParts = [];
+    floor.traverse((object) => { if (object.isMesh) floorParts.push(object); });
+    assert.ok(floorParts.length && floorParts.every((part) => part.castShadow), `${name}: the floor and perimeter walls cast`);
     counts[name] = off;
   }
-  assert.deepEqual(counts.high, [], 'high: every prop casts');
-  assert.ok(counts.low.length >= 6 && counts.low.every((name) => /tire/i.test(name)), `low: ${counts.low.join(', ')}`);
-  assert.ok(counts.medium.length <= counts.low.length);
+  // Only small parts go (each quality's shadowMinSize), more of them the lower the
+  // quality. junkyard_v2 has tiny details (cabinet handles, insulators) that even
+  // high drops; the first junkyard's smallest props were its loose tires.
+  assert.ok(counts.high.length <= counts.medium.length && counts.medium.length < counts.low.length,
+    `high ${counts.high.length} <= medium ${counts.medium.length} < low ${counts.low.length}`);
+  assert.ok(counts.high.length <= 10, `high keeps nearly every shadow: ${counts.high.join(', ')}`);
+  assert.ok(counts.low.some((name) => /tire/i.test(name)), `low drops the small loose tires: ${counts.low.join(', ')}`);
 });
 
 test('the Leaper\'s smallest parts skip the shadow on lower quality; its body never does', () => {

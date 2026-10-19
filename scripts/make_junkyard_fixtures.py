@@ -364,6 +364,22 @@ def severed_left_legs(i):
     return [] if i < 80 else [0, 2, 4]
 
 
+# The close-contact scenes are staged in one open patch of the yard. They were
+# written for the first junkyard around (2, 18); junkyard_v2 has scenery there,
+# so the whole scene (Leaper and Lola alike) is moved by this offset.
+CONTACT_SHIFT = (14.0, -14.0)
+
+
+def shifted(spec, offset=CONTACT_SHIFT):
+    """The same scene, moved: its start, Lola's path and any probes."""
+    dx, dz = offset
+    move = lambda keys: [(t, x + dx, z + dz, pose) for t, x, z, pose in keys]
+    spec = dict(spec, start=(spec["start"][0] + dx, spec["start"][1] + dz), lola=move(spec["lola"]))
+    if "probe" in spec:
+        spec["probe"] = move(spec["probe"])
+    return spec
+
+
 def scenarios():
     """Each run states the width, sight mode and what it is there to exercise."""
     return [
@@ -394,24 +410,26 @@ def scenarios():
              description="Small Leaper (big map, 45x45 search grid): long search, then a sighting.",
              lola=[(0, 30.0, 30.0, "stand"), (150, 30.0, 30.0, "stand"), (220, 12.0, 8.0, "stand"),
                    (300, -20.0, 6.0, "stand")]),
-        dict(name="eye-5.5-contact", width=5.5, sight_mode="eye", player_collision=True,
+        shifted(dict(name="eye-5.5-contact", width=5.5, sight_mode="eye", player_collision=True,
              start=(2.0, 18.0), yaw=math.pi / 2, steps=220,
              description="Lola stands in the open close by; the brain walks into her and the "
                          "player-contact discs block it, then she sidesteps.",
              lola=[(0, 9.5, 19.0, "stand"), (120, 9.5, 19.0, "stand"), (160, 10.5, 23.0, "crouch"),
-                   (220, 10.5, 23.0, "stand")]),
+                   (220, 10.5, 23.0, "stand")])),
+        # (16, 18) facing +z in junkyard_v2: a wall run that also catches a pole
+        # between the legs, so the inner leg samples (leg-1) collide too.
         dict(name="scripted-collide-reverse-5.5", width=5.5, sight_mode="eye", player_collision=False,
-             start=(2.0, 0.0), yaw=0.0, steps=220, actions=scripted_drive,
+             start=(16.0, 18.0), yaw=0.0, steps=220, actions=scripted_drive,
              description="Physics only (scripted actions, no policy): ram a wall, keep pushing "
                          "while turning, signed reverse, turn on the spot, clipped inputs.",
              lola=[(0, -10.0, -25.0, "stand")]),
-        dict(name="scripted-player-contact-5.5", width=5.5, sight_mode="legacy", player_collision=True,
+        shifted(dict(name="scripted-player-contact-5.5", width=5.5, sight_mode="legacy", player_collision=True,
              start=(2.0, 18.0), yaw=math.pi / 2, steps=150, actions=scripted_contact,
              description="Physics only: Lola just ahead of the front feet. Forward is blocked "
                          "by 'player' contact, reversing away is allowed, Lola then walks in.",
              lola=[(0, 6.6, 18.0, "stand"), (100, 6.6, 18.0, "stand"), (130, 5.0, 18.6, "stand"),
-                   (150, 5.0, 18.6, "stand")]),
-        dict(name="scripted-severed-legs-5.5", width=5.5, sight_mode="legacy", player_collision=True,
+                   (150, 5.0, 18.6, "stand")])),
+        shifted(dict(name="scripted-severed-legs-5.5", width=5.5, sight_mode="legacy", player_collision=True,
              start=(2.0, 18.0), yaw=math.pi / 2, steps=240, actions=scripted_sweep,
              disabled_legs=severed_left_legs,
              description="Contact rules v4, physics only: the Leaper sweeps its legs past Lola on its "
@@ -419,7 +437,7 @@ def scenarios():
                          "severed (step 80) only their stumps remain and the sweep passes. Then Lola "
                          "stands on the right, where the intact legs still bump into her.",
              lola=[(0, 2.0, 22.4, "stand"), (160, 2.0, 22.4, "stand"), (161, 2.0, 13.6, "stand"),
-                   (240, 2.0, 13.6, "stand")]),
+                   (240, 2.0, 13.6, "stand")])),
     ]
 
 
