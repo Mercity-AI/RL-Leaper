@@ -61,7 +61,10 @@ in eye mode, `null` in legacy mode); reset frames add `token` and
 
 - `tests/brain-raster.test.js`: the JavaScript raster is bit-identical to the
   Python one at widths 2.9, 5.5 and 7.98, and to the baked file; the GLB
-  triangles are bit-identical to `load_triangles`.
+  triangles are bit-identical to `load_triangles`; and 1,200 eye lines recorded
+  from Python's `JunkyardSight.hit` (`sight-lines-5.5.json`, half of them aimed
+  exactly at triangle edges and corners) give the same hit / no-hit and the
+  same hit point to the last bit.
 - `tests/brain-parity.test.js`: 1,970 recorded steps (7 runs: three widths, eye
   and legacy sight, hidden/seen/memory, every collision part, reverse, player
   contact, 26 paused previews). Teacher-forced, the 34 inputs and the next pose
@@ -70,6 +73,8 @@ in eye mode, `null` in legacy mode); reset frames add `token` and
 - `tests/brain-onnx.test.js`: the ONNX file gives the checkpoint's action within
   1e-6 and LSTM memory within 2e-6 on all 1,600 recorded policy steps.
 - `tests/brain-provider.test.js`: the provider and worker code end to end in Node.
+- `tests/brain-pymath.test.js`: the Python-arithmetic helpers against values
+  printed by CPython (signed zeros, negatives, tiny and huge numbers).
 - `tests/brain-onnx.html`: the real worker in a browser (headless Chromium):
   300 steps against the recording, plus the exact teacher-forced replay.
 
@@ -105,6 +110,22 @@ The Python server needs ~30 s to build each raster and ~65 ms per step.
   2-vector, `edge @ edge` in the raster build) and for the GLB node transform.
   `pyMath.fma` reproduces that; the raster and GLB tests would catch a machine
   whose NumPy does otherwise.
-- NumPy's `arctan2` and V8's `Math.atan2`/`Math.sin` can differ in the last bit.
-  That can only matter for a point exactly on the 270° view edge; it never
-  happened in the recordings.
+- The eye-line test sums in NumPy's order too: `np.einsum('ij,ij->i')` adds
+  lanes 0 and 2 before lane 1, and `q @ direction` is an OpenBLAS gemv
+  (`fma(q2, d2, fma(q0, d0, q1 * d1))`). Plain left-to-right sums moved 14% of
+  hit points in the last bits.
+- Sine, cosine and arctangent are the one thing JavaScript cannot copy
+  exactly. Measured here (200,000 angles): V8's `Math.sin` / `Math.cos` differ
+  from CPython / NumPy's by one last bit for about 3% of angles, `Math.atan2`
+  for about 16%, and NumPy's float32 `arctan2` (AVX-512 SVML on Linux) is up to
+  3 float32 steps (2.4e-7 rad) from the browser's value. These only reach the
+  network through a yes/no test sitting exactly on an edge: a ray sample on a
+  raster cell border, an eye line through a triangle edge, or Lola within
+  ~2e-7 rad of the 270° view edge. Elsewhere the float32 rounding of headings
+  and inputs removes them. You can see them as last-bit differences in the
+  debug `sight.origin` and hit points of under 1% of eye frames.
+- The Python server is not bit-reproducible across machines either: another
+  CPU, Windows' maths library, NumPy without SVML or a different OpenBLAS kernel
+  shifts the same last bits. "Matches the server" therefore means the same rules
+  and the same float32 / float64 rounding, with these functions equal to the
+  last bit or one step off.
