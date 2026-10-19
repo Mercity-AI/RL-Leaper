@@ -221,6 +221,8 @@ export async function teacherForced(fixture, world, config) {
     session.env.sightPose = previousPose;
     session.obs = previousObs;
     policy.index = k;
+    // Contact v4: the severed legs this request carried (the server sets them first).
+    session.env.disabledLegs = new Set(step.input.disabled_legs ?? []);
     const frame = await session.step(step.input.target, step.input.sight_pose);
     addStep(report, k, session, frame, step, arrays, policy.seen);
     if (policy.episodeStart !== step.episode_start) {
@@ -260,6 +262,8 @@ export async function freeRun(fixture, world, config, policy = null, tolerance =
   let ran = 0, inLockstep = true;
   for (let k = 0; k < fixture.steps.length; k += 1) {
     const step = fixture.steps[k];
+    // Contact v4: the severed legs this request carried (the server sets them first).
+    session.env.disabledLegs = new Set(step.input.disabled_legs ?? []);
     const frame = await session.step(step.input.target, step.input.sight_pose);
     ran += 1;
     const result = addStep(report, k, session, frame, step, arrays, seen.obs, tolerance, !inLockstep);

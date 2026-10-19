@@ -15,6 +15,10 @@ Endpoints (all JSON):
                 then computed by the unchanged observation code from there.
                 Refused (400) when the body or a leg disc overlaps the junkyard.
 - POST /close   forget a session (the page sends this when it closes).
+
+/reset, /step, /sense and /sync may also carry `disabled_legs` (contact rules
+v4): the indices of the Leaper's severed legs, which then stop blocking Lola.
+It changes only the junkyard's Lola-contact rule, never the trained map collision.
 """
 import argparse
 import hashlib
@@ -143,9 +147,10 @@ def _inference_mode():
 
 # --- One Leaper's brain session ---------------------------------------------
 class BrainSession:
-    def __init__(self, model, geometry, position, yaw, target, player_collision=False, sight=None, sight_pose=None):
+    def __init__(self, model, geometry, position, yaw, target, player_collision=False, sight=None, sight_pose=None,
+                 disabled_legs=()):
         self.model = model
-        self.env = JunkyardEnv(geometry, position, yaw, target, player_collision, sight, sight_pose)
+        self.env = JunkyardEnv(geometry, position, yaw, target, player_collision, sight, sight_pose, disabled_legs)
         self.obs = self.env.initial_observation()
         self.memory = None
         self.action = np.zeros(2, dtype=np.float32)
@@ -278,6 +283,22 @@ def parse_sight_pose(data):
     return dict(eye=eye.tolist(), points=points.tolist())
 
 
+def parse_disabled_legs(data):
+    """Contact v4: the Leaper's severed legs, as leg indices (legAngles order).
+
+    Optional (missing = every leg intact, the v3 behaviour). Only Lola's
+    contact uses it; the brain's map collision never changes.
+    """
+    legs = data.get("disabled_legs")
+    if legs is None:
+        return frozenset()
+    count = len(PLAYER_CONTACT["leaperShape"]["legAngles"])
+    if (not isinstance(legs, list) or len(legs) > count
+            or any(isinstance(leg, bool) or not isinstance(leg, int) or not 0 <= leg < count for leg in legs)):
+        raise ValueError("Invalid disabled legs")
+    return frozenset(legs)
+
+
 def loopback_origin(origin):
     """True for pages served from this computer (any port), or no Origin at all (scripts)."""
     return origin is None or LOOPBACK_ORIGIN.fullmatch(origin) is not None
@@ -329,10 +350,11 @@ class BrainService:
             raise ValueError('Unknown sight mode')
         position, target = parse_vector(data["position"]), parse_vector(data["target"])
         pose = parse_sight_pose(data) if mode == 'eye' else None
+        legs = parse_disabled_legs(data)
         geometry, sight = self.worlds.get(width)
         session = BrainSession(self.model, geometry, position, yaw, target,
             player_collision=data.get("player_collision") is True,
-            sight=sight if mode == 'eye' else None, sight_pose=pose)
+            sight=sight if mode == 'eye' else None, sight_pose=pose, disabled_legs=legs)
         result = session.snapshot()
         # Register the session; a full table drops the least recently used tab.
         token = uuid.uuid4().hex
@@ -354,8 +376,11 @@ class BrainService:
     def step(self, data, preview=False):
         session = self.session(data.get('token'))
         target = parse_vector(data['target'])
+        legs = parse_disabled_legs(data)
         with session.lock:
             pose = parse_sight_pose(data) if session.env.sight else None
+            # Contact v4: which legs are severed right now (Lola's contact only).
+            session.env.disabled_legs = legs
             if not preview:
                 return session.step(target, pose)
             # Preview while paused: no policy, movement, or memory update.
@@ -370,8 +395,10 @@ class BrainService:
         yaw = data.get('yaw')
         if isinstance(yaw, bool) or not isinstance(yaw, (int, float)) or not math.isfinite(yaw):
             raise ValueError("Invalid robot heading")
+        legs = parse_disabled_legs(data)
         with session.lock:
             pose = parse_sight_pose(data) if session.env.sight else None
+            session.env.disabled_legs = legs
             return session.sync(position, yaw, target, pose)
 
     def close(self, data):

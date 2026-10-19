@@ -1,4 +1,4 @@
-import { contact } from '../world/playerContact.js';
+import { contact, severedLegs } from '../world/playerContact.js';
 import { lerpAngle, wrapAngle } from '../core/angles.js';
 import { FixedStep } from '../core/GameLoop.js';
 import { ENCOUNTER } from '../config/encounter.js';
@@ -113,6 +113,12 @@ export class JunkyardBrain {
     // The last pose the brain itself reported (a pose sync shows the new spot early).
     this.brainFrame = null;
     this.label = 'BRAIN CONNECTING';
+    // Who animates the rig from the brain's poses: this class (lab tools and
+    // tests), or the Leaper's behaviour layer (src/actors/leaper/LeaperActor.js
+    // sets this to false and plays the poses back itself). heldBy: why that
+    // layer has paused the brain during a hunt (shown on the badge), or null.
+    this.drivesAnimator = true;
+    this.heldBy = null;
     // 3. Game logic moving the Leaper between moves, and the soft episode restart.
     this.pendingSync = null;
     this.softRestart = softRestart;
@@ -130,7 +136,15 @@ export class JunkyardBrain {
   contactPoses() {
     const state = this.simulation.state;
     const from = this.previousFrame || { x: state.position.x, z: state.position.z, yaw: state.yaw };
-    return { from, to: this.frame || from, margin: this.pendingMovement ? contact.pendingStepMargin : 0 };
+    return { from, to: this.frame || from, margin: this.pendingMovement ? contact.pendingStepMargin : 0,
+      disabledLegs: severedLegs(this.simulation.rig) };
+  }
+
+  // Contact rules v4: every request says which legs are shot off, so the brain
+  // stops treating Lola as blocked by a leg that is no longer there. Only the
+  // Lola-contact rule reads it; what the brain observes never changes.
+  contactPayload() {
+    return { disabled_legs: severedLegs(this.simulation.rig) };
   }
 
   // Every brain request goes through here (tests replace it with a stand-in).
@@ -152,7 +166,7 @@ export class JunkyardBrain {
     return {
       width: this.playtest.world.width, position: [pose.x, pose.z],
       yaw: pose.yaw, target: [this.target.mesh.position.x, this.target.mesh.position.z],
-      player_collision: Boolean(this.target.isPlayer),
+      player_collision: Boolean(this.target.isPlayer), ...this.contactPayload(),
       ...(this.playtest.sight ? { sight_mode: this.playtest.sight.mode, sight_pose: this.playtest.sight.pose() } : {}),
     };
   }
@@ -354,7 +368,7 @@ export class JunkyardBrain {
     try {
       frame = await this.request('sync', {
         token: this.token, position: [pose.x, pose.z], yaw: pose.yaw,
-        target: [this.target.mesh.position.x, this.target.mesh.position.z],
+        target: [this.target.mesh.position.x, this.target.mesh.position.z], ...this.contactPayload(),
         ...(this.playtest.sight ? { sight_pose: this.playtest.sight.pose() } : {}),
       });
     } catch (error) {
@@ -473,7 +487,7 @@ export class JunkyardBrain {
       this.pendingMovement = !preview;
       const generation = this.generation;
       this.request(preview ? 'sense' : 'step', { token: this.token,
-        target: [this.target.mesh.position.x, this.target.mesh.position.z],
+        target: [this.target.mesh.position.x, this.target.mesh.position.z], ...this.contactPayload(),
         ...(this.playtest.sight ? { sight_pose: this.playtest.sight.pose() } : {}),
       }).then((frame) => {
         if (generation !== this.generation) return;
@@ -510,7 +524,9 @@ export class JunkyardBrain {
         }
       });
     }
-    if (encounterOver) {
+    if (!this.drivesAnimator) {
+      // 3. The behaviour layer animates the Leaper (smooth playback, holds, leaps, the collapse).
+    } else if (encounterOver) {
       // 3a. The fight is over: no more moves, but the Leaper's feet finish landing.
       //     A Leaper that won (still has health) keeps idling; a destroyed one goes still.
       sim.settle?.(dt, { alive: (this.playtest.combat?.leaperHealth ?? 0) > 0 });
@@ -546,7 +562,7 @@ export class JunkyardBrain {
     const loading = !this.ready && this.progress ? describeProgress(this.progress) : this.label;
     // While the brain isn't asked for moves, say why: the fight is over, the game
     // is paused (Escape), or the run is simply stopped (Ready or START PLAYER).
-    const idle = this.playtest.paused ? 'PAUSED' : 'STOPPED';
+    const idle = this.playtest.paused ? 'PAUSED' : this.heldBy ? `HELD · ${this.heldBy}` : 'STOPPED';
     const mode = !this.ready ? loading : over ? 'ENCOUNTER OVER' : !this.running ? idle
       : this.failedSteps ? 'BRAIN SLOW · RETRYING'
       : this.frame.target_visible ? 'TARGET VISIBLE'

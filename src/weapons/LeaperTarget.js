@@ -28,12 +28,13 @@ export function createLeaperTarget({ rig, combat, layout }) {
     },
 
     // A bullet landed: joints count the hit, then the zone's multiplier scales the damage.
+    // Where it struck (point, normal) lets the hull spark there; a core hit can stagger it.
     applyHit(hit, { damage, direction }) {
       const { volume } = hit;
       const brokeJoint = volume.joint ? combat.legs.hit(volume.object, direction) : false;
       const weakPoint = volume.zone === 'core';
       const before = combat.leaperHealth;
-      combat.damageLeaper(damage * volume.multiplier, false, brokeJoint);
+      combat.damageLeaper(damage * volume.multiplier, false, brokeJoint, { weakPoint, point: hit.point, normal: hit.normal });
       return { zone: volume.zone, weakPoint, brokeJoint, killed: before > 0 && combat.leaperHealth <= 0 };
     },
   };

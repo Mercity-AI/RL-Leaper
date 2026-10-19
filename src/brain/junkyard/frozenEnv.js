@@ -44,14 +44,19 @@ const TINY_32 = f32(1e-9);
 
 export class FrozenJunkyardEnv {
   // raster: JunkyardRaster; sight: JunkyardSight or null (legacy flat sight);
-  // contact: player-contact.json; position/target [x, z]; sightPose {eye, points}.
-  constructor({ raster, sight = null, contact, position, yaw, target, playerCollision = false, sightPose = null }) {
+  // contact: player-contact.json; position/target [x, z]; sightPose {eye, points};
+  // disabledLegs: severed leg indices (contact v4, Lola's contact only).
+  constructor({ raster, sight = null, contact, position, yaw, target, playerCollision = false, sightPose = null,
+    disabledLegs = [] }) {
     this.raster = raster;
     this.sight = sight;
     this.contact = contact;
     this.sightPose = sightPose;
     this.sightDebug = null;
     this.playerCollision = false;
+    // Contact rules v4: the Leaper's severed legs (legAngles indices). Only
+    // Lola's contact reads them; the 19 map-collision discs never change.
+    this.disabledLegs = new Set(disabledLegs);
     // JunkyardEnv: keep robot units; the map size sets the "world limit".
     this.worldLimit = Math.max(Math.abs(raster.minX), Math.abs(raster.minZ), Math.abs(raster.maxX), Math.abs(raster.maxZ));
     this.maxDistance = 2.0 * Math.sqrt(2.0) * this.worldLimit;
@@ -117,14 +122,18 @@ export class FrozenJunkyardEnv {
   }
 
   // Gap between Lola and the nearest Leaper disc (player-contact.json shape).
+  // Contact v4 (rl/junkyard_env.py _player_clearance): a leg listed in
+  // disabledLegs (severed) keeps only its first severedLegPoints disc(s).
   playerClearance(cx, cz, yaw) {
     const shape = this.contact.leaperShape;
     const playerRadius = this.contact.playerRadius * this.raster.scale;
+    const stump = shape.legPoints.slice(0, shape.severedLegPoints ?? shape.legPoints.length);
     const [tx, tz] = this.target;
     let best = norm64(tx - cx, tz - cz) - shape.bodyRadius - playerRadius;
-    for (const angle of shape.legAngles) {
+    for (let index = 0; index < shape.legAngles.length; index += 1) {
+      const angle = shape.legAngles[index];
       const dx = Math.sin(yaw + angle), dz = Math.cos(yaw + angle);
-      for (const [distance, radius] of shape.legPoints) {
+      for (const [distance, radius] of this.disabledLegs.has(index) ? stump : shape.legPoints) {
         const gap = norm64(tx - (cx + dx * distance), tz - (cz + dz * distance)) - radius - playerRadius;
         if (gap < best) best = gap;
       }

@@ -473,7 +473,7 @@
     {
       "id": "leaperLaunch",
       "label": "leap take-off",
-      "use": "The Leaper takes off for a leap (not called yet: a slot ready for the leap's launch phase).",
+      "use": "The Leaper takes off for a leap.",
       "bus": "creature",
       "gain": 0.55,
       "priority": 7,
@@ -620,7 +620,7 @@
     {
       "id": "leaperBoltImpact",
       "label": "bolt hitting cover",
-      "use": "A Leaper laser bolt hits cover (a slot ready for the bolt code: playSlot('leaperBoltImpact', { at })).",
+      "use": "A Leaper laser bolt hits cover, at the spot it struck.",
       "bus": "sfx",
       "gain": 0.37,
       "priority": 4,

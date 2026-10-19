@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HangingLeg } from './HangingLeg.js';
+import { COMBAT } from '../config/combat.js';
 
 const PARTS = ['coxa', 'femur', 'tibia', 'calf', 'knee', 'calfJoint'];
 const BELOW = { upper: ['knee', 'tibia', 'calfJoint', 'calf'], lower: ['calfJoint', 'calf'],
@@ -27,9 +28,12 @@ function contactBounds(object) {
 }
 
 // Joint damage is counted per direct bullet, independently of body health.
+// rules: COMBAT.legs (how much each lost leg slows the Leaper).
+// onBroken({ leg, joint, position, lost }): a joint just snapped (the Leaper's
+// behaviour reacts with a stagger or a fall, the presentation with a burst).
 export class LeaperLegDamage {
-  constructor(scene, rig, geometry, random = Math.random) {
-    Object.assign(this, { scene, rig, geometry, random });
+  constructor(scene, rig, geometry, random = Math.random, rules = COMBAT.legs) {
+    Object.assign(this, { scene, rig, geometry, random, rules });
     this.debris = [];
     for (const leg of rig.legs) {
       for (const [joint, key] of Object.entries(ROOT)) {
@@ -64,6 +68,10 @@ export class LeaperLegDamage {
   }
 
   hit(object, direction = new THREE.Vector3()) {
+    // Today's gun reports every bullet here before it does the damage: a bullet
+    // on the eye's core is remembered for that damage (a weak-point crit, see
+    // takeWeakPointHit). It is not a joint.
+    if (object.userData.weakPoint) this.weakPointHit = true;
     const tag = object.userData.leaperJoint;
     if (!tag) return false;
     const leg = this.rig.legs[tag.index];
@@ -73,6 +81,14 @@ export class LeaperLegDamage {
     if (joint.hits < joint.threshold) return false;
     this.detach(leg, tag.joint, direction);
     return true;
+  }
+
+  // Was the bullet just reported a hit on the eye's weak point? Asked once per
+  // damage (LeaperCombat.damageLeaper), then forgotten.
+  takeWeakPointHit() {
+    const hit = Boolean(this.weakPointHit);
+    this.weakPointHit = false;
+    return hit;
   }
 
   detach(leg, joint, direction) {
@@ -88,7 +104,16 @@ export class LeaperLegDamage {
       copy.position.sub(pivot);
       copy.traverse(o => {
         o.userData = {};
-        if (o.isMesh) o.material = o.material.clone();
+        if (o.isMesh) {
+          // A piece cut off during a hit flash keeps the hull's resting glow, not the
+          // flash. The resting glow is read from the shared hull material before it
+          // is cloned: a clone's userData is a JSON copy (the colour becomes a plain
+          // number, 0 for the black hull), so it cannot be read back from the copy.
+          const resting = o.material.userData?.hitFlashBase;
+          o.material = o.material.clone();
+          delete o.material.userData.hitFlashBase;
+          if (resting?.isColor) o.material.emissive.copy(resting);
+        }
       });
       group.add(copy);
       original.visible = false;
@@ -114,12 +139,14 @@ export class LeaperLegDamage {
     }
     leg.disabled = true;
     leg.hanging = new HangingLeg(this.rig, leg);
-    for (const other of this.rig.legs) {
-      if (other.stepping) other.footPosition.y = other.stepTo.y;
-      other.stepping = false;
-    }
-    this.rig.damagedLegCount = this.rig.legs.filter(l => l.disabled).length;
-    this.rig.mobility = Math.max(0.25, 1 - this.rig.damagedLegCount * 0.18);
+    // The other legs carry on: a foot in mid-step finishes its step instead of
+    // snapping to the floor (review fix 5.19). Only the broken leg stops stepping.
+    leg.stepping = false;
+    // Fewer legs, slower brain steps (the limp), down to the configured floor.
+    const lost = this.rig.legs.filter(l => l.disabled).length;
+    this.rig.damagedLegCount = lost;
+    this.rig.mobility = Math.max(this.rules.minMobility, 1 - lost * this.rules.mobilityPerLeg);
+    this.onBroken?.({ leg, joint, position: pivot.clone(), lost });
   }
 
   update(dt) {
