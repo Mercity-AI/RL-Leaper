@@ -2,6 +2,7 @@ import { createJunkyardWorld } from '../world/createJunkyardWorld.js';
 import { attachWorldCollision } from '../world/WorldCollision.js';
 import { LolaPlayer } from '../robot/LolaPlayer.js';
 import { Assets, loadLolaFiles } from '../core/Assets.js';
+import { limitShadowCasters, warmUp } from '../core/Quality.js';
 import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
 import { enableMovableHud } from '../controls/MovableHud.js';
 import { EventBus } from '../core/events.js';
@@ -39,7 +40,7 @@ export async function start({ engine, params }) {
   //    needs the map's scale), then the map gets its collision service.
   const tag = (label, promise) => promise.catch((error) => { throw new Error(`${label}: ${error.message}`); });
   const [world, lola] = await loadStep('LOADING JUNKYARD…', 'LOAD FAILED', () => Promise.all([
-    tag('map', createJunkyardWorld(engine.scene, { assets })),
+    tag('map', createJunkyardWorld(engine.scene, { assets, quality: engine.quality })),
     tag('Lola', loadLolaFiles(assets)),
   ])).catch((error) => { assets.fail(`LOAD FAILED: ${error.message} — reload to retry`); throw error; });
   attachWorldCollision(world);
@@ -49,6 +50,10 @@ export async function start({ engine, params }) {
   const { rig, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
   cameraController.followSubject = target;
   cameraController.pitch = 0.16;
+  // The Leaper's smallest parts skip the sun's shadow on lower quality.
+  for (const root of [rig.robot, ...rig.legs.flatMap((leg) => [leg.coxa, leg.femur, leg.tibia, leg.calf, leg.knee, leg.calfJoint])]) {
+    limitShadowCasters(root, engine.quality.leaperShadowMinSize);
+  }
   // 5. The playtest wires brain, combat, weapons and the junkyard panel together,
   //    then resets the encounter (Loading -> Ready).
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal });
@@ -56,8 +61,11 @@ export async function start({ engine, params }) {
     enableMovableHud();
     movableHudEnabled = true;
   }
-  // The game is ready: the loading bar fills and fades (sounds may still be
-  // arriving; they are small and play as soon as they are in).
+  // The game is ready: upload every texture, compile every shader and draw one
+  // frame now (so the first shot, jump or gun swap doesn't stall), then the
+  // loading bar fills and fades (sounds may still be arriving; they play as
+  // soon as they are in).
+  warmUp(engine.renderer, engine.scene, engine.camera, { render: engine.render });
   assets.done();
 
   // 6. The frame phases. After dispose() they do nothing, so a loop that is still

@@ -17,6 +17,6 @@ const mode = await MODES[pickMode(params)].start({ engine, params });
 // 3. Run the mode's phases every frame, then draw.
 const loop = new GameLoop({
   mode,
-  render: () => engine.renderer.render(engine.scene, engine.camera),
+  render: () => engine.render(),
 });
 loop.start();

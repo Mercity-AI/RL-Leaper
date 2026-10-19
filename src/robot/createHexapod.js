@@ -46,6 +46,8 @@ function createLegMeshes(scene, materials) {
   femur.add(femurGlow);
   const spike = diamondSegment(0.004, 0.052, 0.24, materials.plate);
   spike.position.y = FEMUR_LENGTH * 0.99;
+  // A needle this thin leaves no visible shadow; skipping it saves a shadow draw.
+  spike.castShadow = false;
   femur.add(spike);
 
   const tibia = new THREE.Group();
@@ -143,12 +145,13 @@ function createBody(materials) {
   eyeLight.position.set(0, 0.06, 0.95);
   robot.add(eyeLight);
 
-  return { robot, eyePivot, eyeLight };
+  // Parts that cast no shadow (see the shadow budget in createHexapod).
+  return { robot, eyePivot, eyeLight, shadowless: [band, eyeRing, lens, weakPoint] };
 }
 
 export function createHexapod(scene) {
   const materials = createMaterials();
-  const { robot, eyePivot, eyeLight } = createBody(materials);
+  const { robot, eyePivot, eyeLight, shadowless } = createBody(materials);
   scene.add(robot);
 
   const legDefinitions = [
@@ -203,6 +206,10 @@ export function createHexapod(scene) {
   robot.traverse((object) => {
     if (object.isMesh) object.castShadow = true;
   });
+  // Parts that sit inside a bigger part's shadow (the band round the body, the
+  // lens and lights inside the eye socket) add nothing to the shadow on the
+  // ground but cost a shadow draw each.
+  for (const part of shadowless) part.castShadow = false;
 
   return { robot, eyePivot, eyeLight, legs, materials };
 }
