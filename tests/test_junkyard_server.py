@@ -10,6 +10,7 @@ import contextlib
 import http.client
 import io
 import json
+import math
 import socket
 import sys
 import tempfile
@@ -233,6 +234,49 @@ class BrainServerTests(unittest.TestCase):
         self.assertEqual((status, reply["error"]), (400, SESSION_EXPIRED))
         status, reply, _ = self.harness.post("/close", dict(token=token))
         self.assertEqual(reply, {"closed": False})
+
+    def test_sync_moves_the_leaper_between_moves(self):
+        # Game logic (a leap) puts the Leaper somewhere else between two brain moves.
+        token = self.start_session()
+        pose = reset_body()["sight_pose"]
+        status, frame, _ = self.harness.post("/sync", dict(token=token, position=[-3, 1], yaw=0.3,
+                                                           target=[0, 6], sight_pose=pose))
+        self.assertEqual(status, 200, frame)
+        self.assertEqual((frame["x"], frame["z"], frame["step"]), (-3.0, 1.0, 0))
+        self.assertAlmostEqual(frame["yaw"], 0.3)
+        self.assertEqual(self.harness.model.calls, 0, "a pose sync never runs the policy")
+        self.assertTrue(frame["target_visible"], "the sync looks from the new spot")
+        # The next move starts from the synced pose (the fake brain: throttle 0.5, turn 0.2).
+        status, frame, _ = self.harness.post("/step", dict(token=token, target=[0, 6], sight_pose=pose))
+        self.assertEqual((status, frame["step"]), (200, 1))
+        heading = 0.3 + 0.2 * math.radians(9)
+        self.assertAlmostEqual(frame["x"], -3 + math.sin(heading) * 0.5 * 0.375, places=5)
+        self.assertAlmostEqual(frame["z"], 1 + math.cos(heading) * 0.5 * 0.375, places=5)
+        # Headings are wrapped like the brain's own, to [-pi, pi).
+        status, frame, _ = self.harness.post("/sync", dict(token=token, position=[-3, 1], yaw=7.0,
+                                                           target=[0, 6], sight_pose=pose))
+        self.assertEqual(status, 200, frame)
+        self.assertAlmostEqual(frame["yaw"], 7.0 - 2 * math.pi)
+        self.assertEqual(frame["step"], 1, "a pose sync is not a brain move")
+
+    def test_sync_refuses_poses_inside_the_yard_and_bad_requests(self):
+        token = self.start_session()
+        pose = reset_body()["sight_pose"]
+        body = dict(token=token, position=[-3, 1], yaw=0.3, target=[0, 6], sight_pose=pose)
+        # Inside the crate (5..7 map units, scaled by 7.98 / 4): the frozen physics could never leave it.
+        status, reply, _ = self.harness.post("/sync", body | dict(position=[12, 12]))
+        self.assertEqual(status, 400)
+        self.assertIn("intersects the junkyard", reply["error"])
+        session = self.harness.service.sessions[token]
+        self.assertEqual(session.env.position.tolist(), [0.0, 0.0], "a refused sync leaves the pose alone")
+        for bad in (dict(yaw=None), dict(yaw="0.3"), dict(yaw=True), dict(position=[0, 1e6]),
+                    dict(target=[0]), dict(sight_pose={"eye": [0, 1]})):
+            with self.subTest(bad=bad):
+                status, reply, _ = self.harness.post("/sync", body | bad)
+                self.assertEqual(status, 400, reply)
+                self.assertIsInstance(reply["error"], str)
+        status, reply, _ = self.harness.post("/sync", body | dict(token="gone"))
+        self.assertEqual((status, reply["error"]), (400, SESSION_EXPIRED))
 
     def test_idle_connection_does_not_stall_moves(self):
         # A browser may open a connection and send nothing; moves must still flow.
