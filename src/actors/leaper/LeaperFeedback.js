@@ -170,22 +170,10 @@ export class LeaperFeedback {
     const glow = this.flash > 0 ? this.flashStrength * (this.flash / this.config.hitFlash) : 0;
     if (glow === 0) this.flashStrength = 0;
     for (const material of this.hull) material.emissive.copy(material.userData.hitFlashBase).addScalar(glow);
-    // 2. Sparks fly, fall and fade.
-    for (let i = 0; i < SPARK_POOL; i += 1) {
-      const spark = this.sparks[i];
-      if (spark.life > 0) {
-        spark.life = Math.max(0, spark.life - dt);
-        spark.velocity.y -= SPARK_GRAVITY * dt;
-        spark.position.addScaledVector(spark.velocity, dt);
-        if (spark.position.y < this.floor) { spark.position.y = this.floor; spark.velocity.y *= -0.3; }
-      }
-      const fade = spark.life > 0 ? spark.life / spark.max : 0;
-      const [r, g, b] = spark.colour ?? [0, 0, 0];
-      spark.position.toArray(this.sparkPositions, i * 3);
-      this.sparkColours.set([r * fade, g * fade, b * fade], i * 3);
-    }
-    this.sparkGeometry.attributes.position.needsUpdate = true;
-    this.sparkGeometry.attributes.color.needsUpdate = true;
+    // 2. Sparks fly, fall and fade (nothing to upload once they are all out).
+    const live = this.sparks.some((spark) => spark.life > 0);
+    if (live || this.sparksShown) this.updateSparks(dt);
+    this.sparksShown = live;
     // 3. Rings: warnings grow and pulse, the shockwave races out and fades.
     for (const ring of Object.values(this.rings)) this.updateRing(ring, dt);
     // 4. Flashes expand and fade.
@@ -201,26 +189,46 @@ export class LeaperFeedback {
       }
     }
     // 5. Debris falls, bounces and comes to rest on the floor (kept until a restart).
-    for (const piece of this.debris) {
-      if (piece.settled) continue;
-      piece.velocity.y -= DEBRIS_GRAVITY * Math.min(dt, 0.1);
-      piece.mesh.position.addScaledVector(piece.velocity, Math.min(dt, 0.1));
-      piece.mesh.rotation.x += piece.spin.x * dt;
-      piece.mesh.rotation.y += piece.spin.y * dt;
-      piece.mesh.rotation.z += piece.spin.z * dt;
-      const rest = this.floor + 0.08 * piece.mesh.scale.x;
-      if (piece.mesh.position.y <= rest) {
-        piece.mesh.position.y = rest;
-        piece.velocity.y *= -0.25;
-        piece.velocity.x *= 0.55;
-        piece.velocity.z *= 0.55;
-        piece.spin.multiplyScalar(0.5);
-        if (piece.velocity.length() < 0.4) {
-          piece.settled = true;
-          piece.mesh.rotation.x = 0;
-          piece.mesh.rotation.z = 0;
-        }
+    for (const piece of this.debris) if (!piece.settled) this.updateDebris(piece, dt);
+  }
+
+  updateSparks(dt) {
+    for (let i = 0; i < SPARK_POOL; i += 1) {
+      const spark = this.sparks[i];
+      if (spark.life > 0) {
+        spark.life = Math.max(0, spark.life - dt);
+        spark.velocity.y -= SPARK_GRAVITY * dt;
+        spark.position.addScaledVector(spark.velocity, dt);
+        if (spark.position.y < this.floor) { spark.position.y = this.floor; spark.velocity.y *= -0.3; }
       }
+      const fade = spark.life > 0 ? spark.life / spark.max : 0;
+      const [r, g, b] = spark.colour ?? [0, 0, 0];
+      spark.position.toArray(this.sparkPositions, i * 3);
+      this.sparkColours.set([r * fade, g * fade, b * fade], i * 3);
+    }
+    this.sparkGeometry.attributes.position.needsUpdate = true;
+    this.sparkGeometry.attributes.color.needsUpdate = true;
+  }
+
+  // One hull piece: it falls, bounces and comes to rest on the floor.
+  updateDebris(piece, dt) {
+    const step = Math.min(dt, 0.1);
+    piece.velocity.y -= DEBRIS_GRAVITY * step;
+    piece.mesh.position.addScaledVector(piece.velocity, step);
+    piece.mesh.rotation.x += piece.spin.x * dt;
+    piece.mesh.rotation.y += piece.spin.y * dt;
+    piece.mesh.rotation.z += piece.spin.z * dt;
+    const rest = this.floor + 0.08 * piece.mesh.scale.x;
+    if (piece.mesh.position.y > rest) return;
+    piece.mesh.position.y = rest;
+    piece.velocity.y *= -0.25;
+    piece.velocity.x *= 0.55;
+    piece.velocity.z *= 0.55;
+    piece.spin.multiplyScalar(0.5);
+    if (piece.velocity.length() < 0.4) {
+      piece.settled = true;
+      piece.mesh.rotation.x = 0;
+      piece.mesh.rotation.z = 0;
     }
   }
 
@@ -258,6 +266,8 @@ export class LeaperFeedback {
     this.flashes.length = 0;
     for (const piece of this.debris) this.scene.remove(piece.mesh);
     this.debris.length = 0;
+    // One last upload of the (now dark) sparks.
+    this.sparksShown = true;
     this.update(1e-6);
   }
 

@@ -70,6 +70,7 @@ export class LeaperActor {
   reset() {
     this.director.reset();
     this.flight = null;
+    this.wasRl = false;
     this.posture = { ...STANDING };
     Object.assign(this.simulation.state.posture ??= { ...STANDING }, STANDING);
     this.feedback?.reset();

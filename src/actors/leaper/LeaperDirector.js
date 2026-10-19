@@ -163,7 +163,8 @@ export class LeaperDirector {
     this.stateTime += dt;
     this.phaseTime += dt;
     for (const key of Object.keys(this.cooldowns)) this.cooldowns[key] = Math.max(0, this.cooldowns[key] - dt);
-    this.reachTime = sense.inReach ? this.reachTime + dt : 0;
+    // (Standing next to a dormant Leaper does not count: no stomp the moment the run starts.)
+    this.reachTime = sense.inReach && this.state !== 'dormant' ? this.reachTime + dt : 0;
 
     // 2. Interrupts, most important first: death, a fall, a stagger, the run stopping.
     const airborne = this.state === 'leap' && this.phase === 'flight';

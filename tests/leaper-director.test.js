@@ -318,3 +318,14 @@ test('stopping the run sends it dormant, but a leap in the air lands first; Lola
   assert.equal(e.state, 'dormant');
   assert.deepEqual(e.cooldowns, { stomp: 0, leap: 0, stagger: 0, reposition: 0 });
 });
+
+test('standing next to a dormant Leaper does not count toward a stomp', () => {
+  const d = director();
+  run(d, 3, sense({ hunting: false, distance: 3, inReach: true }));
+  assert.equal(d.reachTime, 0);
+  d.update(DT, sense({ distance: 3, inReach: true }));
+  d.update(DT, sense({ distance: 3, inReach: true }));
+  assert.notEqual(d.state, 'stomp', 'no stomp the moment the run starts');
+  run(d, B.stomp.trigger, sense({ distance: 3, inReach: true }));
+  assert.equal(d.state, 'stomp', 'but after the trigger time of the hunt');
+});
