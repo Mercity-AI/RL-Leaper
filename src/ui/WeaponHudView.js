@@ -29,6 +29,9 @@ export class WeaponHudView {
     parent.append(this.element);
     // 2. Each gun's circle, by weapon id.
     this.slots = new Map(ordered.map(slot => [slot.id, this.element.querySelector(`[data-gun="${slot.id}"]`)]));
+    // 3. What was last drawn, so the page is only touched when something changes
+    //    (the game hands over its data several times a frame).
+    this.last = {};
   }
 
   // state: {
@@ -36,17 +39,26 @@ export class WeaponHudView {
   //   guns: [{ id, active, fraction (0..1: magazine share, or reload progress), reloading, empty }]
   // }
   update(state) {
-    this.element.hidden = !state.visible;
-    this.element.dataset.reloading = String(Boolean(state.reloading));
-    this.element.dataset.empty = String(Boolean(state.empty));
+    // 1. The whole HUD: shown while the gun can be used; reload / empty states.
+    this.set('visible', Boolean(state.visible), (visible) => { this.element.hidden = !visible; });
+    this.set('reloading', Boolean(state.reloading), (value) => { this.element.dataset.reloading = String(value); });
+    this.set('empty', Boolean(state.empty), (value) => { this.element.dataset.empty = String(value); });
+    // 2. Each gun's circle: equipped or not, its ammo level and how full it is.
     for (const gun of state.guns) {
       const slot = this.slots.get(gun.id);
       if (!slot) continue;
       const level = gun.reloading ? 'reloading' : gun.empty ? 'empty' : gun.fraction <= LOW_AMMO ? 'low' : 'ok';
-      slot.dataset.active = String(Boolean(gun.active));
-      slot.dataset.level = level;
-      slot.style.setProperty('--ammo', gun.fraction.toFixed(3));
+      this.set(`${gun.id}.active`, Boolean(gun.active), (value) => { slot.dataset.active = String(value); });
+      this.set(`${gun.id}.level`, level, (value) => { slot.dataset.level = value; });
+      this.set(`${gun.id}.ammo`, gun.fraction.toFixed(3), (value) => slot.style.setProperty('--ammo', value));
     }
+  }
+
+  // Run `apply(value)` only when a value differs from the one last drawn.
+  set(key, value, apply) {
+    if (this.last[key] === value) return;
+    this.last[key] = value;
+    apply(value);
   }
 
   // The session is over: the icons leave the page.

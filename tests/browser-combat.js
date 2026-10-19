@@ -363,6 +363,19 @@ try {
       `${name}: magazine refills as the reload animation ends`);
   }
   p.playerWeapon.reset();
+  // The HUD views are handed their data several times a frame; with nothing
+  // changing they must not touch the page at all (no restyling every frame).
+  {
+    const watched = [p.playerWeapon.weaponHud.element, p.playerWeapon.reticleView.root];
+    const observer = new MutationObserver(() => {});
+    for (const element of watched) observer.observe(element, { attributes: true, childList: true, subtree: true, characterData: true });
+    p.playerWeapon.renderHud();
+    observer.takeRecords();
+    for (let i = 0; i < 5; i++) p.playerWeapon.renderHud();
+    const writes = observer.takeRecords().length;
+    observer.disconnect();
+    check(writes === 0, `the gun icons and crosshair are not rewritten when nothing changed (${writes} writes)`);
+  }
   const savedCameraPosition = engine.camera.position.clone(), savedCameraRotation = engine.camera.quaternion.clone();
   // Look angles that point the eye-level aim view at a point.
   function pointAimAt(point) {
