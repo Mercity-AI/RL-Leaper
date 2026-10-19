@@ -1,5 +1,12 @@
 import * as THREE from 'three';
 
+// Overlay colours (RGBA): green reachable, amber clear but cut off, red blocked.
+const OVERLAY_COLOURS = Object.freeze({
+  reachable: [0x31, 0xc9, 0x8c, 255],
+  disconnected: [0xff, 0xbb, 0x47, 255],
+  blocked: [0xe4, 0x55, 0x55, 255],
+});
+
 // SHOW CLEARANCE: a flat map over the floor colouring where a Leaper of this
 // size fits. Green = reachable from its spawn, amber = clear but disconnected,
 // red = blocked. A conservative design guide, never the brain's route.
@@ -31,15 +38,18 @@ export class ClearanceOverlay {
     const nav = this.world.navigation;
     const regions = nav.regions ?? nav.labelRegions();
     const region = nav.regionAt({ x: spawn.x / this.world.scale, z: spawn.z / this.world.scale });
-    // 2. Paint one pixel per grid cell.
+    // 2. Paint one pixel per grid cell (written straight into the pixel buffer:
+    //    one call instead of ~14,000 small rectangles).
     const canvas = document.createElement('canvas');
     canvas.width = nav.columns;
     canvas.height = nav.rows;
     const ctx = canvas.getContext('2d');
+    const image = ctx.createImageData(nav.columns, nav.rows);
     for (let i = 0; i < nav.free.length; i += 1) {
-      ctx.fillStyle = !nav.free[i] ? '#e45555' : regions.labels[i] === region ? '#31c98c' : '#ffbb47';
-      ctx.fillRect(i % nav.columns, Math.floor(i / nav.columns), 1, 1);
+      const colour = !nav.free[i] ? OVERLAY_COLOURS.blocked : regions.labels[i] === region ? OVERLAY_COLOURS.reachable : OVERLAY_COLOURS.disconnected;
+      image.data.set(colour, i * 4);
     }
+    ctx.putImageData(image, 0, 0);
     // 3. Lay it on the floor, drawn over everything so it reads in TOP view.
     const texture = new THREE.CanvasTexture(canvas);
     texture.magFilter = THREE.NearestFilter;
