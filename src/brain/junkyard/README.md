@@ -84,8 +84,10 @@ The first provider whose `load()` succeeds answers everything; when none
 does, turret mode refuses every request with the reasons, and the game plays
 on with the Leaper planted (it still shoots) and retries every 5 s of a run.
 A *refused* request (a start inside a wreck, a bad body) never falls back:
-another brain would refuse it the same way. OPTIONS has the same choice as
-a menu ("Brain"); it keeps the choice in the address and restarts the run.
+another brain would refuse it the same way. OPTIONS has the same four
+choices as a menu ("Brain", turret mode included); it shows what the address
+picks (aliases such as `?brain=python` too), keeps a new choice in the
+address and restarts the run.
 
 **What the player sees.** The badge names the provider:
 `BRAIN 7,757,824 · ONNX · IN BROWSER · SEARCHING`, `… · PYTHON SERVER · …`,
@@ -173,7 +175,7 @@ to compare.
   tooltip, loading progress and session closing.
 - `tests/brain-game.html`: the real game page with no Python server: the ONNX
   brain loads, START RUN makes the Leaper step, move and fire; the OPTIONS
-  menu switches to the (absent) server and back. Then the game at size 6.5
+  menu switches to the (absent) server, to turret mode and back. Then the game at size 6.5
   (no baked raster): the worker builds it, the loading UI shows its progress,
   and a fresh size prepared through the page's provider streams the build's
   progress while the page's own timers keep running.

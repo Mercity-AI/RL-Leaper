@@ -46,6 +46,15 @@ export function brainProviderOrder(search = globalThis.location?.search ?? '') {
   return ['onnx', 'http'];
 }
 
+// The OPTIONS brain menu entry for the page address: 'auto' | 'onnx' | 'http' |
+// 'turret'. Read through brainProviderOrder, so aliases (?brain=python,
+// ?brain=off, ...) show the brain that really runs.
+export function brainChoice(search = globalThis.location?.search ?? '') {
+  const order = brainProviderOrder(search);
+  if (order.length === 0) return 'turret';
+  return order.length === 1 ? order[0] : 'auto';
+}
+
 // --- Errors ---------------------------------------------------------------------------
 
 // "This provider cannot answer at all" (not loaded, server unreachable, worker

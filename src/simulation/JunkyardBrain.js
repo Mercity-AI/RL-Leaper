@@ -297,6 +297,9 @@ export class JunkyardBrain {
     this.progress = null;
     this.providerKind = null;
     this.ready = false;
+    // A brain the player just picked is loading, not offline: the badge shows
+    // its progress until it answers (or fails and turret mode says why).
+    this.offline = false;
     this.busy = false;
     this.pendingMovement = false;
     this.label = 'BRAIN CONNECTING';

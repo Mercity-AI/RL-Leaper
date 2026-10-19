@@ -85,6 +85,12 @@ try {
   win.document.querySelector('[data-action=route]').click();
   await until(() => badge.textContent === 'BRAIN OFFLINE · TURRET MODE', 30, 'turret mode');
   check(/no brain service at http:\/\/127\.0\.0\.1:9/.test(badge.title), 'turret mode, and the tooltip says why');
+  // "No brain" on purpose (to test turret mode): kept in the address too.
+  pick('turret');
+  check(new win.URL(win.location.href).searchParams.get('brain') === 'turret' && menu.value === 'turret',
+    'the menu can pick turret mode on purpose (?brain=turret)');
+  await until(() => p.brain.offline && /no brain selected/.test(badge.title), 30, 'turret mode on purpose');
+  check(true, 'no brain loads, and the tooltip says it was chosen');
   pick('auto');
   await until(() => p.brain.ready && p.brain.provider.kind === 'onnx', 120, 'the browser brain again');
   check(!new win.URL(win.location.href).searchParams.has('brain'), 'back to the browser brain (address cleared)');

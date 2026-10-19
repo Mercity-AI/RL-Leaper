@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
   BrainProviderBase, BrainProviderChain, BrainUnavailableError, TurretBrainProvider,
-  brainProviderOrder, createBrainProvider, describeProgress,
+  brainChoice, brainProviderOrder, createBrainProvider, describeProgress,
 } from '../src/brain/BrainProvider.js';
 import { BRAIN_TURRET_LABEL, JunkyardBrain, createGameBrainProvider } from '../src/simulation/JunkyardBrain.js';
 
@@ -69,6 +69,18 @@ test('?brain= picks the order: in-browser first by default, the Python server on
   assert.deepEqual(createGameBrainProvider({ search: '?brain=http&brainUrl=http://127.0.0.1:8791' }).candidates.map((c) => c.kind), ['http']);
   assert.deepEqual(createBrainProvider({ order: ['onnx', 'http'], factories: { http: () => null } }).candidates.map((c) => c.kind), ['http'],
     'kinds without a factory are skipped');
+});
+
+test('the OPTIONS brain menu shows the brain the address really picks, aliases included', () => {
+  assert.equal(brainChoice(''), 'auto');
+  assert.equal(brainChoice('?brain=nonsense'), 'auto');
+  assert.equal(brainChoice('?brain=http'), 'http');
+  assert.equal(brainChoice('?brain=python'), 'http');
+  assert.equal(brainChoice('?brain=server'), 'http');
+  assert.equal(brainChoice('?brain=browser'), 'onnx');
+  assert.equal(brainChoice('?brain=ONNX'), 'onnx');
+  assert.equal(brainChoice('?brain=turret'), 'turret');
+  assert.equal(brainChoice('?brain=off'), 'turret');
 });
 
 // --- The fallback order ----------------------------------------------------------------------------
@@ -276,6 +288,23 @@ test('switching provider (OPTIONS brain menu) frees the old one; the next reset 
   await brain.reset();
   assert.equal(brain.token, 'http-1');
   assert.match(brain.describe().label, /· PYTHON SERVER ·/);
+});
+
+test('picking another brain from turret mode shows that brain loading, not "offline"', async () => {
+  globalThis.document = { hidden: false };
+  const brain = new JunkyardBrain(playtest(), { provider: chainOf() });
+  await brain.reset();
+  assert.equal(brain.offline, true, 'no candidates: turret mode');
+  let finish;
+  const onnx = new FakeProvider('onnx', { reply: () => new Promise((resolve) => { finish = resolve; }) });
+  brain.useProvider(chainOf(onnx));
+  const resetting = brain.reset();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(brain.describe().label, 'LOADING BRAIN · ONNX · IN BROWSER · 50% · DOWNLOADING JUNKYARD MAP');
+  finish({ x: 0, z: 0, yaw: 0, step: 0, model_step: 7757824, policy_sha256: 'sha', token: 'a' });
+  await resetting;
+  assert.equal(brain.offline, false);
+  assert.match(brain.describe().label, /^BRAIN 7,757,824 · ONNX · IN BROWSER · /);
 });
 
 test('RESET closes the old session; dispose closes the last one and frees the provider (its worker)', async () => {

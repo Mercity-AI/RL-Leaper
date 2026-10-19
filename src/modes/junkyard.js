@@ -8,7 +8,7 @@ import { GameFlow } from '../core/GameFlow.js';
 import { disposeObject3D } from '../core/disposeObject3D.js';
 import { LaserAudio } from '../simulation/LaserAudio.js';
 import { createGameBrainProvider } from '../simulation/JunkyardBrain.js';
-import { describeProgress } from '../brain/BrainProvider.js';
+import { brainChoice, describeProgress } from '../brain/BrainProvider.js';
 import { createLeaperScene, loadStep, removeFromScene, setStatus } from './shared.js';
 
 // The game (default page, also ?map=junkyard): Lola vs. the Leaper in the
@@ -99,7 +99,7 @@ export async function start({ engine, params }) {
   }
   // 7. The OPTIONS brain menu switches where the brain runs. The page address
   //    keeps the choice (so a reload or APPLY SIZE remembers it); the run restarts.
-  playtest.panelView.bindBrainChoice(params.get('brain') || 'auto', (choice) => {
+  playtest.panelView.bindBrainChoice(brainChoice(location.search), (choice) => {
     const url = new URL(location.href);
     if (choice === 'auto') url.searchParams.delete('brain');
     else url.searchParams.set('brain', choice);

@@ -55,6 +55,7 @@ export class JunkyardPanel {
           <option value="auto">In this browser (Python server if it can't load)</option>
           <option value="onnx">In this browser only (ONNX)</option>
           <option value="http">Python brain server (reference)</option>
+          <option value="turret">No brain (turret mode, to test it)</option>
         </select>
       </label>
       <label>Leaper clearance width
@@ -103,11 +104,11 @@ export class JunkyardPanel {
     this.button('sound').onclick = sound;
   }
 
-  // The OPTIONS brain menu: shows `choice` ('auto' | 'onnx' | 'http') and calls
-  // onChange(choice) when the player picks another one.
+  // The OPTIONS brain menu: shows `choice` ('auto' | 'onnx' | 'http' | 'turret')
+  // and calls onChange(choice) when the player picks another one.
   bindBrainChoice(choice, onChange) {
     const select = this.element.querySelector('[data-brain-provider]');
-    select.value = ['auto', 'onnx', 'http'].includes(choice) ? choice : 'auto';
+    select.value = ['auto', 'onnx', 'http', 'turret'].includes(choice) ? choice : 'auto';
     select.onchange = () => onChange(select.value);
   }
 
