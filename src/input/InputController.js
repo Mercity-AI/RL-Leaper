@@ -1,5 +1,5 @@
 import {
-  ACTION_NAMES, AXIS_ACTIONS, BUTTON_ACTIONS, NO_DEFAULT_KEYS, PAD_AXES, PAD_TUNING,
+  ACTION_NAMES, AXIS_ACTIONS, BUTTON_ACTIONS, MENU_ACTIONS, NO_DEFAULT_KEYS, PAD_AXES, PAD_TUNING,
 } from './actions.js';
 import { wantsTouchControls } from './touch.js';
 
@@ -41,8 +41,9 @@ const padButtonDown = (button, analog) => {
 
 export class InputController {
   // onToggleTarget(): the lab's P key (select the pink target). Optional.
-  // buttons / axes: the bindings (src/input/actions.js).
-  constructor(onToggleTarget = () => {}, { buttons = BUTTON_ACTIONS, axes = AXIS_ACTIONS } = {}) {
+  // buttons / axes / menu: the bindings (src/input/actions.js): gameplay buttons,
+  // sticks and key pairs, and the menu actions that count while a menu is open.
+  constructor(onToggleTarget = () => {}, { buttons = BUTTON_ACTIONS, axes = AXIS_ACTIONS, menu = MENU_ACTIONS } = {}) {
     // 1. State the older systems read directly (the lab modes never poll).
     this.keys = {};
     this.jumpBuffer = 0;
@@ -50,12 +51,16 @@ export class InputController {
     this.joystick = { active: false, pointerId: null, forward: 0, side: 0 };
 
     // 2. The bindings, turned into "this key / button -> these actions" lookups.
+    //    Gameplay and menu actions share the devices; which of them count is
+    //    decided per frame (see uiCapture).
     this.buttons = buttons;
     this.axes = axes;
-    this.actions = Object.keys(buttons);
+    this.bindings = { ...buttons, ...menu };
+    this.menuActions = new Set(Object.keys(menu));
+    this.actions = Object.keys(this.bindings);
     this.keyActions = new Map();
     this.mouseActions = new Map();
-    for (const [action, binding] of Object.entries(buttons)) {
+    for (const [action, binding] of Object.entries(this.bindings)) {
       for (const code of binding.keys ?? []) this.keyActions.set(code, [...(this.keyActions.get(code) ?? []), action]);
       for (const button of binding.mouse ?? []) this.mouseActions.set(button, [...(this.mouseActions.get(button) ?? []), action]);
     }
@@ -72,6 +77,14 @@ export class InputController {
     // Returns true for a click that must not count as a press (the camera's
     // "grab the mouse again" click). Set by whoever owns the mouse capture.
     this.pointerGuard = () => false;
+    // Returns true while a menu has the controls: then only the menu actions (and
+    // the actions marked `ui`, like pause) count, so nothing fires behind a menu.
+    this.uiCapture = () => false;
+    // Whether a menu had the controls at the last poll, and the buttons still held
+    // from then: they only count again once let go (the A that pressed PLAY must
+    // not also jump, the B that closed a menu must not crouch).
+    this.menuWasOpen = false;
+    this.heldThroughMenu = new Set();
     this.pad = { connected: false, id: '', buttons: [], axes: [0, 0, 0, 0] };
 
     // 4. The per-frame snapshot poll() fills in.
@@ -133,7 +146,8 @@ export class InputController {
   // Record a press for the next poll (a jump press also starts its buffer).
   latch(action, device) {
     if (!this.latched.has(action)) this.latched.set(action, device);
-    if (action === 'jump') this.jumpBuffer = JUMP_BUFFER;
+    // (A Space that confirms a menu item must not jump once the menu closes.)
+    if (action === 'jump' && !this.uiCapture()) this.jumpBuffer = JUMP_BUFFER;
   }
 
   // ---- On-screen buttons (TouchControls) ----
@@ -159,11 +173,20 @@ export class InputController {
     // What is down now.
     const held = this.heldBefore;
     held.clear();
-    for (const action of this.actions) if (this.rawHeld(action)) held.add(action);
+    const menu = Boolean(this.uiCapture());
+    if (this.menuWasOpen !== menu) {
+      this.heldThroughMenu.clear();
+      for (const action of this.actions) if (this.rawHeld(action)) this.heldThroughMenu.add(action);
+      this.menuWasOpen = menu;
+    }
+    for (const action of this.heldThroughMenu) if (!this.rawHeld(action)) this.heldThroughMenu.delete(action);
+    for (const action of this.actions) {
+      if (this.counts(action, menu) && !this.heldThroughMenu.has(action) && this.rawHeld(action)) held.add(action);
+    }
     // Presses: everything latched since the last poll, plus actions that became
     // held without an event (gamepad buttons).
     this.pressedNow.clear();
-    for (const [action, device] of this.latched) this.pressedNow.set(action, device);
+    for (const [action, device] of this.latched) if (this.counts(action, menu)) this.pressedNow.set(action, device);
     this.latched.clear();
     for (const action of held) {
       if (!this.heldNow.has(action) && !this.pressedNow.has(action)) this.pressedNow.set(action, 'gamepad');
@@ -176,6 +199,13 @@ export class InputController {
     // A gamepad jump starts the same buffer as Space.
     if (this.pressedNow.get('jump') === 'gamepad') this.jumpBuffer = JUMP_BUFFER;
     return this.frame;
+  }
+
+  // Does an action count this frame? Menu actions only while a menu has the
+  // controls; gameplay actions only while none has (except those marked `ui`).
+  counts(action, menu) {
+    if (this.menuActions.has(action)) return menu;
+    return !menu || Boolean(this.bindings[action]?.ui);
   }
 
   held(action) { return this.heldNow.has(action); }
@@ -194,7 +224,7 @@ export class InputController {
 
   // Is an action down on any device, right now (not the frame snapshot)?
   rawHeld(action) {
-    const binding = this.buttons[action];
+    const binding = this.bindings[action];
     if (!binding) return false;
     if (this.virtual.get(action)) return true;
     if ((binding.keys ?? []).some((code) => this.keys[code])) return true;
@@ -287,6 +317,11 @@ export class InputController {
   // fn(event) -> true when a mouse press must be ignored (see onMouseDown).
   setPointerGuard(fn) {
     this.pointerGuard = typeof fn === 'function' ? fn : () => false;
+  }
+
+  // fn() -> true while a menu has the controls (see poll()).
+  setUiCapture(fn) {
+    this.uiCapture = typeof fn === 'function' ? fn : () => false;
   }
 
   // Remove every page listener this controller added.

@@ -47,8 +47,9 @@ export default async function gameControls(page, { baseUrl, check }) {
   await page.waitForFunction(() => window.leaperPlaytest?.playerWeapon, null, { timeout: 300000 });
   check(!(await page.locator('.touch-band').count()), 'no touch controls on a desktop');
 
-  // 2. START PLAYER with the mouse, then a left click on the 3D view fires once.
-  await page.click('[data-action=player]');
+  // 2. EXPLORE on the title screen with the mouse, then a left click on the 3D
+  //    view fires once.
+  await page.click('.screen:not([hidden]) [data-menu-item=explore]');
   await until(page, (s) => s.flow === 'playing');
   const canvas = await page.locator('#app canvas').boundingBox();
   const middle = { x: canvas.x + canvas.width / 2, y: canvas.y + canvas.height / 2 };
@@ -81,8 +82,9 @@ export default async function gameControls(page, { baseUrl, check }) {
   await until(page, (s) => !s.crouching);
   check(true, 'C toggles crouch');
 
-  // 5. Escape pauses; while paused the gun keys and clicks do nothing; the click
-  //    that resumes (on the pause overlay) never fires.
+  // 5. Escape pauses and opens the pause menu; while paused the gun keys and
+  //    clicks do nothing; a click beside the menu does nothing either, and the
+  //    click on RESUME never fires.
   await page.keyboard.press('Escape');
   await until(page, (s) => s.flow === 'paused');
   now = await state(page);
@@ -91,7 +93,11 @@ export default async function gameControls(page, { baseUrl, check }) {
   await frames(page, 4);
   const paused = await state(page);
   check(paused.weaponIndex === now.weaponIndex && !paused.crouching, '1 and C are frozen by the pause');
-  await page.mouse.click(middle.x, middle.y);
+  check(await page.locator('.screen:not([hidden]) [data-menu-item=resume]').isVisible(), 'the pause menu is open');
+  await page.mouse.click(canvas.x + 20, canvas.y + canvas.height - 20);
+  await frames(page, 4);
+  check((await state(page)).flow === 'paused' && (await state(page)).mag === now.mag, 'a click beside the pause menu neither resumes nor fires');
+  await page.click('.screen:not([hidden]) [data-menu-item=resume]');
   await until(page, (s) => s.flow === 'playing');
   await frames(page, 4);
   check((await state(page)).mag === now.mag, 'the click that resumes the game does not fire');
@@ -127,9 +133,10 @@ export default async function gameControls(page, { baseUrl, check }) {
   });
   await page.goto(`${baseUrl}/?debug&touch`, { timeout: 300000 });
   await page.waitForFunction(() => window.leaperPlaytest?.playerWeapon, null, { timeout: 300000 });
-  check(await page.locator('.touch-band').isVisible(), '?touch shows the touch band on a desktop');
-  await page.click('[data-action=player]');
+  await page.click('.screen:not([hidden]) [data-menu-item=explore]');
   await until(page, (s) => s.flow === 'playing');
+  await page.locator('.touch-band').waitFor({ state: 'visible', timeout: 120000 });
+  check(true, '?touch shows the touch band on a desktop once play starts');
   await page.waitForFunction(() => document.body.classList.contains('mouse-look'), null, { timeout: 60000 });
   now = await state(page);
   const right = { x: canvas.x + canvas.width * 0.8, y: canvas.y + canvas.height * 0.5 };

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { InputController, JUMP_BUFFER } from '../src/input/InputController.js';
-import { AXIS_ACTIONS, BUTTON_ACTIONS, CONTROLS, PAD, keyName } from '../src/input/actions.js';
+import { AXIS_ACTIONS, BUTTON_ACTIONS, CONTROLS, MENU_ACTIONS, PAD, keyName } from '../src/input/actions.js';
 
 // A fake page: window / document listeners (several per event, like a browser)
 // and a gamepad the test can move.
@@ -214,4 +214,72 @@ test('the controls list covers every action on every device, from the bindings t
       seen.set(code, action);
     }
   }
+});
+
+test('while a menu has the controls only menu actions count: nothing fires or jumps behind it', () => {
+  const p = page(), input = new InputController();
+  let menu = true;
+  input.setUiCapture(() => menu);
+  p.plug();
+  p.pad.buttons[PAD.RT] = { pressed: true, value: 1 };
+  p.pad.buttons[PAD.A] = { pressed: true, value: 1 };
+  p.key('keydown', 'ArrowDown');
+  p.key('keydown', 'Space');
+  input.poll();
+  assert.ok(!input.held('fire') && !input.pressed('fire'), 'RT behind a menu fires nothing');
+  assert.ok(!input.pressed('jump'));
+  assert.equal(input.jumpBuffer, 0, 'a Space or A that confirms a menu item never buffers a jump');
+  assert.ok(input.pressed('menuDown') && input.pressed('menuConfirm'));
+  // Start (pause) still counts in a menu: it resumes a paused game.
+  p.pad.buttons[PAD.START] = { pressed: true, value: 1 };
+  input.poll();
+  assert.ok(input.pressed('pause'));
+  // The menu closes: gameplay actions count again and menu actions stop. A
+  // button held through the change only counts once let go and pressed again
+  // (the A that pressed PLAY never also jumps; the trigger held over the menu
+  // doesn't fire the moment it closes).
+  menu = false;
+  p.key('keydown', 'KeyR');
+  input.poll();
+  assert.ok(input.pressed('reload'), 'R, pressed after the menu closed, reloads');
+  assert.ok(!input.held('fire') && !input.pressed('fire') && !input.pressed('jump'), 'RT and A held through the menu do nothing');
+  assert.ok(!input.held('menuConfirm') && !input.pressed('menuDown'));
+  p.pad.buttons[PAD.RT] = { pressed: false, value: 0 };
+  input.poll();
+  p.pad.buttons[PAD.RT] = { pressed: true, value: 1 };
+  input.poll();
+  assert.ok(input.pressed('fire') && input.held('fire'), 'let go and pulled again, the trigger fires');
+  // Same the other way: B held when a menu opens is not a BACK press.
+  p.pad.buttons[PAD.B] = { pressed: true, value: 1 };
+  input.poll();
+  menu = true;
+  input.poll();
+  assert.ok(!input.pressed('menuBack'), 'B held as the menu opened does not go back');
+  p.pad.buttons[PAD.B] = { pressed: false, value: 0 };
+  input.poll();
+  menu = false;
+  input.poll();
+  // Escape pauses in play and goes back in a menu (the same key, two action maps).
+  p.key('keydown', 'Escape');
+  input.poll();
+  assert.ok(input.pressed('pause') && !input.pressed('menuBack'));
+  menu = true;
+  p.key('keydown', 'Escape');
+  input.poll();
+  assert.ok(input.pressed('menuBack'));
+});
+
+test('menu bindings cover keyboard and gamepad, each key or button meaning one menu action', () => {
+  const seen = new Map();
+  for (const [action, binding] of Object.entries(MENU_ACTIONS)) {
+    assert.ok((binding.keys ?? []).length && (binding.pad ?? []).length, `${action} works on the keyboard and the gamepad`);
+    for (const code of [...binding.keys, ...binding.pad.map((b) => `pad${b}`)]) {
+      assert.ok(!seen.has(code), `${code} is bound to both ${seen.get(code)} and ${action}`);
+      seen.set(code, action);
+    }
+  }
+  assert.deepEqual(MENU_ACTIONS.menuConfirm.pad, [PAD.A]);
+  assert.deepEqual(MENU_ACTIONS.menuBack.pad, [PAD.B]);
+  assert.ok(BUTTON_ACTIONS.pause.ui, 'pause is the one gameplay action that also works in menus');
+  assert.equal(Object.values(BUTTON_ACTIONS).filter((binding) => binding.ui).length, 1);
 });

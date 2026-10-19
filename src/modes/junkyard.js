@@ -4,13 +4,13 @@ import { LolaPlayer } from '../robot/LolaPlayer.js';
 import { Assets, loadLolaFiles } from '../core/Assets.js';
 import { limitShadowCasters, warmUp } from '../core/Quality.js';
 import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
-import { enableMovableHud } from '../controls/MovableHud.js';
 import { EventBus } from '../core/events.js';
 import { GameFlow } from '../core/GameFlow.js';
 import { disposeObject3D } from '../core/disposeObject3D.js';
 import { GameAudio } from '../audio/GameAudio.js';
 import { createGameBrainProvider } from '../simulation/JunkyardBrain.js';
 import { brainChoice, describeProgress } from '../brain/BrainProvider.js';
+import { GameUi } from '../ui/GameUi.js';
 import { createLeaperScene, loadStep, removeFromScene, setStatus } from './shared.js';
 
 // The game (default page, also ?map=junkyard): Lola vs. the Leaper in the
@@ -21,10 +21,6 @@ import { createLeaperScene, loadStep, removeFromScene, setStatus } from './share
 // Longer frame-time cap than the lab modes: Lola and the debris sub-step
 // themselves, so a slow frame stays stable.
 const MAX_DELTA = 0.1;
-
-// The on-screen panels become movable once per page (doing it twice would stack
-// two drag handlers on the panels that outlive a session).
-let movableHudEnabled = false;
 
 // Loading steps with the brain's own progress beside them, e.g.
 // "LOADING LOLA… · LOADING BRAIN · ONNX · IN BROWSER · 64% · DOWNLOADING BRAIN RUNTIME".
@@ -98,7 +94,7 @@ export async function start({ engine, params }) {
     loading.done();
   }
   // 5. The Leaper rig, input and a chase camera that follows Lola.
-  const { rig, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
+  const { rig, input, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
   cameraController.followSubject = target;
   cameraController.pitch = 0.16;
   // Sound: distances at the map's scale, the Leaper's sounds placed at its body
@@ -114,14 +110,14 @@ export async function start({ engine, params }) {
     limitShadowCasters(root, engine.quality.leaperShadowMinSize);
   }
   world.effects.watchFeet(rig);
-  // 6. The playtest wires brain, combat, weapons and the junkyard panel together,
-  //    then resets the encounter (Loading -> Ready). The brain owns the provider.
+  // 6. The front end's HUD shell, then the playtest, which wires brain, combat,
+  //    weapons and the junkyard panel together and resets the encounter
+  //    (Loading -> Ready). The brain owns the provider; the HUD draws Lola's
+  //    health and the guns. Then the menus (the title shows in Ready).
+  const ui = new GameUi({ input, cameraController, flow, events, quality: engine.quality.name, engine, signal });
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal,
-    brainProvider });
-  if (!movableHudEnabled) {
-    enableMovableHud();
-    movableHudEnabled = true;
-  }
+    brainProvider, hud: ui.hud });
+  ui.attach(playtest);
   // 7. The OPTIONS brain menu switches where the brain runs. The page address
   //    keeps the choice (so a reload or APPLY SIZE remembers it); the run restarts.
   playtest.panelView.bindBrainChoice(brainChoice(location.search), (choice) => {
@@ -140,24 +136,39 @@ export async function start({ engine, params }) {
   assets.done();
 
   // 9. The frame phases. After dispose() they do nothing, so a loop that is still
-  //    running for one more frame can't touch a torn-down session.
+  //    running for one more frame can't touch a torn-down session. Each phase
+  //    reports its time to ui.profiler (the developer perf overlay; a no-op for players).
   let disposed = false;
+  let renderStart = 0;
+  const timed = (name, phase) => (dt) => {
+    if (disposed) return;
+    const start = ui.profiler.begin();
+    phase(dt);
+    ui.profiler.end(name, start);
+  };
   const mode = {
     maxDelta: MAX_DELTA,
-    // Read the player's input, run the fight (Encounter order), then presentation.
-    input: (dt) => { if (!disposed) playtest.input(dt); },
-    update: (dt) => { if (!disposed) playtest.update(dt); },
-    lateUpdate: (dt) => {
-      if (disposed) return;
+    // Read the player's input (the menus' while one is open), run the fight
+    // (Encounter order), then presentation.
+    input: timed('input', (dt) => {
+      ui.profiler.frame();
+      ui.input(dt);
+    }),
+    update: timed('update', (dt) => playtest.update(dt)),
+    lateUpdate: timed('late', (dt) => {
       playtest.lateUpdate(dt);
       // The ears follow the camera (kept near Lola), after it moved this frame.
       audio.updateListener(engine.camera, target.mesh.position);
       // Dust and sparks hold still while the game is paused.
       world.effects.update(flow.paused ? 0 : dt);
-    },
+      // The HUD and menus redraw from this frame's numbers (only changes reach the page).
+      ui.lateUpdate(dt);
+    }),
     // Render hooks nest: camera -> weapon -> POV before, undone in reverse after.
+    // (The render time runs from the first hook to the last.)
     beforeRender() {
       if (disposed) return;
+      renderStart = ui.profiler.begin();
       cameraController.beforeRender();
       playtest.playerWeapon.beforeRender();
       playtest.pov.beforeRender();
@@ -167,6 +178,7 @@ export async function start({ engine, params }) {
       playtest.pov.afterRender();
       playtest.playerWeapon.afterRender();
       cameraController.afterRender();
+      ui.profiler.end('render', renderStart);
     },
     // Tear the whole session down: listeners, page elements, scene objects and
     // their GPU memory, the sound engine. (InputController and LolaPlayer keep
@@ -175,6 +187,7 @@ export async function start({ engine, params }) {
       if (disposed) return;
       disposed = true;
       playtest.dispose();
+      ui.dispose();
       session.abort();
       audio.dispose();
       removeFromScene(engine.scene, { world: null, rig, target });

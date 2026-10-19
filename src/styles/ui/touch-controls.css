@@ -1,41 +1,29 @@
-/* Touch controls (src/ui/TouchControls.js): a reserved band of buttons along
-   the bottom edge and a look area on the right half of the screen.
-   Self-contained apart from the few rules at the end that make room for the band. */
+/* Touch controls (src/ui/TouchControls.js): a reserved band of buttons along the
+   bottom edge and a look area on the right half of the screen. In the game they
+   sit in the HUD's band layer: the look area under the HUD corners, the band
+   over them. */
 
-/* The look area turns the camera when dragged. It sits under every panel and
-   button (z-index 5), so the toolbar, the joystick and SPRINT stay on top.
-   It steps aside (hidden) while paused, so the pause overlay takes the tap. */
-.touch-controls[hidden], .touch-look[hidden] { display: none; }
-.touch-look { position: fixed; top: 22%; right: 0; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); width: 48%;
-  z-index: 5; touch-action: none; }
+/* The look area turns the camera when dragged. It steps aside (hidden) while
+   paused, so the pause menu takes the tap. */
+.touch-controls[hidden],
+.touch-look[hidden] { display: none; }
+.touch-look { position: fixed; top: 22%; right: 0; bottom: var(--touch-band, 64px); z-index: 0; width: 48%; touch-action: none; pointer-events: auto; }
 /* Only once play was started by touch (the camera sets body.touch-play): on a
    touch-screen laptop played with a mouse, clicks there still reach the game view. */
 body:not(.touch-play) .touch-look { pointer-events: none; }
 
-/* The band: always on top of the HUD panels, so every button can be pressed. */
-.touch-band { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; justify-content: center;
-  gap: 6px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box;
-  background: linear-gradient(to top, #0b0d10b0, #0b0d1000); touch-action: none; pointer-events: auto; }
-.touch-button { flex: 1 1 0; min-width: 44px; max-width: 76px; height: 52px; padding: 0 2px; border-radius: 10px;
-  border: 1px solid #ffffff4d; background: #15171bf2; color: #eef3f2; font: 700 10px/1 ui-monospace, monospace;
-  letter-spacing: .06em; touch-action: none; -webkit-user-select: none; user-select: none;
-  -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; pointer-events: auto; cursor: pointer; }
-.touch-button.on, .touch-button[aria-pressed=true] { background: #ff4a268c; border-color: #ff8a6e; color: #fff; }
+/* The band: always on top of the HUD corners, so every button can be pressed. */
+.touch-band { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; box-sizing: border-box; display: flex; justify-content: center; gap: 6px; padding: 6px calc(8px + var(--safe-right, 0px)) calc(6px + var(--safe-bottom, 0px)) calc(8px + var(--safe-left, 0px)); background: linear-gradient(to top, #0b0d10b0, #0b0d1000); touch-action: none; pointer-events: auto; }
+.touch-button { flex: 1 1 0; min-width: 44px; max-width: 76px; height: 52px; padding: 0 2px; border: 1px solid #ffffff4d; border-radius: 10px; background: #15171bf2; color: var(--c-text, #eef3f2); font: 700 var(--font-s, 12px)/1 var(--font-mono, monospace); letter-spacing: 0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; pointer-events: auto; cursor: pointer; }
+.touch-button.on,
+.touch-button[aria-pressed=true] { border-color: #ff8a6e; background: #ff4a268c; color: #fff; }
 .touch-button[data-disabled=true] { opacity: .4; }
 /* FIRE is the biggest button, under the right thumb. */
-.touch-fire { flex-grow: 1.6; max-width: 110px; background: #9e0811f2; border-color: #ff6a5b; font-size: 12px; }
+.touch-fire { flex-grow: 1.6; max-width: 110px; border-color: #ff6a5b; background: #9e0811f2; font-size: var(--font-m, 14px); }
 .touch-fire.on { background: #e62828d0; }
 
-/* The mouse-look rule in junkyard.css switches off every on-screen control while
-   the mouse is captured. Touch play never captures the mouse, and these rules
-   keep the band's buttons (and the movable panels) working even if the page is
-   ever in mouse-look on a touch screen (review fix 5.9). */
-body.mouse-look .touch-band, body.mouse-look .touch-band * { pointer-events: auto !important; cursor: auto !important; }
-body.touch-play.mouse-look .movable-hud, body.touch-play.mouse-look .movable-hud * { pointer-events: auto !important; }
-
-/* Make room for the band (only while it is on the page): the page's own JUMP
-   button is replaced by the band's, Lola's health moves to the top right, clear
-   of the band and the joystick, and the status line moves above the band. */
-body.touch-controls-on #btnJump { display: none; }
-body.touch-controls-on #combatHud { top: 14px; bottom: auto; left: auto; right: 16px; width: min(170px, calc(50vw - 28px)); }
-body.touch-controls-on #status { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+/* The mouse-look rule in junkyard.css switches the HUD off for clicks while the
+   mouse is captured. Touch play never captures it; this keeps the band working
+   even if the page is ever in mouse-look on a touch screen (review fix 5.9). */
+body.mouse-look .touch-band,
+body.mouse-look .touch-band * { pointer-events: auto !important; cursor: auto !important; }
