@@ -6,6 +6,7 @@
 // the game can swap the Python service for this without changing anything else.
 
 import { FrozenJunkyardEnv, OBS_SIZE } from './frozenEnv.js';
+import { pyMod } from './pyMath.js';
 
 export const MODEL_STEP = 7757824;
 
@@ -88,6 +89,38 @@ export class JunkyardBrainSession {
     if (obs.length !== OBS_SIZE || !obs.every(Number.isFinite)) throw new Error('Invalid checkpoint observation');
     this.obs = obs;
     this.info = info;
+    return this.snapshot();
+  }
+
+  // /sync: game logic moved the Leaper between brain steps (a leap). Port of
+  // BrainSession.sync in rl/junkyard_server.py. Only the pose changes; the
+  // observation is then recomputed by the unchanged observation code, exactly as
+  // /step refreshes it before inference in eye mode:
+  //   1. refuse a pose whose body or leg discs overlap the junkyard (the frozen
+  //      physics could never move out of it); Lola's contact is not checked;
+  //   2. put the Leaper there (float32 position, heading wrapped to [-pi, pi));
+  //   3. look from there: sight memory without ageing it, then search coverage;
+  //   4. the next policy input = the observation at the new pose plus the last
+  //      move's feedback (inputs 31-33), which a pose sync does not change.
+  // The step count, LSTM memory and last action are kept: no new episode.
+  sync(position, yaw, target, sightPose = null) {
+    const env = this.env;
+    const px = Math.fround(position[0]), pz = Math.fround(position[1]);
+    const heading = pyMod(Number(yaw) + Math.PI, 2 * Math.PI) - Math.PI;
+    for (const [x, z, radius] of env.collisionPoints(px, pz, heading)) {
+      if (env.raster.diskBlocked(x, z, radius)) throw new Error('Leaper pose intersects the junkyard; choose a clear spot');
+    }
+    env.position = [px, pz];
+    env.yaw = heading;
+    env.target = [Math.fround(target[0]), Math.fround(target[1])];
+    env.targetIs64 = false;
+    if (env.sight) env.sightPose = sightPose;
+    env.updateTargetMemory(false);
+    env.updateCoverage();
+    const refreshed = new Float32Array(OBS_SIZE);
+    refreshed.set(env.observation(), 0);
+    refreshed.set(this.obs.subarray(31), 31);
+    this.obs = refreshed;
     return this.snapshot();
   }
 
@@ -174,5 +207,22 @@ export class JunkyardBrainCore {
     const target = checkVector(data.target);
     const pose = session.env.sight ? checkSightPose(data) : null;
     return session.sense(target, pose);
+  }
+
+  // /sync: { token, position, yaw, target, sight_pose } (see JunkyardBrainSession.sync).
+  async sync(data) {
+    const session = this.session(data);
+    const position = checkVector(data.position);
+    const target = checkVector(data.target);
+    const yaw = data.yaw;
+    if (typeof yaw !== 'number' || !Number.isFinite(yaw)) throw new Error('Invalid robot heading');
+    const pose = session.env.sight ? checkSightPose(data) : null;
+    return session.sync(position, yaw, target, pose);
+  }
+
+  // /close: forget a session; unknown tokens are not an error.
+  close(data) {
+    const token = data?.token;
+    return { closed: typeof token === 'string' && this.sessions.delete(token) };
   }
 }

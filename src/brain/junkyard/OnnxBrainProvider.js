@@ -1,9 +1,9 @@
-// The Leaper brain without Python: a drop-in for the HTTP brain service.
+// The Leaper brain without Python: the default BrainProvider (src/brain/BrainProvider.js).
 //
-// It answers the same three requests as rl/junkyard_server.py (reset, step,
-// sense) with the same frame objects, but runs the frozen world rules and the
-// saved ONNX network in a Web Worker (brainWorker.js) inside the page. Parity
-// with the Python server is proven by tests/brain-parity.test.js and
+// It answers the same requests as rl/junkyard_server.py (reset, step, sense,
+// sync, close) with the same frame objects, but runs the frozen world rules and
+// the saved ONNX network in a Web Worker (brainWorker.js) inside the page.
+// Parity with the Python server is proven by tests/brain-parity.test.js and
 // tests/brain-onnx.html.
 //
 //   const brain = new OnnxBrainProvider();
@@ -11,7 +11,9 @@
 //   const next = await brain.step({ token: frame.token, target, sight_pose });
 //
 // `request(path, payload)` has the exact shape of JunkyardBrain.request, so the
-// game can switch between the two without other changes.
+// game can switch between providers without other changes.
+
+import { BrainProviderBase, BrainUnavailableError } from '../BrainProvider.js';
 
 // Where brain.json, actor.onnx and the baked rasters are served (public/brains/...).
 export function defaultBrainBaseUrl() {
@@ -19,11 +21,12 @@ export function defaultBrainBaseUrl() {
   return new URL('brains/leaper_7757824/', new URL(base, globalThis.location?.href ?? 'http://localhost/')).href;
 }
 
-// Same limits as the HTTP client: the first reset loads everything.
-const TIMEOUT_MS = { init: 90000, reset: 90000, step: 3000, sense: 3000 };
+// Same limits as the HTTP client: the first reset (or prepare) loads everything.
+const TIMEOUT_MS = { init: 90000, prepare: 90000, reset: 90000, step: 3000, sense: 3000, sync: 3000, close: 3000 };
 
-export class OnnxBrainProvider {
+export class OnnxBrainProvider extends BrainProviderBase {
   constructor({ baseUrl = defaultBrainBaseUrl(), createWorker = null } = {}) {
+    super('onnx');
     this.baseUrl = baseUrl;
     this.createWorker = createWorker
       ?? (() => new Worker(new URL('./brainWorker.js', import.meta.url), { type: 'module', name: 'leaper-brain' }));
@@ -38,68 +41,98 @@ export class OnnxBrainProvider {
     this.stats = { requests: 0, lastMs: 0, totalMs: 0, maxMs: 0, workerMs: 0 };
   }
 
+  get tooltipDetail() {
+    return this.loadInfo?.modelVerified ? 'actor.onnx SHA256 verified' : '';
+  }
+
   // --- Lifecycle -------------------------------------------------------------------
 
-  // Start the worker and load brain.json, the network and the map (once).
+  // Start the worker and load brain.json, the runtime, the network and the map (once).
   load() {
     if (!this.loading) {
-      this.worker = this.createWorker();
-      this.worker.onmessage = (event) => this.receive(event.data);
-      this.worker.onerror = (event) => this.failAll(new Error(`Brain worker failed: ${event.message || 'could not start'}`));
-      this.loading = this.call('init', { baseUrl: this.baseUrl }).then((result) => {
+      this.loading = (async () => {
+        try {
+          this.worker = this.createWorker();
+        } catch (error) {
+          throw new BrainUnavailableError(`no Web Worker (${error?.message || error})`, { kind: 'onnx', cause: error });
+        }
+        this.worker.onmessage = (event) => this.receive(event.data);
+        // A worker that dies takes its sessions with it: start afresh next time.
+        this.worker.onerror = (event) => this.dispose(new BrainUnavailableError(
+          `Brain worker failed: ${event?.message || 'could not start'}`, { kind: 'onnx' }));
+        const result = await this.call('init', { baseUrl: this.baseUrl });
         this.manifest = result.manifest;
         this.loadInfo = result.timings;
         return result.manifest;
-      }).catch((error) => {
+      })().catch((error) => {
         this.dispose();
-        throw error;
+        throw error?.unavailable ? error
+          : new BrainUnavailableError(error?.message || String(error), { kind: 'onnx', cause: error });
       });
     }
     return this.loading;
   }
 
-  dispose() {
+  // Load the junkyard for one Leaper size ahead of time: the baked raster for
+  // the default width, otherwise built in the worker (with progress), so the
+  // page never waits on it and the first reset at that size is instant.
+  async prepare(width) {
+    await this.load();
+    return this.call('prepare', { width });
+  }
+
+  // Stop the worker (and with it every session). Requests still waiting fail.
+  dispose(reason = new BrainUnavailableError('Brain worker stopped', { kind: 'onnx' })) {
     this.worker?.terminate();
     this.worker = null;
     this.loading = null;
-    this.failAll(new Error('Brain worker stopped'));
+    this.failAll(reason);
   }
 
-  // --- The three server requests ------------------------------------------------------
+  // --- The server's requests ------------------------------------------------------------
 
-  async request(path, payload) {
-    if (!['reset', 'step', 'sense'].includes(path)) throw new Error(`Unknown brain request ${path}`);
-    await this.load();
-    return this.call(path, payload);
+  async reset(payload) { await this.load(); return this.call('reset', payload); }
+
+  async step(payload) { await this.load(); return this.call('step', payload); }
+
+  async sense(payload) { await this.load(); return this.call('sense', payload); }
+
+  // Pose sync: game logic moved the Leaper between moves (brainSession.js sync()).
+  async sync(payload) { await this.load(); return this.call('sync', payload); }
+
+  // Forget one session; a stopped worker has no sessions left to forget.
+  async close(token) {
+    if (!this.worker || !token) return { closed: false };
+    try { return await this.call('close', { token }); } catch { return { closed: false }; }
   }
-
-  reset(payload) { return this.request('reset', payload); }
-
-  step(payload) { return this.request('step', payload); }
-
-  sense(payload) { return this.request('sense', payload); }
 
   // --- Messaging with the worker ---------------------------------------------------
 
   call(method, payload) {
+    if (!this.worker) return Promise.reject(new BrainUnavailableError('Brain worker stopped', { kind: 'onnx' }));
     const id = this.nextId++;
     const sent = performance.now();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`Brain ${method} timed out`));
-      }, TIMEOUT_MS[method]);
+      }, TIMEOUT_MS[method] ?? 3000);
       this.pending.set(id, { resolve, reject, timer, sent, method });
       this.worker.postMessage({ id, method, payload });
     });
   }
 
   receive(message) {
+    // Loading progress for a request still running (init / prepare / reset).
+    if (message.progress) {
+      if (this.pending.has(message.id)) this.emitProgress(message.progress);
+      return;
+    }
     const entry = this.pending.get(message.id);
     if (!entry) return;
     this.pending.delete(message.id);
     clearTimeout(entry.timer);
-    if (entry.method !== 'init') {
+    if (!['init', 'prepare', 'close'].includes(entry.method)) {
       const ms = performance.now() - entry.sent;
       this.stats.requests += 1;
       this.stats.lastMs = ms;
