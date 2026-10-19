@@ -105,6 +105,9 @@ class Particles {
     this.points = new THREE.Points(geometry, material);
     this.points.frustumCulled = false;
     this.points.renderOrder = 4;
+    // Scenery only: a bullet or sight line aimed through a dust cloud or a
+    // shower of sparks must never stop on a particle.
+    this.points.raycast = () => {};
     this.live = 0;
     // Point sizes in screen pixels per world unit at distance 1, for this view.
     const buffer = new THREE.Vector2();

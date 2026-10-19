@@ -105,6 +105,20 @@ test('everything is pooled: hundreds of effects never add objects or buffers', (
   assert.ok(fx.counts.decals <= EFFECTS.decals.pool);
 });
 
+test('rays pass straight through dust, sparks and scorch marks', () => {
+  const { fx } = effects();
+  const point = new THREE.Vector3(0.5, 0, -0.5);
+  fx.dust(point);
+  fx.impact(point, new THREE.Vector3(0, 1, 0));
+  fx.update(0.02);
+  assert.ok(fx.counts.dust > 0 && fx.counts.sparks > 0 && fx.counts.decals === 1, 'all three effects are showing');
+  // A shot straight down through the middle of all of them hits nothing.
+  const ray = new THREE.Raycaster(new THREE.Vector3(point.x, 3, point.z), new THREE.Vector3(0, -1, 0));
+  ray.params.Points.threshold = 1;
+  const hits = ray.intersectObject(fx.root, true);
+  assert.equal(hits.length, 0, `the ray stopped on ${hits.length} effect objects (${[...new Set(hits.map((hit) => hit.object.type))]})`);
+});
+
 test('effects leave the scene on dispose()', () => {
   const { scene, fx } = effects();
   assert.ok(scene.children.includes(fx.root));
