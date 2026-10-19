@@ -26,21 +26,20 @@ LEAPER_BASE=/RL-Leaper/ pnpm preview      # then open http://localhost:4173/RL-L
 
 ## What the hosted game does today
 
-The Leaper's movement brain currently runs in a local Python service
-(`pnpm play` starts it next to the game). A static web page cannot start that
-service, so on the hosted page:
+The whole game runs in the browser, with no server: the Leaper's frozen brain
+(7,757,824 steps) runs as an ONNX model in a Web Worker (`src/brain/`,
+`public/brains/leaper_7757824/`), so the hosted page gets the walking,
+hunting Leaper exactly like `pnpm dev` does. The status line reads
+`BRAIN 7,757,824 · ONNX · IN BROWSER`. Checked on the Pages build served at
+`/RL-Leaper/`: the title shows, PLAY starts the hunt, the model and the ONNX
+runtime load, and there are no 404s or console errors.
 
-- the junkyard, Lola, the guns, the camera and every effect work as usual;
-- **the Leaper does not walk: START RUN plays in turret mode.** The status line
-  says `NO BRAIN SERVICE // TURRET MODE`; the Leaper stays where it is but still
-  turns, aims and shoots, and the fight result is marked `TURRET MODE`;
-- a brain service running on the player's own computer may not be reachable
-  from the hosted page (browsers restrict public sites talking to `127.0.0.1`).
-  For the full fight, play locally with `pnpm play`.
-
-A parallel effort is porting the frozen brain into the browser (no server
-needed). Once it lands, the hosted game gets the walking, hunting Leaper with
-no other change to this workflow.
+- If the in-browser brain cannot start (a very old browser, no WebAssembly),
+  the game falls back to **turret mode**: the Leaper stays where it is but
+  still turns, aims and shoots, and the fight result is marked `TURRET MODE`.
+- The Python brain service (`pnpm play`, `?brain=http`) is still there for
+  development and parity checks; a hosted page may not reach a service on the
+  player's own computer (browsers restrict public sites talking to `127.0.0.1`).
 
 The RL lab pages (`?arena`, `?training`) are not part of the hosted game:
 `?arena` still loads its model, fixtures and player model from the site root
