@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
@@ -11,9 +12,12 @@ globalThis.self ??= globalThis.window;
 
 // Parse one GLB file from the repository (path relative to the repo root).
 // Meshopt-compressed copies decode through the decoder three.js r128 ships.
+// Images are never decoded (Node has none of the browser's image loaders):
+// a plugin that runs first hands back blank textures instead.
 export async function loadGlb(path) {
   const file = fs.readFileSync(new URL(`../${path}`, import.meta.url));
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  loader.pluginCallbacks.unshift(() => ({ name: 'TEST_BLANK_TEXTURES', loadTexture: () => Promise.resolve(new THREE.Texture()) }));
   await MeshoptDecoder.ready;
   return new Promise((resolve, reject) => loader.parse(
     file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength), '', resolve, reject,

@@ -1,0 +1,247 @@
+{
+  "about": "Web copies of the game assets, written by scripts/assets/build-assets.mjs (pnpm assets). Do not edit; rebuild after changing a source.",
+  "outputs": {
+    "maps/junkyard.glb": {
+      "source": "assets/maps/junkyard/junkyard.glb",
+      "sourceBytes": 3073540,
+      "sourceSha256": "b62c56b97871240d27ecf6812e4c07dec961690712a0d9a18ffc6f40621871dc",
+      "bytes": 1383092,
+      "sha256": "6cfb00a90df1dfd3963ec3cf7ba6790adc14ceb6eee05a3c36a3bf049ff74d37"
+    },
+    "lola/lola-m416.glb": {
+      "source": "assets/characters/lola/lola-m416.glb",
+      "sourceBytes": 1197268,
+      "sourceSha256": "f8fbce23a897195a2a1ea9d9c17f99c35fde16e7555643741e5f3241fb36953a",
+      "bytes": 531668,
+      "sha256": "fea45b1ca8a4ba33c80f6ae5c8da225297c97576e72e6f42f4c068f7015ce00b"
+    },
+    "lola/lola-basic.glb": {
+      "source": "assets/characters/lola/lola-basic.glb",
+      "sourceBytes": 1201532,
+      "sourceSha256": "90680f9893154e9fcb597405b8ab89d6652ef6a7519b66f03fba1a96f9982b26",
+      "bytes": 526208,
+      "sha256": "b2c410a5f396cc40327dd44db320ff742dcf31c210057f1be23a221ec809cf45"
+    },
+    "lola/lola-jump-m416.glb": {
+      "source": "assets/characters/lola/lola-jump-m416.glb",
+      "sourceBytes": 189196,
+      "sourceSha256": "cf6cf2c7e18b08a417181a7a493d20c4fdb76996b2ba6f74c1a8d6d96f48229d",
+      "bytes": 79788,
+      "sha256": "59b3d203ffd67d61e662f05bb08e94b008cf2fdf71be1de5c87c30a0cde778cd"
+    },
+    "lola/lola-jump-basic.glb": {
+      "source": "assets/characters/lola/lola-jump-basic.glb",
+      "sourceBytes": 187560,
+      "sourceSha256": "43cdfd3e18c4a017549481a3c9918ea54a609a9ace1859e490660763ae02fb68",
+      "bytes": 88180,
+      "sha256": "f11e669532d45214004d63b96fe2ea5e34dc265c3c7cfe86b0738e93095d3e8a"
+    },
+    "lola/lola-reload-m416.glb": {
+      "source": "assets/characters/lola/lola-reload-m416.glb",
+      "sourceBytes": 175124,
+      "sourceSha256": "bec8732a1b00a3360796543e778bcd00dd1f7903b16345c3f89d07a2a5467759",
+      "bytes": 68400,
+      "sha256": "9dcfdf4191188f18f67a29bdad5d9da8a46ff13044280829ff2035a6ace1c1fb"
+    },
+    "lola/lola-reload-basic.glb": {
+      "source": "assets/characters/lola/lola-reload-basic.glb",
+      "sourceBytes": 174180,
+      "sourceSha256": "db9af5bc009cf34bdde92fb1d3dceb33bc03a1d4cb793e39d3d2ec9f31460f5e",
+      "bytes": 78212,
+      "sha256": "6f0954971c1300d6534fc9f2ff158222c9a5714ef3b432a5a28db12257dd64a9"
+    },
+    "lola/lola-runjumprl-m416.glb": {
+      "source": "assets/characters/lola/lola-runjumprl-m416.glb",
+      "sourceBytes": 169440,
+      "sourceSha256": "3c772b8f6b9006dbfaf25a4037bd3fd6a1c040cafaa99ed0f1b31ef81ccd7e73",
+      "bytes": 70544,
+      "sha256": "6b45d7be42f8eb6b9ba69edf663d2e2284b45b7e0dd1b3f957e3ef7c976366f9"
+    },
+    "lola/lola-runjumprl-basic.glb": {
+      "source": "assets/characters/lola/lola-runjumprl-basic.glb",
+      "sourceBytes": 167824,
+      "sourceSha256": "76378a9bd2e57dba785a338a01cf56c9cbe0965111e655d59bc94544b917b69b",
+      "bytes": 79728,
+      "sha256": "1fdccd9ced71967f42882c94c0b98e209c556451d432ae78495001aeb47f5b63"
+    },
+    "lola/lola-runjumplr-m416.glb": {
+      "source": "assets/characters/lola/lola-runjumplr-m416.glb",
+      "sourceBytes": 169436,
+      "sourceSha256": "cf38bd7117765fb4a2dbea39428f8aabddba01a2286c1e2495ed7872d8d1ebcd",
+      "bytes": 70376,
+      "sha256": "989007b32f325bc113c9bd94ba8932f70615e4769f13510b665ef4bd260f55d1"
+    },
+    "lola/lola-runjumplr-basic.glb": {
+      "source": "assets/characters/lola/lola-runjumplr-basic.glb",
+      "sourceBytes": 167824,
+      "sourceSha256": "1070768b4dc1ec0309ee62e2c16036113e5613c4407f784cdb58aca0f45a713a",
+      "bytes": 79188,
+      "sha256": "835062c2c69c9242b4ec03c029c62766f0f6b3e72cd0f88821647e18905a1e09"
+    },
+    "lola/lola-backjumprl-m416.glb": {
+      "source": "assets/characters/lola/lola-backjumprl-m416.glb",
+      "sourceBytes": 166064,
+      "sourceSha256": "285c005a1210ceee8b3e125315ded3fc236d9a8da31b21baaf3a696b581e5dbf",
+      "bytes": 67524,
+      "sha256": "42476e494aa08e8d6f6e1f60ad7062f210a965cc7b1888dd43605cd00d60d79f"
+    },
+    "lola/lola-backjumprl-basic.glb": {
+      "source": "assets/characters/lola/lola-backjumprl-basic.glb",
+      "sourceBytes": 164812,
+      "sourceSha256": "280937a2d4ca0b2414fb48cd0e3f913059f079b29b7b5488af007655d617cf5d",
+      "bytes": 76824,
+      "sha256": "fe87f087919bf0ce5f8e3631a9b8914c0b3f82c0225d5f1ddc51c51650d906be"
+    },
+    "lola/lola-backjumplr-m416.glb": {
+      "source": "assets/characters/lola/lola-backjumplr-m416.glb",
+      "sourceBytes": 166064,
+      "sourceSha256": "8cb9373ec070f308699d079576fdc4feb69d9bb2c5c2b612cd8731fe8c0fb861",
+      "bytes": 67504,
+      "sha256": "2511dd90d2f6e961d375e41e5317b4ad2d50ea47eba3fb37912561999f42b3c8"
+    },
+    "lola/lola-backjumplr-basic.glb": {
+      "source": "assets/characters/lola/lola-backjumplr-basic.glb",
+      "sourceBytes": 164808,
+      "sourceSha256": "530f7c229748bb5827cae84d467b88115c379a293c75cd6496d16f96bcbad955",
+      "bytes": 76776,
+      "sha256": "03a1d41f0b9923cdba2da62e481c641ce524a34f809e56a4104a39f69558ce14"
+    },
+    "audio/leaper-laser.ogg": {
+      "source": "assets/audio/leaper-laser.wav",
+      "sourceBytes": 70722,
+      "sourceSha256": "33a076a7cb3157c5530c07a900d071cdde1594f9a7dd2d526932cf657461b0cc",
+      "bytes": 4627,
+      "sha256": "240d1bc26c7d294a3e4ea162f6d56777913e39dcee8d3af196cda485b33a8310"
+    },
+    "audio/leaper-laser.m4a": {
+      "source": "assets/audio/leaper-laser.wav",
+      "sourceBytes": 70722,
+      "sourceSha256": "33a076a7cb3157c5530c07a900d071cdde1594f9a7dd2d526932cf657461b0cc",
+      "bytes": 7785,
+      "sha256": "26f7ac045a5889a3a90097ef295f749e87cd8cdd21ae7ac9d3d3181c3bf24b61"
+    },
+    "audio/pistol-shot.ogg": {
+      "source": "assets/audio/pistol-shot.wav",
+      "sourceBytes": 75176,
+      "sourceSha256": "5a221c8aaa3512788b50dbcac8d307c58a0d03a6d4307195848047b5d3c2c28e",
+      "bytes": 5007,
+      "sha256": "708af7b4a9001dec6e3327671a2a213569c7c5da317788cc430ce218c169c5b5"
+    },
+    "audio/pistol-shot.m4a": {
+      "source": "assets/audio/pistol-shot.wav",
+      "sourceBytes": 75176,
+      "sourceSha256": "5a221c8aaa3512788b50dbcac8d307c58a0d03a6d4307195848047b5d3c2c28e",
+      "bytes": 7936,
+      "sha256": "30f137c8379be31950027a7b9a9a1232507e521e0cbafa61ee88e2a244cd4fc6"
+    },
+    "audio/m416-shot.ogg": {
+      "source": "assets/audio/m416-shot.wav",
+      "sourceBytes": 57444,
+      "sourceSha256": "600d343020c9fe4a1a205cc1d3eeb1aa8c1596929404404fc9e6f7d43f8c7dee",
+      "bytes": 4003,
+      "sha256": "c65430ae7d482c7b968ee000c0844cfcd6a5937587e71234f2f35b18e2aa64ff"
+    },
+    "audio/m416-shot.m4a": {
+      "source": "assets/audio/m416-shot.wav",
+      "sourceBytes": 57444,
+      "sourceSha256": "600d343020c9fe4a1a205cc1d3eeb1aa8c1596929404404fc9e6f7d43f8c7dee",
+      "bytes": 6441,
+      "sha256": "9251a98366e78600beda4753b9e6bc3a492036cfc39b48c7c37c269537cbf23f"
+    },
+    "audio/leaper-hit.ogg": {
+      "source": "assets/audio/leaper-hit.wav",
+      "sourceBytes": 57434,
+      "sourceSha256": "2e247058bd6ebd4c99851d37ca262cb9394c211dc947facf0d18e991d918a9b7",
+      "bytes": 3689,
+      "sha256": "a240d478175c09372abbfdcd6735cf128d080acefaa2969707e0d80143097dcf"
+    },
+    "audio/leaper-hit.m4a": {
+      "source": "assets/audio/leaper-hit.wav",
+      "sourceBytes": 57434,
+      "sourceSha256": "2e247058bd6ebd4c99851d37ca262cb9394c211dc947facf0d18e991d918a9b7",
+      "bytes": 6445,
+      "sha256": "ed6c7536facf7eba0685f9047fb8eb67b5ac78542457f324262bf270fec3a7e3"
+    },
+    "audio/lola-run.ogg": {
+      "source": "assets/audio/lola-run.wav",
+      "sourceBytes": 408546,
+      "sourceSha256": "a0905100226d69f7a7ea6f4a1dcb24a186f18ac51f0bc2444c0267b266cedd5b",
+      "bytes": 24942,
+      "sha256": "5a056ad75aacbf618c14d8cba9567455ea861d0ffeba5b73eb0dd13a93b32dbd"
+    },
+    "audio/lola-run.m4a": {
+      "source": "assets/audio/lola-run.wav",
+      "sourceBytes": 408546,
+      "sourceSha256": "a0905100226d69f7a7ea6f4a1dcb24a186f18ac51f0bc2444c0267b266cedd5b",
+      "bytes": 39235,
+      "sha256": "c0febb6834bea45df973ce40807a9584b71aa45d676dda50b748e5d6d409e0ae"
+    },
+    "audio/lola-walk.ogg": {
+      "source": "assets/audio/lola-walk.wav",
+      "sourceBytes": 4528190,
+      "sourceSha256": "57b3b0f406e55377b1f6ae0af2cb9805cfbd22dab733c6b4a3318e32db1018f1",
+      "bytes": 171048,
+      "sha256": "93d30b7d1f5f8369986851e14893e314e436f6ae6d2c4e824d8d0d51d8d64f7f"
+    },
+    "audio/lola-walk.m4a": {
+      "source": "assets/audio/lola-walk.wav",
+      "sourceBytes": 4528190,
+      "sourceSha256": "57b3b0f406e55377b1f6ae0af2cb9805cfbd22dab733c6b4a3318e32db1018f1",
+      "bytes": 256883,
+      "sha256": "f0d6e0fb7baab75393e99beeb57d81fe3eab6e8f25cf71c8cb04525eb9a3fa47"
+    },
+    "audio/leaper-walk.ogg": {
+      "source": "assets/audio/leaper-walk.wav",
+      "sourceBytes": 291104,
+      "sourceSha256": "176793b0c7ada2b0bf55ad53837a680a15d93e96bc8324ab3c9d50b9b45bb527",
+      "bytes": 19944,
+      "sha256": "e73e8edf7c707fb895470acdab696a5d89020b5aa1c4646d7bf77df6df39e12c"
+    },
+    "audio/leaper-walk.m4a": {
+      "source": "assets/audio/leaper-walk.wav",
+      "sourceBytes": 291104,
+      "sourceSha256": "176793b0c7ada2b0bf55ad53837a680a15d93e96bc8324ab3c9d50b9b45bb527",
+      "bytes": 54764,
+      "sha256": "37439c3c20d19982221dd5fb1924f0270d4586427deebb0b35a7cc59f30a4f5d"
+    },
+    "audio/m416-reload-reserved.ogg": {
+      "source": "assets/audio/m416-reload-reserved.wav",
+      "sourceBytes": 116538,
+      "sourceSha256": "b898cc95f6c4ce87b3c9725fadda3a87cac0639d0e2ab1f8753cd3aaa5497e7a",
+      "bytes": 8890,
+      "sha256": "39810c1b2245cf2098973fccb5f6ced943d0690912777e4193b89f0b0904f298"
+    },
+    "audio/m416-reload-reserved.m4a": {
+      "source": "assets/audio/m416-reload-reserved.wav",
+      "sourceBytes": 116538,
+      "sourceSha256": "b898cc95f6c4ce87b3c9725fadda3a87cac0639d0e2ab1f8753cd3aaa5497e7a",
+      "bytes": 12167,
+      "sha256": "457e16670352d45cf3e6f62b855ecebe311cf37918c70130cd1660bba6f566b2"
+    },
+    "audio/pistol-reload-reserved.ogg": {
+      "source": "assets/audio/pistol-reload-reserved.wav",
+      "sourceBytes": 53018,
+      "sourceSha256": "b0dfb6c588611bd097697e4a986610c05e2b75c42fb53e7a8b63bbbf843460e2",
+      "bytes": 3706,
+      "sha256": "4677fb51f74e6e90dbc042206a717cff3ef6a5ed16dc7469d4dc5951ad009095"
+    },
+    "audio/pistol-reload-reserved.m4a": {
+      "source": "assets/audio/pistol-reload-reserved.wav",
+      "sourceBytes": 53018,
+      "sourceSha256": "b0dfb6c588611bd097697e4a986610c05e2b75c42fb53e7a8b63bbbf843460e2",
+      "bytes": 6159,
+      "sha256": "141d13b3f8b67c18215a118e4b3eb9d571558b068d2c9125748837284f11cab4"
+    }
+  },
+  "textures": {
+    "Arms_BaseColor": "a2d26daeaca0acf39e70174fac720f4f0292df87f6389a8c160e606f1fdaeb1b",
+    "Boots_BaseColor": "c4b6b33dc71c5c89d648589c1a2e404fff25111ad4b1bf8d63f56a0fa1809eab",
+    "Head_BaseColor": "76d440cdaf1d881f1e6c081f07dd11e3c33b269334073ace2cfee9de100877c5",
+    "Legs_BaseColor": "d1e85ed5bc22956a2d8b677a464b0b7c26902249106044ccd4a1b62c22d1066b",
+    "Lola_Gun_BaseColor": "58e8ae6e41268756ec93512e763c2c1c0a5a40e3b5d79a18de242908e4e78620",
+    "Neck_BaseColor": "f3fcaa1fc712544f0346db3861db96fc9f606b84b66b396fecc978eba324c4fd",
+    "Pants_BaseColor": "d67b8968277140aa5849c1d21ddfa08f3636045720d0c42a35009efcd6188fe0",
+    "Top_BaseColor": "ef3396089d83ebb328ea0ae45c3b84d42a6b56ed456b7dfa225b3a45baefda53",
+    "m416_base_color": "dfdfdd0893317c7a53b9a35cdd208fb1da1912015990c48bcfa0e90cc9f52f17"
+  }
+}

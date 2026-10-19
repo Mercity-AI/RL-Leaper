@@ -17,6 +17,7 @@
     "test:browser": "node tests/run-browser.mjs",
     "test:py": "node scripts/test-py.mjs",
     "lint": "eslint src tests scripts demos eslint.config.js vite.config.js",
+    "assets": "node scripts/assets/build-assets.mjs && node scripts/assets/bake-junkyard-metrics.mjs",
     "assets:metrics": "node scripts/assets/bake-junkyard-metrics.mjs",
     "check": "pnpm build && pnpm test && pnpm test:browser"
   },
