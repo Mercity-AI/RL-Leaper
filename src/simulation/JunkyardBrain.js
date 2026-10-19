@@ -1,6 +1,7 @@
 import { contact } from '../world/playerContact.js';
 import { lerpAngle, wrapAngle } from '../core/angles.js';
 import { FixedStep } from '../core/GameLoop.js';
+import { ENCOUNTER } from '../config/encounter.js';
 import { BRAIN_PROVIDERS, brainProviderOrder, createBrainProvider, describeProgress } from '../brain/BrainProvider.js';
 import { HttpBrainProvider, brainServiceUrl, DEFAULT_BRAIN_URL } from '../brain/HttpBrainProvider.js';
 import { OnnxBrainProvider } from '../brain/junkyard/OnnxBrainProvider.js';
@@ -31,6 +32,11 @@ const MAX_FAILED_STEPS = 5;
 // (seconds of play), so a short outage or a very busy computer doesn't leave the
 // Leaper planted for the rest of the fight.
 const OFFLINE_RETRY_SECONDS = 5;
+// A brain move shorter than this (brain units) counts as "not moving", the same
+// threshold training's freeze rule used.
+const STILL_DISTANCE = 1e-3;
+// Soft episode restarts remembered for the debug readout and playtest logs.
+const EPISODE_LOG_LENGTH = 50;
 
 // One wording everywhere for "no brain" (review fix 5.11): the badge while
 // stopped, and the badge while a run goes on without it.
@@ -48,6 +54,17 @@ export function createGameBrainProvider({ search = globalThis.location?.search ?
       http: () => new HttpBrainProvider({ url: brainServiceUrl({ search }) }),
     },
   });
+}
+
+// The soft episode restart rule (review fix 5.12) from src/config/encounter.js.
+// ?softRestart=1 / 0 in the page address overrides `enabled`, for playtests
+// that compare both without editing the config.
+export function softRestartRule({ search = globalThis.location?.search ?? '' } = {}) {
+  const rule = { ...ENCOUNTER.brainSoftRestart };
+  const flag = new URLSearchParams(search).get('softRestart');
+  if (flag === '1' || flag === 'on') rule.enabled = true;
+  if (flag === '0' || flag === 'off') rule.enabled = false;
+  return rule;
 }
 
 // One frame of the playback smoothing: ease the rendered pose ({x, z, yaw}) toward
@@ -71,7 +88,7 @@ export function followPose(current, target, dt) {
 export class JunkyardBrain {
   // provider: a BrainProvider (default: createGameBrainProvider()). The brain
   // owns it from here on: dispose() closes the session and frees the provider.
-  constructor(playtest, { provider = null } = {}) {
+  constructor(playtest, { provider = null, softRestart = softRestartRule() } = {}) {
     this.playtest = playtest;
     this.simulation = playtest.simulation;
     this.target = playtest.target;
@@ -96,8 +113,15 @@ export class JunkyardBrain {
     // The last pose the brain itself reported (a pose sync shows the new spot early).
     this.brainFrame = null;
     this.label = 'BRAIN CONNECTING';
-    // 3. Game logic moving the Leaper between moves (a leap).
+    // 3. Game logic moving the Leaper between moves, and the soft episode restart.
     this.pendingSync = null;
+    this.softRestart = softRestart;
+    this.pendingRestart = null;
+    this.stillSteps = 0;
+    this.catchArmed = true;
+    this.episodes = 0;
+    this.episodeLog = [];
+    this.restarts = { catch: 0, steps: 0, still: 0, failed: 0 };
   }
 
   // Where Lola must not walk: the rendered Leaper is somewhere between its last
@@ -163,6 +187,9 @@ export class JunkyardBrain {
     // 1. The previous session is finished with (RESET, vision change, retry).
     this.closeSession(this.token);
     this.token = null;
+    this.pendingRestart = null;
+    this.stillSteps = 0;
+    this.catchArmed = true;
     this.label = 'LOADING SAVED BRAIN…';
     const state = this.simulation.state;
     this.frame = { x: state.position.x, z: state.position.z, yaw: state.yaw, distance: 0, collision: false, model_step: 7757824 };
@@ -181,6 +208,7 @@ export class JunkyardBrain {
       this.frame = this.pendingSync ? { ...frame, ...this.pendingSync.pose } : frame;
       this.previousFrame = this.frame;
       this.providerKind = this.provider.kind ?? null;
+      this.episodes = 1;
       this.playtest.sight?.show(frame);
       this.ready = true;
       this.offline = false;
@@ -281,10 +309,11 @@ export class JunkyardBrain {
     }
   }
 
-  // One request at a time: a waiting pose sync goes before the next move.
+  // One request at a time: a waiting pose sync goes first, then a soft restart.
   flushPending() {
     if (this.busy || !this.ready) return;
     if (this.pendingSync) this.sendSync();
+    else if (this.pendingRestart) this.restartEpisode(this.pendingRestart);
   }
 
   async sendSync() {
@@ -319,6 +348,8 @@ export class JunkyardBrain {
           this.frame = frame;
           this.previousFrame = frame;
         }
+        // A leap is movement: the still-step count starts over.
+        this.stillSteps = 0;
         this.playtest.sight?.show(frame);
       }
       this.busy = false;
@@ -329,6 +360,60 @@ export class JunkyardBrain {
       else waiter.resolve(frame);
     }
     if (generation === this.generation) this.flushPending();
+  }
+
+  // ---- Soft episode restart (review fix 5.12, ENCOUNTER.brainSoftRestart) ----
+
+  // After a move: does this frame end a training-style episode?
+  softRestartReason(frame) {
+    const rule = this.softRestart;
+    if (!rule?.enabled) return null;
+    // A catch counts once; Lola must get away again before the next one does.
+    if (!frame.caught) this.catchArmed = true;
+    if (rule.afterCatch && frame.caught && this.catchArmed) return 'catch';
+    if (rule.afterStillSteps && this.stillSteps >= rule.afterStillSteps) return 'still';
+    if (rule.afterSteps && frame.step >= rule.afterSteps) return 'steps';
+    return null;
+  }
+
+  // Start a fresh brain episode exactly where the Leaper stands: a new session
+  // at the brain's own pose (so nothing visibly moves), then the old one is closed.
+  async restartEpisode(reason) {
+    this.pendingRestart = null;
+    const generation = this.generation;
+    const oldToken = this.token;
+    const pose = this.brainFrame ?? this.frame;
+    this.busy = true;
+    try {
+      const frame = await this.request('reset', this.resetPayload(pose));
+      if (generation !== this.generation) {
+        this.closeSession(frame?.token);
+        return;
+      }
+      this.checkIdentity(frame);
+      this.token = frame.token;
+      this.brainFrame = frame;
+      if (!this.pendingSync) {
+        this.previousFrame = this.frame;
+        this.frame = frame;
+      }
+      this.stillSteps = 0;
+      if (reason === 'catch') this.catchArmed = false;
+      this.episodes += 1;
+      this.restarts[reason] += 1;
+      this.episodeLog.push({ episode: this.episodes, reason, afterStep: pose.step ?? null });
+      if (this.episodeLog.length > EPISODE_LOG_LENGTH) this.episodeLog.shift();
+      this.closeSession(oldToken);
+      this.playtest.sight?.show(frame);
+    } catch {
+      // Only an experiment: keep hunting with the episode we have.
+      if (generation === this.generation) this.restarts.failed += 1;
+    } finally {
+      if (generation === this.generation) {
+        this.busy = false;
+        this.flushPending();
+      }
+    }
   }
 
   // ---- The frame update ----
@@ -352,7 +437,7 @@ export class JunkyardBrain {
     const stepping = this.ready && !encounterOver && (this.running || preview) && !document.hidden;
     this.cadence.step = preview ? PREVIEW_INTERVAL : 1 / LEAPER_STEPS_PER_SECOND;
     if (stepping) this.cadence.add(dt * (sim.rig?.mobility ?? 1));
-    // 2. One request at a time: a pose sync goes first; a due
+    // 2. One request at a time: a pose sync or soft restart goes first; a due
     //    move waits (keeping its time) until the previous reply has arrived.
     if (!encounterOver) this.flushPending();
     if (stepping && !this.busy && this.cadence.take()) {
@@ -367,6 +452,12 @@ export class JunkyardBrain {
         // A move that arrives after the fight ended is never shown (the Leaper
         // stays where it fell), so it must not move Lola's contact with it either.
         if (this.playtest.combat?.dead) return;
+        // Moving counts against the soft restart's "still" rule (as in training).
+        if (!preview) {
+          const last = this.brainFrame ?? this.frame;
+          const moved = !last || Math.hypot(frame.x - last.x, frame.z - last.z) > STILL_DISTANCE;
+          this.stillSteps = moved ? 0 : this.stillSteps + 1;
+        }
         this.brainFrame = frame;
         // A pose sync asked for while this move was computing wins (this reply is
         // from the old spot); the sync is sent next.
@@ -377,6 +468,7 @@ export class JunkyardBrain {
         this.renderAge = 0;
         this.failedSteps = 0;
         this.playtest.sight?.show(frame);
+        if (!preview) this.pendingRestart = this.softRestartReason(frame) ?? this.pendingRestart;
       }).catch((error) => {
         if (generation !== this.generation) return;
         // A busy computer can delay one move; keep the run going and try again.
@@ -432,9 +524,11 @@ export class JunkyardBrain {
       : this.frame.target_visible ? 'TARGET VISIBLE'
         : this.frame.target_ever_seen ? 'TARGET HIDDEN · MEMORY' : 'SEARCHING';
     const where = BRAIN_PROVIDERS[this.providerKind]?.badge;
+    // With soft restarts on, the status line also counts the brain's episodes.
+    const episode = this.softRestart?.enabled && this.episodes > 1 ? ` // EPISODE ${this.episodes}` : '';
     return {
       label: this.ready ? ['BRAIN 7,757,824', where, mode].filter(Boolean).join(' · ') : loading,
-      status: `LIVE TRAINED BRAIN // ${mode}${this.frame?.collision ? ' // CONTACT' : ''} // STEP ${this.frame?.step || 0}`,
+      status: `LIVE TRAINED BRAIN // ${mode}${this.frame?.collision ? ' // CONTACT' : ''}${episode} // STEP ${this.frame?.step || 0}`,
     };
   }
 }
