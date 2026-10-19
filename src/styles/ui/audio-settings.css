@@ -1,0 +1,25 @@
+/* The sound settings (src/ui/AudioSettingsView.js). Self-contained: a dark
+   panel of labelled rows that fills its container. Text is at least 12 px, and
+   every control is big enough to use with a finger. */
+.audio-settings {
+  box-sizing: border-box; width: 100%; padding: 16px 18px 18px; background: #15171bf2; color: #eef1f2;
+  border: 1px solid #ffffff2a; border-radius: 10px; font: 13px/1.5 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+.audio-settings-title { margin: 0 0 8px; font-size: 14px; letter-spacing: 0.28em; color: #ff6a3d; }
+.audio-settings-row { display: grid; grid-template-columns: minmax(8em, 1fr) minmax(0, 1.4fr) 3.5em; align-items: center; gap: 10px; min-height: 40px; }
+.audio-settings-row:has(input[type=checkbox]) { grid-template-columns: minmax(8em, 1fr) auto; justify-content: space-between; }
+.audio-settings-row label { color: #dfe4e6; }
+.audio-settings-row output { text-align: right; color: #ffb347; font-variant-numeric: tabular-nums; }
+.audio-settings input[type=range] { width: 100%; min-height: 32px; accent-color: #ff6a3d; cursor: pointer; }
+.audio-settings input[type=checkbox] { width: 24px; height: 24px; accent-color: #ff6a3d; cursor: pointer; justify-self: end; }
+.audio-settings input:focus-visible, .audio-settings-reset:focus-visible { outline: 2px solid #ffb347; outline-offset: 2px; }
+.audio-settings-reset { margin-top: 10px; min-height: 40px; padding: 8px 14px; font: inherit; font-weight: 700; letter-spacing: 0.12em;
+  color: #15171b; background: #eef1f2; border: 0; border-radius: 6px; cursor: pointer; }
+.audio-settings-reset:hover { background: #ffb347; }
+.audio-settings-note { margin: 10px 0 0; color: #b8c0c4; font-size: 12px; }
+@media (max-width: 480px) {
+  .audio-settings { padding: 14px; }
+  .audio-settings-row { grid-template-columns: 1fr 3.5em; row-gap: 0; }
+  .audio-settings-row label { grid-column: 1 / -1; }
+  .audio-settings-row:has(input[type=checkbox]) label { grid-column: auto; }
+}

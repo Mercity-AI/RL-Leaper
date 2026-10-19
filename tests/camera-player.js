@@ -115,7 +115,8 @@ try {
   button.onclick = async () => {
     try {
       audio.unlock(); await audio.ready;
-      check(audio.buffers.run.duration > 4 && audio.buffers.walk.duration > 15, 'both supplied WAVs decode in the browser');
+      // (The walk copy keeps only the first 5.8 s: its ten played impacts end at 5.61 s.)
+      check(audio.buffers.run.duration > 4 && audio.buffers.walk.duration > 5.6, 'both supplied recordings decode in the browser');
       audio.step('run'); audio.step('walk');
       check(audio.voices.size === 2, 'both recorded footfalls start successfully');
       check(audio.buffers.robot.duration > 3, 'Leaper mechanical footfalls decode in the browser');

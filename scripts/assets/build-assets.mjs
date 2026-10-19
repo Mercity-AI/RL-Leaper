@@ -42,10 +42,14 @@ const MODELS = [
 // Textures shrunk on the way: nearly flat colour, drawn small on screen.
 const TEXTURE_SIZES = { m416_base_color: 512, Lola_Gun_BaseColor: 512 };
 
-// The recordings the game plays (src/simulation/LaserAudio.js CLIPS), and the
-// bit rates per channel: plenty for short effects and footsteps.
-const SOUNDS = ['leaper-laser', 'pistol-shot', 'm416-shot', 'leaper-hit', 'lola-run', 'lola-walk', 'leaper-walk',
-  'm416-reload-reserved', 'pistol-reload-reserved'];
+// The recordings the game plays: every take in the sound manifest
+// (src/audio/sounds.json) that has a built Ogg / AAC copy, with its source WAV
+// and optional build settings (e.g. { duration } to drop an unused tail). The
+// bit rates are per channel: plenty for short effects and footsteps.
+const SOUND_MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/audio/sounds.json'), 'utf8'));
+const SOUNDS = SOUND_MANIFEST.sounds.flatMap((sound) => sound.variations)
+  .filter((variation) => variation.files.ogg?.startsWith('assets/build/') || variation.files.m4a?.startsWith('assets/build/'))
+  .map((variation) => ({ name: variation.name, source: variation.source.wav, ...variation.build }));
 const OPUS_KBPS_PER_CHANNEL = 48;
 const AAC_KBPS_PER_CHANNEL = 64;
 
@@ -103,14 +107,15 @@ async function buildModel(io, source, target) {
 
 // ---- Sounds ----
 
-function buildSound(name) {
-  const source = `assets/audio/${name}.wav`;
+function buildSound({ name, source, duration }) {
   const channels = Number(execFileSync(path.join(path.dirname(FFMPEG), 'ffprobe'), ['-v', 'error', '-select_streams', 'a:0',
     '-show_entries', 'stream=channels', '-of', 'csv=p=0', path.join(ROOT, source)]).toString().trim()) || 1;
   const input = path.join(ROOT, source);
   // bitexact: no random stream serial numbers or encoder tags, so rebuilding an
   // unchanged sound gives exactly the same bytes (no needless churn in the repo).
-  const exact = ['-fflags', '+bitexact', '-flags:a', '+bitexact'];
+  // Only the sound is kept (a WAV may carry cover art), and a take with a build
+  // duration keeps only that much of its source.
+  const exact = ['-fflags', '+bitexact', '-flags:a', '+bitexact', '-vn', ...(duration ? ['-t', String(duration)] : [])];
   const opus = ffmpeg(['-i', input, ...exact, '-map_metadata', '-1', '-c:a', 'libopus', '-b:a', `${OPUS_KBPS_PER_CHANNEL * channels}k`,
     '-application', 'audio', '-f', 'ogg', 'pipe:1']);
   const tmp = path.join(OUT, `audio/.${name}.m4a`);
@@ -138,8 +143,8 @@ for (const [source, target] of MODELS) {
   console.log(`${target}: ${fs.statSync(path.join(ROOT, source)).size} -> ${result.bytes} bytes`);
 }
 // 2. Sounds.
-for (const name of SOUNDS) {
-  for (const [source, result] of buildSound(name)) {
+for (const sound of SOUNDS) {
+  for (const [source, result] of buildSound(sound)) {
     entries.push([source, result]);
     console.log(`${result.file}: ${fs.statSync(path.join(ROOT, source)).size} -> ${result.bytes} bytes`);
   }

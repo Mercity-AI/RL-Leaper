@@ -11,19 +11,22 @@ test('recorded effects require a gesture, overlap, mute immediately and do not r
     constructor() { contexts++; this.state = 'running'; this.destination = {}; }
     async decodeAudioData(bytes) { return { bytes }; }
     createBufferSource() {
-      return { connect() {}, disconnect() {},
+      // (Each source remembers the node it plays into: its own volume.)
+      return { connect(node) { this.output = node; }, disconnect() {},
         start() { played.push(this); }, stop() { stopped.push(this); this.onended?.(); } };
     }
     createGain() { const node = { gain: {}, connect() {}, disconnect() {} }; gains.push(node); return node; }
   }
   globalThis.window = { AudioContext, addEventListener: (name, fn) => { gestures[name] = fn; } };
-  const audio = new LaserAudio();
+  // random 0.5 = the middle of each sound's per-play pitch and volume spread.
+  const audio = new LaserAudio({ random: () => 0.5 });
   await audio.fire(); assert.equal(contexts, 0);
   gestures.pointerdown(); await audio.ready;
   assert.equal(Object.keys(audio.buffers).length, 9);
   await audio.fire(); await audio.play('m416'); await audio.play('pistol'); await audio.play('leaper');
   assert.equal(played.length, 4);
-  assert.equal(gains[1].gain.value, 0.12, 'M416 playback uses the quieter gain');
+  assert.equal(played[1].output.gain.value, 0.12, 'M416 playback uses the quieter gain');
+  assert.ok(gains.includes(played[1].output), 'each voice has its own volume');
   assert.deepEqual(played.map(s => s.buffer), ['laser','m416','pistol','leaper'].map(k => audio.buffers[k]));
   audio.enabled = false;
   assert.equal(stopped.length, 4); assert.equal(audio.voices.size, 0);
