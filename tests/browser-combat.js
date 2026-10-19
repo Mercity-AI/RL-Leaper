@@ -639,8 +639,10 @@ try {
   };
   frame(1 / 60);
   const blockMarker = document.querySelector('.reticle-block');
-  check(p.playerWeapon.reticle.dataset.blocked === 'true' && !blockMarker.hidden, 'low cover in front of the gun shows the OBSTRUCTED reticle and its marker');
-  check(getComputedStyle(p.playerWeapon.reticle).color !== 'rgb(255, 255, 255)', 'the obstructed crosshair greys out');
+  check(p.playerWeapon.reticle.dataset.blocked === 'true', 'low cover in front of the gun is noticed (OBSTRUCTED state)');
+  // The owner's plain crosshair (2026-10-19): no cover marker and no grey-out are drawn.
+  check(getComputedStyle(blockMarker).display === 'none' && getComputedStyle(p.playerWeapon.reticle).color !== 'rgb(154, 160, 166)',
+    'the plain crosshair never greys out and shows no cover marker');
   const healthBeforeFence = combat.leaperHealth;
   target.cancelShot(); p.playerWeapon.fire();
   check(combat.leaperHealth === healthBeforeFence && p.playerWeapon.lastShot.hit?.kind === 'world', 'and the shot really does hit the cover');

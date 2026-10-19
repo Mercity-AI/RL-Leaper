@@ -10,7 +10,7 @@
 .reticle-layer .reticle {
   --gap: 9px;
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  color: white; text-shadow: 0 0 3px black; font: 24px monospace; line-height: 1;
+  color: white; text-shadow: 0 0 3px black; font: 24px monospace;
   pointer-events: none; transition: transform .12s ease-out, color .2s;
 }
 .reticle-layer .reticle[hidden] { display: none; }
@@ -42,8 +42,14 @@
 /* Weak-point (eye core) hit: a brighter crimson glow. */
 .reticle-layer .reticle[data-crit=true] { color: #ff1a40; text-shadow: 0 0 8px #dc143c, 0 0 2px #000; }
 
+/* The owner prefers the original plain crosshair (2026-10-19): the spread ticks,
+   the hit-marker X and the OBSTRUCTED look below are kept but not drawn (each
+   marked "off"). The crosshair's states are still set, so a look can come back
+   by removing its "off" line. */
+
 /* Spread: four ticks that open up as the gun's shots spread wider. */
 .reticle-spread, .reticle-marker { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.reticle-spread { display: none; } /* off */
 .reticle-spread i, .reticle-marker i {
   position: absolute; left: 0; top: 0; display: block; background: currentColor;
   box-shadow: 0 0 2px #000a;
@@ -60,7 +66,7 @@
    red and large = the kill. */
 .reticle-marker { opacity: var(--marker, 0); }
 .reticle .reticle-marker { display: none; }
-.reticle:not([data-marker=none]):not([data-marker='']) .reticle-marker { display: block; }
+/* off: .reticle:not([data-marker=none]):not([data-marker='']) .reticle-marker { display: block; } */
 .reticle-marker i { width: 2px; height: 8px; color: #fff;
   transform: translate(-50%, -50%) rotate(var(--turn)) translateY(-13px); }
 .reticle-marker i:nth-child(1) { --turn: 45deg; }
@@ -74,11 +80,11 @@
 
 /* OBSTRUCTED: the barrel is blocked before the crosshair's point. The crosshair
    greys out (unless it is showing a hit) and a marker sits on the cover. */
-#playerReticle.reticle[data-blocked=true]:not([data-hit=true]):not([data-big=true]) { color: #9aa0a6; opacity: .85; }
+/* off: #playerReticle.reticle[data-blocked=true]:not([data-hit=true]):not([data-big=true]) { color: #9aa0a6; opacity: .85; } */
 .reticle-block { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
   display: flex; align-items: center; justify-content: center;
   color: #ff8a3d; font: bold 16px/1 monospace; text-shadow: 0 0 3px #000, 0 0 1px #000; }
-.reticle-block[hidden] { display: none; }
+.reticle-block { display: none; } /* off */
 
 /* Read out to screen readers only. */
 .reticle-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
