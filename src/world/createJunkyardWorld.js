@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { ENCOUNTER } from '../config/encounter.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { buildJunkyardCollision, junkyardScale, WIDTH_LIMITS } from './junkyardCollision.js';
+import { Assets, MAP_URL } from '../core/Assets.js';
+import { junkyardScale, WIDTH_LIMITS } from './junkyardCollision.js';
+import { loadJunkyardCollision } from './loadJunkyardCollision.js';
 import metrics from '../../assets/maps/junkyard/metrics.json' with { type: 'json' };
 import { disposeObject3D } from '../core/disposeObject3D.js';
 import { accelerateStaticMeshes, releaseStaticMeshes } from './raycastAcceleration.js';
@@ -14,7 +15,16 @@ function savedWidth() {
   try { return localStorage.getItem(SAVED_WIDTH_KEY); } catch { return null; /* Private storage. */ }
 }
 
-export async function createJunkyardWorld(scene) {
+// collision.json stays the source for the Python brain service too; the page
+// hands it to a worker (see loadJunkyardCollision.js).
+const COLLISION_URL = new URL('../../assets/maps/junkyard/collision.json', import.meta.url).href;
+// The collision job counts like a file of this many bytes on the loading bar
+// (its download plus the grid building in the worker).
+const COLLISION_LOAD_WEIGHT = 2e6;
+
+// Load and set up the junkyard. assets: the page's loader (progress bar); tests
+// and tools get a quiet one of their own.
+export async function createJunkyardWorld(scene, { assets = new Assets({ overlay: false }) } = {}) {
   // Reference size the camera distance is tuned against (see followScale).
   const defaultWidth = 2.4 * ENCOUNTER.leaperSize;
   // Size used: the page address, else the last applied size, else the owner's chosen start size.
@@ -22,13 +32,12 @@ export async function createJunkyardWorld(scene) {
   const width = Number.isFinite(requestedWidth) ? Math.max(WIDTH_LIMITS.min, Math.min(WIDTH_LIMITS.max, requestedWidth)) : defaultWidth;
   // Keep the existing rig/gait intact; scale the imported map relative to it.
   const scale = junkyardScale(width);
-  const [gltf, response] = await Promise.all([
-    new GLTFLoader().loadAsync(new URL('../../assets/maps/junkyard/junkyard.glb', import.meta.url).href),
-    fetch(new URL('../../assets/maps/junkyard/collision.json', import.meta.url)),
+  // The compressed map and, in a worker at the same time, the Leaper's grid (with
+  // its connected regions and safe spawn cells) and Lola's.
+  const [gltf, { navigation, playerNavigation, builtBy }] = await Promise.all([
+    assets.model(MAP_URL),
+    assets.task('collision', (report) => loadJunkyardCollision(COLLISION_URL, width, report), COLLISION_LOAD_WEIGHT),
   ]);
-  if (!response.ok) throw new Error('The junkyard collision export could not be loaded.');
-  // The Leaper's grid (with its connected regions and safe spawn cells) and Lola's.
-  const { navigation, playerNavigation } = buildJunkyardCollision(await response.json(), width);
   const spawnIndex = navigation.nearest({ x: 0, z: 0 });
   if (spawnIndex < 0) throw new Error('No open starting position at this robot size.');
   const spawn = navigation.point(spawnIndex);
@@ -63,6 +72,8 @@ export async function createJunkyardWorld(scene) {
   return {
     dispose,
     colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene,
+    // Where the collision grids were built ('worker' normally, 'page' as a fallback).
+    collisionBuiltBy: builtBy,
     // The largest Leaper size at which RESTART RANDOM still works (the size
     // slider's maximum), baked by scripts/assets/bake-junkyard-metrics.mjs.
     maxWidth: metrics.maxWorkableWidth ?? WIDTH_LIMITS.max,

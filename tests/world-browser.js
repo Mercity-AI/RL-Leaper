@@ -2,6 +2,8 @@
 // fast map rays, region labels for RESTART RANDOM and SHOW CLEARANCE, and the
 // size slider's maximum. Run with `pnpm test:browser` (headless Chromium).
 import { createScene } from '../src/core/createScene.js';
+import { Assets, MAP_URL, loadLolaFiles } from '../src/core/Assets.js';
+import { LolaPlayer } from '../src/robot/LolaPlayer.js';
 import { createJunkyardWorld } from '../src/world/createJunkyardWorld.js';
 import { randomJunkyardStart } from '../src/world/randomJunkyardStart.js';
 import { ClearanceOverlay } from '../src/game/ClearanceOverlay.js';
@@ -17,10 +19,36 @@ function check(condition, label) {
 }
 
 try {
-  // 1. The real map, exactly as the game builds it.
+  // 1. The real map and Lola, loaded the way the game loads them: one loader
+  //    with a progress bar, compressed files, map and Lola side by side.
   const engine = createScene(document.querySelector('#app'));
-  const world = await createJunkyardWorld(engine.scene);
+  const assets = new Assets({ title: 'LOADING TEST' });
+  const loadingBar = document.querySelector('.leaper-loading');
+  const [world, lola] = await Promise.all([createJunkyardWorld(engine.scene, { assets }), loadLolaFiles(assets)]);
   result.textContent = 'WORLD AND LOADING CHECKS';
+  check(loadingBar && Number(loadingBar.querySelector('[role=progressbar]').getAttribute('aria-valuenow')) === 100,
+    'the loading bar reaches 100% when everything is in');
+  assets.done();
+  check(loadingBar.classList.contains('done'), 'the loading bar fades out when the game is ready');
+  const requested = performance.getEntriesByType('resource').map(entry => entry.name);
+  check(requested.some(name => name.includes('/assets/build/maps/')) && !requested.some(name => /maps\/junkyard\/junkyard\.glb/.test(name)),
+    `the compressed map is downloaded, not the source (${MAP_URL.split('/').pop()})`);
+  check(world.collisionBuiltBy === 'worker', 'the collision grids are built in a worker thread');
+  check(lola.models.length === 2 && lola.jumps.length === 2 && lola.reloads.length === 2 && Object.keys(lola.runJumps).length === 4,
+    'all 14 compressed Lola files load (WebP textures and meshopt geometry decode)');
+  const target = new LolaPlayer(engine.scene, world, document.createElement('button'), lola.models, lola.jumps, lola.reloads, lola.runJumps);
+  const textures = new Set(), names = new Map();
+  target.mesh.traverse((object) => {
+    if (object.material?.map) {
+      textures.add(object.material.map);
+      names.set(object.material.map.name, (names.get(object.material.map.name) ?? 0) + 1);
+    }
+  });
+  check(textures.size === new Set([...textures].map(texture => texture.name)).size,
+    `Lola shares one texture per picture across her files (${textures.size} textures)`);
+  check(target.outfits.length === 2 && target.outfits.every(outfit => outfit.actions.Run && outfit.actions.Idle),
+    'Lola is built from the compressed files with her clips');
+  engine.scene.remove(target.mesh);
   let meshes = 0, accelerated = 0;
   world.map.traverse((object) => {
     if (!object.isMesh) return;

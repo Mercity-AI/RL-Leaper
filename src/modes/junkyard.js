@@ -1,6 +1,7 @@
 import { createJunkyardWorld } from '../world/createJunkyardWorld.js';
 import { attachWorldCollision } from '../world/WorldCollision.js';
 import { LolaPlayer } from '../robot/LolaPlayer.js';
+import { Assets, loadLolaFiles } from '../core/Assets.js';
 import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
 import { enableMovableHud } from '../controls/MovableHud.js';
 import { EventBus } from '../core/events.js';
@@ -26,17 +27,24 @@ export async function start({ engine, params }) {
   //    systems that support it ends with session.abort() in dispose().
   const session = new AbortController();
   const { signal } = session;
-  // 2. The game state starts in Loading while the assets download. The one sound
-  //    engine for the whole game starts fetching its recordings at the same time.
+  // 2. The game state starts in Loading while the assets download. One loader
+  //    shows the progress bar for everything; the one sound engine for the whole
+  //    game starts fetching its recordings through it straight away.
   const events = new EventBus();
   const flow = new GameFlow({ events });
-  const audio = new LaserAudio({ signal });
-  // 3. The junkyard map with its collision service, then Lola (her models need
-  //    the map's scale).
-  const world = await loadStep('LOADING MAP…', 'MAP LOAD FAILED', () => createJunkyardWorld(engine.scene));
+  const assets = new Assets({ title: 'LOADING JUNKYARD' });
+  const audio = new LaserAudio({ signal, fetchFile: (url) => assets.fetch(url) });
+  // 3. The map (with its collision grids, built in a worker) and Lola's files
+  //    download side by side; Lola is put together once both are in (her model
+  //    needs the map's scale), then the map gets its collision service.
+  const tag = (label, promise) => promise.catch((error) => { throw new Error(`${label}: ${error.message}`); });
+  const [world, lola] = await loadStep('LOADING JUNKYARD…', 'LOAD FAILED', () => Promise.all([
+    tag('map', createJunkyardWorld(engine.scene, { assets })),
+    tag('Lola', loadLolaFiles(assets)),
+  ])).catch((error) => { assets.fail(`LOAD FAILED: ${error.message} — reload to retry`); throw error; });
   attachWorldCollision(world);
-  const target = await loadStep('LOADING LOLA…', 'CHARACTER LOAD FAILED',
-    () => LolaPlayer.create(engine.scene, world, document.getElementById('cuboidToggle')));
+  const target = await loadStep('BUILDING LOLA…', 'CHARACTER LOAD FAILED', async () => new LolaPlayer(
+    engine.scene, world, document.getElementById('cuboidToggle'), lola.models, lola.jumps, lola.reloads, lola.runJumps));
   // 4. The Leaper rig, input and a chase camera that follows Lola.
   const { rig, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
   cameraController.followSubject = target;
@@ -48,6 +56,9 @@ export async function start({ engine, params }) {
     enableMovableHud();
     movableHudEnabled = true;
   }
+  // The game is ready: the loading bar fills and fades (sounds may still be
+  // arriving; they are small and play as soon as they are in).
+  assets.done();
 
   // 6. The frame phases. After dispose() they do nothing, so a loop that is still
   //    running for one more frame can't touch a torn-down session.

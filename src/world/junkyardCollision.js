@@ -36,11 +36,14 @@ export const WIDTH_LIMITS = Object.freeze({ min: 1.2, max: 8, step: 0.1 });
 
 // Both grids, the Leaper's connected regions and its safe spawn cells. Pure:
 // the worker and the page fallback run exactly this, so both give one answer.
-export function buildJunkyardCollision(data, width) {
+// report(share): optional progress after each step (for the loading bar).
+export function buildJunkyardCollision(data, width, report = () => {}) {
   const leaper = leaperGridSize(width);
   const navigation = new JunkyardNavigation(data, leaper.radius, leaper.height);
+  report(0.65);
   navigation.labelRegions();
   navigation.markSpawnable(SPAWN_MARGIN);
+  report(0.8);
   const playerNavigation = new JunkyardNavigation(data, PLAYER_GRID.radius, PLAYER_GRID.height);
   return { navigation, playerNavigation };
 }
