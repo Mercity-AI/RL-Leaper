@@ -243,6 +243,38 @@ test('downed: four legs lost sink the body to the floor; it still fires and take
   assert.ok(actor.posture.lower < 0.1, 'standing again');
 });
 
+test('a fall or the collapse starts where the body already is: it never springs back up first', () => {
+  const { actor, frames, combat, rig } = setup({ aware: true });
+  const height = () => STANDING_HEIGHT - actor.posture.lower;
+  // Track the highest the body gets from now on.
+  const peakDuring = (seconds) => {
+    let peak = height();
+    frames(seconds, () => { peak = Math.max(peak, height()); });
+    return Math.max(peak, height());
+  };
+  frames(0.2);
+  for (let i = 0; i < 4; i += 1) rig.legs[i].disabled = true;
+  rig.damagedLegCount = 4;
+  actor.legBroken({ position: new THREE.Vector3(), lost: 4 });
+  frames(B.downed.sinkTime + B.downed.recoverTime + B.downed.getUpTime * 0.5);
+  assert.equal(actor.director.phase, 'rising');
+  // 1. A leg lost half way up: it falls back from there.
+  const halfUp = height();
+  rig.legs[4].disabled = true;
+  rig.damagedLegCount = 5;
+  actor.legBroken({ position: new THREE.Vector3(), lost: 5 });
+  const fallPeak = peakDuring(B.downed.sinkTime + 0.3);
+  assert.equal(actor.director.phase, 'down');
+  assert.ok(fallPeak <= halfUp + 0.02, `falls back from half way up (${halfUp.toFixed(2)}, peak ${fallPeak.toFixed(2)})`);
+  // 2. Destroyed while down: the collapse goes on from the floor.
+  const down = height();
+  combat.leaperHealth = 0;
+  const collapsePeak = peakDuring(B.dying.time + 0.5);
+  assert.equal(actor.director.state, 'dead');
+  assert.ok(collapsePeak <= down + 0.02, `stays on the floor while it collapses (${down.toFixed(2)}, peak ${collapsePeak.toFixed(2)})`);
+  assert.ok(Math.abs(height() - B.dying.restHeight) < 0.1, `the wreck rests at ${height().toFixed(2)}`);
+});
+
 test('death: the body collapses to the floor, the lights fade, and the wreck only blocks Lola at its hull', () => {
   const { actor, brain, frames, combat, simulation, heard, player } = setup({ aware: true });
   frames(0.2);

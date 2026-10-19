@@ -36,6 +36,13 @@ const ease = (u) => {
   return t * t * (3 - 2 * t);
 };
 
+// out's body pose (lower, pitch, roll, splay) a share u of the way from `from` to `to`.
+const POSE_KEYS = Object.freeze(['lower', 'pitch', 'roll', 'splay']);
+function blendPosture(out, from, to, u) {
+  for (const key of POSE_KEYS) out[key] = from[key] + (to[key] - from[key]) * u;
+  return out;
+}
+
 export class LeaperActor {
   // enemy: { simulation, brain, combat }; encounter: the fight's shared pieces
   // ({ flow, events, world, player, vitals, audio, cameraController }).
@@ -49,6 +56,8 @@ export class LeaperActor {
     this.playout = new SnapshotPlayout(config.motion);
     this.pose = { x: 0, z: 0, yaw: 0 };
     this.posture = { ...STANDING };
+    // The body's pose when the current state began (a fall starts from there).
+    this.entryPosture = { ...STANDING };
     this.flight = null;
     this.turning = false;
     this.wasRl = false;
@@ -72,6 +81,7 @@ export class LeaperActor {
     this.flight = null;
     this.wasRl = false;
     this.posture = { ...STANDING };
+    this.entryPosture = { ...STANDING };
     Object.assign(this.simulation.state.posture ??= { ...STANDING }, STANDING);
     this.feedback?.reset();
     if (this.combat) {
@@ -272,21 +282,20 @@ export class LeaperActor {
       target.pitch = -c.stagger.recoilPitch * recoil;
       target.lower = c.stagger.recoilLower * recoil;
     } else if (state === 'downed') {
-      // Sinks to the floor, legs splayed and planted; later stands back up.
-      const drop = STANDING_HEIGHT - c.downed.restHeight;
-      const down = phase === 'falling' ? ease(t / c.downed.sinkTime) : phase === 'rising' ? 1 - ease(t / c.downed.getUpTime) : 1;
-      target.lower = drop * down;
-      target.roll += (this.rollSide() * 0.12 - target.roll) * down;
-      target.splay = c.downed.splay * down;
+      // Sinks to the floor from wherever the body was (standing, staggered, half
+      // way up), legs splayed and planted; later stands back up.
+      const down = { lower: STANDING_HEIGHT - c.downed.restHeight, pitch: 0, roll: this.rollSide() * 0.12, splay: c.downed.splay };
+      if (phase === 'falling') blendPosture(target, this.entryPosture, down, ease(t / c.downed.sinkTime));
+      else if (phase === 'rising') blendPosture(target, down, { ...target }, ease(t / c.downed.getUpTime));
+      else Object.assign(target, down);
       target.planted = true;
       target.slide = 4;
     } else if (state === 'dying' || state === 'dead') {
-      // The collapse: eases to the floor, rolls toward its missing legs, legs splay.
+      // The collapse: from the pose it was destroyed in (even already down) it
+      // eases to the floor, rolls toward its missing legs, legs splay.
       const u = state === 'dead' ? 1 : ease(stateTime / c.dying.time);
-      target.lower = (STANDING_HEIGHT - c.dying.restHeight) * u;
-      target.roll += (this.rollSide() * c.dying.roll - target.roll) * u;
-      target.pitch = 0.1 * u;
-      target.splay = c.dying.splay * u;
+      const rest = { lower: STANDING_HEIGHT - c.dying.restHeight, pitch: 0.1, roll: this.rollSide() * c.dying.roll, splay: c.dying.splay };
+      blendPosture(target, this.entryPosture, rest, u);
       target.planted = true;
       target.slide = 3;
     }
@@ -377,6 +386,8 @@ export class LeaperActor {
     const emit = (name, payload) => this.events?.emit(name, { leaper: this.name, ...payload });
     return {
       onStateChange: ({ from, to, reason }) => {
+        // A fall or the collapse starts from the body's pose right now.
+        this.entryPosture = { ...this.posture };
         if (from === 'downed' && this.combat) this.combat.damageScale = 1;
         emit(LEAPER_EVENTS.stateChanged, { from, to, reason, locomotion: this.director.locomotion, label: this.director.label });
       },
