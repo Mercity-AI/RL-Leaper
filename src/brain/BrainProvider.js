@@ -157,6 +157,8 @@ export class BrainProviderChain extends BrainProviderBase {
     this.failures = [];
     // Which provider opened which session, so close() reaches the right one.
     this.owners = new Map();
+    // Set by dispose(): a pick or a reset still on its way starts nothing more.
+    this.disposed = false;
   }
 
   get kind() { return this.active?.kind ?? null; }
@@ -177,10 +179,17 @@ export class BrainProviderChain extends BrainProviderBase {
       this.selecting = (async () => {
         const failures = [];
         for (const candidate of this.candidates) {
+          // Disposed while choosing (the mode ended, OPTIONS switched brains):
+          // do not start the next provider (a worker, a server health check).
+          if (this.disposed) break;
           let provider = null;
           try {
             provider = this.provider(candidate);
             await provider.load();
+            if (this.disposed) {
+              provider.dispose?.();
+              break;
+            }
             this.active = provider;
             this.failures = failures;
             return provider;
@@ -191,6 +200,7 @@ export class BrainProviderChain extends BrainProviderBase {
             this.created.delete(candidate.kind);
           }
         }
+        if (this.disposed) failures.push('the brain was shut down');
         this.failures = failures;
         this.active = new TurretBrainProvider({ reasons: failures });
         return this.active;
@@ -212,6 +222,12 @@ export class BrainProviderChain extends BrainProviderBase {
     const provider = await this.select();
     try {
       const frame = await provider.reset(payload);
+      // Disposed while this reset was on its way: nobody will use or close
+      // that session, so close it now (the Python server would keep it).
+      if (this.disposed) {
+        if (frame?.token) provider.close?.(frame.token)?.catch?.(() => {});
+        throw new BrainUnavailableError('The brain was shut down', { kind: provider.kind });
+      }
       if (frame?.token) this.owners.set(frame.token, provider);
       return frame;
     } catch (error) {
@@ -253,6 +269,7 @@ export class BrainProviderChain extends BrainProviderBase {
   }
 
   dispose() {
+    this.disposed = true;
     for (const provider of this.created.values()) provider.dispose?.();
     this.created.clear();
     this.owners.clear();

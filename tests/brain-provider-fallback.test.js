@@ -147,6 +147,41 @@ test('sessions are closed by the provider that opened them; dispose frees every 
   assert.equal(onnx.disposed, 1);
 });
 
+test('a chain disposed while it is still choosing or resetting starts nothing more and leaves no session open', async () => {
+  // 1. Disposed while the in-browser brain loads (the mode ended, or OPTIONS
+  //    switched brains): the Python server is never contacted afterwards.
+  const log = [];
+  let failLoad;
+  const onnx = new FakeProvider('onnx');
+  onnx.load = () => { log.push('load onnx'); return new Promise((resolve, reject) => { failLoad = reject; }); };
+  onnx.dispose = () => { log.push('dispose onnx'); failLoad?.(new BrainUnavailableError('Brain worker stopped')); };
+  const chain = new BrainProviderChain([
+    { kind: 'onnx', create: () => onnx },
+    { kind: 'http', create: () => { log.push('create http'); return new FakeProvider('http'); } },
+  ]);
+  const picking = chain.load();
+  await new Promise((resolve) => setImmediate(resolve));
+  chain.dispose();
+  const picked = await picking;
+  assert.ok(!log.includes('create http'), `nothing new is started after dispose (${log.join(', ')})`);
+  assert.equal(chain.created.size, 0);
+  assert.ok(picked instanceof TurretBrainProvider);
+  await assert.rejects(chain.reset({}), (error) => error.unavailable === true, 'and nothing answers afterwards');
+  assert.ok(!log.includes('create http'));
+
+  // 2. Disposed while a reset is on its way: its new session is closed at once.
+  let finishReset;
+  const http = new FakeProvider('http', { reply: () => new Promise((resolve) => { finishReset = resolve; }) });
+  const second = chainOf(http);
+  const resetting = second.reset({});
+  await new Promise((resolve) => setImmediate(resolve));
+  second.dispose();
+  finishReset({ token: 'late', model_step: 7757824 });
+  await assert.rejects(resetting, /shut down/);
+  assert.ok(http.log.includes('close late'), 'the late session is closed on the server');
+  assert.equal(second.owners.size, 0);
+});
+
 test('progress from whichever provider is loading reaches the chain\'s listeners', async () => {
   const chain = chainOf(new FakeProvider('onnx'));
   const events = [];
