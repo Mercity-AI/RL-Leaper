@@ -139,10 +139,15 @@ export const HIT_ZONES = Object.freeze({
 //   zone    a HIT_ZONES name
 //   joint   the leg-damage counter a hit adds to (LeaperLegDamage: upper, lower,
 //           coxa, femur, tibia, calf)
+//   atEachHip  (body only) repeat the volume over every leg's hip on the body,
+//           turned with that leg: +Z then points out from the body along the leg
 // Long leg pieces stop short of the joints at their ends, so a shot at a knee
 // counts for the knee, not the thigh next to it.
+// The fin over each hip sticks up and out past the body sphere; without its own
+// volume, bullets that visibly struck a fin flew straight through it.
 export const LEAPER_HITBOXES = Object.freeze([
   Object.freeze({ part: 'robot', shape: 'sphere', at: [0, 0.05, 0], radius: 0.8, zone: 'body' }),
+  Object.freeze({ part: 'robot', atEachHip: true, shape: 'capsule', from: [0, 0.78, 0.745], to: [0, 0.86, 1.095], radius: 0.18, zone: 'body' }),
   Object.freeze({ part: 'eye', shape: 'sphere', at: [0, 0, -0.12], radius: 0.48, zone: 'body' }),
   Object.freeze({ part: 'eye', shape: 'sphere', at: [0, 0, 0.28], radius: 0.18, zone: 'core' }),
   Object.freeze({ leg: 'coxa', shape: 'capsule', from: [0, 0, 0], to: [0, COXA_LENGTH, 0], radius: 0.18, zone: 'shaft', joint: 'coxa' }),

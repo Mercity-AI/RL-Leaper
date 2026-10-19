@@ -54,10 +54,18 @@ test('ray-sphere and ray-capsule distances, inside starts and misses', () => {
   assert.equal(rayCapsule(new THREE.Vector3(0, 1, 5), dir, a, b, 0.5), Infinity);
 });
 
-test('the Leaper gets a body, an eye housing, a weak-point core and six pieces per leg', () => {
+test('the Leaper gets a body with a fin over each hip, an eye housing, a weak-point core and six pieces per leg', () => {
   const { rig, legs } = leaper();
   const hitboxes = createLeaperHitboxes(rig);
-  assert.equal(hitboxes.volumes.length, 3 + 6 * 6);
+  assert.equal(hitboxes.volumes.length, 3 + 6 + 6 * 6);
+  // The hip fins ride on the body (no leg owns them), one turned over each hip.
+  const fins = hitboxes.volumes.filter(volume => volume.object === rig.robot && volume.shape === 'capsule');
+  assert.equal(fins.length, 6);
+  assert.ok(fins.every(volume => volume.zone === 'body' && volume.leg === null && volume.joint === null));
+  for (const leg of rig.legs) {
+    const outward = new THREE.Vector3(leg.out.x, 0, leg.out.z);
+    assert.ok(fins.some(volume => volume.a.clone().setY(0).normalize().dot(outward) > 0.99), `a fin over leg ${leg.index}'s hip`);
+  }
   // Each leg volume rides on the piece LeaperLegDamage counts that joint's hits on.
   for (const volume of hitboxes.volumes.filter(item => item.joint)) {
     assert.deepEqual(volume.object.userData.leaperJoint, { index: volume.leg, joint: volume.joint });
@@ -86,6 +94,53 @@ test('upper and lower knee joints, the core and the body are hit by their own zo
   const top = hitboxes.raycast(rig.robot.position.clone().add(new THREE.Vector3(0, 5, 0)), new THREE.Vector3(0, -1, 0), 10);
   assert.equal(top.zone, 'body');
   assert.ok(top.normal.y > 0.9, 'sparks fly back up off the top');
+});
+
+// The volumes stand in for the art, so they must cover what the player sees.
+// Rays from Lola's eye height, all round the standing Leaper at two distances:
+// of the rays that touch its visible meshes, few may miss every volume (a ray
+// grazing an edge), and almost none may touch art clearly outside every volume
+// (a whole part left uncovered, as the six hip fins once were).
+test('the hit volumes cover the Leaper players see: no visible part lets bullets through', () => {
+  const { rig } = leaper();
+  const hitboxes = createLeaperHitboxes(rig);
+  hitboxes.update();
+  const meshes = [rig.robot, ...rig.legs.flatMap(leg => ['coxa', 'femur', 'tibia', 'calf', 'knee', 'calfJoint'].map(key => leg[key]))];
+  const center = rig.robot.getWorldPosition(new THREE.Vector3());
+  const ray = new THREE.Raycaster();
+  // How far a point lies outside the nearest volume's surface.
+  const outside = (point) => Math.min(...hitboxes.volumes.map((volume) => {
+    let closest = volume.worldA;
+    if (volume.shape === 'capsule') {
+      const ab = volume.worldB.clone().sub(volume.worldA);
+      const t = THREE.MathUtils.clamp(point.clone().sub(volume.worldA).dot(ab) / ab.lengthSq(), 0, 1);
+      closest = volume.worldA.clone().addScaledVector(ab, t);
+    }
+    return point.distanceTo(closest) - volume.radius;
+  }));
+  let seen = 0, missed = 0, uncovered = 0;
+  for (const distance of [6, 14]) {
+    for (let a = 0; a < 8; a += 1) {
+      const yaw = a * Math.PI / 4 + 0.2;
+      const eye = new THREE.Vector3(center.x + Math.sin(yaw) * distance, 1.55, center.z + Math.cos(yaw) * distance);
+      const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+      for (let i = -15; i <= 15; i += 1) {
+        for (let j = -15; j <= 15; j += 1) {
+          const direction = center.clone().addScaledVector(right, i * 0.2).add(new THREE.Vector3(0, j * 0.2, 0)).sub(eye).normalize();
+          ray.set(eye, direction);
+          const art = ray.intersectObjects(meshes, true)[0];
+          if (!art) continue;
+          seen += 1;
+          if (hitboxes.raycast(eye, direction, 60)) continue;
+          missed += 1;
+          if (outside(art.point) >= 0.1) uncovered += 1;
+        }
+      }
+    }
+  }
+  assert.ok(seen > 2000, `enough rays reach the Leaper (${seen})`);
+  assert.ok(missed / seen < 0.05, `${(100 * missed / seen).toFixed(1)}% of rays that touch the Leaper miss every volume`);
+  assert.ok(uncovered / seen < 0.005, `${uncovered} of ${seen} rays touch art at least 0.1 outside every volume`);
 });
 
 test('hit volumes follow the rig, and a shot-off piece stops being hittable', () => {

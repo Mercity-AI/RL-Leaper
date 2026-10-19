@@ -229,7 +229,7 @@ try {
     window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
   };
   const leaperTarget = [...p.playerWeapon.targets.targets][0];
-  check(leaperTarget?.hitboxes.volumes.length === 39, 'the Leaper is shot through 39 hit volumes (body, eye, core, 6 per leg), not its meshes');
+  check(leaperTarget?.hitboxes.volumes.length === 45, 'the Leaper is shot through 45 hit volumes (body, 6 hip fins, eye, core, 6 per leg), not its meshes');
   target.mesh.position.copy(lane);
   target.mesh.rotation.y = Math.PI;
   const center = rig.robot.getWorldPosition(new THREE.Vector3());

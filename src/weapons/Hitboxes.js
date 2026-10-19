@@ -121,25 +121,35 @@ export class Hitboxes {
 
 const toVector = values => new THREE.Vector3(...values);
 
+// An offset given in a hip's own frame (+Z out along the leg) turned into the
+// body's frame for the leg that points along `out` (the rig's unit vector).
+const alongLeg = (values, out) => new THREE.Vector3(
+  values[0] * out.z + values[2] * out.x, values[1], values[2] * out.z - values[0] * out.x);
+
 // Build the hit volumes of a hexapod rig (createHexapod) from a layout
-// (LEAPER_HITBOXES): the body, the eye's housing and red core, and every
-// leg's pieces. Each leg volume's `object` is that leg's piece, which also
-// carries the leg-damage tag LeaperLegDamage counts hits on.
+// (LEAPER_HITBOXES): the body (with a fin over each hip), the eye's housing and
+// red core, and every leg's pieces. Each leg volume's `object` is that leg's
+// piece, which also carries the leg-damage tag LeaperLegDamage counts hits on.
 export function createLeaperHitboxes(rig, layout = LEAPER_HITBOXES, zones = HIT_ZONES) {
   const volumes = [];
-  const add = (object, entry, leg = null) => {
+  // 1. One volume on a rig piece; `turn` maps the layout's offsets into the piece's frame.
+  const add = (object, entry, leg = null, turn = toVector) => {
     const zone = zones[entry.zone];
     if (!zone) throw new Error(`Unknown hit zone: ${entry.zone}`);
     volumes.push({
       object, shape: entry.shape, radius: entry.radius, zone: entry.zone, multiplier: zone.multiplier,
       joint: entry.joint ?? null, leg,
-      a: toVector(entry.shape === 'capsule' ? entry.from : entry.at),
-      b: toVector(entry.shape === 'capsule' ? entry.to : entry.at),
+      a: turn(entry.shape === 'capsule' ? entry.from : entry.at),
+      b: turn(entry.shape === 'capsule' ? entry.to : entry.at),
     });
   };
+  // 2. Leg pieces ride on each leg; hip parts repeat around the body (they stay
+  //    on the body, so they belong to no leg); the rest sits on the body or eye.
   for (const entry of layout) {
     if (entry.leg) {
       for (const leg of rig.legs) add(leg[entry.leg], entry, leg.index);
+    } else if (entry.atEachHip) {
+      for (const leg of rig.legs) add(rig.robot, entry, null, values => alongLeg(values, leg.out));
     } else {
       add(entry.part === 'eye' ? rig.eyePivot : rig.robot, entry);
     }
