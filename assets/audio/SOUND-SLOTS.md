@@ -32,13 +32,35 @@ Only files the manifest lists are ever downloaded.
 
 ## The slots
 
-| Sound id | When it plays |
-|---|---|
-| `kneeBreak` | A shot cuts off a piece of a Leaper leg |
-| `gunEmpty` | Pulling the trigger with an empty magazine (both guns) |
-| `lolaHurt` | Lola is hit by a laser bolt (random take) |
-| `lolaHurtBig` | Lola is hit while at 20 HP or less |
-| `lolaHitThud` | Under every Lola hit, beneath the voice |
+All of these are filled today (see `src/audio/sounds.json` for each take's source).
+The Leaper's sounds play at the Leaper in 3D (its body, or its eye for the bolt
+warnings) even though their callers give no position.
+
+| Sound id | When it plays | Filled with (CC0 unless noted) |
+|---|---|---|
+| `kneeBreak` | A shot cuts off a piece of a Leaper leg | OGsoundFX metal impact (CC BY 4.0) |
+| `gunEmpty` | Pulling the trigger with an empty magazine (both guns) | KlawyKogut empty gun shot |
+| `lolaHurt` | Lola is hit by a laser bolt (one of three takes) | EZduzziteh hurt grunts (OpenGameArt) |
+| `lolaHurtBig` | Lola is hit while at 20 HP or less | Archeos scream, first 0.55 s |
+| `lolaHitThud` | Under every Lola hit, beneath the voice (two takes) | Kenney heavy punch impacts |
+| `leaperCharge` | The Leaper's eye starts charging a bolt | Kenney force-field hum, swelling |
+| `leaperLock` | The eye's aim locks, just before the bolt | Kenney tick and switch |
+| `leaperStompWindup` | The Leaper crouches to stomp | Kenney thruster, slowed: hydraulic groan |
+| `leaperStomp` | The stomp slams down | Kenney metal impact + low boom |
+| `leaperLeapWindup` | The Leaper crouches to pounce | Kenney force-field hum, lower |
+| `leaperLaunch` | Take-off of a leap (not called yet) | Kenney thruster + plate impact |
+| `leaperLand` | The Leaper lands from a leap | Kenney plate crash + low boom |
+| `leaperStagger` | A big hit knocks it off balance | Kenney metal impacts, slowed |
+| `leaperDowned` | It loses too many legs and crashes down | Kenney plate crash + boom, slowed |
+| `leaperCollapse` | It is destroyed and collapses | Kenney explosion crunch + slam + boom |
+| `leaperJointBurst` | A leg joint bursts (with the knee-break sound) | Kenney glitches: electrical crackle |
+| `leaperBoltImpact` | A bolt hits cover (not called yet: `playSlot('leaperBoltImpact', { at })`) | Kenney sci-fi metal impact |
+| `uiClick` | A toolbar, menu or overlay button is pressed | Kenney interface select |
+| `yardAmbience` | The whole session, very quietly | Kenney low engine hum + wind made by `scripts/assets/make-sounds.mjs` |
+
+The made sounds come from `node scripts/assets/make-sounds.mjs`, which cuts and
+layers the originals in `assets/audio/sources/` (re-run it, then `pnpm assets`,
+after changing a recipe).
 
 Still to come: a separate sound for when a cut-off leg piece lands on the ground.
 That needs its own slot, so ask for it to be connected once the file exists.

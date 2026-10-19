@@ -101,11 +101,13 @@ export async function start({ engine, params }) {
   const { rig, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
   cameraController.followSubject = target;
   cameraController.pitch = 0.16;
-  // Sound: distances at the map's scale, and the Leaper's sounds placed at its
-  // body and eye (its slots name these emitters in src/audio/sounds.json).
+  // Sound: distances at the map's scale, the Leaper's sounds placed at its body
+  // and eye (its slots name these emitters in src/audio/sounds.json), and the
+  // yard's quiet ambience bed (it starts with the first click or key).
   audio.distanceScale = world.scale;
   audio.setEmitter('leaper', rig.robot);
   audio.setEmitter('leaperEye', rig.eyePivot);
+  audio.startAmbience();
   // The Leaper's smallest parts skip the sun's shadow on lower quality, and its
   // feet kick up dust where the preset allows it.
   for (const root of [rig.robot, ...rig.legs.flatMap((leg) => [leg.coxa, leg.femur, leg.tibia, leg.calf, leg.knee, leg.calfJoint])]) {

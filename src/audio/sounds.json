@@ -239,34 +239,424 @@
       "id": "lolaHurt",
       "use": "Lola is hit by a laser bolt (a short pain grunt, one of three takes).",
       "bus": "sfx",
-      "gain": 0.7,
+      "gain": 0.42,
       "priority": 9,
       "maxVoices": 1,
       "spatial": false,
       "variation": { "pitch": 0.04, "volume": 0.05 },
-      "variations": []
+      "variations": [
+        {
+          "name": "lola-hurt-1",
+          "files": { "ogg": "assets/build/audio/lola-hurt-1.ogg", "m4a": "assets/build/audio/lola-hurt-1.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-hurt-1.wav",
+            "from": "assets/audio/sources/opengameart/ezduzziteh_hurt_03.mp3",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["opengameart-hurt-sound-effects"]
+        },
+        {
+          "name": "lola-hurt-2",
+          "files": { "ogg": "assets/build/audio/lola-hurt-2.ogg", "m4a": "assets/build/audio/lola-hurt-2.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-hurt-2.wav",
+            "from": "assets/audio/sources/opengameart/ezduzziteh_hurt_05.mp3",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["opengameart-hurt-sound-effects"]
+        },
+        {
+          "name": "lola-hurt-3",
+          "files": { "ogg": "assets/build/audio/lola-hurt-3.ogg", "m4a": "assets/build/audio/lola-hurt-3.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-hurt-3.wav",
+            "from": "assets/audio/sources/opengameart/ezduzziteh_hurt_02.mp3",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["opengameart-hurt-sound-effects"]
+        }
+      ]
     },
     {
       "id": "lolaHurtBig",
       "use": "Lola is hit while at low health (a heavier pain cry).",
       "bus": "sfx",
-      "gain": 0.6,
+      "gain": 0.52,
       "priority": 9,
       "maxVoices": 1,
       "spatial": false,
       "variation": { "pitch": 0.03, "volume": 0.05 },
-      "variations": []
+      "variations": [
+        {
+          "name": "lola-hurt-big",
+          "files": { "ogg": "assets/build/audio/lola-hurt-big.ogg", "m4a": "assets/build/audio/lola-hurt-big.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-hurt-big.wav",
+            "from": "assets/audio/sources/opengameart/261419__archeos__womanscream.ogg",
+            "start": 0,
+            "duration": 0.55,
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["freesound-261419"]
+        }
+      ]
     },
     {
       "id": "lolaHitThud",
       "use": "Under every hit Lola takes, beneath the voice (a body thud).",
       "bus": "sfx",
-      "gain": 0.5,
+      "gain": 0.3,
       "priority": 8,
       "maxVoices": 1,
       "spatial": false,
       "variation": { "pitch": 0.06, "volume": 0.08 },
-      "variations": []
+      "variations": [
+        {
+          "name": "lola-hit-thud-1",
+          "files": { "ogg": "assets/build/audio/lola-hit-thud-1.ogg", "m4a": "assets/build/audio/lola-hit-thud-1.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-hit-thud-1.wav",
+            "from": "assets/audio/sources/kenney/impact-sounds/impactPunch_heavy_001.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-impact-sounds"]
+        },
+        {
+          "name": "lola-hit-thud-2",
+          "files": { "ogg": "assets/build/audio/lola-hit-thud-2.ogg", "m4a": "assets/build/audio/lola-hit-thud-2.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-hit-thud-2.wav",
+            "from": "assets/audio/sources/kenney/impact-sounds/impactPunch_heavy_003.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-impact-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperCharge",
+      "use": "The Leaper's eye starts charging a bolt (its 0.6 s warning): an energy hum swelling in.",
+      "bus": "creature",
+      "gain": 0.22,
+      "priority": 9,
+      "maxVoices": 2,
+      "spatial": true,
+      "emitter": "leaperEye",
+      "variation": { "pitch": 0.03, "volume": 0.03 },
+      "variations": [
+        {
+          "name": "leaper-charge",
+          "files": { "ogg": "assets/build/audio/leaper-charge.ogg", "m4a": "assets/build/audio/leaper-charge.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-charge.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/forceField_001.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperLock",
+      "use": "The eye's aim locks, just before the bolt: a sharp click.",
+      "bus": "creature",
+      "gain": 0.45,
+      "priority": 9,
+      "maxVoices": 2,
+      "spatial": true,
+      "emitter": "leaperEye",
+      "variation": { "pitch": 0.03, "volume": 0.03 },
+      "variations": [
+        {
+          "name": "leaper-lock",
+          "files": { "ogg": "assets/build/audio/leaper-lock.ogg", "m4a": "assets/build/audio/leaper-lock.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-lock.wav",
+            "from": "assets/audio/sources/kenney/interface-sounds/tick_004.ogg + switch_003.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-interface-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperStompWindup",
+      "use": "The Leaper crouches to stomp on Lola (its red ring on the ground): a hydraulic groan.",
+      "bus": "creature",
+      "gain": 0.35,
+      "priority": 9,
+      "maxVoices": 1,
+      "spatial": true,
+      "emitter": "leaper",
+      "distance": { "ref": 10 },
+      "variation": { "pitch": 0.04, "volume": 0.04 },
+      "variations": [
+        {
+          "name": "leaper-stomp-windup",
+          "files": { "ogg": "assets/build/audio/leaper-stomp-windup.ogg", "m4a": "assets/build/audio/leaper-stomp-windup.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-stomp-windup.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/thrusterFire_001.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperStomp",
+      "use": "The stomp slams down.",
+      "bus": "creature",
+      "gain": 0.4,
+      "priority": 8,
+      "maxVoices": 2,
+      "spatial": true,
+      "emitter": "leaper",
+      "distance": { "ref": 10 },
+      "variation": { "pitch": 0.05, "volume": 0.05 },
+      "variations": [
+        {
+          "name": "leaper-stomp",
+          "files": { "ogg": "assets/build/audio/leaper-stomp.ogg", "m4a": "assets/build/audio/leaper-stomp.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-stomp.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/impactMetal_003.ogg + lowFrequency_explosion_001.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperLeapWindup",
+      "use": "The Leaper crouches to pounce (its landing spot marked): a servo winding up.",
+      "bus": "creature",
+      "gain": 0.22,
+      "priority": 9,
+      "maxVoices": 1,
+      "spatial": true,
+      "emitter": "leaper",
+      "distance": { "ref": 10 },
+      "variation": { "pitch": 0.04, "volume": 0.04 },
+      "variations": [
+        {
+          "name": "leaper-leap-windup",
+          "files": { "ogg": "assets/build/audio/leaper-leap-windup.ogg", "m4a": "assets/build/audio/leaper-leap-windup.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-leap-windup.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/forceField_000.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperLaunch",
+      "use": "The Leaper takes off for a leap (not called yet: a slot ready for the leap's launch phase).",
+      "bus": "creature",
+      "gain": 0.55,
+      "priority": 7,
+      "maxVoices": 1,
+      "spatial": true,
+      "emitter": "leaper",
+      "distance": { "ref": 10 },
+      "variation": { "pitch": 0.04, "volume": 0.05 },
+      "variations": [
+        {
+          "name": "leaper-launch",
+          "files": { "ogg": "assets/build/audio/leaper-launch.ogg", "m4a": "assets/build/audio/leaper-launch.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-launch.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/thrusterFire_001.ogg + impact-sounds/impactPlate_heavy_002.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds", "kenney-impact-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperLand",
+      "use": "The Leaper lands from a leap (its shockwave).",
+      "bus": "creature",
+      "gain": 0.45,
+      "priority": 8,
+      "maxVoices": 1,
+      "spatial": true,
+      "emitter": "leaper",
+      "distance": { "ref": 10 },
+      "variation": { "pitch": 0.04, "volume": 0.05 },
+      "variations": [
+        {
+          "name": "leaper-land",
+          "files": { "ogg": "assets/build/audio/leaper-land.ogg", "m4a": "assets/build/audio/leaper-land.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-land.wav",
+            "from": "assets/audio/sources/kenney/impact-sounds/impactPlate_heavy_001.ogg + sci-fi-sounds/lowFrequency_explosion_000.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-impact-sounds", "kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperStagger",
+      "use": "A big hit (a joint breaking, an eye crit) knocks the Leaper off balance: a metal groan.",
+      "bus": "creature",
+      "gain": 0.3,
+      "priority": 7,
+      "maxVoices": 1,
+      "spatial": true,
+      "emitter": "leaper",
+      "variation": { "pitch": 0.05, "volume": 0.05 },
+      "variations": [
+        {
+          "name": "leaper-stagger",
+          "files": { "ogg": "assets/build/audio/leaper-stagger.ogg", "m4a": "assets/build/audio/leaper-stagger.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-stagger.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/impactMetal_001.ogg + impact-sounds/impactPlate_heavy_000.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds", "kenney-impact-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperDowned",
+      "use": "The Leaper loses too many legs and crashes to the floor.",
+      "bus": "creature",
+      "gain": 0.4,
+      "priority": 9,
+      "maxVoices": 1,
+      "spatial": true,
+      "emitter": "leaper",
+      "distance": { "ref": 10 },
+      "variation": { "pitch": 0.03, "volume": 0.03 },
+      "variations": [
+        {
+          "name": "leaper-downed",
+          "files": { "ogg": "assets/build/audio/leaper-downed.ogg", "m4a": "assets/build/audio/leaper-downed.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-downed.wav",
+            "from": "assets/audio/sources/kenney/impact-sounds/impactPlate_heavy_001.ogg + sci-fi-sounds/lowFrequency_explosion_001.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-impact-sounds", "kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperCollapse",
+      "use": "The Leaper is destroyed and collapses into a wreck.",
+      "bus": "creature",
+      "gain": 0.6,
+      "priority": 10,
+      "maxVoices": 1,
+      "spatial": true,
+      "emitter": "leaper",
+      "distance": { "ref": 12 },
+      "variations": [
+        {
+          "name": "leaper-collapse",
+          "files": { "ogg": "assets/build/audio/leaper-collapse.ogg", "m4a": "assets/build/audio/leaper-collapse.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-collapse.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/explosionCrunch_004.ogg + lowFrequency_explosion_000.ogg + impact-sounds/impactMetal_heavy_001.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds", "kenney-impact-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperJointBurst",
+      "use": "A leg joint bursts (with its sparks; it plays with the knee-break sound): an electrical crackle.",
+      "bus": "creature",
+      "gain": 0.6,
+      "priority": 7,
+      "maxVoices": 2,
+      "spatial": true,
+      "emitter": "leaper",
+      "variation": { "pitch": 0.08, "volume": 0.08 },
+      "variations": [
+        {
+          "name": "leaper-joint-burst",
+          "files": { "ogg": "assets/build/audio/leaper-joint-burst.ogg", "m4a": "assets/build/audio/leaper-joint-burst.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-joint-burst.wav",
+            "from": "assets/audio/sources/kenney/interface-sounds/glitch_001-004.ogg + sci-fi-sounds/impactMetal_002.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-interface-sounds", "kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "leaperBoltImpact",
+      "use": "A Leaper laser bolt hits cover (a slot ready for the bolt code: playSlot('leaperBoltImpact', { at })).",
+      "bus": "sfx",
+      "gain": 0.37,
+      "priority": 4,
+      "maxVoices": 3,
+      "spatial": true,
+      "variation": { "pitch": 0.08, "volume": 0.1 },
+      "variations": [
+        {
+          "name": "leaper-bolt-impact",
+          "files": { "ogg": "assets/build/audio/leaper-bolt-impact.ogg", "m4a": "assets/build/audio/leaper-bolt-impact.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-bolt-impact.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/impactMetal_002.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "uiClick",
+      "use": "A button or menu entry is pressed.",
+      "bus": "ui",
+      "gain": 0.5,
+      "priority": 1,
+      "maxVoices": 2,
+      "spatial": false,
+      "variation": { "pitch": 0.04, "volume": 0 },
+      "variations": [
+        {
+          "name": "ui-click",
+          "files": { "ogg": "assets/build/audio/ui-click.ogg", "m4a": "assets/build/audio/ui-click.m4a" },
+          "source": {
+            "wav": "assets/audio/ui-click.wav",
+            "from": "assets/audio/sources/kenney/interface-sounds/select_001.ogg",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-interface-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "yardAmbience",
+      "use": "The junkyard's background bed: a low machine hum under gusts of wind, looping quietly the whole session.",
+      "bus": "ambience",
+      "gain": 0.2,
+      "priority": 10,
+      "maxVoices": 1,
+      "spatial": false,
+      "loop": true,
+      "variations": [
+        {
+          "name": "yard-ambience",
+          "files": { "ogg": "assets/build/audio/yard-ambience.ogg", "m4a": "assets/build/audio/yard-ambience.m4a" },
+          "source": {
+            "wav": "assets/audio/yard-ambience.wav",
+            "from": "assets/audio/sources/kenney/sci-fi-sounds/spaceEngineLow_001.ogg + wind generated from seeded noise",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-sci-fi-sounds", "project-generated"]
+        }
+      ]
     }
   ],
   "unused": [
@@ -370,6 +760,54 @@
       "licence": "CC0 1.0",
       "attribution": "\"Empty Gun Shot\" by KlawyKogut, https://freesound.org/s/154934/ (CC0 1.0)",
       "notes": "Courtesy credit."
+    },
+    "freesound-261419": {
+      "title": "WomanScream.wav",
+      "author": "Archeos",
+      "sourceUrl": "https://freesound.org/s/261419/",
+      "licence": "CC0 1.0",
+      "attribution": "\"WomanScream.wav\" by Archeos, https://freesound.org/s/261419/ (CC0 1.0)",
+      "notes": "Courtesy credit. Downloaded as file 4.ogg of the \"female screams\" collection by congusbongus (https://opengameart.org/content/female-screams), whose licence.txt lists this file as CC0 from Freesound 261419. Only its first 0.55 s is used."
+    },
+    "opengameart-hurt-sound-effects": {
+      "title": "Hurt Sound Effects",
+      "author": "EZduzziteh",
+      "sourceUrl": "https://opengameart.org/content/hurt-sound-effects",
+      "licence": "CC0 1.0",
+      "attribution": "\"Hurt Sound Effects\" by EZduzziteh, https://opengameart.org/content/hurt-sound-effects (CC0 1.0)",
+      "notes": "Courtesy credit. Takes hurt_02, hurt_03 and hurt_05. The page does not say whose voice it is; a pitch check puts it at 250-350 Hz, a higher voice. Listen and swap if it doesn't suit Lola."
+    },
+    "kenney-impact-sounds": {
+      "title": "Impact Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "sourceUrl": "https://kenney.nl/assets/impact-sounds",
+      "licence": "CC0 1.0",
+      "attribution": "\"Impact Sounds\" by Kenney (www.kenney.nl), https://kenney.nl/assets/impact-sounds (CC0 1.0)",
+      "notes": "Courtesy credit (Kenney asks for it but does not require it). The pack's License.txt is kept beside the used files."
+    },
+    "kenney-sci-fi-sounds": {
+      "title": "Sci-fi Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "sourceUrl": "https://kenney.nl/assets/sci-fi-sounds",
+      "licence": "CC0 1.0",
+      "attribution": "\"Sci-fi Sounds\" by Kenney (www.kenney.nl), https://kenney.nl/assets/sci-fi-sounds (CC0 1.0)",
+      "notes": "Courtesy credit. The pack's License.txt is kept beside the used files."
+    },
+    "kenney-interface-sounds": {
+      "title": "Interface Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "licence": "CC0 1.0",
+      "attribution": "\"Interface Sounds\" by Kenney (www.kenney.nl), https://kenney.nl/assets/interface-sounds (CC0 1.0)",
+      "notes": "Courtesy credit. The pack's License.txt is kept beside the used file."
+    },
+    "project-generated": {
+      "title": "Junkyard wind",
+      "author": "Leaper project (scripts/assets/make-sounds.mjs)",
+      "sourceUrl": "scripts/assets/make-sounds.mjs",
+      "licence": "Project original",
+      "attribution": "Wind generated for this project from seeded noise (scripts/assets/make-sounds.mjs)",
+      "notes": "Made by the project itself, so it carries the project's own terms (the owner has not chosen them yet; CC0 would suit)."
     },
     "freesound-407349": {
       "title": "FX_Metallic_hit.wav",
