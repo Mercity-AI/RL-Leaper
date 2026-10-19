@@ -388,6 +388,9 @@ export class LeaperActor {
       onStateChange: ({ from, to, reason }) => {
         // A fall or the collapse starts from the body's pose right now.
         this.entryPosture = { ...this.posture };
+        // A stomp called off before it lands (the run stopped, Lola went down)
+        // takes its warning ring with it (after a slam the shockwave cleared it).
+        if (from === 'stomp') this.feedback?.clearWarnings();
         if (from === 'downed' && this.combat) this.combat.damageScale = 1;
         emit(LEAPER_EVENTS.stateChanged, { from, to, reason, locomotion: this.director.locomotion, label: this.director.label });
       },

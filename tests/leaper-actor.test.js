@@ -20,9 +20,11 @@ const DT = 1 / 60;
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 // The real hexapod and animator in an open yard, a stand-in brain (it answers
-// pose syncs and can be fed moves) and a stand-in combat.
-function setup({ lola = { x: 0, z: 25 }, aware = false, refuseSync = false, blocked = () => false } = {}) {
-  const rig = createHexapod(new THREE.Scene());
+// pose syncs and can be fed moves) and a stand-in combat. feedback: true adds
+// the real effects (rings, sparks) in the rig's scene.
+function setup({ lola = { x: 0, z: 25 }, aware = false, refuseSync = false, blocked = () => false, feedback = false } = {}) {
+  const scene = new THREE.Scene();
+  const rig = createHexapod(scene);
   const world = { scale: 1.45, floorHeight: 0, positionBlocked: blocked, playerBlocked: () => false };
   const simulation = new LeaperSimulation({ rig, world, cameraController: { eyePitch: 0, eyeYaw: 0, compensateForBodyTurn() {} },
     sun: { position: new THREE.Vector3(), target: { position: new THREE.Vector3() } }, statusElement: {} });
@@ -50,7 +52,7 @@ function setup({ lola = { x: 0, z: 25 }, aware = false, refuseSync = false, bloc
   const flow = { hunting: true };
   const camera = { shakes: [], shake(amount) { this.shakes.push(amount); } };
   const actor = new LeaperActor({ simulation, brain, combat }, { flow, events, world, player, vitals, cameraController: camera },
-    { feedback: false });
+    { feedback, scene });
   // Advance the game: the brain's own moves are fed by the test where needed.
   const frames = (seconds, each = () => {}) => {
     for (let t = 0; t < seconds - 1e-9; t += DT) {
@@ -162,6 +164,21 @@ test('stomp: stepping out of the ring during the wind-up dodges it', () => {
   frames(B.stomp.windup + 0.1);
   assert.equal(vitals.health, 100);
   assert.equal(heard.find(([name, p]) => name === LEAPER_EVENTS.attack && p.phase === 'impact')[1].hit, false);
+});
+
+test('a stomp called off before it lands (the run stops, Lola goes down) takes its warning ring with it', () => {
+  for (const callOff of [({ flow }) => { flow.hunting = false; }, ({ vitals }) => { vitals.health = 0; }]) {
+    const game = setup({ aware: true, lola: { x: 0, z: 3 }, feedback: true });
+    const { actor, frames, framesUntil } = game;
+    framesUntil(() => actor.director.state === 'stomp');
+    frames(B.stomp.windup * 0.5);
+    assert.equal(actor.feedback.rings.stomp.mesh.visible, true, 'the red ring warns of the stomp');
+    callOff(game);
+    frames(0.1);
+    assert.equal(actor.director.state, 'dormant');
+    assert.equal(actor.feedback.rings.stomp.mesh.visible, false, 'and is gone once the stomp is called off');
+    actor.dispose();
+  }
 });
 
 test('leap: the brain accepts the landing, the Leaper flies a scripted arc, lands with a shockwave, and walks on from there', async () => {
