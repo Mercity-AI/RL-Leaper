@@ -9,12 +9,18 @@ Endpoints (all JSON):
 - POST /reset   start a new Leaper session; returns its token and first frame.
 - POST /step    one brain move for a session.
 - POST /sense   paused preview: refresh sight without moving or remembering.
+- POST /sync    pose sync: game logic moved the Leaper between brain moves
+                (e.g. a leap). Body {token, position: [x, z], yaw, target: [x, z],
+                sight_pose (eye mode)}. Only the pose changes; the next input is
+                then computed by the unchanged observation code from there.
+                Refused (400) when the body or a leg disc overlaps the junkyard.
 - POST /close   forget a session (the page sends this when it closes).
 """
 import argparse
 import hashlib
 import io
 import json
+import math
 import re
 import sys
 import threading
@@ -165,6 +171,35 @@ class BrainSession:
             raise ValueError("Invalid checkpoint observation")
         return self.snapshot()
 
+    def sync(self, position, yaw, target, sight_pose=None):
+        """Game logic moved the Leaper between brain moves (a leap): teleport the pose.
+
+        The frozen recipe is untouched: only the pose changes, and the next
+        policy input is recomputed by the same observation code /step uses
+        before inference in eye mode. In order:
+        1. refuse a pose whose body or leg discs overlap the junkyard (the frozen
+           physics could never move out of it); Lola's contact is not checked;
+        2. put the Leaper there (float32 position, heading wrapped to [-pi, pi));
+        3. look from there: sight memory without ageing it, then search coverage;
+        4. the next input = the observation at the new pose plus the last move's
+           feedback (inputs 31-33), which a pose sync does not change.
+        The step count, LSTM memory and last action are kept: no new episode.
+        """
+        env = self.env
+        position = np.asarray(position, dtype=np.float32)
+        yaw = (float(yaw) + math.pi) % (2 * math.pi) - math.pi
+        for point, radius, _ in env._collision_points(position, yaw):
+            if env.geometry.disk_blocked(point, radius):
+                raise ValueError("Leaper pose intersects the junkyard; choose a clear spot")
+        env.position, env.yaw = position, yaw
+        env.target = np.asarray(target, dtype=np.float32)
+        if env.sight is not None:
+            env.sight_pose = sight_pose
+        env._update_target_memory(increment_time=False)
+        env._update_coverage()
+        self.obs = np.concatenate((env._observation(), self.obs[-3:]))
+        return self.snapshot()
+
     def snapshot(self, fresh_sight=False):
         env = self.env
         # /reset and /step have just run the sight check for this exact pose
@@ -277,6 +312,8 @@ class BrainService:
             return self.reset(data)
         if path in ("/step", "/sense"):
             return self.step(data, preview=path == "/sense")
+        if path == "/sync":
+            return self.sync(data)
         if path == "/close":
             return self.close(data)
         raise HttpError(404, f"Unknown brain endpoint {path}")
@@ -325,6 +362,17 @@ class BrainService:
             session.env.target = target
             session.env.sight_pose = pose
             return session.snapshot(fresh_sight=True)
+
+    def sync(self, data):
+        """POST /sync: move a session's Leaper to a pose the game chose (see BrainSession.sync)."""
+        session = self.session(data.get('token'))
+        position, target = parse_vector(data['position']), parse_vector(data['target'])
+        yaw = data.get('yaw')
+        if isinstance(yaw, bool) or not isinstance(yaw, (int, float)) or not math.isfinite(yaw):
+            raise ValueError("Invalid robot heading")
+        with session.lock:
+            pose = parse_sight_pose(data) if session.env.sight else None
+            return session.sync(position, yaw, target, pose)
 
     def close(self, data):
         token = data.get('token')

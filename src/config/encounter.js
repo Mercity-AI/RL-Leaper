@@ -9,4 +9,25 @@ export const ENCOUNTER = Object.freeze({
   // Bigger angle + earlier peak = a sharper, more readable flinch.
   hitRecoilAngle: 0.45,
   hitRecoilPeak: 0.18,
+  // Soft episode restart (review fix 5.12, an EXPERIMENT, off by default). The
+  // brain was only ever trained on episodes that end: at a catch, after 60
+  // steps without moving, or at 1,000 steps. In the game its episode never
+  // ends, so its memory drifts beyond anything it saw in training. When on,
+  // the brain starts a fresh episode in place (same pose, so nothing visibly
+  // jumps) when one of these happens; its memory, search map and sightings
+  // start over as at the start of a training episode. The brain itself is unchanged.
+  // Measured 2026-10-19 (30 three-minute fights, src/brain/junkyard/README.md
+  // "Soft restart experiment"): ON re-acquired a hidden Lola 64% of the time
+  // against 53% OFF and ended the long freezes, but made 5 of 15 fights worse,
+  // so it is not clearly better and stays OFF. ?softRestart=1 tries it.
+  brainSoftRestart: Object.freeze({
+    enabled: false,
+    // Fresh episode once this many brain steps have run (training ended at 1,000).
+    afterSteps: 900,
+    // Fresh episode right after the Leaper reaches Lola (a catch ended training episodes).
+    afterCatch: true,
+    // Fresh episode after this many brain steps in a row without moving
+    // (training's 60-step freeze rule); null switches this trigger off.
+    afterStillSteps: 60,
+  }),
 });

@@ -214,3 +214,110 @@ test('a move that arrives after the fight ended does not move the Leaper contact
   assert.equal(margin, 0, 'and the in-flight margin is released');
   assert.equal(driver.busy, false);
 });
+
+// ---- Soft episode restart (review fix 5.12, an experiment behind ENCOUNTER.brainSoftRestart) ----
+
+// A brain whose moves come from `moves(step, session)`; resets are logged with their pose.
+function softRestartBrain(rule, moves) {
+  globalThis.document = { hidden: false };
+  const { playtest } = fixture();
+  const log = [];
+  const closed = [];
+  const driver = new JunkyardBrain(playtest, { softRestart: { enabled: true, afterSteps: null, afterCatch: false,
+    afterStillSteps: null, ...rule } });
+  driver.provider = { close: async (token) => { closed.push(token); return { closed: true }; }, kind: 'onnx' };
+  let sessions = 0, step = 0;
+  driver.request = async (path, data) => {
+    log.push({ path, data });
+    if (path === 'reset') {
+      sessions += 1;
+      step = 0;
+      return { ...frame, x: data.position[0], z: data.position[1], yaw: data.yaw, token: `s${sessions}` };
+    }
+    step += 1;
+    return { ...frame, step, ...moves(step, sessions) };
+  };
+  const run = async (count) => {
+    for (let i = 0; i < count; i += 1) {
+      driver.update(1 / 10);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  };
+  return { driver, log, closed, run };
+}
+
+test('soft restart is off by default: a catch or a long episode never resets the brain', async () => {
+  const { ENCOUNTER } = await import('../src/config/encounter.js');
+  const { softRestartRule } = await import('../src/simulation/JunkyardBrain.js');
+  assert.equal(ENCOUNTER.brainSoftRestart.enabled, false);
+  assert.equal(softRestartRule({ search: '' }).enabled, false);
+  assert.equal(softRestartRule({ search: '?softRestart=1' }).enabled, true, 'playtests can switch it on');
+  assert.equal(softRestartRule({ search: '?softRestart=0' }).enabled, false);
+  const { driver, log, run } = softRestartBrain({ enabled: false, afterCatch: true, afterSteps: 3 },
+    (step) => ({ x: step, caught: true }));
+  await driver.reset();
+  driver.start();
+  await run(6);
+  assert.deepEqual(log.map((entry) => entry.path), ['reset', 'step', 'step', 'step', 'step', 'step', 'step']);
+  assert.equal(driver.episodes, 1);
+});
+
+test('soft restart after a catch: a new episode at the brain\'s own pose, the old session closed, once per catch', async () => {
+  // Episode 1: caught from step 2. Episode 2: still touching on steps 1-3,
+  // free on 4-5, caught again on step 6 (a new catch). Episode 3: never caught.
+  const caughtAt = (step, session) => (session === 1 ? step >= 2 : session === 2 ? step <= 3 || step === 6 : false);
+  const { driver, log, closed, run } = softRestartBrain({ afterCatch: true },
+    (step, session) => ({ x: 10 * session + step * 0.375, z: 2, yaw: 0.5, caught: caughtAt(step, session) }));
+  await driver.reset();
+  driver.start();
+  await run(2);
+  const resets = log.filter((entry) => entry.path === 'reset');
+  assert.equal(resets.length, 2, 'the catch started a fresh episode');
+  assert.deepEqual([resets[1].data.position, resets[1].data.yaw], [[10.75, 2], 0.5], 'exactly where the brain put the Leaper');
+  assert.equal(driver.token, 's2');
+  assert.deepEqual(closed, ['s1']);
+  assert.equal(driver.episodes, 2);
+  assert.deepEqual(driver.restarts, { catch: 1, steps: 0, still: 0, failed: 0 });
+  assert.equal(driver.frame.x, 10.75, 'the Leaper does not move: the new episode starts at the same pose');
+  assert.match(driver.describe().status, /EPISODE 2/);
+  // Still touching in the new episode is not a new catch...
+  await run(5);
+  assert.equal(driver.restarts.catch, 1);
+  // ...but catching her again after she got away is.
+  await run(1);
+  assert.equal(driver.restarts.catch, 2);
+  await run(3);
+  assert.equal(driver.restarts.catch, 2);
+  assert.deepEqual(driver.episodeLog.map((entry) => [entry.episode, entry.reason, entry.afterStep]), [[2, 'catch', 2], [3, 'catch', 6]]);
+});
+
+test('soft restart after N brain steps, and after standing still as long as training\'s freeze rule', async () => {
+  const steps = softRestartBrain({ afterSteps: 4 }, (step) => ({ x: step, z: 0 }));
+  await steps.driver.reset();
+  steps.driver.start();
+  await steps.run(12);
+  assert.ok(steps.driver.restarts.steps >= 2, `restarted every 4 steps (${steps.driver.restarts.steps})`);
+  // Standing still (turning in place counts as still): restart after 3 still steps here.
+  const still = softRestartBrain({ afterStillSteps: 3 }, (step) => ({ x: step < 3 ? step : 2, z: 0, yaw: step * 0.1 }));
+  await still.driver.reset();
+  still.driver.start();
+  await still.run(7);
+  assert.equal(still.driver.restarts.still, 1);
+  assert.ok(still.driver.stillSteps < 3, 'the count starts over in the new episode');
+});
+
+test('a failed soft restart keeps hunting with the old episode', async () => {
+  const { driver, run } = softRestartBrain({ afterSteps: 2 }, (step) => ({ x: step }));
+  await driver.reset();
+  driver.start();
+  const request = driver.request;
+  driver.request = async (path, data) => {
+    if (path === 'reset') throw new Error('Brain reset timed out');
+    return request(path, data);
+  };
+  await run(4);
+  assert.ok(driver.restarts.failed >= 1);
+  assert.equal(driver.ready, true);
+  assert.equal(driver.offline, false);
+  assert.equal(driver.token, 's1');
+});

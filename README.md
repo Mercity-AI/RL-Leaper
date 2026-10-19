@@ -5,34 +5,39 @@ Leaper is a browser-based Three.js hexapod simulation with a separate Python rei
 ## Play the game
 
 The default page is the junkyard fight: Lola against the Leaper. The Leaper's
-movement brain runs in a small Python service on your own computer, so you need
-**Node.js 20.19 or newer** (22 LTS recommended) and **Python 3.12**.
-
-One-time setup, in this folder:
+movement brain (the saved 7,757,824-step network) runs inside the page, in a
+Web Worker, so all you need is **Node.js 20.19 or newer** (22 LTS recommended):
 
 ```sh
 corepack enable
 pnpm install
+pnpm dev
+```
+
+Open `http://127.0.0.1:5173/` and press **START RUN**. The brain badge says
+where the brain runs (`BRAIN 7,757,824 · ONNX · IN BROWSER · …`); hover it for
+details. How it works and how it is checked against the Python original:
+`src/brain/junkyard/README.md`.
+
+**The Python brain service (optional reference).** The original service is
+kept as the parity reference, and the game falls back to it if the in-browser
+brain cannot load. It needs **Python 3.12**; one-time setup:
+
+```sh
 python3.12 -m venv .venv                                   # Windows: py -3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements-brain.txt  # Windows: .venv\Scripts\python.exe -m pip install -r requirements-brain.txt
 ```
 
-Then start everything with one command (on Windows, `.\Start-Leaper.ps1` does the
-same and installs the JavaScript packages first):
+Then `pnpm play` (on Windows, `.\Start-Leaper.ps1`) starts the service on
+`127.0.0.1:8767` together with the game. Pick "Python brain server" under
+OPTIONS -> Brain (or open `/?brain=http`) to use it. Its first run at a new
+Leaper size spends about 30 seconds mapping the junkyard; after that, that
+size starts in about a second. Ctrl+C stops the game and the service.
 
-```sh
-pnpm play
-```
-
-It starts the brain service on `127.0.0.1:8767`, waits until it reports the saved
-7,757,824-step brain, starts the game and prints its address, normally
-`http://127.0.0.1:5173/`. Open it and press **START RUN**. The first run at a new
-Leaper size spends about 30 seconds mapping the junkyard; after that, that size
-starts in about a second, even after a restart. Ctrl+C stops the game and the brain.
-
-- Port 5173 already in use? Run `pnpm play --port 5180`.
+- Port 5173 already in use? Run `pnpm dev --port 5180` (or `pnpm play --port 5180`).
 - The RL lab pages are on the same server: `/?arena`, `/?training`, `/?free`.
-- `pnpm dev` starts only the web page; without the brain service the Leaper can't move.
+- Without any brain (`/?brain=turret`, or if nothing can load) a run plays in
+  turret mode: the Leaper stays put but still shoots.
 - Checks: `pnpm check` (build, unit tests and browser pages), `pnpm test:py`
   (Python tests that need no PyTorch) and `pnpm lint`.
 
@@ -74,11 +79,13 @@ Three.js already controls the continuously changing 3D scene. React would be use
 The junkyard now runs the saved **7,757,824-step reverse-urgency recurrent
 policy**, not the navigation pathfinder. The small on-screen badge identifies
 its checkpoint and whether pink is visible, hidden in memory, or not yet found.
-Hover over the badge for the policy-weight SHA256. If the brain service fails,
-the run stops with an offline message; there is no substitute controller.
+Hover over the badge for where the brain runs and the policy-weight SHA256. If
+no brain can load, the run goes on in turret mode with an offline message;
+there is no substitute movement controller.
 
-`pnpm play` (see "Play the game") starts the brain service and the game together.
-To run them by hand, use two terminals: `.venv/bin/python -m rl.junkyard_server`
+The brain runs in the page by default. To use the Python service instead,
+`pnpm play` (see "Play the game") starts it and the game together, then pick it
+under OPTIONS -> Brain (`?brain=http`). To run them by hand, use two terminals: `.venv/bin/python -m rl.junkyard_server`
 (Windows: `.venv\Scripts\python.exe -m rl.junkyard_server`) and `pnpm dev`, then
 open `http://127.0.0.1:5173/` (`?map=junkyard` also works). The service listens
 only on 127.0.0.1:8767 and answers pages served from this computer on any port.

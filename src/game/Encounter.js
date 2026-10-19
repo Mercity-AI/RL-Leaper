@@ -242,6 +242,24 @@ export class Encounter {
     });
   }
 
+  // Game logic moves a Leaper between brain moves (a leap, a scripted
+  // reposition): its animator stands it at the new pose and its brain is told
+  // (JunkyardBrain.syncPose), so the brain sees and moves from there. Resolves
+  // with the brain's frame at the new pose. If the brain refuses the spot (it
+  // overlaps a wreck), the Leaper is put back where the brain still has it and
+  // the promise rejects. The brain's rules themselves are never changed.
+  async teleportLeaper(enemy, { x, z, yaw }) {
+    this.placeLeaper(enemy, { x, z, yaw });
+    if (!enemy.brain.syncPose) return null;
+    try {
+      return await enemy.brain.syncPose({ x, z, yaw });
+    } catch (error) {
+      const back = enemy.brain.frame;
+      if (back) this.placeLeaper(enemy, { x: back.x, z: back.z, yaw: back.yaw });
+      throw error;
+    }
+  }
+
   // Lola must never start inside a Leaper's reach: if she does, move her to the
   // first clear navigation cell far enough from every Leaper.
   keepPlayerClear() {

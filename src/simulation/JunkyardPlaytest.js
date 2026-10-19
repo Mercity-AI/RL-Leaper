@@ -29,7 +29,9 @@ const ENDED_MESSAGE = 'Encounter over. Press RESTART ENCOUNTER to play again.';
 export class JunkyardPlaytest {
   // audio: the one sound engine (LaserAudio), created by the junkyard mode.
   // signal: the mode's AbortSignal; every page listener of this session ends with it.
-  constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null, signal = null }) {
+  // brainProvider: where the brain runs (see src/brain/BrainProvider.js); the brain owns it.
+  constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null, signal = null,
+    brainProvider = null }) {
     Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal });
     // 1. Game state and the event bus every system reports to.
     this.events = events ?? new EventBus();
@@ -51,7 +53,7 @@ export class JunkyardPlaytest {
     this.sight = target.isPlayer ? new EyeVision(this) : null;
     // (If the brain service is offline, a run carries on in turret mode: the
     // Leaper stands still but still shoots, and the brain's message says why.)
-    this.brain = new JunkyardBrain(this);
+    this.brain = new JunkyardBrain(this, { provider: brainProvider });
     this.playerController = new PlayerController({ player: target, input: simulation.input, cameraController,
       headingYaw: () => simulation.state.yaw });
     this.combat = new LeaperCombat(this);
