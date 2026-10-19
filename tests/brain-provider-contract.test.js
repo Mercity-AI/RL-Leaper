@@ -15,8 +15,10 @@ import { createBrainHost } from '../src/brain/junkyard/brainHost.js';
 import { createJunkyardWorld } from '../src/brain/junkyard/junkyardWorld.js';
 import { loadGlbTriangles } from '../src/brain/junkyard/junkyardSight.js';
 import { frameDifferences } from '../src/brain/junkyard/fixtureReplay.js';
+import * as THREE from 'three';
 import { HttpBrainProvider } from '../src/brain/HttpBrainProvider.js';
-import { BrainUnavailableError, describeProgress } from '../src/brain/BrainProvider.js';
+import { BrainProviderChain, BrainUnavailableError, describeProgress } from '../src/brain/BrainProvider.js';
+import { BRAIN_TURRET_LABEL, JunkyardBrain } from '../src/simulation/JunkyardBrain.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root));
@@ -37,13 +39,14 @@ const served = (url) => {
 const fetchBytes = async (url) => new Uint8Array(served(url));
 
 // A stand-in Worker: messages are structured-cloned and handled asynchronously.
-function fakeWorker() {
+// `files` is how it downloads (the repository's files by default).
+function fakeWorker(files = fetchBytes) {
   const worker = {
     onmessage: null, onerror: null, terminated: false,
     postMessage(message) { setTimeout(() => host.handle(structuredClone(message)), 0); },
     terminate() { this.terminated = true; },
   };
-  const host = createBrainHost({ ort, ...MAP, fetchBytes,
+  const host = createBrainHost({ ort, ...MAP, fetchBytes: files,
     post: (message) => { if (!worker.terminated) worker.onmessage?.({ data: structuredClone(message) }); } });
   return worker;
 }
@@ -261,4 +264,52 @@ test('HTTP: leaving the page closes this page\'s sessions with a beacon; dispose
   page.dispatchEvent(new Event('pagehide'));
   assert.equal(beacons.length, 1);
   assert.ok(again.token);
+});
+
+// --- The real providers in the game's chain ------------------------------------------------------
+
+test('real providers in the chain: missing ONNX files fall back to the Python server; when it stops, turret mode', async () => {
+  globalThis.document = { hidden: false };
+  // The page cannot download the brain's files (an old deploy, a blocked path).
+  const missingBrainFiles = async (url) => {
+    if (new URL(url).pathname.startsWith('/brains/')) throw new Error(`Could not load ${url} (404)`);
+    return fetchBytes(url);
+  };
+  const server = fakeServer();
+  const chain = new BrainProviderChain([
+    { kind: 'onnx', create: () => new OnnxBrainProvider({ baseUrl: BASE, createWorker: () => fakeWorker(missingBrainFiles) }) },
+    { kind: 'http', create: () => new HttpBrainProvider({ url: 'http://brain.test:8767', fetch: server.fetch, pageEvents: null }) },
+  ]);
+  const { reset } = fixture;
+  const playtest = {
+    world: { width: reset.width }, walking: true, message: {}, brainLabel: {},
+    target: { mesh: { position: new THREE.Vector3(reset.target[0], 0, reset.target[1]) } },
+    simulation: { state: { position: new THREE.Vector3(reset.position[0], 0, reset.position[1]), yaw: reset.yaw }, updateExternal() {} },
+  };
+  const brain = new JunkyardBrain(playtest, { provider: chain });
+  const settle = async () => { while (brain.busy) await new Promise((resolve) => setTimeout(resolve, 2)); };
+
+  // 1. The in-browser brain cannot load, so the Python server answers.
+  await brain.reset();
+  assert.equal(brain.ready, true);
+  assert.equal(chain.kind, 'http');
+  assert.match(chain.failures[0], /^ONNX · IN BROWSER: Could not load .*brain\.json \(404\)/);
+  assert.match(brain.describe().label, /^BRAIN 7,757,824 · PYTHON SERVER · /);
+  brain.start();
+  for (let i = 0; i < 3; i += 1) {
+    brain.update(0.1);
+    await settle();
+  }
+  assert.equal(brain.frame.step, 3, 'the server made the moves');
+
+  // 2. The server stops: a few retried moves, then turret mode with the reason.
+  server.down = true;
+  for (let i = 0; i < 10 && !brain.offline; i += 1) {
+    brain.update(0.1);
+    await settle();
+  }
+  assert.equal(brain.offline, true);
+  assert.equal(brain.describe().label, BRAIN_TURRET_LABEL);
+  assert.match(playtest.brainLabel.title, /^OFFLINE · TURRET: .*Failed to fetch/);
+  brain.dispose();
 });

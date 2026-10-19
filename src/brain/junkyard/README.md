@@ -169,7 +169,9 @@ to compare.
   moves and previews against the recording, sync, close, refusals, progress,
   crashed workers, the wire format and `pagehide` beacons; and the worker's
   progress-reporting raster build (the in-game path for every unbaked size)
-  bit-identical to the Python raster at 2.9, 5.5 and 7.98.
+  bit-identical to the Python raster at 2.9, 5.5 and 7.98. Last, the real
+  providers in the game's chain: missing ONNX files fall back to the (stand-in)
+  Python server, and when it stops the game goes to turret mode.
 - `tests/brain-provider-sync.test.js`: the pose-sync recordings (115 moves, 4
   syncs, 2 refused syncs, eye and legacy sight) replay bit-identically: inputs,
   frames and coverage after every move and every sync.
