@@ -4,7 +4,8 @@ import { GameFlow } from '../src/core/GameFlow.js';
 import {
   BASE_SCREENS, MENUS, ScreenStack, SUB_SCREENS, baseScreen, brainNotice, endSummary, formatTime, menuItems,
 } from '../src/ui/screens.js';
-import { DOCUMENTED_SOUNDS, KNOWN_LICENCES, creditSections, freesoundInfo, registerCredits, soundCredits } from '../src/ui/credits.js';
+import { builtWithSections, creditSections, registerCredits, soundLines } from '../src/ui/credits.js';
+import SOUNDS from '../src/audio/sounds.json' with { type: 'json' };
 
 // The menu screens' rules (src/ui/screens.js) and the credits list
 // (src/ui/credits.js). The screens themselves are driven in a real browser by
@@ -91,41 +92,27 @@ test('the title tells the player about the brain in plain words', () => {
   assert.match(brainNotice({ ready: false, offline: true }), /turret mode/);
 });
 
-test('sound credits come from the audio manifest, with Freesound names and known licences filling the gaps', () => {
-  assert.deepEqual(freesoundInfo('766092__luca2399__m4_rifle_fire.wav'),
-    { id: '766092', author: 'luca2399', title: 'm4 rifle fire', url: 'https://freesound.org/s/766092/' });
-  assert.equal(freesoundInfo('not-a-freesound-file.wav'), null);
-  // Today's manifest: two game sounds cut from one recording -> one credit.
-  const manifest = {
-    'm416-shot': { source: '766092__luca2399__m4_rifle_fire.wav' },
-    'm416-reload-reserved': { source: '766092__luca2399__m4_rifle_fire.wav' },
-    'pistol-shot': { source: '718965__tb0y298__pistol-shot-2.wav' },
-  };
-  const credits = soundCredits(manifest);
-  const m4 = credits.find((credit) => credit.author === 'luca2399');
-  assert.deepEqual(m4.uses, ['m416-shot', 'm416-reload-reserved']);
-  assert.equal(m4.licence, KNOWN_LICENCES[766092]);
-  assert.equal(m4.licence, 'CC BY-NC 4.0', 'the NonCommercial M416 recording is credited with its licence');
-  assert.equal(credits.find((credit) => credit.author === 'tb0y298').licence, 'licence not recorded yet');
-  // Recordings documented only in the Markdown notes are credited too.
-  for (const source of Object.values(DOCUMENTED_SOUNDS)) {
-    assert.ok(credits.some((credit) => credit.author === freesoundInfo(source).author), source);
-  }
-  // A manifest that records its own author, link and licence wins.
-  const own = soundCredits({ hit: { source: '873903__cb9382__hit-metal-object.m4a', author: 'cb9382', license: 'CC0 1.0',
-    url: 'https://example.org/hit', attribution: 'Thanks!' } }, {});
-  assert.deepEqual(own, [{ title: 'hit metal object', author: 'cb9382', url: 'https://example.org/hit', licence: 'CC0 1.0',
-    attribution: 'Thanks!', uses: ['hit'] }]);
-  // An array-shaped manifest works as well.
-  assert.equal(soundCredits([{ name: 'laser', source: '479353__astounded__laser-effect-contact-mic.wav' }], {})[0].licence, 'CC0');
+test('sound credits come from the audio manifest: every recording a shipped sound uses, with its attribution', () => {
+  // Every source a sound's takes credit is listed once, with the manifest's exact attribution text.
+  const used = new Set(SOUNDS.sounds.flatMap((sound) => sound.variations.flatMap((take) => take.credits ?? [])));
+  const lines = soundLines();
+  assert.equal(lines.length, used.size);
+  for (const key of used) assert.ok(lines.some((line) => line.startsWith(SOUNDS.sources[key].attribution)), key);
+  // The NonCommercial M416 recording (kept: the game is non-commercial) and the CC BY pistol are credited with their licences.
+  assert.ok(lines.some((line) => /766092/.test(line) && /CC BY-NC 4\.0/.test(line)), 'the M416 recording, CC BY-NC');
+  assert.ok(lines.some((line) => /718965/.test(line) && /CC BY 4\.0/.test(line)), 'the pistol recording, CC BY');
+  assert.ok(lines.every((line) => !/not recorded/.test(line)), 'no licence is missing');
+  // Lines also say what the game uses each recording for.
+  assert.ok(lines.every((line) => /Used for: .+\.$/.test(line)));
 });
 
-test('the credits screen lists the project, the libraries, the sounds and any added section', () => {
+test('the credits screen lists the game, the sounds, what it is built with and any added section', () => {
   const remove = registerCredits({ heading: 'NEW SOUNDS', lines: ['stomp by someone'] });
-  const sections = creditSections({ 'm416-shot': { source: '766092__luca2399__m4_rifle_fire.wav' } });
-  const headings = sections.map((section) => section.heading);
-  assert.deepEqual(headings, ['LEAPER', 'BUILT WITH', 'SOUNDS (FREESOUND)', 'NEW SOUNDS']);
-  assert.ok(sections[2].lines.some((line) => /luca2399, CC BY-NC 4\.0 \(https:\/\/freesound\.org\/s\/766092\/\)/.test(line)));
+  const sections = creditSections();
+  assert.deepEqual(sections.map((section) => section.heading), ['LEAPER', 'SOUNDS', 'BUILT WITH', 'ART', 'NEW SOUNDS']);
+  assert.ok(sections[2].lines.some((line) => /^three\.js by .+ \(MIT licence\)$/.test(line)));
+  assert.deepEqual(builtWithSections([{ title: 'Lib', author: 'Someone', licence: 'MIT' }, { title: 'Art', author: 'Owner', licence: null }]),
+    [{ heading: 'BUILT WITH', lines: ['Lib by Someone (MIT licence)'] }, { heading: 'ART', lines: ['Art: Owner'] }]);
   remove();
-  assert.equal(creditSections({}).length, 3);
+  assert.equal(creditSections().length, 4);
 });

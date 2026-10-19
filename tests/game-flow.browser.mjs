@@ -90,9 +90,24 @@ export default async function gameFlow(page, { baseUrl, check }) {
   await page.focus('.screen:not([hidden]) [data-menu-item=settings]');
   await padPress(page, 0);
   await until(page, (s) => s.screen === 'settings');
+  // The sound system's own AUDIO section replaced the placeholder: a Sound switch and volume sliders.
+  const audioRows = await page.evaluate(() => {
+    const section = document.querySelector('.screen:not([hidden]) [data-section=audio]');
+    return { sliders: section?.querySelectorAll('input[type=range]').length ?? 0, text: section?.textContent ?? '' };
+  });
+  check(audioRows.sliders >= 4 && /Master volume/.test(audioRows.text) && !/arrive with the new sound system/.test(audioRows.text),
+    `SETTINGS has the sound system's volume sliders (${audioRows.sliders})`);
   await padPress(page, 1);
   now = await until(page, (s) => s.screen === 'title');
   check(now.focus === 'settings', 'A opens SETTINGS, B goes back to the title with SETTINGS focused');
+  // CREDITS lists every sound recording from the manifest, with its licence (the M416's CC BY-NC included).
+  await page.click('.screen:not([hidden]) [data-menu-item=credits]');
+  await until(page, (s) => s.screen === 'credits');
+  const credits = await page.evaluate(() => document.querySelector('.screen:not([hidden]) .credits')?.textContent ?? '');
+  check(/CC BY-NC 4\.0/.test(credits) && /CC BY 4\.0/.test(credits) && !/not recorded/.test(credits),
+    'CREDITS shows the sound licences from the manifest');
+  await padPress(page, 1);
+  await until(page, (s) => s.screen === 'title');
   await page.click('.screen:not([hidden]) [data-menu-item=play]');
   now = await until(page, (s) => s.flow === 'playing');
   check(now.mode === 'hunt' && now.screen === '', 'PLAY starts the hunt and the menu leaves');
