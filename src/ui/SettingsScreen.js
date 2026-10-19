@@ -144,11 +144,11 @@ export function registerGameSections(store, { quality, reload = () => location.r
     c.range(container, { label: 'Field of view', ...SETTING_LIMITS.fov, value: s.get('fov'), format: (v) => `${v}°`,
       onInput: (value) => s.set('fov', value) });
   } });
-  // 3. Audio: a placeholder until the sound system registers its own section
-  //    (settings.registerSection({ id: 'audio', ... }) replaces it).
+  // 3. Audio: just the Sound switch, for a page without the sound engine; the
+  //    game replaces it with the engine's own section and its volume sliders
+  //    (registerAudioSettings in src/audio/audioSettingsSection.js).
   store.registerDefaultSection({ id: 'audio', title: 'AUDIO', order: 30, build(container, { controls: c, settings: s }) {
     c.toggle(container, { label: 'Sound', checked: s.get('sound'), onChange: (on) => s.set('sound', on) });
-    c.note(container, 'Volume controls arrive with the new sound system.');
   } });
   // 4. Accessibility: bigger text, captions for sound cues.
   store.registerSection({ id: 'accessibility', title: 'ACCESSIBILITY', order: 40, build(container, { controls: c, settings: s }) {

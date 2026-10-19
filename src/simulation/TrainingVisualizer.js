@@ -373,7 +373,7 @@ export class TrainingVisualizer {
         this.selectCollection(this.collections().length - 1);
       }
       this.updatePanel();
-    } catch (error) {
+    } catch {
       this.panel.querySelector('[data-field="state"]').textContent = 'WAITING FOR TRAINER';
     } finally {
       this.loading = false;

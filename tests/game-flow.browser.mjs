@@ -98,7 +98,7 @@ export default async function gameFlow(page, { baseUrl, check }) {
     const section = document.querySelector('.screen:not([hidden]) [data-section=audio]');
     return { sliders: section?.querySelectorAll('input[type=range]').length ?? 0, text: section?.textContent ?? '' };
   });
-  check(audioRows.sliders >= 4 && /Master volume/.test(audioRows.text) && !/arrive with the new sound system/.test(audioRows.text),
+  check(audioRows.sliders >= 4 && /Master volume/.test(audioRows.text),
     `SETTINGS has the sound system's volume sliders (${audioRows.sliders})`);
   await padPress(page, 1);
   now = await until(page, (s) => s.screen === 'title');
