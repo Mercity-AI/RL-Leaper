@@ -33,10 +33,8 @@ const FFMPEG = process.env.FFMPEG || '/usr/bin/ffmpeg';
 //            start and end (priming, padding) fall outside the part the game
 //            loops (sounds.json loop { start: pad, end: pad + length })
 const RECIPES = [
-  // Lola's short pain grunts (three takes, picked at random in the game).
-  { name: 'lola-hurt-1', layers: [{ file: 'opengameart/ezduzziteh_hurt_03.mp3' }], fadeOut: 0.04, peak: -3 },
-  { name: 'lola-hurt-2', layers: [{ file: 'opengameart/ezduzziteh_hurt_05.mp3' }], fadeOut: 0.06, peak: -3 },
-  { name: 'lola-hurt-3', layers: [{ file: 'opengameart/ezduzziteh_hurt_02.mp3' }], fadeOut: 0.04, peak: -3 },
+  // (Lola's short pain grunts were removed on 2026-10-19 at the owner's request;
+  // the lolaHurt slot waits for a female voice.)
   // Lola nearly down: the start of a short scream, cut before it becomes a shriek.
   { name: 'lola-hurt-big', length: 0.55, layers: [{ file: 'opengameart/261419__archeos__womanscream.ogg' }],
     fadeOut: 0.22, peak: -3 },

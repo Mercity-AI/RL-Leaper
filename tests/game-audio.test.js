@@ -86,11 +86,12 @@ test('mute is the remembered setting, and the toolbar switch drives it', async (
 test('every slot the game and the Leaper\'s behaviour call has a take; the Leaper\'s are placed at it', () => {
   const byId = new Map(SOUNDS.sounds.map((sound) => [sound.id, sound]));
   // Called by PlayerWeapon, PlayerVitals, LeaperCombat and the Leaper's behaviour layer (src/actors/leaper/).
-  const called = ['kneeBreak', 'gunEmpty', 'lolaHurt', 'lolaHurtBig', 'lolaHitThud', 'leaperCharge', 'leaperLock',
+  const called = ['kneeBreak', 'gunEmpty', 'lolaHurtBig', 'lolaHitThud', 'leaperCharge', 'leaperLock',
     'leaperStompWindup', 'leaperStomp', 'leaperLeapWindup', 'leaperLand', 'leaperStagger', 'leaperDowned', 'leaperCollapse',
     'leaperJointBurst', 'uiClick', 'yardAmbience'];
   for (const id of called) assert.ok(byId.get(id)?.variations.length > 0, `${id} has a recording`);
-  assert.equal(byId.get('lolaHurt').variations.length, 3, 'three hurt takes');
+  // The owner removed the old grunts (2026-10-19): the slot is silent until a female voice is chosen.
+  assert.equal(byId.get('lolaHurt').variations.length, 0, 'the pain grunt slot is empty for now');
   for (const sound of SOUNDS.sounds.filter((entry) => /^leaper[A-Z]/.test(entry.id) && entry.id !== 'leaperBoltImpact')) {
     assert.ok(sound.spatial && ['leaper', 'leaperEye'].includes(sound.emitter), `${sound.id} plays at the Leaper`);
   }

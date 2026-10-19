@@ -19,7 +19,6 @@ projects whose work it uses. The same list is shown in the game's credits.
 - "Laser Effect Contact Mic" by Astounded (Christopher J Astbury, Switzerland), https://freesound.org/s/479353/ (CC0 1.0). Used for: Leaper laser. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Gun Reload" by cb9382, https://freesound.org/s/870197/ (CC0 1.0). Used for: pistol reload. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Hit metal object" by cb9382, https://freesound.org/s/873903/ (CC0 1.0). Used for: bullet impacts. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
-- "Hurt Sound Effects" by EZduzziteh, https://opengameart.org/content/hurt-sound-effects (CC0 1.0). Used for: Lola's pain grunts. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Small servo (arduino)" by gpag1, https://freesound.org/s/520514/ (CC0 1.0), part of Artninja's Leaper footsteps. Used for: Leaper's footsteps. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Impact Sounds" by Kenney (www.kenney.nl), https://kenney.nl/assets/impact-sounds (CC0 1.0). Used for: hit thud, leap take-off, leap landing, stagger, Leaper crashing down, death collapse. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Interface Sounds" by Kenney (www.kenney.nl), https://kenney.nl/assets/interface-sounds (CC0 1.0). Used for: aim lock click, joint burst crackle, button clicks. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).

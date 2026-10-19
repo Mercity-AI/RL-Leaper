@@ -40,7 +40,7 @@ warnings) even though their callers give no position.
 |---|---|---|
 | `kneeBreak` | A shot cuts off a piece of a Leaper leg | OGsoundFX metal impact (CC BY 4.0) |
 | `gunEmpty` | Pulling the trigger with an empty magazine (both guns) | KlawyKogut empty gun shot |
-| `lolaHurt` | Lola is hit by a laser bolt (one of three takes) | EZduzziteh hurt grunts (OpenGameArt) |
+| `lolaHurt` | Lola is hit by a laser bolt | **Empty** (old grunts removed 2026-10-19; needs a female voice) |
 | `lolaHurtBig` | Lola is hit while at 20 HP or less | Archeos scream, first 0.55 s |
 | `lolaHitThud` | Under every Lola hit, beneath the voice (two takes) | Kenney heavy punch impacts |
 | `leaperCharge` | The Leaper's eye starts charging a bolt | Kenney force-field hum, swelling |

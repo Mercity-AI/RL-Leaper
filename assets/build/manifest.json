@@ -260,48 +260,6 @@
       "bytes": 3721,
       "sha256": "372ea1bd41b14eb6c77a26fca3320cb1e1474895cdf9f5beb7d6639bbbde8c08"
     },
-    "audio/lola-hurt-1.ogg": {
-      "source": "assets/audio/lola-hurt-1.wav",
-      "sourceBytes": 15544,
-      "sourceSha256": "1b3d6ef50e884a11cba931106490dae70ef238f14c7c235f65c221dd17e6ebb9",
-      "bytes": 1407,
-      "sha256": "cc3b60bd7bc8cb0e989edf6579d9cd58c3a52e46cf17a0e24de691cd17e92cbf"
-    },
-    "audio/lola-hurt-1.m4a": {
-      "source": "assets/audio/lola-hurt-1.wav",
-      "sourceBytes": 15544,
-      "sourceSha256": "1b3d6ef50e884a11cba931106490dae70ef238f14c7c235f65c221dd17e6ebb9",
-      "bytes": 2588,
-      "sha256": "859e2207977455672439aab3eb90510f32381fbc6af4f6fb45f63f7255139331"
-    },
-    "audio/lola-hurt-2.ogg": {
-      "source": "assets/audio/lola-hurt-2.wav",
-      "sourceBytes": 36208,
-      "sourceSha256": "534d0519e6e6e5c905beecd8ee43f7aa42d69d9c671ff66b8a144ce046b6f456",
-      "bytes": 2685,
-      "sha256": "8fd15cf01fee964d5464ef316a8ddeb564b7379511e004f26c1d99467f55a182"
-    },
-    "audio/lola-hurt-2.m4a": {
-      "source": "assets/audio/lola-hurt-2.wav",
-      "sourceBytes": 36208,
-      "sourceSha256": "534d0519e6e6e5c905beecd8ee43f7aa42d69d9c671ff66b8a144ce046b6f456",
-      "bytes": 4480,
-      "sha256": "1a60d29b1ceb267924694881e4971dbc4474691ff38461640984f5511c227d3c"
-    },
-    "audio/lola-hurt-3.ogg": {
-      "source": "assets/audio/lola-hurt-3.wav",
-      "sourceBytes": 22432,
-      "sourceSha256": "94a96e4edbf444a6a113aadc25ea7acd64c292d02edab7a2bc87a4d4b8d15c2a",
-      "bytes": 2221,
-      "sha256": "11a17105929411d596091776c8abdca56fc4caee9da02fc9a11d5e6f31c4b7cb"
-    },
-    "audio/lola-hurt-3.m4a": {
-      "source": "assets/audio/lola-hurt-3.wav",
-      "sourceBytes": 22432,
-      "sourceSha256": "94a96e4edbf444a6a113aadc25ea7acd64c292d02edab7a2bc87a4d4b8d15c2a",
-      "bytes": 3165,
-      "sha256": "c7227129115bf3e7da463882d87633d33e0de2f1f6ec5879239b316b8d09045f"
-    },
     "audio/lola-hurt-big.ogg": {
       "source": "assets/audio/lola-hurt-big.wav",
       "sourceBytes": 48554,

@@ -249,45 +249,14 @@
     {
       "id": "lolaHurt",
       "label": "Lola's pain grunts",
-      "use": "Lola is hit by a laser bolt (a short pain grunt, one of three takes).",
+      "use": "Lola is hit by a laser bolt (a short pain grunt). Silent for now: the owner removed the old grunts (they did not suit Lola) and wants a female voice here.",
       "bus": "sfx",
       "gain": 0.42,
       "priority": 9,
       "maxVoices": 1,
       "spatial": false,
       "variation": { "pitch": 0.04, "volume": 0.05 },
-      "variations": [
-        {
-          "name": "lola-hurt-1",
-          "files": { "ogg": "assets/build/audio/lola-hurt-1.ogg", "m4a": "assets/build/audio/lola-hurt-1.m4a" },
-          "source": {
-            "wav": "assets/audio/lola-hurt-1.wav",
-            "from": "assets/audio/sources/opengameart/ezduzziteh_hurt_03.mp3",
-            "made": "scripts/assets/make-sounds.mjs"
-          },
-          "credits": ["opengameart-hurt-sound-effects"]
-        },
-        {
-          "name": "lola-hurt-2",
-          "files": { "ogg": "assets/build/audio/lola-hurt-2.ogg", "m4a": "assets/build/audio/lola-hurt-2.m4a" },
-          "source": {
-            "wav": "assets/audio/lola-hurt-2.wav",
-            "from": "assets/audio/sources/opengameart/ezduzziteh_hurt_05.mp3",
-            "made": "scripts/assets/make-sounds.mjs"
-          },
-          "credits": ["opengameart-hurt-sound-effects"]
-        },
-        {
-          "name": "lola-hurt-3",
-          "files": { "ogg": "assets/build/audio/lola-hurt-3.ogg", "m4a": "assets/build/audio/lola-hurt-3.m4a" },
-          "source": {
-            "wav": "assets/audio/lola-hurt-3.wav",
-            "from": "assets/audio/sources/opengameart/ezduzziteh_hurt_02.mp3",
-            "made": "scripts/assets/make-sounds.mjs"
-          },
-          "credits": ["opengameart-hurt-sound-effects"]
-        }
-      ]
+      "variations": []
     },
     {
       "id": "lolaHurtBig",
@@ -796,14 +765,6 @@
       "licence": "CC0 1.0",
       "attribution": "\"WomanScream.wav\" by Archeos, https://freesound.org/s/261419/ (CC0 1.0)",
       "notes": "Courtesy credit. Downloaded as file 4.ogg of the \"female screams\" collection by congusbongus (https://opengameart.org/content/female-screams), whose licence.txt lists this file as CC0 from Freesound 261419. Only its first 0.55 s is used."
-    },
-    "opengameart-hurt-sound-effects": {
-      "title": "Hurt Sound Effects",
-      "author": "EZduzziteh",
-      "sourceUrl": "https://opengameart.org/content/hurt-sound-effects",
-      "licence": "CC0 1.0",
-      "attribution": "\"Hurt Sound Effects\" by EZduzziteh, https://opengameart.org/content/hurt-sound-effects (CC0 1.0)",
-      "notes": "Courtesy credit. Takes hurt_02, hurt_03 and hurt_05. The page does not say whose voice it is; a pitch check puts it at 250-350 Hz, a higher voice. Listen and swap if it doesn't suit Lola."
     },
     "kenney-impact-sounds": {
       "title": "Impact Sounds",
