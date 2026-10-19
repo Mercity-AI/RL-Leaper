@@ -18,3 +18,5 @@
 .weapon-hud .gun-tag { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); font-size: 10px; color: #fff; opacity: .85; }
 @keyframes weapon-hud-empty { from { box-shadow: 0 0 0 0 #ff4b3e00; } to { box-shadow: 0 0 14px 3px #ff4b3e; } }
 
+/* On touch screens the gun icons sit above the touch control band. */
+body.touch-controls-on #playerGuns.weapon-hud { bottom: 76px; }

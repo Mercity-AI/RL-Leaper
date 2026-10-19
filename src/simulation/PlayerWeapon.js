@@ -12,6 +12,8 @@ import { FirstPersonView } from '../weapons/FirstPersonView.js';
 import { InputController } from '../input/InputController.js';
 import { ReticleView } from '../ui/ReticleView.js';
 import { WeaponHudView } from '../ui/WeaponHudView.js';
+import { TouchControls } from '../ui/TouchControls.js';
+import { touchButtons, wantsTouchControls } from '../input/touch.js';
 
 // Lola's guns, as a thin coordinator. The pieces it connects:
 //   src/config/weapons.js      every gun's numbers (damage, rate, spread, recoil...)
@@ -20,7 +22,7 @@ import { WeaponHudView } from '../ui/WeaponHudView.js';
 //   weapons/TargetRegistry     what bullets can hit (each enemy's hit volumes)
 //   weapons/HitFeedback        hit markers, the crosshair kick, the big-hit glow
 //   GunshotEffects             pooled tracers, flashes and sparks
-//   ui/ReticleView, WeaponHudView   the HUD pieces
+//   ui/ReticleView, WeaponHudView, TouchControls   the HUD pieces
 // It reads the input actions once per frame (fire, aim, reload), so nothing is
 // ever fired from inside a page event, a pause freezes the guns, and the click
 // that only grabs the mouse again never shoots.
@@ -62,21 +64,33 @@ export class PlayerWeapon {
     this.scratch = { origin: new THREE.Vector3(), direction: new THREE.Vector3(), muzzle: new THREE.Vector3(),
       anchor: new THREE.Vector3(), screen: new THREE.Vector3() };
 
-    // 5. The HUD: crosshair and gun icons.
+    // 5. The HUD: crosshair, gun icons and, on touch screens, the touch controls
+    //    (their buttons press the same input actions as the keyboard and gamepad).
     this.reticleView = new ReticleView(document.body);
     this.weaponHud = new WeaponHudView(document.body, {
       slots: WEAPON_SLOTS.map(id => ({ id, key: WEAPONS[id].key, label: WEAPONS[id].label, icon: WEAPONS[id].icon })),
     });
     this.hudGuns = WEAPON_SLOTS.map(id => ({ id, active: false, reloading: false, empty: false, fraction: 1 }));
+    this.touch = wantsTouchControls() ? new TouchControls(document.body, {
+      buttons: touchButtons(),
+      onDown: action => this.input.virtualDown?.(action),
+      onUp: action => this.input.virtualUp?.(action),
+      onLook: (dx, dy) => p.cameraController.lookBy?.(dx * CAMERA.look.touch, dy * CAMERA.look.touch * CAMERA.look.verticalRatio),
+    }) : null;
 
-    // 6. The gamepad's Start resumes the game the same way the pause overlay
-    //    does (the junkyard already sets onPauseRequested).
+    // 6. The gamepad's Start and the touch RESUME button resume the game the
+    //    same way the pause overlay does (the junkyard already sets onPauseRequested).
     p.cameraController.onResumeRequested ??= () => p.resume?.();
 
     // 7. Leaving the window or hiding the tab drops the trigger, aim and reload;
     //    shots already in the air keep fading. (The session's AbortSignal, if
     //    any, removes these listeners.)
     const session = p.signal ? { signal: p.signal } : {};
+    // On touch screens a browser only lets sound start when a finger LIFTS, not
+    // when it presses, so the shots' audio is also unlocked then (review fix 5.9).
+    if (this.touch) {
+      for (const type of ['pointerup', 'touchend']) window.addEventListener(type, () => p.audio?.unlock?.(), { capture: true, ...session });
+    }
     window.addEventListener('blur', () => this.cancelActions(), session);
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.cancelActions(); }, session);
     this.renderHud();
@@ -89,6 +103,7 @@ export class PlayerWeapon {
     this.visuals.dispose();
     this.reticleView.dispose();
     this.weaponHud.dispose();
+    this.touch?.dispose();
     this.removeLeaperTarget();
     this.targets.clear();
     if (this.ownsInput) this.input.dispose();
@@ -125,7 +140,7 @@ export class PlayerWeapon {
 
   // ---- Aiming down the sights ----
 
-  // fromInput: the aim follows a held input (right mouse, LT) and ends
+  // fromInput: the aim follows a held input (right mouse, LT, touch AIM) and ends
   // when it is let go; otherwise it stays until setAiming(false).
   setAiming(active, { fromInput = false } = {}) {
     const p = this.p, cc = p.cameraController;
@@ -376,6 +391,8 @@ export class PlayerWeapon {
     });
     this.weaponHud.update({ visible: available, reloading: state.reloading, empty: !state.reloading && state.mag <= 0,
       guns: this.hudGuns });
+    this.touch?.update({ visible: true, gunReady: available, aiming: cc.aiming, crouching: p.target.crouching,
+      paused: Boolean(p.paused) });
   }
 
   // Kept for older callers: the HUD now redraws itself every frame.

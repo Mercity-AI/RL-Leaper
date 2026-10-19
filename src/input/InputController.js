@@ -1,6 +1,7 @@
 import {
   ACTION_NAMES, AXIS_ACTIONS, BUTTON_ACTIONS, NO_DEFAULT_KEYS, PAD_AXES, PAD_TUNING,
 } from './actions.js';
+import { wantsTouchControls } from './touch.js';
 
 // The one place that listens to the keyboard, the mouse buttons, the gamepad and
 // the touch buttons for gameplay. Devices only record what is down; once per
@@ -296,10 +297,8 @@ export class InputController {
     const sprintButton = byId('btnSprint');
     if (!touchUi || !joystickBase || !joystickKnob || !jumpButton || !sprintButton) return;
 
-    // Shown on touch screens only.
-    if (window.matchMedia?.('(pointer: coarse)').matches || 'ontouchstart' in window) {
-      touchUi.classList.add('show');
-    }
+    // Shown on touch screens only (the same test as the touch control band).
+    if (wantsTouchControls(window)) touchUi.classList.add('show');
 
     // The joystick knob follows the finger inside the ring; its offset is the move input.
     const moveJoystick = (event) => {

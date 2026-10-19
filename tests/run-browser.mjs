@@ -22,6 +22,7 @@ import { createServer } from 'vite';
 const PAGES = ['tests/browser-combat.html', 'tests/camera-player.html'];
 const SCRIPTS = [
   { path: 'tests/game-controls.browser.mjs' },
+  { path: 'tests/touch-controls.browser.mjs', device: 'Pixel 7' },
 ];
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TIMEOUT_SECONDS = Number(process.env.BROWSER_TEST_TIMEOUT || 300);
