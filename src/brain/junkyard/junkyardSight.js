@@ -32,7 +32,10 @@ export function loadGlbTriangles(buffer) {
     else if (kind === 0x004E4942) binary = chunk;
     offset += 8 + size;
   }
-  if (!documentJson || !binary || documentJson.extensionsRequired) {
+  // Only an image extension may be required (the baked WebP texture atlas):
+  // compressed or quantised geometry cannot be read here.
+  const geometryExtensions = (documentJson?.extensionsRequired ?? []).filter((name) => name !== 'EXT_texture_webp');
+  if (!documentJson || !binary || geometryExtensions.length) {
     throw new Error('Sight requires an uncompressed GLB with an embedded buffer');
   }
   const binView = new DataView(binary.buffer, binary.byteOffset, binary.byteLength);

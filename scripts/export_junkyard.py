@@ -1,7 +1,8 @@
 """Run with Blender -b <map.blend> --python scripts/export_junkyard.py.
 
 Exports a browser copy; never saves or changes the source .blend file.
-The map's source today is assets/blockmesh/junkyard/junkyard_v2.blend.
+The map's source today is assets/blockmesh/junkyard/junkyard_v2.blend; export
+its baked copy, junkyard_v2_baked.blend (scripts/bake_junkyard_textures.py).
 The yard's size comes from its floor object ("Cube"), and anything belonging
 to a character (an armature and what hangs off it, e.g. a preview Lola) is
 left out: the game brings its own Lola.
@@ -65,5 +66,8 @@ bpy.ops.export_scene.gltf(
     filepath=str(OUTPUT / "junkyard.glb"), export_format="GLB",
     use_visible=True, export_cameras=False, export_lights=False,
     export_yup=True, export_apply=True,
+    # The baked atlas (scripts/bake_junkyard_textures.py) as WebP, which the
+    # game already uses; pnpm assets re-encodes it losslessly.
+    export_image_format="WEBP", export_image_quality=90,
 )
 print(f"Exported {len(names)} objects and {len(triangles)} collision triangles to {OUTPUT}")

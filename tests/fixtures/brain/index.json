@@ -5,7 +5,7 @@
  "contact_version": 4,
  "sight_version": "eye-vision-v1",
  "collision_sha256": "17a979d3f6634bcaa87a44a4420017529ee35fab965e98129756f05ae276a5d9",
- "glb_sha256": "aff7c5cf5d494a31f00eb620220b330b21b25304f072633760d5c132bc05c4be",
+ "glb_sha256": "836f2f7388a7d09d217c6645583e58ee96e4d230e99861ca0b67c8e060c25eb9",
  "worlds": {
   "2.9": {
    "width": 2.9,
@@ -233,6 +233,6 @@
  },
  "glb_triangles": {
   "count": 147208,
-  "sha256": "5f648438ce13cea17ab25054cbee96e2b8c7bd07d764920251a81c3645c21cf3"
+  "sha256": "8ec20d17c2d519923b38a251d15728f743cbdb848a35dbe6eeb2fd36e9fad1a0"
  }
 }

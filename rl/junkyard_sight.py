@@ -20,7 +20,10 @@ def load_triangles(path):
         elif kind == 0x004E4942:
             binary = chunk
         offset += 8 + size
-    if document is None or binary is None or document.get('extensionsRequired'):
+    # Only an image extension may be required (the baked WebP texture atlas):
+    # compressed or quantised geometry cannot be read here.
+    geometry_extensions = [name for name in (document or {}).get('extensionsRequired', []) if name != 'EXT_texture_webp']
+    if document is None or binary is None or geometry_extensions:
         raise ValueError('Sight requires an uncompressed GLB with an embedded buffer')
 
     def accessor(index):

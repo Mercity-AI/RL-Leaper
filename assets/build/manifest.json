@@ -3,10 +3,10 @@
   "outputs": {
     "maps/junkyard.glb": {
       "source": "assets/maps/junkyard/junkyard.glb",
-      "sourceBytes": 7531692,
-      "sourceSha256": "aff7c5cf5d494a31f00eb620220b330b21b25304f072633760d5c132bc05c4be",
-      "bytes": 1735432,
-      "sha256": "a025fd70253532a77363d92ae397783685123cac5e6d4045750497a31e5f313a"
+      "sourceBytes": 10345600,
+      "sourceSha256": "836f2f7388a7d09d217c6645583e58ee96e4d230e99861ca0b67c8e060c25eb9",
+      "bytes": 4471960,
+      "sha256": "51cf6d2ee1c817b0f2084cb0baedea72c513bcd046ab9779be6c00240a33189f"
     },
     "lola/lola-m416.glb": {
       "source": "assets/characters/lola/lola-m416.glb",
@@ -508,6 +508,7 @@
     "Neck_BaseColor": "f3fcaa1fc712544f0346db3861db96fc9f606b84b66b396fecc978eba324c4fd",
     "Pants_BaseColor": "d67b8968277140aa5849c1d21ddfa08f3636045720d0c42a35009efcd6188fe0",
     "Top_BaseColor": "ef3396089d83ebb328ea0ae45c3b84d42a6b56ed456b7dfa225b3a45baefda53",
+    "junkyard_atlas": "2f23323b44645a44d536eb5482fbe365b6eec6bd1fd55dfa073708c0f0f4bd92",
     "m416_base_color": "dfdfdd0893317c7a53b9a35cdd208fb1da1912015990c48bcfa0e90cc9f52f17"
   }
 }
