@@ -45,6 +45,8 @@ export class PlayerWeapon {
     // Whether the gun could be used last frame (the controls are let go once when it can't).
     this.wasAvailable = false;
     this.visuals = new GunshotEffects(playtest.engine.scene, playtest.world.scale);
+    // Compile the effects' shaders now, so the first shot never stalls on one.
+    this.visuals.prewarm(playtest.engine.renderer, playtest.engine.camera);
     this.effects = this.visuals.items;
     this.hitTime = 0;
     this.bigHitTime = 0;
@@ -102,6 +104,8 @@ export class PlayerWeapon {
   // (Its listeners go with the session's AbortSignal.)
   dispose() {
     this.clearEffects();
+    // The pooled effects' draw objects leave the scene and free their GPU memory.
+    this.visuals.dispose();
     this.reticle.remove();
     this.ammoReadout.remove();
     document.documentElement.style.setProperty('--good-flash', '0');
