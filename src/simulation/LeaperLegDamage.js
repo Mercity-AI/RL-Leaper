@@ -105,9 +105,14 @@ export class LeaperLegDamage {
       copy.traverse(o => {
         o.userData = {};
         if (o.isMesh) {
+          // A piece cut off during a hit flash keeps the hull's resting glow, not the
+          // flash. The resting glow is read from the shared hull material before it
+          // is cloned: a clone's userData is a JSON copy (the colour becomes a plain
+          // number, 0 for the black hull), so it cannot be read back from the copy.
+          const resting = o.material.userData?.hitFlashBase;
           o.material = o.material.clone();
-          // A piece cut off during a hit flash keeps the hull's resting glow, not the flash.
-          if (o.material.userData?.hitFlashBase) o.material.emissive.copy(o.material.userData.hitFlashBase);
+          delete o.material.userData.hitFlashBase;
+          if (resting?.isColor) o.material.emissive.copy(resting);
         }
       });
       group.add(copy);
