@@ -8,6 +8,9 @@
 .touch-controls[hidden], .touch-look[hidden] { display: none; }
 .touch-look { position: fixed; top: 22%; right: 0; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); width: 48%;
   z-index: 5; touch-action: none; }
+/* Only once play was started by touch (the camera sets body.touch-play): on a
+   touch-screen laptop played with a mouse, clicks there still reach the game view. */
+body:not(.touch-play) .touch-look { pointer-events: none; }
 
 /* The band: always on top of the HUD panels, so every button can be pressed. */
 .touch-band { position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; justify-content: center;
@@ -25,9 +28,9 @@
 
 /* The mouse-look rule in junkyard.css switches off every on-screen control while
    the mouse is captured. Touch play never captures the mouse, and these rules
-   keep the touch controls (and the movable panels) working even if the page is
+   keep the band's buttons (and the movable panels) working even if the page is
    ever in mouse-look on a touch screen (review fix 5.9). */
-body.mouse-look .touch-controls, body.mouse-look .touch-controls * { pointer-events: auto !important; cursor: auto !important; }
+body.mouse-look .touch-band, body.mouse-look .touch-band * { pointer-events: auto !important; cursor: auto !important; }
 body.touch-play.mouse-look .movable-hud, body.touch-play.mouse-look .movable-hud * { pointer-events: auto !important; }
 
 /* Make room for the band (only while it is on the page): the page's own JUMP

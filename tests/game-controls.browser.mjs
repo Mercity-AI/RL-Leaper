@@ -115,5 +115,26 @@ export default async function gameControls(page, { baseUrl, check }) {
   await until(page, (s) => s.flow === 'playing');
   await page.evaluate(() => { window.__pad.buttons[9] = { pressed: false, value: 0 }; });
   check(true, 'Start pauses, and Start again resumes');
+
+  // 7. A touch-screen laptop played with a mouse (?touch shows the touch band
+  //    here) in a browser that refuses pointer lock (so the game uses its
+  //    hover-look fallback and clicks land on whatever is under the cursor): the
+  //    band's look area must not swallow clicks on the right half of the game
+  //    view, so a click there still fires.
+  await page.evaluate(() => { window.__padOn = false; });
+  await page.addInitScript(() => {
+    HTMLCanvasElement.prototype.requestPointerLock = () => Promise.reject(new Error('pointer lock refused (test)'));
+  });
+  await page.goto(`${baseUrl}/?debug&touch`, { timeout: 300000 });
+  await page.waitForFunction(() => window.leaperPlaytest?.playerWeapon, null, { timeout: 300000 });
+  check(await page.locator('.touch-band').isVisible(), '?touch shows the touch band on a desktop');
+  await page.click('[data-action=player]');
+  await until(page, (s) => s.flow === 'playing');
+  await page.waitForFunction(() => document.body.classList.contains('mouse-look'), null, { timeout: 60000 });
+  now = await state(page);
+  const right = { x: canvas.x + canvas.width * 0.8, y: canvas.y + canvas.height * 0.5 };
+  await page.mouse.click(right.x, right.y);
+  await until(page, (s) => s.mag === now.mag - 1);
+  check(true, 'with a mouse, a click on the right half of the view fires (the touch look area stands aside)');
   return 'Game controls (mouse, keyboard, gamepad)';
 }
