@@ -31,6 +31,16 @@ test('production build: separate mode files that never import the entry file', {
     for (const chunk of chunks.filter(item => upFront.has(item.fileName))) {
       assert.ok(!Object.keys(chunk.modules).some(id => id.includes('onnxruntime-web')), `${chunk.fileName} carries onnxruntime-web`);
     }
+    // Nor does the game itself: the junkyard file and everything it imports
+    // up front hold none of the lab pages' code (arena, training, sandbox).
+    const byFile = new Map(chunks.map(chunk => [chunk.fileName, chunk]));
+    const game = chunks.find(chunk => chunk.isDynamicEntry && chunk.name === 'junkyard');
+    const gameFiles = new Set([game.fileName]);
+    for (const file of gameFiles) for (const imported of byFile.get(file)?.imports ?? []) gameFiles.add(imported);
+    for (const file of gameFiles) {
+      const lab = Object.keys(byFile.get(file).modules).find(id => /[\\/]src[\\/]modes[\\/](arena|training|sandbox)\.js$/.test(id));
+      assert.equal(lab, undefined, `the game page downloads ${file}, which carries lab code (${lab})`);
+    }
   } finally {
     fs.rmSync(outDir, { recursive: true, force: true });
   }
