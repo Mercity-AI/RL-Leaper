@@ -1,5 +1,211 @@
 # Repository Guidelines
 
+This repository holds two projects in one tree:
+
+1. **The game** (Part 1): a browser third-person shooter (Vite 7, Three.js
+   r128 pinned, pnpm). Lola fights the Leaper, a six-legged robot, in a
+   junkyard. A frozen RL policy (7,757,824 steps) drives the Leaper's movement
+   inside the page, under an authored behaviour layer.
+2. **The RL lab** (Part 2): Python PPO training and research on Leaper brains
+   (seeker runs PPO_27 to PPO_35 and earlier walker runs). The training handoff
+   that `CLAUDE.md` refers to lives there.
+
+The owner is a game designer, not a programmer; the project is open source and
+non-commercial. Read "Working With the Project Owner" before reporting back.
+
+## Working With the Project Owner
+
+The project owner comes from an art and game-design background and is not a programmer or otherwise highly technical. Communicate accordingly:
+
+- Begin with what changed and what it means for the game or creative workflow.
+- Explain technical terms in plain language when they first appear; do not assume familiarity with Git, terminals, packages, APIs, or architecture terminology.
+- Give short, numbered instructions with exact commands when the owner needs to do something.
+- Explain important tradeoffs visually or with concrete game examples where helpful.
+- Never make the owner interpret raw errors without also explaining the likely cause and next action.
+- Ask about creative intent when a technical choice could change movement, appearance, feel, difficulty, or training behavior.
+- Keep routine implementation details concise, but clearly flag decisions that affect saved models, assets, controls, or player-visible behavior.
+
+# Part 1 — The game
+
+Status (2026-10-19): every item of the deep code review
+(`docs/reviews/2026-10-18-lola-first-person-aim/LEAPER_CODE_REVIEW.md`) has
+been worked through on branch `claude/zen-davinci-ku9f5z`; what is done, partly
+done and open, plus the owner's pending decisions, is in
+`docs/reviews/2026-10-19-implementation-report.md`. Player-facing changes are
+in `docs/game/CHANGELOG.md`.
+
+## Repo map
+
+| Area | Where |
+|---|---|
+| Game start-up | `index.html`, `src/main.js`, `src/modes/` (`junkyard.js` is the game; `arena.js`, `training.js`, `sandbox.js` are lab pages) |
+| Frame loop, game state | `src/core/` (`GameLoop`, `GameFlow`, `events`, `Quality`, `Assets`, `sunShadow`) |
+| The fight | `src/game/` (`Encounter`, `PlayerController`, `PlayerVitals`, `PauseOverlay`, `JunkyardPanel`), `src/simulation/JunkyardPlaytest.js` (wires one fight) |
+| Lola | `src/robot/LolaPlayer.js` (facade) over `src/actors/lola/` |
+| The Leaper | `src/actors/leaper/` (director, actor, playout, leap planner, feedback), `src/simulation/` (rig animation `LeaperSimulation`, `LeaperCombat`, `AttackController`, leg damage) |
+| Brain client and providers | `src/simulation/JunkyardBrain.js`, `src/brain/BrainProvider.js`, `src/brain/HttpBrainProvider.js`, `src/brain/junkyard/` (ONNX worker and the JS port of the frozen env) |
+| Weapons | `src/config/weapons.js` (data), `src/weapons/` (shot rules, hit volumes, target registry), `src/simulation/PlayerWeapon.js`, `src/simulation/GunshotEffects.js` |
+| Input, UI, audio | `src/input/`, `src/ui/`, `src/styles/`, `src/audio/` (`sounds.json` manifest) |
+| Designer numbers | `src/config/` (`camera`, `combat`, `encounter`, `leaper-behaviour`, `weapons`); `src/config/tuning/` is the live registry |
+| Developer tools | `src/debug/` (DEV drawer, TUNING panel, perf timer), only with `?dev` or `pnpm dev` |
+| World | `src/world/` (map, collision, collision worker, navigation, BVH raycasts), `assets/maps/junkyard/` (metrics, passages) |
+| Art | `assets/` (sources and `assets/build/` compressed copies), `public/` |
+| **Frozen brain** | `model_7757824/` (checkpoint), `rl/frozen_7757824/` (recipe), `rl/junkyard_env.py`, `rl/junkyard_sight.py`, `rl/junkyard_server.py` (Python reference), `public/brains/leaper_7757824/` (`actor.onnx`, `brain.json`, baked raster), `src/brain/junkyard/` (JS port), `src/config/eye-vision.json` and `player-contact.json` (brain contract), `tests/fixtures/brain/` |
+| RL lab | `rl_environment.py`, `train_rl.py`, `rl/seeker_*.py`, `README-RL.md`, `TRAINING.md`, `RL_SPEC.md`, `docs/SEEKER_*`, `rl_artifacts/` (ignored) |
+| Tests | `tests/*.test.js` (Node), `tests/*.html` and `tests/*.browser.mjs` (headless pages run by `tests/run-browser.mjs`), `tests/test_*.py` |
+
+## Non-negotiables
+
+- **The frozen brain does not change.** Never edit `rl/frozen_7757824/`, the
+  checkpoint in `model_7757824/`, `public/brains/leaper_7757824/`, or the
+  observation, action and step semantics of the env (`rl/junkyard_env.py`,
+  `src/brain/junkyard/`). `tests/test_frozen_recipe.py` pins the recipe's
+  SHA256s; the policy weights' SHA256 is
+  `883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594`
+  (`brain.json` `policy_sha256`, shown in the DEV brain badge).
+- **Parity tests stay at zero differences.** `tests/brain-parity.test.js`,
+  `tests/brain-onnx.html` and the Python brain tests replay recorded fixtures
+  with zero observation, pose or collision differences between Python and JS.
+  A change to the shared contact or sight rules (like contact v4) is made in
+  Python and JS together and refreshes the fixtures
+  (`scripts/make_junkyard_fixtures.py`, `scripts/make_sync_fixture.py`).
+- **No training for the game brain without a new checkpoint id.** A new brain
+  gets its own folders (`model_<id>/`, `rl/frozen_<id>/`,
+  `public/brains/leaper_<id>/`) and the owner's approval; the shipped one is
+  never retrained in place.
+- **The behaviour layer only pauses, resumes or syncs the brain** (pose sync
+  after a leap or collapse). It never feeds the brain new inputs.
+- **Players never get the developer tools.** Anything for designers goes in
+  the `?dev` drawer (`src/debug/`), which is downloaded on demand.
+- **Every shipped sound has a licence record** in `src/audio/sounds.json`;
+  `pnpm test` fails otherwise and keeps `CREDITS.md` in sync.
+- Don't edit the review documents under `docs/reviews/2026-10-18-*`.
+
+## How to run
+
+```sh
+corepack enable
+CI=true pnpm install --frozen-lockfile
+pnpm dev                 # http://127.0.0.1:5173/ (fixed port; --port <n> to change)
+pnpm build && pnpm preview   # release build on http://127.0.0.1:4173/
+pnpm play                # optional: Python brain server on 127.0.0.1:8767 plus the game
+```
+
+Page options: `?dev` / `?dev=0`, `?brain=onnx|http|turret`,
+`?quality=low|medium|high`, `?softRestart=1`; lab pages `?arena`,
+`?training`, `?free`. The Python server needs Python 3.12 and
+`requirements-brain.txt` (see README).
+
+## How to test
+
+- `pnpm lint`, `pnpm build`, `pnpm test` (Node unit tests),
+  `pnpm test:browser` (headless Chromium through Playwright; in a sandbox set
+  `PLAYWRIGHT_BROWSERS_PATH` to the installed browsers instead of running
+  `playwright install`), `pnpm test:py` (`--checkpoint` adds the real-brain
+  tests). `pnpm check` runs build, test and test:browser.
+- CI (`.github/workflows/ci.yml`) runs all of these on every push and pull
+  request, including the Python brain tests with the real checkpoint.
+- Software rendering (CI, sandboxes) runs at 1-2 frames per second: judge game
+  states in browser tests, not frame rates.
+- After changing a binding in `src/input/actions.js`, run
+  `node scripts/print-controls.mjs --write` (a test checks the README table).
+- After editing map or art sources, run `pnpm assets` (tests fail until the
+  compressed copies and baked metrics match).
+
+## How to add features
+
+**A weapon.** Add an entry to `WEAPONS` in `src/config/weapons.js` (damage,
+interval, automatic, magazine, reload, spread, recoil, aim zoom, tracer and
+sound ids; the file documents every field) and its id to `WEAPON_SLOTS`. Lola
+only has art for two guns (`OUTFIT_WEAPONS` in `src/actors/lola/LolaAssets.js`,
+exported by `scripts/export_lola.py`), so a third gun also needs a Blender
+export of Lola holding it. Add a key in `src/input/actions.js` and refresh the
+controls table. The TUNING panel's Guns folder is built from `WEAPONS`, so it
+shows the new gun too. Tests to extend: `tests/resolve-shot.test.js`,
+`tests/lola-shooting.test.js`, `tests/gun-effects.test.js`.
+
+**A sound.** Follow `src/audio/README.md`: add the take with its source and
+licence to `src/audio/sounds.json`, put the WAV in `assets/audio/` and run
+`pnpm assets`, then `node scripts/assets/build-credits.mjs`. Play it with
+`audio.play(id, { at })` or a named slot with `audio.playSlot(slot)`.
+
+**An enemy.** The fight already holds a list: `Encounter.addEnemy({ simulation,
+brain, combat })` in `src/game/Encounter.js`, and each enemy registers its hit
+volumes with the `TargetRegistry` (`src/weapons/TargetRegistry.js`; see
+`src/weapons/LeaperTarget.js`). A second Leaper needs its own brain session
+(provider) and actor; `src/simulation/JunkyardPlaytest.js` shows how one is
+wired. A new enemy type brings its own movement in place of the brain.
+
+## Architecture summary
+
+```text
+src/main.js -> src/modes/ (the address picks a mode; each is loaded on demand)
+  -> GameLoop phases every frame: input -> update -> lateUpdate -> beforeRender -> render -> afterRender
+     (clamped frame time; FixedStep for 10 brain steps per second and automatic fire)
+  -> GameFlow (loading / ready / playing{hunt, explore} / paused / ended{winner, practice})
+     and Encounter (update order, enemies[], start snapshot, clean restart, results)
+       -> Lola: PlayerController (input) -> LolaPlayer (locomotion, animator, action rules, mover)
+       -> Leaper: brain provider (ONNX worker, else Python HTTP, else turret)
+            -> JunkyardBrain (step clock, pose sync) -> LeaperDirector (Search, Chase, Engage,
+               Stagger, Downed, Dying, Dead) -> LeaperActor (playout, stomp, leap, legs, feedback)
+            + LeaperCombat (health, bolts, leg damage)
+       -> weapons (PlayerWeapon, WeaponState, resolveShot, TargetRegistry, GunshotEffects)
+       -> input action map (keyboard, mouse, gamepad, touch)
+       -> UI (GameUi, Hud regions, screens, settings) and audio (GameAudio over AudioService)
+  lateUpdate: camera, sun and shadow follow Lola, the floating health bar
+```
+
+Combat, flow and UI changes travel over the event bus (`src/core/events.js`)
+and the GameFlow state. Config modules that should follow
+live tuning import from `src/config/tuning/index.js`.
+
+## Game code style and commits
+
+Two spaces in JavaScript, HTML and CSS. Write code in logical blocks, each with
+a one- or two-line plain-language comment saying what it does and why.
+Commit messages: an imperative subject, then what changed, why, and how it was
+validated. Never push or force-push without the owner's say-so.
+
+# General guidelines
+
+## Coding Style & Naming Conventions
+
+Use four spaces in Python and two spaces in HTML, CSS, and JavaScript. Follow PEP 8: `snake_case` for Python functions and variables, `PascalCase` for classes, and uppercase constants. In JavaScript, use `camelCase` for mutable values and uppercase names for simulation constants. Keep modules focused and name them after the game concept they own. Do not add a framework unless it solves a demonstrated project need; native JavaScript modules are sufficient for the first refactor.
+
+## Commit & Pull Request Guidelines
+
+Treat Git history as part of the project documentation. Agents working in this repository must manage changes deliberately:
+
+- Check `git status` and inspect relevant diffs before editing so existing owner changes are not overwritten.
+- Work on a named branch for substantial features or risky refactors; keep the default branch stable and runnable.
+- Make small, coherent commits that contain one understandable change. Do not mix unrelated cleanup with feature work.
+- Use concise imperative commit messages such as `Extract camera controls` or `Fix calf collision response`.
+- Run the relevant validation before committing and report what was tested. Do not claim tests passed if they were not run.
+- Review `git diff --check` and the staged diff before every commit. Never commit generated models, large transient artifacts, secrets, local environment files, or dependency caches.
+- Do not discard, rewrite, squash, amend, rebase, force-push, or otherwise alter the owner's Git work unless explicitly asked.
+- Do not create a commit merely because files changed. Commit at a meaningful checkpoint, and tell the owner what the commit represents in plain language.
+- Keep `.gitignore` current as new tools and artifact folders are introduced.
+
+Pull requests should explain player-visible and behavioral changes, list validation commands, link relevant issues, and include screenshots or short recordings for visible simulator changes. Call out reward, observation, action-space, or simulation-timing changes explicitly because they can invalidate trained models or change learned behavior.
+
+# Part 2 — RL lab handoff
+
+Everything below is the RL training handoff, kept as written. Notes added on
+2026-10-19 are marked as such.
+
+**Note (2026-10-19): the PPO_29 normalized-throttle task in `CLAUDE.md` has
+been carried out.** `CLAUDE.md`'s "Current facts" still describe it as not yet
+implemented; the record below (section "Prior Handoff — PPO_31 …", the PPO_29
+line) and the code say otherwise: `rl_environment.py` has the
+`NORMALIZED_THROTTLE` flag and `FREEZE_LIMIT = 60`, `train_rl.py` has
+`--normalized-throttle`, `--freeze-limit` and `--warm-transfer`, and
+`tests/test_ppo29_normalized_throttle.py` covers them. Recorded results: PPO_27
+64% deterministic success; PPO_28 71% with 56.73% zero-throttle steps; PPO_29
+20k smoke 73% (stopped steps 5.02%) and 250k run 69% (stopped steps 6.29%, a
+statistical tie with PPO_28). Later runs up to PPO_35 follow. Artifact folders
+are git-ignored, so these figures cannot be re-checked from the repository
+alone.
+
 ## Current seeker work: read this before acting
 
 Start with [docs/SEEKER_HANDOFF.md](docs/SEEKER_HANDOFF.md) for cross-chat context,
@@ -58,7 +264,27 @@ contract or later recorded experiment configurations. Current models use34 input
 - Run each training configuration once unless the owner requests repetitions. Log
   interrupted runs and preserve them separately when owner instructions change.
 
-## Project Structure & Module Organization
+## RL lab commands
+
+Install and run the RL tooling separately with:
+
+```powershell
+python -m pip install -r requirements-rl.txt
+python train_rl.py --timesteps 20000 --run-name PPO_11_SMOKE --artifact-dir rl_artifacts/ppo_11_ray_vision_smoke
+python train_rl.py --timesteps 100000 --run-name PPO_11 --artifact-dir rl_artifacts/ppo_11_ray_vision_100k
+tensorboard --logdir rl_artifacts
+```
+
+Always give each run its own `--artifact-dir` so smoke tests and archived runs cannot overwrite one another. Validate Python syntax with `python -m py_compile rl_environment.py train_rl.py tests/test_ppo10_signed_throttle.py tests/test_ppo11_ray_vision.py tests/test_ppo12_collision_recovery.py tests/test_ppo13_random_arena.py tests/test_ppo18_human_vision.py`. Run the focused checks with `python -m unittest discover -s tests -p "test_*.py"`. `train_rl.py` also runs Gymnasium's environment checker before training.
+
+For RL changes, run the 20,000-step smoke test and confirm episode rewards appear, `training_progress.csv` is populated, and evaluation completes without NaN values.
+
+## RL lab project structure and the older `?arena` page
+
+> Note (2026-10-19): this list predates the game merge. `src/main.js` now only
+> boots the mode registry in `src/modes/`; the bare address opens the junkyard
+> game, and the 26-input live brain described here is the `?arena` lab page.
+> `assets/` now exists. The game's layout is in Part 1.
 
 This repository is a compact Leaper simulation and reinforcement-learning proof of concept. The long-term goal is to turn it into a maintainable game/simulation project without losing the speed and clarity of the current prototype.
 
@@ -97,7 +323,10 @@ and collision-free start (`test_ppo13_random_arena.py`), and PPO_18 human forwar
 vision — 270-degree cone, longer range, forward-only movement, symmetric rays,
 and rear blind wedge (`test_ppo18_human_vision.py`).
 
-## Project Direction
+## Project Direction (the original refactor plan)
+
+> Note (2026-10-19): the tree below is from before the game merge; Part 1 has
+> the current layout.
 
 The original single-file prototype has been split into native JavaScript modules. Continue evolving it gradually while keeping a runnable version after every meaningful change. The intended direction is:
 
@@ -138,7 +367,7 @@ docs/
 
 The exact folders may evolve. Clear ownership and boundaries matter more than matching this tree perfectly.
 
-## Current Handoff Status
+## Current Handoff Status (historical walker experiments)
 
 - The original `Leaper-Hexapod.html` prototype was replaced by the Vite entry point and the modules under `src/`.
 - Three.js is intentionally pinned to `0.128.0` to preserve the prototype's rendering behavior during the first refactor.
@@ -199,7 +428,11 @@ The exact folders may evolve. Clear ownership and boundaries matter more than ma
 - Manual browser verification has covered the light training scene, chase and top views, natural top-view panning, wheel zoom, media controls, rollout selection, checkpoint selection, live/imported feed switching, and import of the archived `PPO_2` replay. A complete manual play-through of the normal player-controlled simulator is still required: verify all three camera modes, keyboard/touch movement, jumping, obstacle blocking, pink-target selection/movement, and resizing.
 - No local development or TensorBoard server should be assumed to be running. Start them explicitly when needed.
 
-## Web Game — Live Brain in the Browser (2026-09-01)
+## Web Game — Live Brain in the Browser (2026-09-01, historical)
+
+> Note (2026-10-19): historical. This 26-input PPO_25 brain is now the `?arena`
+> lab page, not the default page or the deployed game. The game runs the
+> frozen 7,757,824-step brain (Part 1); GitHub Pages replaces Netlify Drop.
 
 The project crossed from "browser replays a recording" to "the trained brain thinks live in the browser," and is deployed as a playable web game. This is the deployment path, not more RL training.
 
@@ -211,69 +444,6 @@ The project crossed from "browser replays a recording" to "the trained brain thi
 - **Engine loads from a version-matched CDN.** `LeaperBrain.js` imports `onnxruntime-web/wasm`, sets `numThreads = 1` (no cross-origin-isolation headers needed on static hosts) and `wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.29.0/dist/'`. The `/public/ort/` self-hosted approach was abandoned because Vite refuses to import `/public` files as modules in dev. If `onnxruntime-web` is upgraded, bump the pinned CDN version to match.
 - **Deployed on Netlify Drop as a static site.** `pnpm build` (or `node node_modules/vite/bin/vite.js build`) → `dist/` (~0.7 MB after trimming the training `rl_live_state.*` files that ride along from `public/`, and Rollup's redundant bundled `assets/ort-*.wasm`). The site is claimed/permanent; visitors need only a browser + internet (one-time CDN engine fetch, ~14 MB), no download, no server — the brain thinks on the visitor's machine.
 - **Environment note:** the owner's `node`/`pnpm` are not on this agent shell's PATH. A usable Node (v24) lives at `C:\Users\ankud\AppData\Local\OpenAI\Codex\runtimes\cua_node\...\bin\node.exe`; run Vite directly with it (`& node node_modules/vite/bin/vite.js [dev|build|preview]`) since `pnpm dev` trips a pnpm pre-flight over the cosmetic `protobufjs` ignored-build warning. Browser tools are unavailable to the agent — runtime verification (self-test PASS, wasm load) must be confirmed by the owner.
-
-## Working With the Project Owner
-
-The project owner comes from an art and game-design background and is not a programmer or otherwise highly technical. Communicate accordingly:
-
-- Begin with what changed and what it means for the game or creative workflow.
-- Explain technical terms in plain language when they first appear; do not assume familiarity with Git, terminals, packages, APIs, or architecture terminology.
-- Give short, numbered instructions with exact commands when the owner needs to do something.
-- Explain important tradeoffs visually or with concrete game examples where helpful.
-- Never make the owner interpret raw errors without also explaining the likely cause and next action.
-- Ask about creative intent when a technical choice could change movement, appearance, feel, difficulty, or training behavior.
-- Keep routine implementation details concise, but clearly flag decisions that affect saved models, assets, controls, or player-visible behavior.
-
-## Build, Test, and Development Commands
-
-Install Node.js 20 or newer, then install the JavaScript dependencies and start the simulator:
-
-```powershell
-corepack enable
-pnpm install
-pnpm dev
-```
-
-Open the local address printed by Vite, normally `http://localhost:5173`. Create a production build with `pnpm build` and preview it with `pnpm preview`.
-
-If the owner already uses npm, `npm install`, `npm run dev`, and `npm run build` are equivalent. Do not introduce React unless a future editor or complex application UI demonstrates a real need for it.
-
-Install and run the RL tooling separately with:
-
-```powershell
-python -m pip install -r requirements-rl.txt
-python train_rl.py --timesteps 20000 --run-name PPO_11_SMOKE --artifact-dir rl_artifacts/ppo_11_ray_vision_smoke
-python train_rl.py --timesteps 100000 --run-name PPO_11 --artifact-dir rl_artifacts/ppo_11_ray_vision_100k
-tensorboard --logdir rl_artifacts
-```
-
-Always give each run its own `--artifact-dir` so smoke tests and archived runs cannot overwrite one another. Validate Python syntax with `python -m py_compile rl_environment.py train_rl.py tests/test_ppo10_signed_throttle.py tests/test_ppo11_ray_vision.py tests/test_ppo12_collision_recovery.py tests/test_ppo13_random_arena.py tests/test_ppo18_human_vision.py`. Run the focused checks with `python -m unittest discover -s tests -p "test_*.py"`. `train_rl.py` also runs Gymnasium's environment checker before training.
-
-## Coding Style & Naming Conventions
-
-Use four spaces in Python and two spaces in HTML, CSS, and JavaScript. Follow PEP 8: `snake_case` for Python functions and variables, `PascalCase` for classes, and uppercase constants. In JavaScript, use `camelCase` for mutable values and uppercase names for simulation constants. Keep modules focused and name them after the game concept they own. Do not add a framework unless it solves a demonstrated project need; native JavaScript modules are sufficient for the first refactor.
-
-## Testing Guidelines
-
-Before committing a game or brain-service change, run `pnpm check` (build, Node tests and both headless browser pages), `pnpm lint` and `pnpm test:py` (`pnpm test:py --checkpoint` also runs the real-brain tests). GitHub Actions (`.github/workflows/ci.yml`) runs the same checks on every push and pull request.
-
-For simulator changes, run `pnpm build`, then verify chase, lens, and top cameras; keyboard/touch controls; obstacle collision; target selection; jumping; and window resizing in `pnpm dev`. For RL changes, run the 20,000-step smoke test and confirm episode rewards appear, `training_progress.csv` is populated, and evaluation completes without NaN values.
-
-## Commit & Pull Request Guidelines
-
-Treat Git history as part of the project documentation. Agents working in this repository must manage changes deliberately:
-
-- Check `git status` and inspect relevant diffs before editing so existing owner changes are not overwritten.
-- Work on a named branch for substantial features or risky refactors; keep the default branch stable and runnable.
-- Make small, coherent commits that contain one understandable change. Do not mix unrelated cleanup with feature work.
-- Use concise imperative commit messages such as `Extract camera controls` or `Fix calf collision response`.
-- Run the relevant validation before committing and report what was tested. Do not claim tests passed if they were not run.
-- Review `git diff --check` and the staged diff before every commit. Never commit generated models, large transient artifacts, secrets, local environment files, or dependency caches.
-- Do not discard, rewrite, squash, amend, rebase, force-push, or otherwise alter the owner's Git work unless explicitly asked.
-- Do not create a commit merely because files changed. Commit at a meaningful checkpoint, and tell the owner what the commit represents in plain language.
-- Keep `.gitignore` current as new tools and artifact folders are introduced.
-
-Pull requests should explain player-visible and behavioral changes, list validation commands, link relevant issues, and include screenshots or short recordings for visible simulator changes. Call out reward, observation, action-space, or simulation-timing changes explicitly because they can invalidate trained models or change learned behavior.
 
 ## Current Handoff — PPO_35 faint note (0.25) + 500k; ❌ NO-GO but best of line; frontier-note sweep DONE (2026-09-08)
 

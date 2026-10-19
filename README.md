@@ -1,12 +1,19 @@
 # Leaper
 
-Leaper is a browser-based Three.js hexapod simulation with a separate Python reinforcement-learning experiment. The browser project uses small JavaScript modules so the robot, environment, target, controls, cameras, and simulation rules can evolve independently.
+Leaper is a browser third-person shooter. Lola fights the Leaper, a six-legged
+robot, in a junkyard. The Leaper's movement is driven by a frozen
+reinforcement-learning (RL) policy: a network trained for 7,757,824 steps
+(policy SHA256 `883dade3…`) that now runs inside the web page. On top of it sits
+an authored boss layer: the Leaper holds still to shoot, stomps when Lola gets
+close, leaps at her, staggers, loses legs, goes down and dies.
 
-## Play the game
+The same repository is also the RL lab where that brain was trained (see
+[RL lab](#rl-lab) at the end). The project is open source and non-commercial;
+the code licence is not chosen yet (see the implementation report).
 
-The default page is the junkyard fight: Lola against the Leaper. The Leaper's
-movement brain (the saved 7,757,824-step network) runs inside the page, in a
-Web Worker, so all you need is **Node.js 20.19 or newer** (22 LTS recommended):
+## Play
+
+You need **Node.js 20.19 or newer** (22 LTS recommended). No Python is needed.
 
 ```sh
 corepack enable
@@ -14,80 +21,49 @@ pnpm install
 pnpm dev
 ```
 
-Open `http://127.0.0.1:5173/` and press **START RUN**. The brain badge says
-where the brain runs (`BRAIN 7,757,824 · ONNX · IN BROWSER · …`); hover it for
-details. How it works and how it is checked against the Python original:
-`src/brain/junkyard/README.md`.
+Open `http://127.0.0.1:5173/`. For a release copy, `pnpm build` writes the
+static game to `dist/` (put that folder on any static web host) and
+`pnpm preview` serves it at `http://127.0.0.1:4173/`. Pushes to `main` publish
+the game to GitHub Pages once Pages is switched on (see
+[docs/WEB_DEPLOY.md](docs/WEB_DEPLOY.md)).
 
-**The Python brain service (optional reference).** The original service is
-kept as the parity reference, and the game falls back to it if the in-browser
-brain cannot load. It needs **Python 3.12**; one-time setup:
+**The fight.** The title screen offers **PLAY** (the hunt: the Leaper
+searches, chases and fires back), **EXPLORE** (practice: Lola roams and the
+Leaper stands still), **SETTINGS**, **CONTROLS** and **CREDITS**. The Leaper
+has 600 health. Shooting its knees breaks legs: each lost leg slows it, and
+after four it falls for about 6 seconds and takes 1.5x damage meanwhile. Its
+eye core is a weak point. Watch for the red ring on the ground: that is a stomp or a leap
+about to land. **Escape** (gamepad Start, touch PAUSE) pauses. The end screen
+shows the time, damage dealt and taken, and knees broken. Settings (quality,
+look sensitivity, invert look, field of view, sound volumes, large text,
+captions, HUD layout) are remembered in this browser.
+
+**Where the brain runs.** By default the brain runs in the page, in a Web
+Worker (ONNX). If it cannot load, the game tries the Python brain server, and
+if that is missing too, the run plays in **turret mode**: the Leaper stays put
+but still shoots, and the end screen marks the fight TURRET MODE. Pick one on
+purpose with `?brain=onnx`, `?brain=http` or `?brain=turret`.
+
+**Optional: the Python brain server.** It is the original reference the
+browser brain is checked against. It needs Python 3.12; one-time setup:
 
 ```sh
 python3.12 -m venv .venv                                   # Windows: py -3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements-brain.txt  # Windows: .venv\Scripts\python.exe -m pip install -r requirements-brain.txt
 ```
 
-Then `pnpm play` (on Windows, `.\Start-Leaper.ps1`) starts the service on
-`127.0.0.1:8767` together with the game. Pick "Python brain server" under
-OPTIONS -> Brain (or open `/?brain=http`) to use it. Its first run at a new
-Leaper size spends about 30 seconds mapping the junkyard; after that, that
-size starts in about a second. Ctrl+C stops the game and the service.
+Then `pnpm play` (Windows also `.\Start-Leaper.ps1`) starts the server on
+`127.0.0.1:8767` together with the game; open `/?brain=http` or pick it under
+DEV -> OPTIONS -> Brain. By hand, run `.venv/bin/python -m rl.junkyard_server`
+and `pnpm dev` in two terminals. The server only answers pages from this
+computer, loads the committed `model_7757824/` checkpoint (or
+`--model <checkpoint.zip>`) and never trains or changes weights. Its first run
+at a new Leaper size spends about 30 seconds mapping the junkyard. If a port is
+busy, use `pnpm dev --port 5180` (or `pnpm play --port 5180`).
 
-- Port 5173 already in use? Run `pnpm dev --port 5180` (or `pnpm play --port 5180`).
-- The RL lab pages are on the same server: `/?arena`, `/?training`, `/?free`.
-- Without any brain (`/?brain=turret`, or if nothing can load) a run plays in
-  turret mode: the Leaper stays put but still shoots.
-- Checks: `pnpm check` (build, unit tests and browser pages), `pnpm test:py`
-  (Python tests that need no PyTorch) and `pnpm lint`.
+## Controls
 
-## Build a release version
-
-```powershell
-pnpm build
-pnpm preview
-```
-
-The optimized files are generated in `dist/`. That folder is temporary and is not committed to Git.
-
-## Where things belong
-
-- `src/robot/`: the hexapod's visible construction and parts.
-- `src/world/`: ground, rocks, obstacles, and target objects.
-- `src/simulation/`: movement, gait, jumping, collisions, and live game rules.
-- `src/controls/`: keyboard and touch input.
-- `src/camera/`: chase, lens, and top-down views.
-- `src/config/`: numbers you may want to tune, such as speed and leg proportions.
-- `src/styles/`: the HUD and control appearance.
-- `assets/`: future Blender models, textures, sounds, and other art files.
-- `rl/`: future home of the modular Python training code.
-
-## Why this does not use React
-
-Three.js already controls the continuously changing 3D scene. React would be useful later for a large editor, inventory, menus, or data-heavy tools, but it would add another layer without helping the current simulation. Vite and native JavaScript modules give the project a professional development setup while keeping it approachable.
-
-## Recommended next steps
-
-1. Confirm the modular version matches the original prototype visually and behaviorally.
-2. Move the Python RL files into an `rl/` package without changing their behavior.
-3. Decide how the browser simulation and Python trainer will exchange observations and actions.
-4. Add an `assets/` pipeline when the procedural robot is replaced or supplemented with Blender models.
-5. Add focused tests for collision rules, movement math, and RL observations/rewards.
-
-## Playing
-
-The game opens on its title screen: **PLAY** starts the hunt (the Leaper
-searches, chases and fires back), **EXPLORE** is practice (Lola roams and shoots
-while the Leaper stands still), and **SETTINGS**, **CONTROLS** and **CREDITS**
-are there too. **Escape** (gamepad Start, touch PAUSE) opens the pause menu
-(Resume, Restart, Settings, Controls, Quit to title); when the fight is decided
-the end screen shows the time, damage dealt and taken and knees broken. Mouse,
-keyboard, gamepad and touch all drive the menus. Settings holds graphics
-quality, look sensitivity, invert look, field of view, sound, large text and
-captions for sound cues; they are remembered in this browser.
-
-The controls (generated from the game's input bindings; **H** shows them in the
-fight too):
+Generated from the game's input bindings; **H** shows them during the fight.
 
 <!-- controls:start (generated by scripts/print-controls.mjs, do not edit by hand) -->
 | Action | Keyboard and mouse | Gamepad | Touch |
@@ -107,150 +83,118 @@ fight too):
 | Show / hide controls | H | Back | — |
 <!-- controls:end -->
 
-After changing a binding in `src/input/actions.js`, run
+On touch screens AIM is a toggle (tap to raise the sights, tap again to lower
+them). After changing a binding in `src/input/actions.js`, run
 `node scripts/print-controls.mjs --write` to refresh this table (a test fails
 while it is out of date).
 
-## Junkyard trained-brain playtest
+## Develop
 
-The junkyard now runs the saved **7,757,824-step reverse-urgency recurrent
-policy**, not the navigation pathfinder. If no brain can load, the run goes on
-in turret mode (the title screen says so, and the end screen marks the fight
-TURRET); there is no substitute movement controller.
+| Command | What it does |
+|---|---|
+| `pnpm dev` | Game with live reload on port 5173 (developer tools on) |
+| `pnpm build` / `pnpm preview` | Release build in `dist/` / serve it on port 4173 |
+| `pnpm play` | Python brain server plus the game |
+| `pnpm lint` | ESLint over `src`, `tests`, `scripts`, `demos` |
+| `pnpm test` | Node unit tests (`tests/*.test.js`) |
+| `pnpm test:browser` | Headless Chromium pages and scripted browser tests (`tests/run-browser.mjs`) |
+| `pnpm test:py` | Python tests that need no PyTorch; `pnpm test:py --checkpoint` adds the real-brain tests |
+| `pnpm check` | `build`, `test` and `test:browser` in one go |
+| `pnpm assets` | Rebuild the compressed map, Lola and sounds in `assets/build/` and the baked map numbers |
 
-### Developer tools
+**CI.** GitHub Actions (`.github/workflows/ci.yml`) runs lint, build, unit
+tests and browser pages, plus the Python brain tests with the real checkpoint,
+on every push and pull request. `pages.yml` publishes the game from `main`
+only.
 
-The lab and debug tools live in a developer panel that players never see or
-download. Open the game with `?dev` (it is always there with `pnpm dev`;
-`?dev=0` hides it to see the game exactly as a player does), then press the
-**DEV** button in the top-right corner or the **`** key. The panel holds the
-old toolbar and OPTIONS (below), the brain badge with its details (checkpoint,
-where the brain runs, the policy-weight SHA256, whether pink is visible, hidden
-in memory or not yet found), the status line, and a **perf overlay** (frames per
-second, frame time, milliseconds per frame phase and the renderer's draw calls,
-triangles, geometries, textures and shader programs).
+**Developer tools (`?dev`).** Players never see or download them. They are on
+with `pnpm dev` and with `?dev` on any build; `?dev=0` hides them to see the
+game as a player does. Press the **DEV** button (top right) or the **`** key.
+The drawer holds the old toolbar and OPTIONS (Leaper size, brain choice,
+RESET, RESTART RANDOM, the clearance overlay), the brain badge with its
+details, the status line, and a perf overlay (frame time, time per frame
+phase, draw calls, triangles, textures, shader programs).
 
-Its **TUNING** section is a live designer panel (Tweakpane, downloaded only with
-the tools). It has a folder per config: camera, guns, shooting feel, hit feedback,
-combat and the Leaper's behaviour. A change applies at once in the running game
-and is remembered in this browser. **COPY JSON** copies the values that differ
-from the config files, ready to carry over into `src/config/` by hand, and
-**RESET** / **RESET ALL** put the files' values back. Rows that the game reads
-only once (for example Lola's health) or that belong to the player's SETTINGS are
-shown read-only with a note. So are the frozen brain contract (`eye-vision.json`,
-`player-contact.json`) and the encounter config. Without the developer tools the
-game reads the config files exactly as written (`src/config/tuning/`).
+**TUNING panel.** Inside the DEV drawer, a live designer panel (Tweakpane,
+downloaded only when the drawer opens) with a folder per config: camera, guns,
+shooting feel, hit feedback, combat and the Leaper's behaviour. A change
+applies at once and is remembered in this browser. **COPY JSON** copies only
+the values that differ from the config files, ready to paste into
+`src/config/` by hand; **RESET** and **RESET ALL** restore the files' values.
+Values the game reads only once, the player's SETTINGS, and the frozen brain
+contract (`eye-vision.json`, `player-contact.json`) are shown read-only.
+Without the developer tools the game reads the config files exactly as
+written.
 
-The brain runs in the page by default. To use the Python service instead,
-`pnpm play` (see "Play the game") starts it and the game together, then pick it
-under DEV -> OPTIONS -> Brain (`?brain=http`). To run them by hand, use two terminals: `.venv/bin/python -m rl.junkyard_server`
-(Windows: `.venv\Scripts\python.exe -m rl.junkyard_server`) and `pnpm dev`, then
-open `http://127.0.0.1:5173/` (`?map=junkyard` also works). The service listens
-only on 127.0.0.1:8767 and answers pages served from this computer on any port.
-It loads the committed `model_7757824/` checkpoint, or supply
-`--model <checkpoint.zip>`. It never trains, modifies weights, or writes to the
-source Blender file.
+**Other page options.** `?quality=low|medium|high` (otherwise chosen
+automatically for the device), `?softRestart=1` (an experiment, off by
+default), and the lab pages `?arena`, `?training` and `?free`.
 
-- **START RUN / STOP RUN** runs or pauses the brain. Memory survives a pause
-  and target movement. **RESET**, a page reload, or applying size starts a new
-  memory session. Applying size resumes the run if it was active.
-- **RESTART RANDOM** places both Leaper and pink at new, separated clear
-  positions with a connected ground route, randomizes Leaper's facing, resets
-  its memory, and starts a fresh run. The route is used only to select a fair
-  starting pair; it is never provided to the brain.
-- **WASD / IJKL** moves Lola relative to the camera; **Shift** runs faster.
-  **S** backs up without turning her around. Her smaller collision footprint
-  allows narrower passages than the Leaper can use. The full list of controls
-  is the table under "Playing" below.
-- **C** toggles crouching. WASD uses the authored crouch-walk cycle; Shift does
-  not override crouch speed. Standing collision clearance remains conservative.
-- **Settings > HUD > EDIT HUD LAYOUT** lets you drag the HUD pieces (a single
-  press drags; DONE, Escape or B finishes) and **RESET LAYOUT** puts them back.
-  Touch screens and desktops keep separate layouts in this browser, kept within
-  the window when resizing. Outside the editor nothing on the HUD listens for
-  drags, so every tap and click works at once.
-- Starting a fight captures the mouse for looking; **Escape** releases it and
-  opens the pause menu. Dragging also works when mouse capture is unavailable.
-  **VIEW** (top right of the HUD) switches between Lola's chase camera and top
-  view; wheel zooms.
-- In top view, **Shift + click** places Lola on clear ground. A clear spot does
-  not guarantee that the Leaper can reach it.
-- **OPTIONS** reveals size, reset, and the clearance overlay. Options start hidden.
-- The overlay is only a conservative circular-footprint design aid. Green means
-  connected to spawn under that approximation; it is not information given to
-  the brain or a prediction of the learned policy's success.
+**Art pipeline.** The map's Blender source is
+`assets/blockmesh/junkyard/junkyard_arranged.blend`; after editing it, export
+with `blender -b assets/blockmesh/junkyard/junkyard_arranged.blend --python scripts/export_junkyard.py`,
+then run `pnpm assets`. Lola is exported by `scripts/export_lola.py` from
+Blender files that are not in the repository yet (they live on the owner's PC),
+then `node scripts/measure_lola_steps.mjs` measures her strides.
 
-The frozen observation/memory and movement recipe comes from the saved viewer
-at commit 7689aca. It uses 34 inputs, a 270-degree view with 16 range rays,
-remembered last-seen target, a search-coverage frontier note, recurrent policy
-memory, signed forward/reverse throttle, and separate rotation/translation
-collision recovery. Each model step is 1/30 simulated second. A slow machine or
-connection reduces wall-clock playback speed instead of skipping policy steps.
+## Where things live
 
-Junkyard adaptation: the shared Blender collision JSON is conservatively
-rasterized into 0.1 Blender-unit cells for sensing and the 19 body/leg sample
-collisions. Robot dimensions, per-step movement, ray range and memory timing
-remain in original robot units. The size control scales the map relative to the
-rig; map extent determines distance normalization and the coverage grid.
-Sensor readings therefore differ from the original circular-obstacle arena.
-This is a new-map transfer test, not identical training physics or evidence of
-training success. There is no climbing or jump control in brain mode.
-Interactive runs continue after training catch/stuck/timeout flags, without
-resetting memory or replacing actions, until Stop Run. A policy may still get
-stuck or fail to search effectively; the viewer reports its actual behavior.
+| Folder | What is in it |
+|---|---|
+| `src/main.js`, `src/modes/` | Start-up: the page address picks a mode (junkyard game, or a lab page) |
+| `src/core/` | Renderer, frame loop (`GameLoop`), game state (`GameFlow`), events, quality tiers |
+| `src/game/` | The fight: `Encounter`, Lola's controller and health, pause overlay, dev OPTIONS panel |
+| `src/actors/lola/`, `src/robot/LolaPlayer.js` | Lola: assets, locomotion, animation, action rules, collide-and-slide |
+| `src/actors/leaper/` | The Leaper's behaviour layer: director state machine, actor, stomp, leap, feedback ([README](src/actors/leaper/README.md)) |
+| `src/simulation/` | Leaper rig animation, combat, brain client (`JunkyardBrain`), gunshot effects |
+| `src/brain/` | Brain providers; `src/brain/junkyard/` is the frozen brain in the browser ([README](src/brain/junkyard/README.md)) |
+| `src/weapons/`, `src/config/weapons.js` | Shot resolution, hit volumes, weapon rules; guns as data |
+| `src/input/` | Input action map (keyboard, mouse, gamepad, touch) |
+| `src/ui/`, `src/styles/` | HUD, menus, settings, controls legend, credits |
+| `src/audio/` | Sound system and the sound manifest `sounds.json` ([README](src/audio/README.md)) |
+| `src/config/` | Designer numbers; `src/config/tuning/` is the registry the TUNING panel edits |
+| `src/world/`, `src/camera/` | Junkyard map, collision, navigation; camera and aim |
+| `src/debug/` | DEV drawer, TUNING panel, perf timer |
+| `assets/`, `public/` | Source and compressed art, sounds; `public/brains/leaper_7757824/` holds the browser brain |
+| `rl/frozen_7757824/` | The frozen brain recipe (never edit) |
+| `rl/`, `*.py` at the root | The RL lab and the Python brain server |
+| `tests/` | Node, browser and Python tests |
 
-Lola's browser copies live in `assets/characters/lola/`. They are exported by
-`scripts/export_lola.py` from the Basic Gun and M416 run scenes in
-`C:/Blender/LOWPOLY/Lola_both_animations.blend1.blend`, using the lower-body cycle
-from `Lola_walk_final.blend`. The walk cycle plays more slowly than the run.
-Idle is an averaged hold; backward movement reuses the cycle in reverse.
-A/D use the authored Crossover Left/Right clips from scenes 13–16 in the
-updated Blender file, with the matching gun transforms. Standing diagonals use
-the crossover when sideways input is at least as strong as forward input.
-Crouched sideways movement still uses the crouch-walk cycle. C toggles crouch
-once per press, and the weapon button also displays CROUCHED or STANDING.
-The crouch clips come from the two authored Crouch Walk scenes. Playback keeps
-Blender's root height instead of repositioning the body to follow the lowest
-foot each frame. Continuous transition weights and preserved stride phase avoid
-restarting the cycle on every walk/run/crouch transition. Animation time uses
-elapsed time, including frames longer than 33 milliseconds (capped at 100 ms
-for tab stalls).
-The exporter never saves the source Blender files. Lola's position replaces
-the pink target; the saved brain and its visibility/memory rules are unchanged.
+## Docs
 
-After exporting Lola, run `node scripts/measure_lola_steps.mjs`. It measures
-the supporting foot's backward travel in each in-place animation and writes
-`assets/characters/lola/stride-profiles.json`. Player translation follows this
-phase-dependent distance instead of a separate fixed movement speed. Walking,
-running, crouching, and crossovers each use their own measured stride. Shift
-selects the faster cycle/cadence; it does not multiply distance independently.
-Collision limits animation advancement as well as movement. A constant measured
-floor offset per clip (blended on transitions) grounds the idle pose without
-snapping the body to a different foot each frame. Backward and crouched sideways
-motion still reuse existing clips and may need dedicated authored animations.
+- [AGENTS.md](AGENTS.md): handoff for coding agents (game and RL lab).
+- [docs/reviews/2026-10-19-implementation-report.md](docs/reviews/2026-10-19-implementation-report.md):
+  what the code review asked for, what is done, and the open owner decisions.
+- [docs/game/CHANGELOG.md](docs/game/CHANGELOG.md): what changed in the game.
+- [docs/reviews/2026-10-18-lola-first-person-aim/LEAPER_CODE_REVIEW.md](docs/reviews/2026-10-18-lola-first-person-aim/LEAPER_CODE_REVIEW.md):
+  the deep code review.
+- [docs/WEB_DEPLOY.md](docs/WEB_DEPLOY.md): publishing to GitHub Pages.
+- [src/brain/junkyard/README.md](src/brain/junkyard/README.md),
+  [src/actors/leaper/README.md](src/actors/leaper/README.md),
+  [src/audio/README.md](src/audio/README.md), [CREDITS.md](CREDITS.md).
 
-Character checks: `node --test tests/lola-player.test.js`. These load the real
-exported skeletons and clips, check animation, backward movement, sprinting,
-wall sliding, and weapon switching. Texture decoding and browser mouse capture
-still require a manual visual check.
+## RL lab
 
-The map's Blender source is in the repository,
-`assets/blockmesh/junkyard/junkyard_arranged.blend` (the three loose tires
-are already moved there, so `scripts/move_junkyard_tires.py` is retired).
-After editing and saving it, regenerate the shared export from the repository
-folder, then the compressed web copies and baked map numbers the game loads
-(the tests fail until `pnpm assets` has run):
+The lab trains and studies Leaper brains in Python (Stable-Baselines3 PPO).
+Start with [README-RL.md](README-RL.md) (setup, training, TensorBoard),
+[TRAINING.md](TRAINING.md) (the run-by-run ledger) and [RL_SPEC.md](RL_SPEC.md)
+(observations, actions, rewards, model). The lab's browser pages run on the
+same dev server: `/?arena` (an older live-brain arena), `/?training` (recorded
+replays) and `/?free` (keyboard sandbox).
 
-```powershell
-& 'C:/Program Files/Blender Foundation/Blender 4.3/blender.exe' -b assets/blockmesh/junkyard/junkyard_arranged.blend --python scripts/export_junkyard.py
-pnpm assets
-```
+**The game's brain is frozen.** Its recipe is copied byte for byte into
+`rl/frozen_7757824/` (checked by `tests/test_frozen_recipe.py`), so lab work
+can never silently change the shipped Leaper. It comes from commit 7689aca: 34
+inputs, a 270-degree view with 16 range rays, a remembered last-seen target, a
+search-coverage note, recurrent memory and signed forward/reverse throttle;
+the game asks it for 10 steps per second. The browser copy
+(`src/brain/junkyard/`) matches the Python original with zero differences on
+the recorded parity fixtures.
 
-Restart the inference service to reload collision geometry, and reload the
-browser (rebuild first if using production preview).
-
-Validation: `node --test tests/junkyard-*.test.js`,
-`python tests/test_junkyard_brain.py`, and `pnpm build`.
-The Python tests need the local checkpoint. They verify its identity, matching
-actions, hidden-target isolation, remembered target, reverse motion, and a
-120-step actual-model search in the imported map.
+**Junkyard adaptation.** The brain was trained in a different arena. In the
+junkyard, the Blender collision shapes are rasterised into 0.1-unit cells for
+its sensors and its 19 body and leg collision circles. Robot size, per-step
+movement, ray range and memory timing stay in the original units. So this is a
+new-map transfer, not the training physics: the brain may still get stuck or
+search poorly, and the game shows what it really does. There is no climbing or
+jump control in the brain; leaps are authored on top.
