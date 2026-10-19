@@ -29,6 +29,15 @@ const editable = (target) => Boolean(target && (/^(INPUT|TEXTAREA|SELECT)$/.test
 // the HUD or the pause overlay (so the click that resumes can't fire).
 const onGameView = (target) => target?.tagName === 'CANVAS';
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+// Is a gamepad button down? An analog trigger only counts once pulled past
+// PAD_TUNING.triggerPress: browsers already report it "pressed" at a light
+// touch, so its own flag can't be trusted. Other buttons count when pressed.
+const padButtonDown = (button, analog) => {
+  if (typeof button === 'number') return button > PAD_TUNING.triggerPress;
+  const value = Number(button?.value);
+  if (analog && Number.isFinite(value)) return value > PAD_TUNING.triggerPress;
+  return Boolean(button?.pressed || value > PAD_TUNING.triggerPress);
+};
 
 export class InputController {
   // onToggleTarget(): the lab's P key (select the pink target). Optional.
@@ -204,9 +213,9 @@ export class InputController {
     this.pad.connected = Boolean(pad);
     this.pad.id = pad?.id ?? '';
     this.pad.buttons.length = 0;
-    for (const button of pad?.buttons ?? []) {
-      this.pad.buttons.push(typeof button === 'number' ? button > PAD_TUNING.triggerPress
-        : Boolean(button.pressed || button.value > PAD_TUNING.triggerPress));
+    const buttons = pad?.buttons ?? [];
+    for (let index = 0; index < buttons.length; index += 1) {
+      this.pad.buttons.push(padButtonDown(buttons[index], PAD_TUNING.triggers.includes(index)));
     }
     const axes = pad?.axes ?? [];
     const stick = (x, y) => {

@@ -115,6 +115,27 @@ test('the gamepad: triggers, buttons and both sticks (standard layout)', () => {
   assert.equal(input.pressedBy('pause'), 'gamepad');
 });
 
+// Chrome reports an analog trigger as "pressed" from about 10% pull, so a finger
+// resting on RT used to fire (found in a headless play-test with a mocked pad).
+test('a light trigger touch never fires or aims, though the browser calls it pressed', () => {
+  const p = page(), input = new InputController();
+  p.plug();
+  p.pad.buttons[PAD.RT] = { pressed: true, value: 0.3 };
+  p.pad.buttons[PAD.LT] = { pressed: true, value: 0.2 };
+  input.poll();
+  assert.ok(!input.held('fire') && !input.pressed('fire'), 'RT at 30% is not a trigger pull');
+  assert.ok(!input.held('aim'), 'LT at 20% does not aim');
+  p.pad.buttons[PAD.RT] = { pressed: true, value: 0.6 };
+  p.pad.buttons[PAD.LT] = { pressed: true, value: 0.9 };
+  input.poll();
+  assert.ok(input.pressed('fire') && input.held('aim'), 'past half way they count');
+  // Ordinary buttons still count on their pressed flag.
+  p.pad.buttons[PAD.X] = { pressed: true, value: 1 };
+  p.pad.buttons[PAD.B] = { pressed: true };
+  input.poll();
+  assert.ok(input.pressed('reload') && input.pressed('crouch'));
+});
+
 test('touch buttons press the same actions', () => {
   page();
   const input = new InputController();

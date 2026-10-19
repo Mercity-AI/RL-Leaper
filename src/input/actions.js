@@ -17,8 +17,10 @@ export const PAD = Object.freeze({
 });
 export const PAD_AXES = Object.freeze({ leftX: 0, leftY: 1, rightX: 2, rightY: 3 });
 // Stick dead zone (share of full tilt ignored, so a resting stick never drifts)
-// and how far a trigger must be pulled to count as pressed.
-export const PAD_TUNING = Object.freeze({ deadZone: 0.18, triggerPress: 0.5 });
+// and how far a trigger must be pulled to count as pressed. triggers: the analog
+// triggers that use triggerPress (browsers already call a trigger "pressed" at a
+// light touch of about 10%, so a resting finger would fire or aim).
+export const PAD_TUNING = Object.freeze({ deadZone: 0.18, triggerPress: 0.5, triggers: Object.freeze([PAD.LT, PAD.RT]) });
 
 // ---- Buttons ----
 // label: the name in the controls list. hold: "hold" in the list (the action
