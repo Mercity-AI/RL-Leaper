@@ -16,7 +16,8 @@ import { createServer } from 'vite';
 
 // --- Settings -------------------------------------------------------------------
 // Every page that reports PASS/FAIL in its title. Demos live in demos/ instead.
-const PAGES = ['tests/browser-combat.html', 'tests/camera-player.html', 'tests/world-browser.html', 'tests/world-render.html'];
+const PAGES = ['tests/browser-combat.html', 'tests/camera-player.html', 'tests/world-browser.html', 'tests/world-render.html',
+  'tests/world-visual.html'];
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TIMEOUT_SECONDS = Number(process.env.BROWSER_TEST_TIMEOUT || 300);
 // SwiftShader is Chrome's software WebGL, so the pages also run on CI machines.
