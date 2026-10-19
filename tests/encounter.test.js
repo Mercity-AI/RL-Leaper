@@ -79,6 +79,22 @@ test('pausing freezes gameplay time but not the frame', () => {
   assert.equal(encounter.elapsed, 0.1);
 });
 
+test('a pause silences the fight\'s sounds still ringing; playing and resuming do not', () => {
+  // (GameAudio.stop() keeps the ambience bed; a sound cut here never plays late.)
+  const { flow, encounter } = setup();
+  let stops = 0;
+  encounter.audio.stop = () => { stops += 1; };
+  flow.hunt();
+  assert.equal(stops, 0, 'starting the hunt plays on');
+  flow.pause();
+  assert.equal(stops, 1, 'pausing silences the effects');
+  flow.resume();
+  assert.equal(stops, 1, 'resuming does not');
+  flow.pause();
+  flow.stop();
+  assert.equal(stops, 2, 'only the pause itself silences');
+});
+
 test('brains run only while hunting; stopping drops the gun, pausing and ending the fight do not', () => {
   const { flow, encounter, weapon, enemies: [leaper] } = setup();
   flow.hunt();
