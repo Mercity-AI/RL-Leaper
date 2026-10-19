@@ -97,7 +97,18 @@ export async function start({ engine, params }) {
     enableMovableHud();
     movableHudEnabled = true;
   }
-  // 7. The frame phases. After dispose() they do nothing, so a loop that is still
+  // 7. The OPTIONS brain menu switches where the brain runs. The page address
+  //    keeps the choice (so a reload or APPLY SIZE remembers it); the run restarts.
+  playtest.panelView.bindBrainChoice(params.get('brain') || 'auto', (choice) => {
+    const url = new URL(location.href);
+    if (choice === 'auto') url.searchParams.delete('brain');
+    else url.searchParams.set('brain', choice);
+    history.replaceState(history.state, '', url);
+    playtest.brain.useProvider(createGameBrainProvider({ search: url.search }));
+    playtest.reset();
+  });
+
+  // 8. The frame phases. After dispose() they do nothing, so a loop that is still
   //    running for one more frame can't touch a torn-down session.
   let disposed = false;
   const mode = {

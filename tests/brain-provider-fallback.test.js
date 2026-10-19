@@ -211,6 +211,21 @@ test('while it loads, the badge shows the provider\'s progress', async () => {
   assert.match(brain.describe().label, /^BRAIN 7,757,824 · ONNX · IN BROWSER · /);
 });
 
+test('switching provider (OPTIONS brain menu) frees the old one; the next reset uses the new one', async () => {
+  globalThis.document = { hidden: false };
+  const onnx = new FakeProvider('onnx');
+  const brain = new JunkyardBrain(playtest(), { provider: chainOf(onnx) });
+  await brain.reset();
+  const http = new FakeProvider('http');
+  brain.useProvider(chainOf(http));
+  assert.equal(brain.ready, false, 'not ready until the run is reset');
+  assert.ok(onnx.log.includes('close onnx-1'), 'the old session is closed');
+  assert.equal(onnx.disposed, 1, 'and its provider freed (the worker stops)');
+  await brain.reset();
+  assert.equal(brain.token, 'http-1');
+  assert.match(brain.describe().label, /· PYTHON SERVER ·/);
+});
+
 test('RESET closes the old session; dispose closes the last one and frees the provider (its worker)', async () => {
   globalThis.document = { hidden: false };
   const onnx = new FakeProvider('onnx');

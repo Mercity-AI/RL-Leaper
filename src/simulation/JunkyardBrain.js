@@ -278,6 +278,25 @@ export class JunkyardBrain {
     this.provider.dispose?.();
   }
 
+  // Switch where the brain runs (the OPTIONS brain menu). The old provider is
+  // freed with its session; the caller then resets the run (a fresh episode).
+  useProvider(provider) {
+    this.generation += 1;
+    this.settleSync(null, new Error('The brain was switched'));
+    this.closeSession(this.token);
+    this.token = null;
+    this.offProgress?.();
+    this.provider.dispose?.();
+    this.provider = provider;
+    this.offProgress = provider.onProgress?.((progress) => { this.progress = progress; }) ?? null;
+    this.progress = null;
+    this.providerKind = null;
+    this.ready = false;
+    this.busy = false;
+    this.pendingMovement = false;
+    this.label = 'BRAIN CONNECTING';
+  }
+
   // ---- Game logic moving the Leaper between brain moves (a leap) ----
 
   // The game moved the Leaper itself (for example a leap): put the brain's own

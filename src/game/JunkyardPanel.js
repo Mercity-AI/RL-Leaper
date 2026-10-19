@@ -50,6 +50,13 @@ export class JunkyardPanel {
       </label>
       <button data-action="sight" aria-pressed="false">SHOW SIGHT LINES</button>
       <small>Green: clear · Orange: blocked at cover. Three eye checks; 16 movement rays unchanged.</small>
+      <label>Brain (changing it restarts the run)
+        <select data-brain-provider aria-label="Where the brain runs">
+          <option value="auto">In this browser (Python server if it can't load)</option>
+          <option value="onnx">In this browser only (ONNX)</option>
+          <option value="http">Python brain server (reference)</option>
+        </select>
+      </label>
       <label>Leaper clearance width
         <output>${world.width.toFixed(1)} units</output>
       </label>
@@ -57,7 +64,7 @@ export class JunkyardPanel {
       <button data-action="size">APPLY SIZE</button></div>
       <div class="junkyard-actions"><button data-action="reset">RESET</button>
         <button data-action="clearance">SHOW CLEARANCE</button></div>
-      <small>Live trained brain · 7,757,824 steps · vision and memory · inference only. Clearance overlay is a conservative design guide, not the brain’s route. <span data-clearance-summary></span></small>
+      <small>Live trained brain · 7,757,824 steps · vision and memory · inference only · runs in your browser unless the Python server is picked above. Clearance overlay is a conservative design guide, not the brain’s route. <span data-clearance-summary></span></small>
       <p class="clearance-key" hidden>Green: reachable · Amber: disconnected · Red: blocked at this size</p>
       </div>`;
     document.body.appendChild(this.element);
@@ -94,6 +101,14 @@ export class JunkyardPanel {
     this.button('clearance').onclick = clearance;
     this.button('size').onclick = () => applySize(this.size.value);
     this.button('sound').onclick = sound;
+  }
+
+  // The OPTIONS brain menu: shows `choice` ('auto' | 'onnx' | 'http') and calls
+  // onChange(choice) when the player picks another one.
+  bindBrainChoice(choice, onChange) {
+    const select = this.element.querySelector('[data-brain-provider]');
+    select.value = ['auto', 'onnx', 'http'].includes(choice) ? choice : 'auto';
+    select.onchange = () => onChange(select.value);
   }
 
   // SOUND: ON / OFF follows the sound engine's switch.
