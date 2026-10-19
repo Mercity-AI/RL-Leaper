@@ -40,6 +40,23 @@ test('node, bone and animation names are unchanged in every compressed model', (
   }
 });
 
+// Each node's rest transform (Lola's bind pose, every prop's placement). The
+// writer stores a scale or rotation within a hair of "none" as exactly none
+// (1.0000007 becomes 1), so allow 1e-5; anything bigger would move a bone or
+// a prop, which the vertex check below would not notice.
+test('every node keeps its rest position, rotation and scale', () => {
+  const restOf = (node) => node.matrix
+    ?? [...(node.translation ?? [0, 0, 0]), ...(node.rotation ?? [0, 0, 0, 1]), ...(node.scale ?? [1, 1, 1])];
+  for (const [file, { source }] of models) {
+    const a = glbJson(source), b = glbJson(`assets/build/${file}`);
+    a.nodes.forEach((node, i) => {
+      const before = restOf(node), after = restOf(b.nodes[i]);
+      assert.equal(after.length, before.length, `${file}: ${node.name} stored the same way`);
+      before.forEach((value, k) => assert.ok(Math.abs(value - after[k]) < 1e-5, `${file}: ${node.name}[${k}] ${value} -> ${after[k]}`));
+    });
+  }
+});
+
 // Triangles as written, each turned to start at its smallest corner (the
 // index codec may rotate a triangle's corners; the triangle and its facing stay).
 function triangles(geometry) {
