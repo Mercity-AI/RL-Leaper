@@ -50,10 +50,12 @@ export async function start({ engine, params }) {
   const { rig, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
   cameraController.followSubject = target;
   cameraController.pitch = 0.16;
-  // The Leaper's smallest parts skip the sun's shadow on lower quality.
+  // The Leaper's smallest parts skip the sun's shadow on lower quality, and its
+  // feet kick up dust where the preset allows it.
   for (const root of [rig.robot, ...rig.legs.flatMap((leg) => [leg.coxa, leg.femur, leg.tibia, leg.calf, leg.knee, leg.calfJoint])]) {
     limitShadowCasters(root, engine.quality.leaperShadowMinSize);
   }
+  world.effects.watchFeet(rig);
   // 5. The playtest wires brain, combat, weapons and the junkyard panel together,
   //    then resets the encounter (Loading -> Ready).
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal });
@@ -76,7 +78,12 @@ export async function start({ engine, params }) {
     // Read the player's input, run the fight (Encounter order), then presentation.
     input: (dt) => { if (!disposed) playtest.input(dt); },
     update: (dt) => { if (!disposed) playtest.update(dt); },
-    lateUpdate: (dt) => { if (!disposed) playtest.lateUpdate(dt); },
+    lateUpdate: (dt) => {
+      if (disposed) return;
+      playtest.lateUpdate(dt);
+      // Dust and sparks hold still while the game is paused.
+      world.effects.update(flow.paused ? 0 : dt);
+    },
     // Render hooks nest: camera -> weapon -> POV before, undone in reverse after.
     beforeRender() {
       if (disposed) return;

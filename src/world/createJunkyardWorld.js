@@ -7,6 +7,8 @@ import metrics from '../../assets/maps/junkyard/metrics.json' with { type: 'json
 import { disposeObject3D } from '../core/disposeObject3D.js';
 import { accelerateStaticMeshes, releaseStaticMeshes } from './raycastAcceleration.js';
 import { batchStaticMeshes } from './staticBatching.js';
+import { applyAtmosphere } from './junkyardAtmosphere.js';
+import { WorldEffects } from './WorldEffects.js';
 import { limitShadowCasters, QUALITY_PRESETS } from '../core/Quality.js';
 
 // The Leaper size chosen with APPLY SIZE, remembered in this browser. Change the
@@ -26,7 +28,7 @@ const COLLISION_LOAD_WEIGHT = 2e6;
 
 // Load and set up the junkyard. assets: the page's loader (progress bar); tests
 // and tools get a quiet one of their own. quality: the graphics preset
-// (engine.quality); which props cast shadows follows it.
+// (engine.quality); shadows, the sky and the effects follow it.
 export async function createJunkyardWorld(scene, { assets = new Assets({ overlay: false }), quality = QUALITY_PRESETS.high } = {}) {
   // Reference size the camera distance is tuned against (see followScale).
   const defaultWidth = 2.4 * ENCOUNTER.leaperSize;
@@ -52,36 +54,25 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   limitShadowCasters(gltf.scene, quality.shadowMinSize, { keep: [floor] });
   const batching = batchStaticMeshes(gltf.scene, scene, { scale });
   scene.add(batching.group);
-  // Neutral atmosphere and fill lighting keep grey surfaces from turning blue.
-  // The original colours are kept so dispose() can hand the scene back unchanged.
-  const original = { background: scene.background.getHex(), fog: scene.fog.color.getHex(), lights: [] };
-  scene.background.setHex(0x555555);
-  scene.fog.color.setHex(0x555555);
-  scene.traverse((object) => {
-    if (!object.isLight) return;
-    original.lights.push([object, object.color.getHex(), object.groundColor?.getHex()]);
-    object.color.setHex(0xffffff);
-    if (object.isHemisphereLight) object.groundColor.setHex(0x777777);
-  });
+  // Sky, fog and neutral fill light (see junkyardAtmosphere.js), and the pooled
+  // world effects (dust under the Leaper's feet, impact sparks and scorch marks).
+  const restoreAtmosphere = applyAtmosphere(scene, { sky: quality.sky !== false });
+  const effects = new WorldEffects(scene, { scale, quality });
   // Take the map out again: off the scene, its GPU memory freed, colours restored.
   const dispose = () => {
+    effects.dispose();
     batching.dispose();
     scene.remove(gltf.scene);
     releaseStaticMeshes(gltf.scene);
     disposeObject3D(gltf.scene);
-    scene.background.setHex(original.background);
-    scene.fog.color.setHex(original.fog);
-    for (const [light, colour, ground] of original.lights) {
-      light.color.setHex(colour);
-      if (ground !== undefined) light.groundColor.setHex(ground);
-    }
+    restoreAtmosphere();
   };
   const initialTarget = { x: spawn.x, z: spawn.z + 5 };
   const goalIndex = navigation.nearest(initialTarget);
   const goal = navigation.point(goalIndex);
   return {
     dispose,
-    colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene,
+    colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene, effects,
     // The combined map meshes actually drawn (the map's own meshes stay for rays)
     // and how many map meshes they replace.
     batches: batching.group, batchStats: batching.stats,
