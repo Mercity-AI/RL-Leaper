@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { CameraController } from '../src/camera/CameraController.js';
+import { CameraController, isTouchPointer, zoomedFov } from '../src/camera/CameraController.js';
+import { CAMERA } from '../src/config/camera.js';
 
 function mouseHarness(request) {
   const events = {};
@@ -131,4 +132,167 @@ test('entering the aim keeps the crosshair on the point the chase camera was on'
     const ray = new THREE.Ray(camera.position.clone(), camera.getWorldDirection(new THREE.Vector3()));
     assert.ok(ray.distanceToPoint(point) < 1e-3, `aim crosshair passes through ${point.toArray()}`);
   }
+});
+
+// ---- Aiming down the sights: limits, wheel, sensitivity, recoil (review 5.22, 5.38) ----
+
+// A chase camera following a stand-in Lola, with the canvas listeners captured.
+function aimHarness() {
+  const canvasListeners = {};
+  globalThis.document = { addEventListener() {}, body: { classList: { add() {}, remove() {}, toggle() {} } } };
+  globalThis.window = { addEventListener() {} };
+  const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 500);
+  const canvas = { style: {}, addEventListener: (name, fn) => { canvasListeners[name] = fn; } };
+  const controller = new CameraController(camera, {}, canvas, { addEventListener() {} });
+  const eye = new THREE.Vector3(0, 1.6, 0);
+  controller.followSubject = { mesh: new THREE.Object3D(), height: 1.7, crouching: false, eyePosition: out => out.copy(eye) };
+  controller.pitch = 0.16;
+  return { controller, camera, canvasListeners, eye };
+}
+
+test('the mouse wheel never nudges the aim (review 5.38)', () => {
+  const { controller, camera, canvasListeners } = aimHarness();
+  canvasListeners.wheel({ deltaY: 300, preventDefault() {} });
+  const zoomed = controller.distance;
+  assert.ok(zoomed > CAMERA.boom.start, 'outside the aim the wheel still zooms the boom');
+  controller.setAiming(true);
+  controller.update(null, null, 1 / 60);
+  camera.updateMatrixWorld(true);
+  const before = camera.getWorldDirection(new THREE.Vector3());
+  canvasListeners.wheel({ deltaY: -900, preventDefault() {} });
+  controller.update(null, null, 1 / 60);
+  camera.updateMatrixWorld(true);
+  assert.equal(controller.distance, zoomed);
+  assert.ok(camera.getWorldDirection(new THREE.Vector3()).angleTo(before) < 1e-9, 'the crosshair stays on its point');
+});
+
+test('aiming may look about 57 degrees up or down; the chase view keeps its tight limits (review 5.22)', () => {
+  const { controller } = aimHarness();
+  controller.lookBy(0, -10);
+  assert.equal(controller.pitch, CAMERA.chasePitch.low, 'chase: limited');
+  controller.setAiming(true);
+  controller.lookBy(0, -10);
+  assert.equal(controller.pitch, -1, 'aiming: far further up');
+  controller.lookBy(0, 20);
+  assert.equal(controller.pitch, 1, 'and down');
+});
+
+test('equal mouse movements move the view equally far on screen, zoomed or not (review 5.38)', () => {
+  const { controller, camera } = aimHarness();
+  // On-screen motion of a small turn is the angle over tan(fov / 2).
+  const screenMotion = () => {
+    const yaw = controller.yaw;
+    controller.lookBy(0.01, 0);
+    return (yaw - controller.yaw) / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  };
+  const chase = screenMotion();
+  controller.setAiming(true);
+  camera.fov = zoomedFov(1.35);
+  const aimed = screenMotion();
+  assert.ok(Math.abs(aimed / chase - 1) < 1e-9, `chase ${chase} vs aim ${aimed}`);
+});
+
+test('the look sensitivity setting scales every look input', () => {
+  const { controller } = aimHarness();
+  const yaw = controller.yaw;
+  controller.lookBy(0.01, 0);
+  const normal = yaw - controller.yaw;
+  controller.lookSensitivity = 2;
+  const yaw2 = controller.yaw;
+  controller.lookBy(0.01, 0);
+  assert.ok(Math.abs((yaw2 - controller.yaw) / normal - 2) < 1e-9);
+  assert.ok(CAMERA.look.verticalRatio > 0 && CAMERA.look.mouse > 0);
+});
+
+test('leaving a steep aim keeps the crosshair on the point, then eases into the chase limits (review 5.22)', () => {
+  const { controller, camera } = aimHarness();
+  // A knee high above, close by: far steeper than the chase view may look.
+  const knee = new THREE.Vector3(0.5, 6, -3);
+  controller.setAiming(true);
+  controller.setAiming(false);
+  controller.aimChaseAt(knee);
+  assert.ok(controller.pitch >= CAMERA.chasePitch.low && controller.pitch <= CAMERA.chasePitch.high, 'the boom stays in its limits');
+  assert.ok(controller.viewPitchOffset < -0.1, 'the view still looks up at the knee');
+  controller.update(null, null, 0);
+  camera.updateMatrixWorld(true);
+  const ray = new THREE.Ray(camera.position.clone(), camera.getWorldDirection(new THREE.Vector3()));
+  assert.ok(ray.distanceToPoint(knee) < 1e-3, 'no snap on the way out');
+  for (let i = 0; i < 60; i += 1) controller.update(null, null, 1 / 60);
+  assert.equal(controller.viewPitchOffset, 0, 'eased back within a second');
+});
+
+// The aim can end without aimChaseAt: a pause, the fight ending or LEAPER POV take
+// the gun away while it is up. The chase boom must still come back inside its own
+// limits (a boom at the aim's -1 rad sits under the floor, looking up at Lola).
+test('an aim that ends on its own never leaves the chase boom outside its limits', () => {
+  for (const steep of [-10, 10]) {
+    const { controller, camera, eye } = aimHarness();
+    controller.setAiming(true);
+    controller.lookBy(0, steep);
+    const aimPitch = controller.pitch;
+    assert.equal(Math.abs(aimPitch), 1, 'the aim looked as far as it may');
+    controller.setAiming(false);
+    assert.ok(controller.pitch >= CAMERA.chasePitch.low && controller.pitch <= CAMERA.chasePitch.high,
+      `the boom is back inside the chase limits (${controller.pitch})`);
+    assert.ok(Math.abs(controller.pitch + controller.viewPitchOffset - aimPitch) < 1e-9,
+      'the view first keeps looking where the aim did (no snap)');
+    controller.update(null, null, 0);
+    assert.ok(camera.position.y > eye.y - 1.7, 'the camera is not under the floor');
+    for (let i = 0; i < 60; i += 1) controller.update(null, null, 1 / 60);
+    assert.equal(controller.viewPitchOffset, 0, 'and eases into the chase limits within a second');
+  }
+});
+
+test('recoil kicks the view up and settles back', () => {
+  const { controller, camera } = aimHarness();
+  controller.update(null, null, 1 / 60);
+  camera.updateMatrixWorld(true);
+  const rest = camera.getWorldDirection(new THREE.Vector3());
+  controller.addRecoil(0.02, 0, 10);
+  controller.update(null, null, 0);
+  camera.updateMatrixWorld(true);
+  const kicked = camera.getWorldDirection(new THREE.Vector3());
+  assert.ok(kicked.y > rest.y + 0.015, 'the crosshair climbs');
+  for (let i = 0; i < 90; i += 1) controller.update(null, null, 1 / 60);
+  camera.updateMatrixWorld(true);
+  assert.ok(camera.getWorldDirection(new THREE.Vector3()).angleTo(rest) < 1e-4, 'and returns to the aimed point');
+  controller.addRecoil(1, 1, 10);
+  assert.ok(controller.recoil.pitch <= CAMERA.recoilMax);
+  controller.resetEffects();
+  assert.equal(controller.recoil.pitch, 0);
+});
+
+test('a finger or pen never captures the mouse; touch controls stay usable (review 5.9)', () => {
+  const classes = new Set();
+  let requested = 0;
+  const listeners = {};
+  globalThis.document = { pointerLockElement: null, addEventListener() {},
+    body: { classList: { add: c => classes.add(c), remove: c => classes.delete(c), toggle() {} } } };
+  globalThis.window = { addEventListener: (name, fn) => { listeners[name] = fn; } };
+  const canvas = { style: {}, addEventListener() {}, requestPointerLock() { requested += 1; } };
+  const controller = new CameraController(new THREE.PerspectiveCamera(), {}, canvas, { addEventListener() {} });
+  controller.followSubject = {}; controller.gameplayStarted = true;
+  listeners.pointerdown({ pointerType: 'touch' });
+  controller.captureMouse();
+  assert.equal(requested, 0, 'no pointer lock');
+  assert.ok(!classes.has('mouse-look') && !controller.fallbackMouseLook, 'no hover-look fallback either');
+  assert.ok(classes.has('touch-play'));
+  listeners.pointerdown({ pointerType: 'mouse' });
+  controller.captureMouse();
+  assert.equal(requested, 1, 'a real mouse still captures');
+  assert.ok(isTouchPointer('pen') && isTouchPointer('touch') && !isTouchPointer('mouse'));
+});
+
+test('pause requests only count while a run is playing', () => {
+  const h = mouseHarness(() => {});
+  h.controller.gameplayStarted = false;
+  assert.equal(h.controller.requestPause(), false);
+  assert.equal(h.pauses(), 0);
+  h.controller.gameplayStarted = true;
+  assert.equal(h.controller.requestPause(), true);
+  assert.equal(h.pauses(), 1);
+  let resumed = 0;
+  h.controller.onResumeRequested = () => { resumed += 1; };
+  h.controller.requestResume();
+  assert.equal(resumed, 1);
 });

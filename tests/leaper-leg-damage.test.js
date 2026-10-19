@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { createHexapod } from '../src/robot/createHexapod.js';
 import { LeaperSimulation } from '../src/simulation/LeaperSimulation.js';
 import { LeaperLegDamage } from '../src/simulation/LeaperLegDamage.js';
-import { bulletHit } from '../src/simulation/PlayerWeapon.js';
+import { createLeaperHitboxes } from '../src/weapons/Hitboxes.js';
 
 function setup(random = () => 0) {
   const scene = new THREE.Scene(), rig = createHexapod(scene);
@@ -31,12 +31,14 @@ function lowestVertex(object) {
 function shoot(damage, mesh, n) { for (let i = 0; i < n; i++) damage.hit(mesh, new THREE.Vector3(0, 0, -1)); }
 
 test('direct lower knee rays break only at five hits; upper section remains hittable', () => {
-  const { rig, damage, geometry } = setup(); const leg = rig.legs[1];
+  const { rig, damage } = setup(); const leg = rig.legs[1];
   const center = leg.calfJoint.getWorldPosition(new THREE.Vector3());
-  const hit = bulletHit(geometry, [leg.calfJoint], center.clone().add(new THREE.Vector3(0, 0, 2)), new THREE.Vector3(0, 0, -1), 4);
-  assert.equal(hit.enemy, true);
-  shoot(damage, hit.intersection.object, 4); assert.equal(damage.debris.length, 0);
-  shoot(damage, hit.intersection.object, 1); assert.equal(damage.debris.length, 1);
+  // A bullet ray finds the lower joint through the Leaper's hit volumes (not its meshes).
+  const hitboxes = createLeaperHitboxes(rig); hitboxes.update();
+  const hit = hitboxes.raycast(center.clone().add(new THREE.Vector3(0, 0, 2)), new THREE.Vector3(0, 0, -1), 4);
+  assert.equal(hit.zone, 'knee'); assert.equal(hit.volume.joint, 'lower'); assert.equal(hit.volume.object, leg.calfJoint);
+  shoot(damage, hit.volume.object, 4); assert.equal(damage.debris.length, 0);
+  shoot(damage, hit.volume.object, 1); assert.equal(damage.debris.length, 1);
   assert.equal(leg.calf.visible, false); assert.equal(leg.calfJoint.visible, false);
   assert.equal(leg.knee.visible, true); assert.equal(leg.tibia.visible, true);
   shoot(damage, leg.calfJoint, 5); assert.equal(damage.debris.length, 1);

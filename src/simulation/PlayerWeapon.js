@@ -1,265 +1,413 @@
 import * as THREE from 'three';
 import { GunshotEffects } from './GunshotEffects.js';
-import { COMBAT } from '../config/combat.js';
+import { SHOOTING, WEAPONS, WEAPON_SLOTS, weaponForSlot } from '../config/weapons.js';
+import { CAMERA } from '../config/camera.js';
+import { WeaponState } from '../weapons/WeaponState.js';
+import { resolveShot, sightDepth, traceSight } from '../weapons/resolveShot.js';
+import { TargetRegistry } from '../weapons/TargetRegistry.js';
+import { createLeaperTarget } from '../weapons/LeaperTarget.js';
+import { HitFeedback } from '../weapons/HitFeedback.js';
+import { MuzzleTracker } from '../weapons/MuzzleTracker.js';
+import { FirstPersonView } from '../weapons/FirstPersonView.js';
+import { InputController } from '../input/InputController.js';
+import { ReticleView } from '../ui/ReticleView.js';
+import { WeaponHudView } from '../ui/WeaponHudView.js';
+import { TouchControls } from '../ui/TouchControls.js';
+import { touchButtons, wantsTouchControls } from '../input/touch.js';
 
-// magazine: rounds per full load (M416 20, so one held burst empties it; sidearm 15).
-// automatic: holding the left button keeps firing every `interval` seconds.
-// reserve: spare rounds carried; Infinity = unlimited spares, but every magazine
-// still has to be reloaded (automatically when empty, or early with R).
-// reloadTime: seconds to swap a magazine when Lola has no reload animation; with
-// one, the magazine refills exactly when her animation ends (44 frames, ~1.43 s).
-// reloadSound / reloadSoundAt: recording and seconds into the reload it starts,
-// lined up so its clicks land on the animation's hand work (M416: magazine click
-// on frame 20; pistol: two clicks on frames 19 and 24).
-export const PLAYER_WEAPON = Object.freeze({
-  range: 60,
-  aimHold: 1.2,
-  m416: Object.freeze({ damage: 2, interval: 1 / 7, rifle: true, automatic: true, magazine: 20, reserve: Infinity,
-    reloadTime: 43 / 30, reloadSound: 'm416Reload', reloadSoundAt: 0.14 }),
-  pistol: Object.freeze({ damage: 6, interval: 0.2, rifle: false, magazine: 15, reserve: Infinity,
-    reloadTime: 43 / 30, reloadSound: 'pistolReload', reloadSoundAt: 0.52 }),
-});
-
-// A "big hit" is a shot that snaps one of the Leaper's joints (or finishes it).
-// crosshairTime: seconds the crosshair stays enlarged and red.
-// edgeGlowTime: seconds the blue screen-edge glow takes to fade.
-export const BIG_HIT = Object.freeze({ crosshairTime: 2, edgeGlowTime: 0.9 });
-
-// Simple side-on silhouettes for the weapon icons (64 x 64 drawing space).
-const PISTOL_ICON = `<svg class="gun-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M12 22h38v4h3v6H32l-2 4h-6l-3 14h-9l3-16h-3z"/></svg>`;
-const RIFLE_ICON = `<svg class="gun-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M3 27h10l3-2h22v-3h6v3h8v2h9v3h-9v3H40l-1 2h-4l2 11h-6l-2-11h-3l-2 6h-6l2-6h-4l-6 4H5l2-6H3z"/></svg>`;
-
-// Instant bullet, with a separate camera sight ray and muzzle ray so nearby cover wins.
-export function bulletHit(geometry, enemies, origin, direction, range) {
-  const cover = geometry.hit(origin, direction, range);
-  const ray = new THREE.Raycaster(origin, direction, 0, range);
-  const enemy = ray.intersectObjects(enemies, true)[0];
-  const hitEnemy = !!enemy && enemy.distance < (cover?.distance ?? Infinity);
-  return { intersection: hitEnemy ? enemy : cover, enemy: hitEnemy, distance: (hitEnemy ? enemy.distance : cover?.distance) ?? range };
-}
-
+// Lola's guns, as a thin coordinator. The pieces it connects:
+//   src/config/weapons.js      every gun's numbers (damage, rate, spread, recoil...)
+//   weapons/WeaponState        one per gun: ammo, fire-rate clock, reload, spread bloom
+//   weapons/resolveShot        where a bullet goes (sight ray from Lola's depth + muzzle ray)
+//   weapons/TargetRegistry     what bullets can hit (each enemy's hit volumes)
+//   weapons/HitFeedback        hit markers, the crosshair kick, the big-hit glow
+//   GunshotEffects             pooled tracers, flashes and sparks
+//   ui/ReticleView, WeaponHudView, TouchControls   the HUD pieces
+// It reads the input actions once per frame (fire, aim, reload), so nothing is
+// ever fired from inside a page event, a pause freezes the guns, and the click
+// that only grabs the mouse again never shoots.
 export class PlayerWeapon {
   constructor(playtest) {
-    this.p = playtest;
-    this.remaining = 0;
+    const p = this.p = playtest;
+    const { engine, world } = p;
+    // 1. The controls: the game's shared input actions (a test page without a
+    //    game gets its own). A click that only re-captures the mouse never counts.
+    // (The junkyard's InputController lives on its simulation; playtest.input is
+    // the playtest's input-phase method, not the controller.)
+    const shared = p.simulation?.input;
+    this.input = shared ?? new InputController();
+    this.ownsInput = !shared;
+    this.input.setPointerGuard?.(() => Boolean(p.cameraController.captureClick));
+    this.inputFrame = null;
+    this.triggerHeld = false;
+    this.aimFromInput = false;
     // Whether the gun could be used last frame (the controls are let go once when it can't).
     this.wasAvailable = false;
-    this.visuals = new GunshotEffects(playtest.engine.scene, playtest.world.scale);
-    this.effects = this.visuals.items;
-    this.hitTime = 0;
-    this.bigHitTime = 0;
-    this.goodFlash = 0;
-    // One independent ammo pool per gun, matching target.weaponIndex (0 = M416, 1 = pistol).
-    this.ammo = [
-      { mag: PLAYER_WEAPON.m416.magazine, reserve: PLAYER_WEAPON.m416.reserve },
-      { mag: PLAYER_WEAPON.pistol.magazine, reserve: PLAYER_WEAPON.pistol.reserve },
-    ];
-    this.reloadRemaining = 0;
-    this.reticle = document.createElement('div');
-    this.reticle.id = 'playerReticle';
-    this.reticle.textContent = '+';
-    this.reticle.setAttribute('aria-label', 'Gun aiming reticle');
-    document.body.append(this.reticle);
-    // Bottom-right gun icons. The equipped gun's circle is bigger and filled with
-    // colour that drains with its magazine, turning red when nearly empty.
-    // Left to right in key order: 1 = pistol, 2 = M416.
-    this.ammoReadout = document.createElement('div');
-    this.ammoReadout.id = 'playerGuns';
-    this.ammoReadout.setAttribute('aria-label', 'Weapons and ammunition');
-    this.ammoReadout.innerHTML = `<div class="gun-row">
-      <div class="gun" data-gun="pistol"><i class="gun-fill"></i>${PISTOL_ICON}<span class="gun-tag">1</span></div>
-      <div class="gun" data-gun="m416"><i class="gun-fill"></i>${RIFLE_ICON}<span class="gun-tag">2</span></div>
-    </div>`;
-    this.gunSlots = [this.ammoReadout.querySelector('[data-gun=m416]'), this.ammoReadout.querySelector('[data-gun=pistol]')];
-    document.body.append(this.ammoReadout);
-    const canvas = playtest.engine.renderer.domElement;
-    // The game session's AbortSignal (if any) removes all of these listeners at once.
-    const session = playtest.signal ? { signal: playtest.signal } : {};
-    // Mouse events fire for each button, including left clicks while right aim is held.
-    canvas.addEventListener('mousedown', event => {
-      // The click that grabs the mouse again only does that: no shot, no aim.
-      if (this.p.cameraController.captureClick) return;
-      if (event.button === 2 && this.available) this.setAiming(true);
-      // A press while the gun can't be used (paused, TOP view…) is ignored entirely.
-      if (event.button === 0 && this.available) { this.triggerHeld = true; this.fire(); }
-    }, session);
-    window.addEventListener('mouseup', event => {
-      if (event.button === 0) this.triggerHeld = false;
-      if (event.button === 2) this.setAiming(false);
-    }, session);
-    window.addEventListener('pointercancel', () => this.setAiming(false), session);
-    window.addEventListener('keydown', event => {
-      if (event.code === 'Escape') this.setAiming(false);
-      if (event.code === 'KeyR' && !event.repeat && this.available) this.reload();
-    }, session);
-    // Leaving the window drops the trigger, aim and reload; shots already in the
-    // air keep fading normally.
+
+    // 2. One state per gun, in Lola's weaponIndex order (0 = M416, 1 = pistol).
+    this.states = WEAPON_SLOTS.map(id => new WeaponState(WEAPONS[id]));
+
+    // 3. What bullets can hit besides the map: every registered target. The
+    //    playtest's Leaper is registered here; more enemies add their own
+    //    (this.targets.add(createLeaperTarget(...))).
+    this.targets = new TargetRegistry();
+    this.removeLeaperTarget = this.targets.add(createLeaperTarget({ rig: p.simulation.rig, combat: p.combat }));
+
+    // 4. Effects and feedback. The effects' shaders compile now, not on the first shot.
+    this.random = Math.random;
+    this.visuals = new GunshotEffects(engine.scene, world.scale);
+    this.visuals.prewarm(engine.renderer, engine.camera);
+    this.feedback = new HitFeedback();
+    this.firstPerson = new FirstPersonView(p.target);
+    this.muzzle = new MuzzleTracker();
+    this.obstruction = { blocked: false, offset: { x: 0, y: 0 } };
+    this.scratch = { origin: new THREE.Vector3(), direction: new THREE.Vector3(), muzzle: new THREE.Vector3(),
+      anchor: new THREE.Vector3(), screen: new THREE.Vector3() };
+
+    // 5. The HUD: crosshair, gun icons and, on touch screens, the touch controls
+    //    (their buttons press the same input actions as the keyboard and gamepad).
+    this.reticleView = new ReticleView(document.body);
+    this.weaponHud = new WeaponHudView(document.body, {
+      slots: WEAPON_SLOTS.map(id => ({ id, key: WEAPONS[id].key, label: WEAPONS[id].label, icon: WEAPONS[id].icon })),
+    });
+    this.hudGuns = WEAPON_SLOTS.map(id => ({ id, active: false, reloading: false, empty: false, fraction: 1 }));
+    this.touch = wantsTouchControls() ? new TouchControls(document.body, {
+      buttons: touchButtons(),
+      onDown: action => this.input.virtualDown?.(action),
+      onUp: action => this.input.virtualUp?.(action),
+      onLook: (dx, dy) => p.cameraController.lookBy?.(dx * CAMERA.look.touch, dy * CAMERA.look.touch * CAMERA.look.verticalRatio),
+    }) : null;
+
+    // 6. The gamepad's Start and the touch RESUME button resume the game the
+    //    same way the pause overlay does (the junkyard already sets onPauseRequested).
+    p.cameraController.onResumeRequested ??= () => p.resume?.();
+
+    // 7. Leaving the window or hiding the tab drops the trigger, aim and reload;
+    //    shots already in the air keep fading. (The session's AbortSignal, if
+    //    any, removes these listeners.)
+    const session = p.signal ? { signal: p.signal } : {};
+    // On touch screens a browser only lets sound start when a finger LIFTS, not
+    // when it presses, so the shots' audio is also unlocked then (review fix 5.9).
+    if (this.touch) {
+      for (const type of ['pointerup', 'touchend']) window.addEventListener(type, () => p.audio?.unlock?.(), { capture: true, ...session });
+    }
     window.addEventListener('blur', () => this.cancelActions(), session);
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.cancelActions(); }, session);
+    this.renderHud();
   }
 
-  // The session is over: no effects left in the scene, no HUD left on the page.
-  // (Its listeners go with the session's AbortSignal.)
+  // The session is over: no effects left in the scene, no HUD left on the page,
+  // Lola's head drawn again. (Its page listeners go with the session's AbortSignal.)
   dispose() {
-    this.clearEffects();
-    this.reticle.remove();
-    this.ammoReadout.remove();
+    this.firstPerson.dispose();
+    this.visuals.dispose();
+    this.reticleView.dispose();
+    this.weaponHud.dispose();
+    this.touch?.dispose();
+    this.removeLeaperTarget();
+    this.targets.clear();
+    if (this.ownsInput) this.input.dispose();
     document.documentElement.style.setProperty('--good-flash', '0');
   }
 
-  setAiming(active) {
-    // Leaving the aim keeps the crosshair on whatever was aimed at (a knee, a tyre…).
-    if (!active && this.p.cameraController.aiming && this.available) {
-      const point = this.crosshairPoint();
-      this.p.cameraController.aiming = false;
-      this.p.cameraController.aimChaseAt(point);
-    }
-    // Entering the aim likewise keeps the crosshair on the same spot.
-    const enterPoint = active && !this.p.cameraController.aiming && this.available ? this.crosshairPoint() : null;
-    this.p.target.aimHeld = active;
-    this.p.cameraController.aiming = active;
-    this.reticle.dataset.aim = String(active);
-    if (active) {
-      this.p.target.holdAim();
-      // Solve after the raised-gun pose is applied, since it moves the eyes.
-      if (enterPoint) this.p.cameraController.aimEyeAt(enterPoint);
-      // A left click arriving before the next frame must already use the eye view.
-      this.p.cameraController.update(this.p.simulation.state, this.p.simulation.rig.eyePivot, 0);
-    } else if (this.p.target.shot?.action.paused) {
-      this.p.target.cancelShot();
-    }
-  }
+  // ---- What the rest of the game (and the tests) read ----
 
-  get weapon() { return this.p.target.weaponIndex === 0 ? PLAYER_WEAPON.m416 : PLAYER_WEAPON.pistol; }
+  // The equipped gun's data and state.
+  get weapon() { return weaponForSlot(this.p.target.weaponIndex); }
+  get state() { return this.states[this.p.target.weaponIndex]; }
+  get ammoState() { return this.state; }
+  // Every gun's state ({ mag, reserve, ... }), by weaponIndex.
+  get ammo() { return this.states; }
+  // Seconds until the equipped gun may fire again (0 = ready).
+  get remaining() { return Math.max(0, this.state.cooldown); }
+  set remaining(seconds) { this.state.cooldown = seconds; }
+  get reloadRemaining() { return this.state.reloadRemaining; }
+  get reloadTotal() { return this.state.reloadTotal; }
+  get effects() { return this.visuals.items; }
+  get reticle() { return this.reticleView.element; }
+  get ammoReadout() { return this.weaponHud.element; }
+  get range() { return this.weapon.range * this.p.world.scale; }
+  // Lola is walking or running (her shots spread wider).
+  get moving() { return Math.hypot(this.p.target.inputForward ?? 0, this.p.target.inputSide ?? 0) > 0.1; }
 
-  get ammoState() { return this.ammo[this.p.target.weaponIndex]; }
-
-  reload() {
-    if (this.reloadRemaining > 0) return;
-    const ammo = this.ammoState;
-    // Nothing to do when the magazine is already full or no spare rounds remain.
-    if (ammo.mag >= this.weapon.magazine || ammo.reserve <= 0) return;
-    // Lola plays her reload animation (it also lowers any raised gun). Mid-jump
-    // she can't, so the reload waits; the automatic one retries after landing.
-    if (!this.p.target.startReload()) return;
-    this.reloadTotal = this.p.target.reloadDuration ?? this.weapon.reloadTime;
-    this.reloadRemaining = this.reloadTotal;
-    this.reloadWeapon = this.p.target.weaponIndex;
-    this.reloadSoundPlayed = false;
-  }
-
-  cancelReload() {
-    this.reloadRemaining = 0;
-    this.p.target.cancelReload();
-    // Cut the reload clicks short too.
-    this.reloadVoice?.then(source => source?.stop());
-    this.reloadVoice = null;
-  }
-
-  finishReload() {
-    const ammo = this.ammoState;
-    const take = Math.min(this.weapon.magazine - ammo.mag, ammo.reserve);
-    ammo.mag += take;
-    ammo.reserve -= take;
-  }
-
+  // The gun can be used: nobody is down, not in LEAPER POV, not paused, in the
+  // chase view, and the tab is visible.
   get available() {
     const p = this.p;
     return !p.combat.dead && !p.pov.active && !p.paused
       && p.cameraController.mode === 'CHASE' && !document.hidden;
   }
 
+  // ---- Aiming down the sights ----
+
+  // fromInput: the aim follows a held input (right mouse, LT, touch AIM) and ends
+  // when it is let go; otherwise it stays until setAiming(false).
+  setAiming(active, { fromInput = false } = {}) {
+    const p = this.p, cc = p.cameraController;
+    active = Boolean(active);
+    this.aimFromInput = active && fromInput;
+    // 1. Leaving the aim keeps the crosshair on whatever was aimed at (a knee, a tyre…).
+    if (!active && cc.aiming && this.available) {
+      const point = this.crosshairPoint();
+      cc.setAiming(false);
+      cc.aimChaseAt(point);
+    }
+    // 2. Entering the aim likewise keeps the crosshair on the same spot.
+    const enterPoint = active && !cc.aiming && this.available ? this.crosshairPoint() : null;
+    p.target.aimHeld = active;
+    cc.setAiming(active);
+    if (active) {
+      cc.aimZoom = this.weapon.ads.zoom;
+      p.target.holdAim();
+      // Solve after the raised-gun pose is applied, since it moves the eyes.
+      if (enterPoint) cc.aimEyeAt(enterPoint);
+      // A shot later this frame must already use the eye view.
+      cc.update(p.simulation.state, p.simulation.rig.eyePivot, 0);
+    } else if (p.target.shot?.action.paused) {
+      p.target.cancelShot();
+    }
+    // 3. Only Lola's head stops drawing while the camera is inside it.
+    this.firstPerson.set(active && this.available);
+    this.renderHud();
+  }
+
+  // ---- Rays ----
+
+  // The screen-centre ray of the camera as it is right now.
+  cameraRay() {
+    const camera = this.p.engine.camera;
+    camera.updateMatrixWorld();
+    const origin = this.scratch.origin.setFromMatrixPosition(camera.matrixWorld);
+    const direction = camera.getWorldDirection(this.scratch.direction);
+    return { origin, direction };
+  }
+
+  // How far along the camera ray the sight trace starts: Lola's depth in the
+  // chase view (so nothing behind her can be the aim point, review fix 5.5), the
+  // lens itself when aiming through her eyes.
+  sightNear(ray) {
+    const cc = this.p.cameraController;
+    if (cc.aiming || !cc.followSubject) return 0;
+    return sightDepth(ray, cc.chaseAnchor(this.scratch.anchor));
+  }
+
   // World point under the screen-centre crosshair (or the end of gun range).
   crosshairPoint() {
-    const p = this.p;
-    p.engine.scene.updateMatrixWorld(true);
-    p.engine.camera.updateMatrixWorld(true);
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(new THREE.Vector2(), p.engine.camera);
-    const sight = bulletHit(p.combat.geometry, this.enemyMeshes(), ray.ray.origin, ray.ray.direction,
-      PLAYER_WEAPON.range * p.world.scale);
-    return ray.ray.at(sight.distance, new THREE.Vector3());
+    const ray = this.cameraRay();
+    this.targets.update();
+    return traceSight({ cameraRay: ray, near: this.sightNear(ray), world: this.p.combat.geometry,
+      targets: this.targets, range: this.range }).point;
   }
 
-  enemyMeshes() {
-    const rig = this.p.simulation.rig;
-    return [rig.robot, ...rig.legs.flatMap(leg => Object.values(leg).filter(value => value?.isObject3D && !value.userData.detached))];
-  }
+  // ---- Shooting ----
 
+  // Pull the trigger once, now (the frame's input does this in update()).
+  // Returns whether a bullet was fired.
   fire() {
-    if (!this.available || this.remaining > 0) return false;
-    const ammo = this.ammoState;
-    if (this.reloadRemaining > 0) {
-      // Pulling the trigger mid-reload on an empty gun still clicks.
-      if (ammo.mag <= 0) {
-        this.remaining = this.weapon.interval;
-        this.p.audio.playSlot('gunEmpty');
-      }
-      return false;
-    }
-    // An empty magazine clicks and starts the (timed) reload.
-    if (ammo.mag <= 0) {
-      this.remaining = this.weapon.interval;
-      this.p.audio.playSlot('gunEmpty');
-      this.reload();
-      return false;
-    }
-    if (!this.p.target.startShot(Math.max(0.24, this.weapon.interval), PLAYER_WEAPON.aimHold)) return false;
-    ammo.mag -= 1;
-    const p = this.p, scale = p.world.scale;
-    this.remaining = this.weapon.interval;
-    p.engine.scene.updateMatrixWorld(true);
-    p.engine.camera.updateMatrixWorld(true);
-    const cameraRay = new THREE.Raycaster();
-    cameraRay.setFromCamera(new THREE.Vector2(), p.engine.camera);
-    const enemies = this.enemyMeshes();
-    const range = PLAYER_WEAPON.range * scale;
-    const sight = bulletHit(p.combat.geometry, enemies, cameraRay.ray.origin, cameraRay.ray.direction, range);
-    const aim = cameraRay.ray.at(sight.distance, new THREE.Vector3());
-    const origin = p.target.muzzlePosition();
-    const direction = aim.sub(origin).normalize();
-    const hit = bulletHit(p.combat.geometry, enemies, origin, direction, range);
-    const end = origin.clone().addScaledVector(direction, hit.distance);
-    this.visuals.shot(origin, end, this.weapon.rifle);
-    p.audio.play(this.weapon.rifle ? 'm416' : 'pistol');
-    // One shared impact recording for the Leaper and all current scenery.
-    if (hit.intersection) p.audio.play('leaper');
-    this.reticle.dataset.hit = String(hit.enemy);
-    if (hit.enemy) {
-      const normal = hit.intersection.face.normal.clone()
-        .applyMatrix3(new THREE.Matrix3().getNormalMatrix(hit.intersection.object.matrixWorld)).normalize();
-      this.visuals.impact(end, normal, this.weapon.rifle);
-      this.hitTime = 0.15;
-      const brokeJoint = p.combat.legs.hit(hit.intersection.object, direction);
-      // The red core in the Leaper's eye is a weak point.
-      const weakPoint = !!hit.intersection.object.userData.weakPoint;
-      p.combat.damageLeaper(this.weapon.damage * (weakPoint ? COMBAT.weakPointMultiplier : 1), false, brokeJoint);
-      if (weakPoint) { this.critTime = 0.2; this.reticle.dataset.crit = 'true'; }
-      if (brokeJoint || p.combat.leaperHealth <= 0) this.bigHit(brokeJoint);
+    return this.pullTrigger({ pressed: true, held: false }).shots > 0;
+  }
+
+  // The equipped gun's trigger for this frame: shots, the empty click, reloads.
+  pullTrigger(trigger) {
+    if (!this.available) return { shots: 0, dryFire: false, needsReload: false };
+    const result = this.state.pull(trigger, () => this.shoot());
+    if (result.dryFire) this.p.audio.playSlot('gunEmpty');
+    if (result.needsReload) this.reload();
+    if (result.shots || result.dryFire) this.renderHud();
+    return result;
+  }
+
+  // One real bullet. Returns false (nothing spent) when Lola can't shoot right now.
+  shoot() {
+    const p = this.p, weapon = this.weapon, state = this.state;
+    if (!this.available) return false;
+    // 1. Lola raises the gun (her action rules may refuse: mid-jump, mid-reload).
+    if (!p.target.startShot(Math.max(SHOOTING.minShotPose, weapon.interval), SHOOTING.aimHold)) return false;
+    // 2. Where it goes: the sight ray from Lola's depth, then the muzzle ray.
+    const ray = this.cameraRay();
+    this.targets.update();
+    const muzzle = p.target.muzzlePosition();
+    this.muzzle.remember(p.target, muzzle);
+    const aiming = p.cameraController.aiming;
+    const shot = resolveShot({
+      cameraRay: ray, muzzle, near: this.sightNear(ray), world: p.combat.geometry, targets: this.targets,
+      range: this.range, spread: state.spread({ aiming, moving: this.moving }), random: this.random,
+    });
+    this.lastShot = shot;
+    // 3. What everyone sees and hears. One shared impact recording plays for the
+    //    Leaper and all current scenery (an owner choice).
+    const rifle = weapon.tracer === 'rifle';
+    this.visuals.shot(shot.origin, shot.end, rifle);
+    p.audio.play(weapon.shotSound);
+    if (shot.hit) p.audio.play('leaper');
+    // 4. The kick (less while aiming).
+    const kick = aiming ? weapon.ads.recoil : 1;
+    p.cameraController.addRecoil?.(weapon.recoil.pitch * kick,
+      (this.random() * 2 - 1) * weapon.recoil.yawJitter * kick, weapon.recoil.recovery);
+    // 5. An enemy hit: sparks, the damage through its hit zone, and the feedback.
+    if (shot.hit?.kind === 'target') {
+      const hit = shot.hit.hit;
+      this.visuals.impact(shot.end, hit.normal, rifle);
+      const outcome = hit.target.applyHit(hit, { damage: weapon.damage, direction: shot.direction });
+      this.feedback.hit(outcome);
+      if (outcome.brokeJoint) p.audio.playSlot('kneeBreak');
+    } else {
+      this.feedback.miss();
     }
     return true;
   }
 
-  bigHit(brokeJoint) {
-    this.bigHitTime = BIG_HIT.crosshairTime;
-    this.goodFlash = 1;
-    this.reticle.dataset.big = 'true';
-    if (brokeJoint) this.p.audio.playSlot('kneeBreak');
+  // ---- Reloading ----
+
+  reload() {
+    const state = this.state;
+    // Nothing to do mid-reload, with a full magazine, or with no spare rounds.
+    if (!state.canReload) return;
+    // Lola plays her reload animation (it also lowers any raised gun). Mid-jump
+    // she can't, so the reload waits; the automatic one retries after landing.
+    if (!this.p.target.startReload()) return;
+    state.startReload(this.p.target.reloadDuration ?? this.weapon.reloadTime);
+    this.reloadWeapon = this.p.target.weaponIndex;
   }
+
+  cancelReload() {
+    for (const state of this.states) state.cancelReload();
+    this.p.target.cancelReload();
+    // Cut the reload clicks short too.
+    this.reloadVoice?.then(source => source?.stop());
+    this.reloadVoice = null;
+  }
+
+  // ---- Each frame (gameplay phase) ----
+
+  update(dt) {
+    const p = this.p, cc = p.cameraController;
+    const available = this.available;
+    // 1. Hit feedback and the blue edge glow fade even while the gun can't be used
+    //    (the kill shot's reward plays out after the fight ends).
+    this.feedback.update(dt);
+    document.documentElement.style.setProperty('--good-flash', this.feedback.glow.toFixed(3));
+    // 2. This frame's input. Presses count once, however often update() runs.
+    const fresh = this.input.frame !== this.inputFrame;
+    this.inputFrame = this.input.frame;
+    const pressed = action => fresh && Boolean(this.input.pressed?.(action));
+    const released = action => fresh && Boolean(this.input.released?.(action));
+    const held = action => Boolean(this.input.held?.(action));
+    // 3. The gun just became unavailable (paused, POV, TOP view, the fight is over):
+    //    let go of it once. A pause only releases the controls, so a reload resumes.
+    //    Tracers and sparks keep fading, so the kill shot is seen (frozen while paused).
+    if (!available) {
+      if (this.wasAvailable) {
+        if (p.paused) this.releaseControls();
+        else this.cancelActions();
+      }
+      this.wasAvailable = false;
+      this.triggerHeld = false;
+      this.firstPerson.set(false);
+      this.visuals.update(dt);
+      this.renderHud();
+      return;
+    }
+    this.wasAvailable = true;
+    // 4. Aim: a press raises the sights; letting go lowers them. Only a press made
+    //    while the gun is usable counts (a button held through a pause or a menu
+    //    does nothing until pressed again). Escape lowers them too.
+    if (pressed('aim')) this.setAiming(true, { fromInput: true });
+    if (cc.aiming && (released('aim') || (this.aimFromInput && !held('aim')) || pressed('pause'))) this.setAiming(false);
+    if (p.target.aimHeld) p.target.holdAim();
+    // 5. Trigger: held from a press made while the gun is usable until let go.
+    this.triggerHeld = pressed('fire') || (this.triggerHeld && held('fire'));
+    // 6. A reload belongs to the gun it started on; switching guns or jumping abandons it.
+    const weaponIndex = p.target.weaponIndex;
+    if (this.states.some(state => state.reloading)
+      && (this.reloadWeapon !== weaponIndex || p.target.jumpState)) this.cancelReload();
+    // 7. Every gun's clock runs; the equipped gun's reload sound lands on the animation.
+    this.states.forEach((state, index) => {
+      const events = state.advance(dt);
+      if (index === weaponIndex && events.reloadSound) this.reloadVoice = p.audio.play(state.weapon.reloadSound);
+    });
+    // 8. R / X / RELOAD reloads early; the trigger fires (and empties reload by themselves).
+    if (pressed('reload')) this.reload();
+    this.pullTrigger({ pressed: pressed('fire'), held: this.triggerHeld });
+    // 9. Would a shot now hit cover before the crosshair's point? (OBSTRUCTED reticle)
+    this.checkObstruction();
+    // 10. Effects and the HUD.
+    this.visuals.update(dt);
+    this.renderHud();
+  }
+
+  // The OBSTRUCTED check: trace the muzzle ray toward the crosshair's point once
+  // per frame (finding aim-weapons-parallax-no-obstruction-feedback).
+  checkObstruction() {
+    const p = this.p, player = p.target;
+    // The barrel's real place is measured once per gun and stance while the gun is up.
+    if (player.shot && !this.muzzle.known(player)) this.muzzle.remember(player, player.muzzlePosition());
+    const ray = this.cameraRay();
+    this.targets.update();
+    const shot = resolveShot({
+      cameraRay: ray, muzzle: this.muzzle.estimate(player, this.scratch.muzzle), near: this.sightNear(ray),
+      world: p.combat.geometry, targets: this.targets, range: this.range,
+      tolerance: SHOOTING.obstruction * p.world.scale,
+    });
+    this.obstruction.blocked = shot.obstructed;
+    if (shot.obstructed) {
+      // Where the cover is on screen, in pixels from the centre.
+      const canvas = p.engine.renderer?.domElement;
+      const width = canvas?.clientWidth || globalThis.innerWidth || 1;
+      const height = canvas?.clientHeight || globalThis.innerHeight || 1;
+      const screen = this.scratch.screen.copy(shot.blockPoint).project(p.engine.camera);
+      this.obstruction.offset.x = screen.x * width / 2;
+      this.obstruction.offset.y = -screen.y * height / 2;
+    }
+    return shot;
+  }
+
+  // ---- The HUD ----
+
+  // Hand the views this frame's data (they only touch the page on changes).
+  renderHud() {
+    const p = this.p, cc = p.cameraController, available = this.available;
+    const feedback = this.feedback.state, state = this.state;
+    // The spread cone as pixels on screen from the crosshair.
+    const canvas = p.engine.renderer?.domElement;
+    const height = canvas?.clientHeight || globalThis.innerHeight || 1;
+    const halfFov = THREE.MathUtils.degToRad(p.engine.camera.fov ?? CAMERA.chaseFov) / 2;
+    const spread = Math.tan(state.spread({ aiming: cc.aiming, moving: this.moving })) / Math.tan(halfFov) * height / 2;
+    // The kill shot's marker stays on screen while it fades, though the gun is
+    // already put away (the fight just ended on that shot).
+    this.reticleView.update({
+      visible: available || feedback.marker?.kind === 'kill', aiming: cc.aiming, hit: feedback.hit, crit: feedback.crit, big: feedback.big,
+      blocked: available && this.obstruction.blocked, blockOffset: this.obstruction.offset,
+      spread, marker: feedback.marker,
+    });
+    // The gun icons: the equipped gun's fill drains with its magazine or refills while it reloads.
+    const weaponIndex = p.target.weaponIndex;
+    this.states.forEach((gunState, index) => {
+      const gun = this.hudGuns[index];
+      gun.active = index === weaponIndex;
+      gun.reloading = gun.active && gunState.reloading;
+      gun.empty = !gun.reloading && gunState.mag <= 0;
+      gun.fraction = gun.reloading ? gunState.reloadProgress : gunState.mag / gunState.weapon.magazine;
+    });
+    this.weaponHud.update({ visible: available, reloading: state.reloading, empty: !state.reloading && state.mag <= 0,
+      guns: this.hudGuns });
+    this.touch?.update({ visible: true, gunReady: available, aiming: cc.aiming, crouching: p.target.crouching,
+      paused: Boolean(p.paused) });
+  }
+
+  // Kept for older callers: the HUD now redraws itself every frame.
+  updateAmmoHud() {
+    this.renderHud();
+  }
+
+  // ---- Render hooks: only the Leaper's render-only impact shudder is left ----
 
   beforeRender() {
     if (!this.p.pov.active) this.visuals.beforeRender(this.p.simulation.rig.robot);
-    if (this.available && this.p.cameraController.aiming) {
-      this.playerVisibleBeforeRender = this.p.target.mesh.visible;
-      this.p.target.mesh.visible = false;
-    }
   }
+
   afterRender() {
     this.visuals.afterRender(this.p.simulation.rig.robot);
-    if (this.playerVisibleBeforeRender !== undefined) {
-      this.p.target.mesh.visible = this.playerVisibleBeforeRender;
-      this.playerVisibleBeforeRender = undefined;
-    }
   }
 
   // ---- Stopping and resetting (review fix 5.2) ----
@@ -276,7 +424,7 @@ export class PlayerWeapon {
   // ending the fight never erases the kill shot.
   cancelActions() {
     this.releaseControls();
-    this.remaining = 0;
+    for (const state of this.states) state.settle();
     this.cancelReload();
     this.p.target.cancelShot();
   }
@@ -284,12 +432,9 @@ export class PlayerWeapon {
   // Remove every tracer, spark and hit marker at once (a restart, not an ending).
   clearEffects() {
     this.visuals.clear();
-    this.hitTime = 0;
-    this.bigHitTime = 0;
-    this.critTime = 0;
-    this.reticle.dataset.hit = 'false';
-    this.reticle.dataset.big = 'false';
-    this.reticle.dataset.crit = 'false';
+    this.feedback.clear();
+    this.obstruction.blocked = false;
+    this.renderHud();
   }
 
   // Both of the above.
@@ -299,81 +444,10 @@ export class PlayerWeapon {
   }
 
   // A new encounter (RESTART ENCOUNTER, RESET, RESTART RANDOM): as reset(), and
-  // both magazines are full again (review fix 5.23).
+  // every magazine is full again (review fix 5.23).
   resetEncounter() {
     this.reset();
-    this.goodFlash = 0;
-    [PLAYER_WEAPON.m416, PLAYER_WEAPON.pistol].forEach((weapon, index) => {
-      this.ammo[index].mag = weapon.magazine;
-      this.ammo[index].reserve = weapon.reserve;
-    });
-    this.updateAmmoHud();
-  }
-
-  updateAmmoHud() {
-    const ammo = this.ammoState;
-    const reloading = this.reloadRemaining > 0;
-    this.ammoReadout.dataset.reloading = String(reloading);
-    this.ammoReadout.dataset.empty = String(!reloading && ammo.mag <= 0);
-    this.gunSlots.forEach((slot, index) => {
-      const active = index === this.p.target.weaponIndex;
-      const weapon = index === 0 ? PLAYER_WEAPON.m416 : PLAYER_WEAPON.pistol;
-      const state = this.ammo[index];
-      // While reloading, the equipped gun's colour refills over the reload time.
-      const fraction = active && reloading ? 1 - this.reloadRemaining / this.reloadTotal : state.mag / weapon.magazine;
-      slot.dataset.active = String(active);
-      slot.dataset.level = active && reloading ? 'reloading' : state.mag <= 0 ? 'empty' : fraction <= 0.25 ? 'low' : 'ok';
-      slot.style.setProperty('--ammo', fraction.toFixed(3));
-    });
-  }
-
-  update(dt) {
-    this.reticle.hidden = !this.available;
-    this.ammoReadout.hidden = !this.available;
-    // The blue glow fades even while weapons are unavailable (e.g. on the kill shot).
-    this.goodFlash = Math.max(0, this.goodFlash - dt / BIG_HIT.edgeGlowTime);
-    document.documentElement.style.setProperty('--good-flash', this.goodFlash.toFixed(3));
-    if (!this.available) {
-      // The gun just became unavailable (paused, POV, TOP view, the fight is over):
-      // let go of it once. A pause only releases the controls, so a reload resumes.
-      if (this.wasAvailable) {
-        if (this.p.paused) this.releaseControls();
-        else this.cancelActions();
-      }
-      this.wasAvailable = false;
-      // Tracers and sparks keep fading, so the kill shot is seen (frozen while paused).
-      this.visuals.update(dt);
-      return;
-    }
-    this.wasAvailable = true;
-    if (this.p.target.aimHeld) this.p.target.holdAim();
-    this.remaining = Math.max(0, this.remaining - dt);
-    // A reload belongs to the gun it started on; switching guns or jumping abandons it.
-    if (this.reloadRemaining > 0 && (this.reloadWeapon !== this.p.target.weaponIndex || this.p.target.jumpState)) {
-      this.cancelReload();
-    }
-    if (this.reloadRemaining > 0) {
-      this.reloadRemaining = Math.max(0, this.reloadRemaining - dt);
-      if (!this.reloadSoundPlayed && this.reloadTotal - this.reloadRemaining >= this.weapon.reloadSoundAt) {
-        this.reloadSoundPlayed = true;
-        this.reloadVoice = this.p.audio.play(this.weapon.reloadSound);
-      }
-      if (this.reloadRemaining === 0) this.finishReload();
-    } else if (this.ammoState.mag <= 0 && this.remaining === 0) {
-      // Automatic reload once the last round's shot has finished.
-      this.reload();
-    }
-    // Automatic fire while the trigger is held. It stops at an empty magazine
-    // (the reload starts above) rather than clicking through the reload.
-    if (this.triggerHeld && this.weapon.automatic && this.remaining === 0
-      && this.reloadRemaining === 0 && this.ammoState.mag > 0) this.fire();
-    this.visuals.update(dt);
-    this.hitTime = Math.max(0, this.hitTime - dt);
-    if (!this.hitTime) this.reticle.dataset.hit = 'false';
-    this.critTime = Math.max(0, (this.critTime ?? 0) - dt);
-    this.reticle.dataset.crit = String(this.critTime > 0);
-    this.bigHitTime = Math.max(0, this.bigHitTime - dt);
-    this.reticle.dataset.big = String(this.bigHitTime > 0);
-    this.updateAmmoHud();
+    for (const state of this.states) state.refill();
+    this.renderHud();
   }
 }

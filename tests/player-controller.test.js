@@ -15,7 +15,7 @@ function realInput() {
   globalThis.self = globalThis.window;
   globalThis.document = { getElementById: element };
   const input = new InputController(() => {});
-  const key = (type, code) => listeners[type]({ code, repeat: false, preventDefault() {} });
+  const key = (type, code, repeat = false) => listeners[type]({ code, repeat, preventDefault() {} });
   return { input, key };
 }
 
@@ -91,6 +91,81 @@ test('while frozen (paused) Lola is not moved and presses are not replayed after
   controller.update(0.05);
   assert.equal(player.jumps, 0, 'the press ran out during the pause');
   assert.equal(player.moves.length, 1, 'movement resumes');
+});
+
+// A stand-in Lola that can also crouch and switch guns (weaponIndex 0 = M416, 1 = pistol).
+function armedPlayer() {
+  return Object.assign(fakePlayer(), {
+    weaponIndex: 0, crouches: 0, switches: 0,
+    toggleCrouch() { this.crouches += 1; },
+    switchWeapon() { this.switches += 1; this.weaponIndex = 1 - this.weaponIndex; },
+  });
+}
+function frame(controller, options) {
+  controller.sample(1 / 60, options);
+  controller.update(options?.frozen ? 0 : 1 / 60);
+}
+
+test('C crouches and 1 / 2 pick guns as input actions, and a pause freezes them too', () => {
+  const { input, key } = realInput();
+  const player = armedPlayer();
+  const controller = new PlayerController({ player, input, cameraController: camera(0) });
+  // Pressed during a pause: nothing happens, then or afterwards.
+  key('keydown', 'KeyC'); key('keyup', 'KeyC');
+  key('keydown', 'Digit1'); key('keyup', 'Digit1');
+  frame(controller, { frozen: true });
+  frame(controller);
+  assert.deepEqual([player.crouches, player.switches], [0, 0], 'a pause froze C and 1');
+  // While playing: one press, one change.
+  key('keydown', 'KeyC');
+  frame(controller);
+  key('keydown', 'KeyC', true);
+  frame(controller);
+  assert.equal(player.crouches, 1, 'held C (key repeat) toggles once');
+  key('keydown', 'Digit1');
+  frame(controller);
+  assert.equal(player.weaponIndex, 1, '1 = the pistol');
+  key('keyup', 'Digit1'); key('keydown', 'Digit1');
+  frame(controller);
+  assert.equal(player.weaponIndex, 1, 'the equipped gun\'s key keeps it');
+  key('keydown', 'Digit2');
+  frame(controller);
+  assert.equal(player.weaponIndex, 0, '2 = the M416');
+});
+
+test('the gamepad and touch buttons: move, look, switch guns, pause and resume', () => {
+  const { input } = realInput();
+  const pad = { connected: true, buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })), axes: [0, -1, 1, 0] };
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => [pad] } });
+  try {
+    const player = armedPlayer();
+    let looked = 0, pauses = 0, resumes = 0;
+    const cameraController = { getMovementHeading: () => 0, lookBy: (yaw) => { looked += yaw; },
+      requestPause: () => { pauses += 1; }, requestResume: () => { resumes += 1; } };
+    const controller = new PlayerController({ player, input, cameraController });
+    frame(controller);
+    assert.ok(player.moves.at(-1).forward > 0.99, 'left stick forward');
+    assert.ok(looked > 0, 'right stick turns the camera');
+    pad.buttons[3] = { pressed: true, value: 1 };
+    frame(controller);
+    assert.equal(player.weaponIndex, 1, 'Y switches guns');
+    pad.buttons[9] = { pressed: true, value: 1 };
+    frame(controller);
+    assert.equal(pauses, 1, 'Start pauses');
+    pad.buttons[9] = { pressed: false, value: 0 };
+    frame(controller, { frozen: true });
+    pad.buttons[9] = { pressed: true, value: 1 };
+    frame(controller, { frozen: true });
+    assert.equal(resumes, 1, 'Start again resumes');
+    // The touch SWITCH button is the same action.
+    input.virtualDown('switchWeapon');
+    frame(controller);
+    assert.equal(player.weaponIndex, 0);
+  } finally {
+    if (saved) Object.defineProperty(globalThis, 'navigator', saved);
+    else delete globalThis.navigator;
+  }
 });
 
 // Real Lola: canJump is false from take-off until she can jump again.

@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 // Spectator only: no writes to the weapon, eye, target, or movement policy.
 export class LeaperPov {
   constructor(playtest) {
@@ -16,15 +14,16 @@ export class LeaperPov {
     const rig = playtest.simulation.rig;
     this.hiddenObjects = [rig.robot, playtest.sight.lines,
       ...rig.legs.flatMap(leg => ['coxa', 'femur', 'tibia', 'calf', 'knee', 'calfJoint'].map(key => leg[key]))];
-    playtest.cameraController.spectator = this;
+    playtest.cameraController.setSpectator(this);
   }
   toggle() {
     const p = this.playtest, controller = p.cameraController, camera = p.engine.camera;
     if (!this.active) {
       this.heading = controller.getMovementHeading(p.simulation.state.yaw);
       this.saved = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), up: camera.up.clone(), fov: camera.fov };
-      if (document.pointerLockElement) document.exitPointerLock();
-      controller.pointerId = null;
+      // Let go of the mouse the camera's own way (no pause), and drop any drag.
+      controller.releaseMouse();
+      controller.endDrag();
       this.active = true;
       camera.fov = 70;
     } else {

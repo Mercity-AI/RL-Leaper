@@ -3,20 +3,27 @@
 // Starts Vite through its JavaScript API on a free port, opens each page in
 // headless Chromium with software WebGL, and waits for the page to set its title
 // to "PASS ..." or "FAIL ...". Exits non-zero on a FAIL title, a timeout, or any
-// uncaught error on the page.
+// uncaught error on the page. A test can also be a Playwright script
+// (tests/*.browser.mjs) that drives the real game with trusted input, on an
+// emulated device such as a phone.
 //
-// Usage: node tests/run-browser.mjs [tests/page.html ...]   (default: all pages)
+// Usage: node tests/run-browser.mjs [tests/page.html | tests/script.browser.mjs ...]   (default: all)
 //   BROWSER_TEST_TIMEOUT=600  seconds allowed per page (default 300; software
 //                             rendering is slow on machines without a GPU)
 //   BROWSER_TEST_PORT=5210    use this port instead of a free one
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, devices } from 'playwright';
 import { createServer } from 'vite';
 
 // --- Settings -------------------------------------------------------------------
-// Every page that reports PASS/FAIL in its title. Demos live in demos/ instead.
+// Every page that reports PASS/FAIL in its title, and every scripted test with
+// the device it runs on. Demos live in demos/ instead.
 const PAGES = ['tests/browser-combat.html', 'tests/camera-player.html', 'tests/brain-onnx.html', 'tests/brain-game.html'];
+const SCRIPTS = [
+  { path: 'tests/game-controls.browser.mjs' },
+  { path: 'tests/touch-controls.browser.mjs', device: 'Pixel 7' },
+];
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TIMEOUT_SECONDS = Number(process.env.BROWSER_TEST_TIMEOUT || 300);
 // SwiftShader is Chrome's software WebGL, so the pages also run on CI machines.
@@ -63,6 +70,39 @@ async function runPage(browser, baseUrl, path) {
   return { path, passed, title, results, pageErrors, consoleErrors, seconds: (Date.now() - started) / 1000 };
 }
 
+// --- One scripted test -------------------------------------------------------------
+// The script's default export drives a page opened on its device and calls
+// check(condition, label) for every check; a failed check throws.
+async function runScript(browser, baseUrl, { path, device }) {
+  const context = await browser.newContext(device ? devices[device] : { viewport: { width: 1280, height: 720 } });
+  const page = await context.newPage();
+  const pageErrors = [];
+  const consoleErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  const started = Date.now();
+  const lines = [];
+  let title;
+  let passed = false;
+  try {
+    const { default: run } = await import(new URL(`../${path}`, import.meta.url).href);
+    const check = (condition, label) => {
+      if (!condition) throw new Error(label);
+      lines.push(`PASS ${label}`);
+    };
+    const name = await run(page, { baseUrl, check });
+    title = `PASS ${lines.length} · ${name}${device ? ` · ${device}` : ''}`;
+    passed = pageErrors.length === 0;
+  } catch (error) {
+    title = `FAIL · ${path}`;
+    lines.push(`FAIL ${error.message.split('\n')[0]}`);
+  }
+  await context.close();
+  return { path, passed, title, results: lines.join('\n'), pageErrors, consoleErrors, seconds: (Date.now() - started) / 1000 };
+}
+
 // Print one page's verdict, the last result lines and any errors.
 function report(result) {
   console.log(`${result.passed ? 'PASS' : 'FAIL'} ${result.path} (${result.seconds.toFixed(1)} s)`);
@@ -75,7 +115,11 @@ function report(result) {
 }
 
 // --- Run everything -------------------------------------------------------------
-const pages = process.argv.slice(2).length ? process.argv.slice(2) : PAGES;
+const chosen = process.argv.slice(2);
+const pages = chosen.length ? chosen.filter((path) => path.endsWith('.html')) : PAGES;
+const scripts = chosen.length
+  ? chosen.filter((path) => path.endsWith('.mjs')).map((path) => SCRIPTS.find((item) => item.path === path) ?? { path })
+  : SCRIPTS;
 const port = Number(process.env.BROWSER_TEST_PORT) || await freePort();
 const server = await createServer({
   root: ROOT,
@@ -93,9 +137,15 @@ try {
     report(result);
     if (!result.passed) failures += 1;
   }
+  for (const script of scripts) {
+    const result = await runScript(browser, `http://127.0.0.1:${port}`, script);
+    report(result);
+    if (!result.passed) failures += 1;
+  }
 } finally {
   await browser?.close();
   await server.close();
 }
-console.log(failures ? `${failures} of ${pages.length} browser pages FAILED` : `All ${pages.length} browser pages passed`);
+const total = pages.length + scripts.length;
+console.log(failures ? `${failures} of ${total} browser tests FAILED` : `All ${total} browser tests passed`);
 process.exitCode = failures ? 1 : 0;
