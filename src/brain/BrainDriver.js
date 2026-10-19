@@ -65,7 +65,6 @@ export class BrainDriver {
       for (let i = 0; i < obs.length; i += 1) {
         worstObs = Math.max(worstObs, Math.abs(obs[i] - testCase.expected_observation[i]));
       }
-      // eslint-disable-next-line no-await-in-loop
       const [throttle, turn] = await this.brain.think(Array.from(obs));
       worstAct = Math.max(
         worstAct,

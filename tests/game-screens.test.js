@@ -115,4 +115,14 @@ test('the credits screen lists the game, the sounds, what it is built with and a
     [{ heading: 'BUILT WITH', lines: ['Lib by Someone (MIT licence)'] }, { heading: 'ART', lines: ['Art: Owner'] }]);
   remove();
   assert.equal(creditSections().length, 4);
+  // Everyone the licences name is on the screen, and credits a licence requires
+  // come before the public-domain (CC0) ones.
+  const text = creditSections().flatMap((section) => section.lines).join('\n');
+  for (const name of ['Artninja', 'gpag1', 'Luca2399', 'Astounded', 'qubodup', 'OGsoundFX', 'TB0Y298', 'Kenney', 'three.js']) {
+    assert.ok(text.includes(name), `the credits name ${name}`);
+  }
+  const sounds = creditSections()[1].lines;
+  const lastRequired = sounds.findLastIndex((line) => /CC BY/.test(line));
+  const firstFree = sounds.findIndex((line) => /CC0/.test(line));
+  assert.ok(lastRequired >= 0 && firstFree > lastRequired, 'required credits come first');
 });

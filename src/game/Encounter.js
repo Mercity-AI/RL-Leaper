@@ -145,6 +145,9 @@ export class Encounter {
       for (const enemy of this.enemies) enemy.brain.stop();
       this.quietRobots();
     }
+    // A pause also silences the fight's sounds still ringing (the eye's charge,
+    // a shot, a reload); the yard's ambience bed keeps going under the menu.
+    if (next.name === 'paused' && wasPlaying) this.audio?.stop?.();
     // STOP RUN, STOP PLAYER, or switching between them drops the trigger, aim and
     // reload and Lola's flinch, as STOP RUN always did; shots already fired keep
     // fading. A pause and the end of the fight leave both alone: the gun lets go

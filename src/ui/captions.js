@@ -1,24 +1,57 @@
 // Captions for sound cues (Settings > Accessibility > Captions), so a player who
 // can't hear the game still gets its warnings. Each cue is a game event (the
-// event bus, src/core/events.js) and the line shown when it happens.
-//
-// Mount point for the Leaper's new sounds: the boss behaviour work emits the
-// events below as its moves happen (stomp, leap, landing, collapse, the eye's
-// telegraph); any name not emitted yet simply never shows. Add a cue here (or
-// with addCaptionCue) to caption a new sound.
+// event bus: GAME_EVENTS in src/core/events.js, LEAPER_EVENTS in
+// src/actors/leaper/leaperEvents.js) and the line shown when it happens: a
+// fixed line, or a function of the event's payload that returns the line (or
+// null for no caption). Add a cue here (or with addCaptionCue) to caption a new sound.
+
+// The Leaper's attacks share one event, { kind, phase }; one line per phase
+// that plays a sound (a called-off leap is silent).
+export const ATTACK_CAPTIONS = Object.freeze({
+  stomp: Object.freeze({ windup: '[The Leaper rears up to stomp]', impact: '[Stomp]' }),
+  leap: Object.freeze({ windup: '[The Leaper crouches to leap]', launch: '[The Leaper leaps]', land: '[Heavy landing]' }),
+});
+
 export const CAPTION_CUES = {
-  lolaDamaged: '[Laser hits Lola]',
+  // (A stomp or a landing hurts Lola too, so the hit itself names no weapon.)
+  lolaDamaged: '[Lola is hit]',
   jointBroken: '[A Leaper knee snaps]',
-  leaperTelegraph: '[The Leaper\'s eye charges]',
-  leaperStomp: '[Stomp]',
-  leaperLeap: '[The Leaper leaps]',
-  leaperLanding: '[Heavy landing]',
-  leaperCollapse: '[The Leaper collapses]',
+  leaperAttack: ({ kind, phase } = {}) => ATTACK_CAPTIONS[kind]?.[phase] ?? null,
+  leaperStaggered: '[The Leaper staggers]',
+  // (Getting up again is silent.)
+  leaperDowned: ({ rising = false } = {}) => (rising ? null : '[The Leaper crashes down]'),
+  leaperDied: '[The Leaper collapses]',
 };
 
-// Add (or change) the caption for an event.
+// The eye winding up a bolt has no event of its own (the attack code only plays
+// its sound): the game's front end watches each Leaper's charge with
+// ChargeWatch and shows this line when a new one starts.
+export const EYE_CHARGE_CAPTION = '[The Leaper\'s eye charges]';
+
+// Add (or change) the caption for an event: a line, or payload => line | null.
 export function addCaptionCue(event, text) {
   CAPTION_CUES[event] = text;
+}
+
+// The line for one event and its payload, or null when it shows none.
+export function captionFor(event, payload) {
+  const cue = CAPTION_CUES[event];
+  const line = typeof cue === 'function' ? cue(payload ?? {}) : cue;
+  return line || null;
+}
+
+// Rising edges of each Leaper's eye charge: started(index, charging) is true on
+// the frame a new wind-up begins (not while it lasts, not when it stops).
+export class ChargeWatch {
+  constructor() {
+    this.charging = [];
+  }
+
+  started(index, charging) {
+    const began = Boolean(charging) && !this.charging[index];
+    this.charging[index] = Boolean(charging);
+    return began;
+  }
 }
 
 // How long a caption stays (seconds) and how many show at once.

@@ -4,7 +4,7 @@ import { ControlsLegend } from './ControlsLegend.js';
 import { buildCredits } from './CreditsScreen.js';
 import { registerGameSections, settingsScreen } from './SettingsScreen.js';
 import { settings as settingsStore } from './settings.js';
-import { CAPTION_CUES } from './captions.js';
+import { CAPTION_CUES, ChargeWatch, EYE_CHARGE_CAPTION, captionFor } from './captions.js';
 import { registerAudioSettings } from '../audio/audioSettingsSection.js';
 import { weaponSlots } from '../simulation/PlayerWeapon.js';
 import { touchButtons, wantsTouchControls } from '../input/touch.js';
@@ -107,8 +107,14 @@ export class GameUi {
     // The player's settings apply now and whenever one changes.
     this.applySettings();
     this.offSettings = this.settings.onChange((key, value) => this.applySetting(key, value));
-    // Captions for sound cues follow the game's events (shown only when switched on).
-    this.offCaptions = Object.entries(CAPTION_CUES).map(([event, text]) => this.events?.on(event, () => hud.caption(text)));
+    // Captions for sound cues follow the game's events (shown only when switched
+    // on); a cue may pick its line from the event (which attack, which phase).
+    this.offCaptions = Object.keys(CAPTION_CUES).map((event) => this.events?.on(event, (payload) => {
+      const line = captionFor(event, payload);
+      if (line) hud.caption(line);
+    }));
+    // The eye's charge has no event: lateUpdate() watches each Leaper's.
+    this.chargeWatch = new ChargeWatch();
     // 3. Menus take the controls while they are open, and follow the game state.
     input.setUiCapture?.(() => this.screens.open);
     this.offFlow = flow.onChange((next) => {
@@ -250,6 +256,9 @@ export class GameUi {
       const leaper = snapshot.leapers[index] ??= { health: 0, max: 0 };
       leaper.health = combat.leaperHealth;
       leaper.max = combat.config.leaperHealth;
+      // A new wind-up of its eye gets the charge caption (when captions are on).
+      const charging = combat.leaperHealth > 0 && combat.tree?.started != null;
+      if (this.chargeWatch?.started(index, charging)) this.hud.caption(EYE_CHARGE_CAPTION);
     });
     snapshot.leapers.length = encounter.enemies.length;
     this.hud.update(snapshot);
