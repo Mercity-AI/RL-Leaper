@@ -11,7 +11,7 @@ import { MOVEMENT } from '../config/robot.js';
 import { GAME_EVENTS } from '../core/events.js';
 import { TRAIL_HOLD, TRAIL_DRAIN } from '../game/PlayerVitals.js';
 import { LeaperHudView } from '../ui/LeaperHudView.js';
-import { LEAPER_BEHAVIOUR } from '../config/leaper-behaviour.js';
+import { LEAPER_BEHAVIOUR } from '../config/tuning/index.js';
 
 // What the frozen brain can see (read from its JS port, which the parity tests
 // prove identical to the Python recipe): Lola's centre within 28 + 1.4 units.

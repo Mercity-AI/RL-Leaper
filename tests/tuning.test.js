@@ -1,14 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TUNING_KEY, TuningRegistry, deepCopy, rangeFor, readPath } from '../src/config/tuning/registry.js';
-import { CAMERA, COMBAT, HIT_FEEDBACK, SHOOTING, WEAPONS, registerGameConfigs, tuning, weaponForSlot } from '../src/config/tuning/index.js';
+import { CAMERA, COMBAT, HIT_FEEDBACK, LEAPER_ANGLES, LEAPER_BEHAVIOUR, SHOOTING, WEAPONS, registerGameConfigs, tuning, weaponForSlot } from '../src/config/tuning/index.js';
 import { CAMERA as CAMERA_CONFIG } from '../src/config/camera.js';
 import { COMBAT as COMBAT_CONFIG } from '../src/config/combat.js';
 import { HIT_FEEDBACK as HIT_FEEDBACK_CONFIG, SHOOTING as SHOOTING_CONFIG, WEAPONS as WEAPONS_CONFIG, weaponForSlot as configWeaponForSlot } from '../src/config/weapons.js';
 import eyeVision from '../src/config/eye-vision.json' with { type: 'json' };
 import playerContact from '../src/config/player-contact.json' with { type: 'json' };
+import { LEAPER_ANGLES as ANGLES_CONFIG, LEAPER_BEHAVIOUR as LEAPER_BEHAVIOUR_CONFIG } from '../src/config/leaper-behaviour.js';
 import { WeaponState } from '../src/weapons/WeaponState.js';
 import { HitFeedback } from '../src/weapons/HitFeedback.js';
+import { planLeap } from '../src/actors/leaper/leapPlanner.js';
+import { LeaperDirector } from '../src/actors/leaper/LeaperDirector.js';
 
 // The designer tuning registry (src/config/tuning/): players get the config
 // files untouched; the developer tools get live copies that change in place,
@@ -37,7 +40,8 @@ const gameRegistry = (options = {}) => {
   return { registry, configs: registerGameConfigs(registry) };
 };
 
-const SOURCES = { camera: CAMERA_CONFIG, guns: WEAPONS_CONFIG, shooting: SHOOTING_CONFIG, hitFeedback: HIT_FEEDBACK_CONFIG, combat: COMBAT_CONFIG };
+const SOURCES = { camera: CAMERA_CONFIG, guns: WEAPONS_CONFIG, shooting: SHOOTING_CONFIG, hitFeedback: HIT_FEEDBACK_CONFIG,
+  combat: COMBAT_CONFIG, leaperBehaviour: LEAPER_BEHAVIOUR_CONFIG };
 
 // ---- Defaults ----
 
@@ -48,6 +52,8 @@ test('players (no developer tools) read the config files themselves, exactly as 
   assert.equal(SHOOTING, SHOOTING_CONFIG);
   assert.equal(HIT_FEEDBACK, HIT_FEEDBACK_CONFIG);
   assert.equal(COMBAT, COMBAT_CONFIG);
+  assert.equal(LEAPER_BEHAVIOUR, LEAPER_BEHAVIOUR_CONFIG);
+  assert.equal(LEAPER_ANGLES, ANGLES_CONFIG);
   assert.equal(weaponForSlot(0), configWeaponForSlot(0));
   assert.equal(weaponForSlot(1), configWeaponForSlot(1));
   assert.deepEqual(tuning.overrides(), {}, 'nothing differs');
@@ -79,7 +85,7 @@ test('every default sits inside its slider, and only whole numbers of 2 or more 
   for (const id of registry.ids()) {
     for (const field of registry.fields(id).filter((item) => item.type === 'number')) {
       assert.ok(field.min <= field.default && field.default <= field.max, `${id}.${field.path}: ${field.default} in [${field.min}, ${field.max}]`);
-      if (field.step) assert.equal(field.default % field.step, 0, `${id}.${field.path} is on its step`);
+      if (field.step) assert.equal(Math.abs(field.default % field.step), 0, `${id}.${field.path} is on its step`);
     }
   }
   assert.deepEqual(rangeFor(20), { min: 0, max: 80, step: 1 });
@@ -155,6 +161,21 @@ test('live apply: a gun and the hit feedback reading the live copies follow a ch
   registry.set('hitFeedback', 'markers.weak', 0.9);
   feedback.hit({ weakPoint: true });
   assert.equal(feedback.marker.time, 0.9);
+});
+
+test('live apply: the Leaper\'s leap planner and leg rules follow a change at once', () => {
+  const { registry, configs } = gameRegistry();
+  const leap = configs.LEAPER_BEHAVIOUR.leap;
+  const ask = () => planLeap({ from: { x: 0, z: 0, yaw: 0 }, lola: { x: 0, z: 22 }, clear: () => true, config: leap });
+  assert.equal(ask(), null, 'Lola 22 units away is beyond the written 20');
+  registry.set('leaperBehaviour', 'leap.maxDistance', 25);
+  assert.ok(ask(), 'a tuned 25 lets it pounce');
+  const director = new LeaperDirector({ config: configs.LEAPER_BEHAVIOUR, legs: configs.COMBAT.legs });
+  registry.set('combat', 'legs.maxLost', 2);
+  director.legBroken({ lost: 2 });
+  assert.equal(director.pendingDowned, true, 'two lost legs knock it down once maxLost is 2');
+  assert.throws(() => registry.set('leaperBehaviour', 'engage.turnRate', 45), /not tunable live/, 'worked out in radians at load');
+  assert.throws(() => registry.set('leaperBehaviour', 'awareness.memorySteps', 200), /not tunable live/, 'the brain\'s trained memory');
 });
 
 // ---- Saving ----

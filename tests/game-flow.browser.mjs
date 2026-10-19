@@ -199,7 +199,7 @@ export default async function gameFlow(page, { baseUrl, check }) {
   const tuning = '#devPanel [data-dev-section=tuning]';
   await page.locator(`${tuning} .tp-rotv`).waitFor({ state: 'visible', timeout: 120000 });
   const folders = await page.$$eval(`${tuning} .tp-fldv_t`, (titles) => titles.map((title) => title.textContent));
-  check(['Camera', 'Guns', 'Shooting feel', 'Hit feedback', 'Combat'].every((name) => folders.includes(name))
+  check(['Camera', 'Guns', 'Shooting feel', 'Hit feedback', 'Combat', 'Leaper behaviour'].every((name) => folders.includes(name))
     && folders.includes('BRAIN CONTRACT: eye vision (read-only)') && folders.includes('BRAIN CONTRACT: player contact (read-only)'),
   `?dev: the tuning panel lists every config, the brain contract labelled read-only (${folders.join(', ')})`);
   const brainInputs = await page.evaluate((root) => [...document.querySelectorAll(`${root} .tp-fldv`)]

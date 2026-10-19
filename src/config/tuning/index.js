@@ -4,6 +4,7 @@ import { CAMERA as CAMERA_CONFIG } from '../camera.js';
 import { HIT_FEEDBACK as HIT_FEEDBACK_CONFIG, SHOOTING as SHOOTING_CONFIG, WEAPON_SLOTS, WEAPONS as WEAPONS_CONFIG } from '../weapons.js';
 import { COMBAT as COMBAT_CONFIG } from '../combat.js';
 import { ENCOUNTER } from '../encounter.js';
+import { LEAPER_ANGLES, LEAPER_BEHAVIOUR as LEAPER_BEHAVIOUR_CONFIG } from '../leaper-behaviour.js';
 import eyeVision from '../eye-vision.json' with { type: 'json' };
 import playerContact from '../player-contact.json' with { type: 'json' };
 
@@ -19,7 +20,10 @@ import playerContact from '../player-contact.json' with { type: 'json' };
 //   guns         PlayerWeapon and its WeaponState per gun
 //   shooting     PlayerWeapon
 //   hitFeedback  HitFeedback
-//   combat       LeaperCombat (and its AttackController), PlayerVitals
+//   combat       LeaperCombat (and its AttackController), PlayerVitals,
+//                LeaperDirector and LeaperLegDamage (the leg rules)
+//   leaperBehaviour  LeaperActor (which hands it to LeaperDirector,
+//                SnapshotPlayout and the leap planner), LeaperFeedback, LeaperCombat
 // Read-only, clearly labelled: encounter (read when the game loads) and the
 // frozen brain contract (eye-vision.json, player-contact.json).
 
@@ -42,6 +46,12 @@ export function registerGameConfigs(registry) {
       fixed: ['lolaHealth', 'weakPointMultiplier', 'laserLength', 'laserRadius'],
       note: 'Live. leaperHealth applies on RESTART. Fixed here (read when the game loads): lolaHealth, '
         + 'weakPointMultiplier (the hit zones) and the laser\'s length and radius.' }),
+    LEAPER_BEHAVIOUR: registry.register('leaperBehaviour', { label: 'Leaper behaviour', source: LEAPER_BEHAVIOUR_CONFIG,
+      fixed: ['awareness.memorySteps', 'engage.turnRate', 'engage.faceTolerance',
+        ...LEAPER_BEHAVIOUR_CONFIG.leap.landingTurns.map((_, index) => `leap.landingTurns.${index}`)],
+      note: 'Live: the next stomp, leap, stagger or fall uses it. Fixed here: awareness.memorySteps matches the '
+        + 'brain\'s trained memory; engage.turnRate, engage.faceTolerance and leap.landingTurns are turned into '
+        + 'radians when the game loads (LEAPER_ANGLES).' }),
   };
 
   // ---- Read-only (shown for reference) ----
@@ -66,11 +76,12 @@ function browserStorage() {
 // The game's registry. Tuning comes with the developer tools: ?dev, or the dev
 // server (?dev=0 is off). Saved changes from earlier visits apply at once.
 export const tuning = new TuningRegistry({ live: wantsDevTools(), storage: browserStorage() });
-export const { CAMERA, WEAPONS, SHOOTING, HIT_FEEDBACK, COMBAT } = registerGameConfigs(tuning);
+export const { CAMERA, WEAPONS, SHOOTING, HIT_FEEDBACK, COMBAT, LEAPER_BEHAVIOUR } = registerGameConfigs(tuning);
 tuning.load();
 
-// The weapons file's helpers, on the guns this module hands out.
-export { WEAPON_SLOTS };
+// The weapons file's helpers, on the guns this module hands out, and the
+// Leaper's angles in radians (worked out once from its file, not tunable live).
+export { LEAPER_ANGLES, WEAPON_SLOTS };
 export function weaponForSlot(index) {
   return WEAPONS[WEAPON_SLOTS[index]];
 }

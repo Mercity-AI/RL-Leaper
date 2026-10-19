@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LEAPER_BEHAVIOUR } from '../../config/leaper-behaviour.js';
+import { LEAPER_BEHAVIOUR } from '../../config/tuning/index.js';
 
 // What the player sees the Leaper's behaviour do, on top of the rig itself:
 //   - a white flash over the hull on every hit, sparks from the struck spot;
