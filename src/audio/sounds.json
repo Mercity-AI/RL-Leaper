@@ -54,11 +54,11 @@
     {
       "id": "m416",
       "label": "M416 shot",
-      "use": "Lola fires the M416 rifle.",
+      "use": "Lola fires the M416 rifle (7 shots a second; 5 copies let each 0.65 s shot ring out).",
       "bus": "weapons",
       "gain": 0.12,
       "priority": 6,
-      "maxVoices": 4,
+      "maxVoices": 5,
       "spatial": false,
       "variation": { "pitch": 0.02, "volume": 0.06 },
       "variations": [
