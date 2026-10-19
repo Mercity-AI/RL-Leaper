@@ -284,7 +284,7 @@ export class LeaperActor {
     } else if (state === 'downed') {
       // Sinks to the floor from wherever the body was (standing, staggered, half
       // way up), legs splayed and planted; later stands back up.
-      const down = { lower: STANDING_HEIGHT - c.downed.restHeight, pitch: 0, roll: this.rollSide() * 0.12, splay: c.downed.splay };
+      const down = { lower: STANDING_HEIGHT - c.downed.restHeight, pitch: 0, roll: this.rollSide() * c.downed.roll, splay: c.downed.splay };
       if (phase === 'falling') blendPosture(target, this.entryPosture, down, ease(t / c.downed.sinkTime));
       else if (phase === 'rising') blendPosture(target, down, { ...target }, ease(t / c.downed.getUpTime));
       else Object.assign(target, down);
@@ -452,7 +452,7 @@ export class LeaperActor {
         this.feedback?.clearWarnings();
         this.combat?.tree.cancel();
         if (this.combat) this.combat.damageScale = c.downed.damageTakenScale;
-        this.cameraController?.shake(0.4);
+        this.cameraController?.shake(c.downed.cameraShake);
         this.audio?.playSlot?.('leaperDowned');
         emit(LEAPER_EVENTS.downed, { permanent });
       },

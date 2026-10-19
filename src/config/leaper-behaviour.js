@@ -122,8 +122,12 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     getUpTime: 1.2,
     // Bullets do this much more damage while it is down.
     damageTakenScale: 1.5,
-    // The surviving feet slide outwards this share of their reach.
+    // The surviving feet slide outwards this share of their reach, and the body
+    // rolls this far (radians) toward the side that lost the most legs.
     splay: 0.15,
+    roll: 0.12,
+    // Camera shake (0-1) as it hits the floor.
+    cameraShake: 0.4,
   }),
 
   // ---- Dying, then the wreck ----
