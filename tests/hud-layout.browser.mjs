@@ -89,7 +89,47 @@ export default async function hudLayout(page, { baseUrl, check }) {
   await untilFlow(page, 'paused');
   await page.locator('.screen:not([hidden]) [data-menu-item=resume]').waitFor({ state: 'visible', timeout: 60000 });
   await clear('pause menu');
+
+  // 5. EDIT HUD LAYOUT (Settings > HUD): the menus step aside, a single press
+  //    drags Lola's panel, the spot is saved for touch screens, DONE returns to
+  //    the settings and RESET LAYOUT puts the panel back in its corner.
+  await page.tap('.screen:not([hidden]) [data-menu-item=settings]');
+  await page.locator('.screen[data-screen=settings]').waitFor({ state: 'visible', timeout: 60000 });
+  const edit = page.locator('#screens .setting-button', { hasText: 'EDIT HUD LAYOUT' });
+  await edit.scrollIntoViewIfNeeded();
+  await edit.tap();
+  await page.locator('.hud-edit-bar').waitFor({ state: 'visible', timeout: 60000 });
+  await page.locator('#combatHud').waitFor({ state: 'visible', timeout: 60000 });
+  check(await page.evaluate(() => document.body.classList.contains('hud-editing') && document.getElementById('screens').hidden),
+    'EDIT HUD LAYOUT shows the HUD with outlines and steps the menu aside');
+  const before = await page.locator('#combatHud').boundingBox();
+  const touch = await page.context().newCDPSession(page);
+  const at = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: at.x, y: at.y, id: 1 }] });
+  for (let step = 1; step <= 5; step += 1) {
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: at.x + 20 * step / 5, y: at.y - 260 * step / 5, id: 1 }] });
+    await page.waitForTimeout(40);
+  }
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const after = await page.locator('#combatHud').boundingBox();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('leaper.hud-layout.v3.touch') ?? '{}'));
+  check(after.y < before.y - 200 && Math.abs(after.x - before.x - 20) <= 2 && saved.vitals,
+    `a single press drags Lola's panel up (${Math.round(before.y)} -> ${Math.round(after.y)}) and the touch layout saves it`);
+  await page.tap('.hud-edit-bar [data-layout=done]');
+  await page.locator('.screen[data-screen=settings]').waitFor({ state: 'visible', timeout: 60000 });
+  check(await page.evaluate(() => !document.body.classList.contains('hud-editing') && !document.querySelector('.movable-hud')),
+    'DONE returns to the settings and no piece listens for drags any more');
+  await page.locator('#screens .setting-button', { hasText: 'RESET LAYOUT' }).tap();
+  check(await page.evaluate(() => document.getElementById('combatHud').style.position === ''
+    && !localStorage.getItem('leaper.hud-layout.v3.touch')), 'RESET LAYOUT puts the panel back in its corner');
+  await page.tap('.screen[data-screen=settings] [data-menu-back]');
+
+  // 6. Back in play the corners are clear again and JUMP answers the first tap.
   await page.tap('.screen:not([hidden]) [data-menu-item=resume]');
   await untilFlow(page, 'playing');
+  await clear('HUD after editing');
+  await page.tap('.touch-band [data-action=jump]');
+  await page.waitForFunction(() => Boolean(window.leaperPlaytest.target.jumpState), null, { timeout: 60000 });
+  check(true, 'JUMP answers the first tap (no gesture in the way)');
   return 'HUD layout on a phone';
 }

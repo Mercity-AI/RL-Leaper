@@ -54,6 +54,8 @@ export class GameScreens {
     this.stickDirection = 0;
     this.result = null;
     this.last = {};
+    // Out of sight for a moment (HUD layout editing), though still open.
+    this.suspended = false;
   }
 
   // ---- Building ----
@@ -139,6 +141,12 @@ export class GameScreens {
     return this.stack.open;
   }
 
+  // Step aside while the HUD layout is edited (the menus stay open underneath).
+  setSuspended(on) {
+    this.suspended = Boolean(on);
+    this.root.hidden = this.current === null || this.suspended;
+  }
+
   // The name of the screen on top (null: none).
   get current() {
     return this.stack.current;
@@ -160,7 +168,7 @@ export class GameScreens {
   // Draw the screen on top and move keyboard focus into it.
   show() {
     const current = this.current;
-    this.root.hidden = current === null;
+    this.root.hidden = current === null || this.suspended;
     this.root.dataset.base = this.stack.base ?? '';
     this.root.dataset.screen = current ?? '';
     for (const [name, { element }] of this.screens) element.hidden = name !== current;

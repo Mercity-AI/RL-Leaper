@@ -227,6 +227,11 @@ export class Hud {
     if (!this.captionsOn) this.views.captions.clear();
   }
 
+  // HUD layout editing (Settings > EDIT HUD LAYOUT): every corner shows, over the menus.
+  setEditing(on) {
+    this.root.dataset.editing = String(Boolean(on));
+  }
+
   // Say something to screen readers (only when it differs from the last line).
   announce(text) {
     this.change('announce', text, (value) => { this.announcer.textContent = value; });

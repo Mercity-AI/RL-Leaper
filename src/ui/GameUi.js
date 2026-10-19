@@ -10,6 +10,7 @@ import { touchButtons, wantsTouchControls } from '../input/touch.js';
 import { CONTROLS } from '../input/actions.js';
 import { CAMERA } from '../config/camera.js';
 import { NO_TIMER } from '../debug/PhaseTimer.js';
+import { HudLayout, MOVABLE_PIECES } from '../controls/MovableHud.js';
 import { loadDevTools, wantsDevTools } from '../debug/devTools.js';
 
 // The game's front end in one place: the HUD shell (src/ui/Hud.js) and the menu
@@ -85,6 +86,16 @@ export class GameUi {
     });
     this.screens.defineScreen('credits', { title: 'CREDITS', build: (body) => buildCredits(body) });
     registerGameSections(this.settings, { quality: this.quality, playing: () => flow.playing || flow.paused });
+    // HUD layout: pieces the player may move (EDIT HUD LAYOUT), one layout per form factor.
+    this.layout = new HudLayout({
+      pieces: Object.entries(MOVABLE_PIECES).map(([name, selector]) => [name, document.querySelector(selector)]),
+      formFactor: wantsTouchControls() ? 'touch' : 'desktop',
+    });
+    this.settings.registerSection({ id: 'hud', title: 'HUD', order: 50, build: (container, { controls: c }) => {
+      c.button(container, { label: 'EDIT HUD LAYOUT', hint: 'Drag the HUD pieces where you want them. Touch screens and desktops keep their own layouts.',
+        onClick: () => this.editLayout(true) });
+      c.button(container, { label: 'RESET LAYOUT', onClick: () => this.layout.reset() });
+    } });
     this.screens.defineScreen('settings', { title: 'SETTINGS', ...settingsScreen(this.settings) });
     // The player's settings apply now and whenever one changes.
     this.applySettings();
@@ -95,6 +106,8 @@ export class GameUi {
     input.setUiCapture?.(() => this.screens.open);
     this.offFlow = flow.onChange((next) => {
       if (next.name === 'playing') this.lastMode = next.mode;
+      // A game state change (a gamepad Start resuming, say) ends the layout editing.
+      if (this.editing) this.editLayout(false);
       this.screens.sync(next, { result: playtest.encounter.result });
       // The first fight of the session says how to see the controls.
       if (next.name === 'playing' && !this.hinted && this.legendKey) {
@@ -125,6 +138,36 @@ export class GameUi {
     hud.adopt('centre', playtest.pov?.reticle);
     hud.adopt('bottom-left', document.getElementById('joyBase'));
     hud.adopt('bottom-right', document.getElementById('btnSprint'));
+  }
+
+  // ---- HUD layout editing ----
+
+  // EDIT HUD LAYOUT: the menus step aside, every HUD piece shows with an outline
+  // and drags with a single press; DONE (or Escape / B) goes back to the settings.
+  editLayout(on) {
+    on = Boolean(on);
+    if (on === Boolean(this.editing)) return;
+    this.editing = on;
+    this.layout.setEditing(on);
+    this.hud.setEditing(on);
+    this.screens.setSuspended(on);
+    if (on) {
+      this.editBar = document.createElement('div');
+      this.editBar.className = 'hud-edit-bar';
+      this.editBar.setAttribute('role', 'dialog');
+      this.editBar.setAttribute('aria-label', 'Edit HUD layout');
+      this.editBar.innerHTML = '<p>Drag the HUD pieces where you want them.</p>'
+        + '<button type="button" data-layout="reset">RESET LAYOUT</button><button type="button" data-layout="done">DONE</button>';
+      this.editBar.querySelector('[data-layout=reset]').addEventListener('click', () => this.layout.reset());
+      this.editBar.querySelector('[data-layout=done]').addEventListener('click', () => this.editLayout(false));
+      document.body.append(this.editBar);
+      this.editBar.querySelector('[data-layout=done]').focus({ preventScroll: true });
+    } else {
+      this.editBar?.remove();
+      this.editBar = null;
+      // Back in the settings, on the button that started the editing.
+      [...document.querySelectorAll('#screens .setting-button')].find((button) => button.textContent === 'EDIT HUD LAYOUT')?.focus();
+    }
   }
 
   // ---- Settings ----
@@ -175,6 +218,12 @@ export class GameUi {
     const playtest = this.playtest;
     if (this.screens?.open) playtest.playerController.sample(dt, { frozen: true });
     else playtest.input(dt);
+    // While the HUD layout is edited, Escape / B / A / Space finish it.
+    if (this.editing) {
+      const input = this.inputController;
+      if (input.pressed('menuBack') || input.pressed('menuConfirm')) this.editLayout(false);
+      return;
+    }
     this.screens?.handleInput(this.inputController, dt);
     // H (gamepad Back) shows or hides the controls legend over the fight.
     if (this.inputController.pressed?.('legend')) this.hud.toggleLegend();
@@ -204,6 +253,8 @@ export class GameUi {
   dispose() {
     this.offFlow?.();
     this.offSettings?.();
+    if (this.editing) this.editLayout(false);
+    this.layout?.dispose();
     for (const off of this.offCaptions ?? []) off?.();
     this.inputController.setUiCapture?.(null);
     this.screens?.dispose();

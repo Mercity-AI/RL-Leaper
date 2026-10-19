@@ -153,9 +153,11 @@ source Blender file.
   is the table under "Playing" below.
 - **C** toggles crouching. WASD uses the authored crouch-walk cycle; Shift does
   not override crouch speed. Standing collision clearance remains conservative.
-- **Double-tap and hold the second tap, then drag** moves a screen control or
-  panel. Double-click then drag also works. Placement is remembered locally and
-  kept within the window when resizing. Escape releases the game mouse first.
+- **Settings > HUD > EDIT HUD LAYOUT** lets you drag the HUD pieces (a single
+  press drags; DONE, Escape or B finishes) and **RESET LAYOUT** puts them back.
+  Touch screens and desktops keep separate layouts in this browser, kept within
+  the window when resizing. Outside the editor nothing on the HUD listens for
+  drags, so every tap and click works at once.
 - Starting a fight captures the mouse for looking; **Escape** releases it and
   opens the pause menu. Dragging also works when mouse capture is unavailable.
   **VIEW** (top right of the HUD) switches between Lola's chase camera and top

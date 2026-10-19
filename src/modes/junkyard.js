@@ -4,7 +4,6 @@ import { LolaPlayer } from '../robot/LolaPlayer.js';
 import { Assets, loadLolaFiles } from '../core/Assets.js';
 import { limitShadowCasters, warmUp } from '../core/Quality.js';
 import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
-import { enableMovableHud } from '../controls/MovableHud.js';
 import { EventBus } from '../core/events.js';
 import { GameFlow } from '../core/GameFlow.js';
 import { disposeObject3D } from '../core/disposeObject3D.js';
@@ -22,10 +21,6 @@ import { createLeaperScene, loadStep, removeFromScene, setStatus } from './share
 // Longer frame-time cap than the lab modes: Lola and the debris sub-step
 // themselves, so a slow frame stays stable.
 const MAX_DELTA = 0.1;
-
-// The on-screen panels become movable once per page (doing it twice would stack
-// two drag handlers on the panels that outlive a session).
-let movableHudEnabled = false;
 
 // Loading steps with the brain's own progress beside them, e.g.
 // "LOADING LOLA… · LOADING BRAIN · ONNX · IN BROWSER · 64% · DOWNLOADING BRAIN RUNTIME".
@@ -116,10 +111,6 @@ export async function start({ engine, params }) {
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal,
     brainProvider, hud: ui.hud });
   ui.attach(playtest);
-  if (!movableHudEnabled) {
-    enableMovableHud();
-    movableHudEnabled = true;
-  }
   // 7. The OPTIONS brain menu switches where the brain runs. The page address
   //    keeps the choice (so a reload or APPLY SIZE remembers it); the run restarts.
   playtest.panelView.bindBrainChoice(brainChoice(location.search), (choice) => {

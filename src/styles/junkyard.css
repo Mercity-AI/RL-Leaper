@@ -155,3 +155,10 @@ body.touch-controls-on.junkyard-mode #btnSprint { display: flex; }
 body.hud-editing .movable-hud { outline: 2px dashed var(--c-focus); outline-offset: 3px; cursor: grab; touch-action: none; pointer-events: auto !important; }
 body.hud-editing .movable-hud * { pointer-events: none !important; }
 body.hud-editing .hud-dragging { cursor: grabbing; outline-style: solid; }
+/* Every corner shows while editing, even over a menu. */
+.hud-root[data-editing="true"] .hud-region { visibility: visible; }
+/* The editor's bar: what to do, RESET LAYOUT and DONE (top centre, over everything). */
+.hud-edit-bar { position: fixed; top: calc(var(--hud-edge-top) + 48px); left: 50%; z-index: var(--z-overlay); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--gap-s); width: max-content; max-width: calc(100vw - 2 * var(--gap-l)); padding: var(--gap-s) var(--gap-m); border: 1px dashed var(--c-focus); border-radius: 8px; background: #15171bf0; color: var(--c-text); font: var(--font-s)/1.4 var(--font-mono); transform: translateX(-50%); }
+.hud-edit-bar p { margin: 0; }
+.hud-edit-bar button { min-height: 40px; padding: var(--gap-s) var(--gap-m); border: 1px solid var(--c-panel-border); border-radius: 6px; background: #ffffff14; color: var(--c-text); font: 700 var(--font-s) var(--font-mono); letter-spacing: 0.12em; cursor: pointer; }
+.hud-edit-bar [data-layout="done"] { border-color: var(--c-accent); background: var(--c-accent-strong); }
