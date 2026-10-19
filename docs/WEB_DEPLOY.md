@@ -88,10 +88,13 @@ Chromium at 1280 x 720, at the spawn view and turned to face the Leaper.
 | of which the sun's shadow pass | 150 | 89 | 103 | 115 |
 | shadow-casting meshes in the scene | 202 | 100 | 114 | 126 |
 | triangles, spawn view | 70k | 87k | 89k | 92k |
-| shader programs / textures on the card | 9 / 17 | 13 / 18 | 24 / 31 | 24 / 32 |
+| shader programs / textures on the card | 9 / 17 | 13 / 18 | 23 / 31 | 23 / 32 |
 
 Medium and high spend some of the saved draw calls on the glow (about 15
 full-screen passes) and the sky. Triangles go up a little because a batch
 of props is drawn whole when any part of it is in view; draw calls, not
 triangles, were the cost here. All shaders and textures are prepared during
 loading (the warm-up), so the first shot, jump or gun swap no longer stalls.
+The glow pass is lit by the same lights as the picture, so no shader is
+switched or re-picked between the two passes (tests/world-render.html checks
+that a glow frame re-picks none).
