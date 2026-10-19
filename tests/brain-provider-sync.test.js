@@ -1,17 +1,24 @@
 // Pose sync: game logic moving the Leaper between brain moves (a leap).
 //
-// Parity: tests/fixtures/brain/sync-*.json were recorded on the real Python
+// 1. Parity: tests/fixtures/brain/sync-*.json were recorded on the real Python
 //    BrainSession.sync (scripts/make_sync_fixture.py). Replayed through the
 //    JavaScript port with the recorded actions, every move and every sync must
 //    give bit-identical frames, inputs and search coverage, and the refused
 //    sync must be refused with the server's wording and change nothing.
+// 2. The game side: JunkyardBrain.syncPose shows the new spot at once, waits
+//    for a move in flight, reverts if the brain refuses, and works offline.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import * as THREE from 'three';
 import { JunkyardBrainSession, JunkyardBrainCore } from '../src/brain/junkyard/brainSession.js';
 import { loadGlbTriangles } from '../src/brain/junkyard/junkyardSight.js';
 import { createJunkyardWorld } from '../src/brain/junkyard/junkyardWorld.js';
 import { decodeArray, frameDifferences } from '../src/brain/junkyard/fixtureReplay.js';
+import { JunkyardBrain } from '../src/simulation/JunkyardBrain.js';
+import { Encounter } from '../src/game/Encounter.js';
+import { GameFlow } from '../src/core/GameFlow.js';
+import { EventBus } from '../src/core/events.js';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root));
@@ -120,4 +127,145 @@ test('the core checks sync requests like the server does', async () => {
   assert.deepEqual(core.close({ token }), { closed: true });
   assert.deepEqual(core.close({ token }), { closed: false });
   await assert.rejects(core.sync(body), /Session expired/);
+});
+
+// --- The game side: JunkyardBrain.syncPose ------------------------------------------------
+
+function playtest() {
+  return {
+    world: { width: 4 }, walking: true, message: {}, brainLabel: {},
+    target: { mesh: { position: new THREE.Vector3(0, 0, 10) } },
+    simulation: { state: { position: new THREE.Vector3(), yaw: 0 }, updateExternal() {} },
+  };
+}
+const frame = { x: 0, z: 0, yaw: 0, step: 0, model_step: 7757824, policy_sha256: 'h', token: 't' };
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test('syncPose shows the new spot at once and tells the brain before its next move', async () => {
+  globalThis.document = { hidden: false };
+  const brain = new JunkyardBrain(playtest());
+  const calls = [];
+  brain.request = async (path, data) => {
+    calls.push({ path, data });
+    return path === 'sync' ? { ...frame, x: data.position[0], z: data.position[1], yaw: data.yaw, step: 3 } : frame;
+  };
+  await brain.reset();
+  const synced = brain.syncPose({ x: 5, z: -2, yaw: 1 });
+  // Lola's contact and the follow target move with the leap right away.
+  assert.deepEqual([brain.contactPoses().to.x, brain.contactPoses().from.x], [5, 5]);
+  const reply = await synced;
+  assert.deepEqual(calls.map((c) => c.path), ['reset', 'sync']);
+  assert.deepEqual(calls[1].data.position, [5, -2]);
+  assert.equal(calls[1].data.token, 't');
+  assert.deepEqual(calls[1].data.target, [0, 10], 'Lola is sent so the brain looks from the new spot');
+  assert.equal(reply.step, 3);
+  assert.equal(brain.frame, reply);
+});
+
+test('a sync asked for during a move goes right after it, and wins over that move', async () => {
+  globalThis.document = { hidden: false };
+  const brain = new JunkyardBrain(playtest());
+  const calls = [];
+  let finishStep;
+  brain.request = (path, data) => {
+    calls.push(path);
+    if (path === 'step') return new Promise((resolve) => { finishStep = resolve; });
+    if (path === 'sync') return Promise.resolve({ ...frame, x: data.position[0], z: data.position[1], step: 1 });
+    return Promise.resolve(frame);
+  };
+  await brain.reset();
+  brain.start();
+  brain.update(0.1);
+  assert.deepEqual(calls, ['reset', 'step']);
+  const synced = brain.syncPose({ x: 8, z: 1, yaw: 0 });
+  assert.deepEqual(calls, ['reset', 'step'], 'one request at a time');
+  finishStep({ ...frame, x: 0.375, step: 1 });
+  const reply = await synced;
+  assert.deepEqual(calls, ['reset', 'step', 'sync']);
+  assert.equal(reply.x, 8);
+  assert.equal(brain.frame.x, 8, 'the old-spot move is never shown');
+});
+
+test('a refused sync puts the Leaper back at the brain\'s pose; offline it just moves', async () => {
+  globalThis.document = { hidden: false };
+  const brain = new JunkyardBrain(playtest());
+  brain.request = async (path) => {
+    if (path === 'sync') throw new Error('Leaper pose intersects the junkyard; choose a clear spot');
+    return { ...frame, x: 1 };
+  };
+  await brain.reset();
+  await assert.rejects(brain.syncPose({ x: 24, z: 3, yaw: 0 }), /intersects the junkyard/);
+  assert.equal(brain.frame.x, 1);
+  assert.equal(brain.contactPoses().to.x, 1);
+  // Turret mode: no brain session to tell; the planted Leaper moves.
+  brain.request = async () => { throw new Error('Failed to fetch'); };
+  await brain.reset();
+  assert.equal(brain.offline, true);
+  const moved = await brain.syncPose({ x: 6, z: 6, yaw: 2 });
+  assert.deepEqual([moved.x, moved.z, moved.yaw], [6, 6, 2]);
+  assert.equal(brain.contactPoses().to.z, 6);
+});
+
+test('a sync queued while the brain loads is sent once it is ready; dispose rejects a waiting sync', async () => {
+  globalThis.document = { hidden: false };
+  const brain = new JunkyardBrain(playtest());
+  const calls = [];
+  let finishReset;
+  brain.request = (path, data) => {
+    calls.push(path);
+    if (path === 'reset') return new Promise((resolve) => { finishReset = resolve; });
+    return Promise.resolve({ ...frame, x: data.position[0] });
+  };
+  const resetting = brain.reset();
+  const synced = brain.syncPose({ x: 3, z: 0, yaw: 0 });
+  finishReset(frame);
+  await resetting;
+  assert.equal((await synced).x, 3);
+  assert.deepEqual(calls, ['reset', 'sync']);
+  // A sync still waiting when the game shuts the brain down is rejected, not left hanging.
+  let finishStep;
+  brain.request = (path) => (path === 'step' ? new Promise((resolve) => { finishStep = resolve; }) : Promise.resolve(frame));
+  brain.start();
+  brain.update(0.1);
+  const waiting = brain.syncPose({ x: 9, z: 0, yaw: 0 });
+  brain.dispose();
+  await assert.rejects(waiting, /shut down/);
+  finishStep(frame);
+  await tick();
+});
+
+// --- The fight's API for game logic: Encounter.teleportLeaper ------------------------------
+
+function encounterWith(brain) {
+  const events = new EventBus();
+  const encounter = new Encounter({
+    flow: new GameFlow({ events, initial: { name: 'ready' } }), events,
+    world: { spawn: { x: 0, z: 0 }, scale: 1, floorHeight: 0 },
+    player: { isPlayer: false, mesh: { position: new THREE.Vector3(0, 0, 10), rotation: { y: 0 } } },
+    vitals: { dead: false, reset() {}, update() {} }, playerWeapon: { update() {} },
+    playerController: { sample() {}, update() {} }, input: {}, cameraController: {},
+  });
+  const simulation = {
+    state: { position: new THREE.Vector3(), previousVelocity: new THREE.Vector3(), velocity: new THREE.Vector3(),
+      yaw: 0, jumpHeight: 0, verticalVelocity: 0, grounded: true },
+    rig: { legs: [{ homeLocal: new THREE.Vector3(1, 0, 0), footPosition: new THREE.Vector3(), stepping: true }] },
+  };
+  return { encounter, enemy: encounter.addEnemy({ simulation, brain, combat: { leaperHealth: 600, reset() {} } }) };
+}
+
+test('Encounter.teleportLeaper stands the Leaper at the new pose and syncs its brain', async () => {
+  globalThis.document = { hidden: false };
+  const brain = new JunkyardBrain({ ...playtest(), simulation: { state: { position: new THREE.Vector3(), yaw: 0 } } });
+  brain.request = async (path, data) => (path === 'sync'
+    ? { ...frame, x: data.position[0], z: data.position[1], yaw: data.yaw, step: 4 } : frame);
+  await brain.reset();
+  const { encounter, enemy } = encounterWith(brain);
+  const reply = await encounter.teleportLeaper(enemy, { x: 4, z: -3, yaw: 1.2 });
+  assert.equal(reply.step, 4);
+  assert.deepEqual([enemy.simulation.state.position.x, enemy.simulation.state.position.z, enemy.simulation.state.yaw], [4, -3, 1.2]);
+  assert.deepEqual(enemy.simulation.rig.legs[0].stepping, false, 'standing, feet planted');
+  // A refused spot: back to where the brain still has the Leaper.
+  brain.request = async () => { throw new Error('Leaper pose intersects the junkyard; choose a clear spot'); };
+  await assert.rejects(encounter.teleportLeaper(enemy, { x: 24, z: 3, yaw: 0 }), /intersects/);
+  assert.deepEqual([enemy.simulation.state.position.x, enemy.simulation.state.position.z], [4, -3]);
 });
