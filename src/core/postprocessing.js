@@ -10,8 +10,8 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 //   1. the scene is drawn into an off-screen picture, exactly as it would be on
 //      screen (same tone mapping and colours);
 //   2. a "glow buffer" gets a copy of the picture's depth, then only the glowing
-//      things are drawn into it (so walls and bodies still hide glows behind
-//      them, for the cost of a handful of extra draws);
+//      things are drawn into it, under the same lights (so walls and bodies
+//      still hide glows behind them, for the cost of a handful of extra draws);
 //   3. UnrealBloomPass (three.js r128 examples) blurs the glow buffer;
 //   4. picture + blur go to the screen.
 // Medium and high quality on WebGL2 (see Quality.js); otherwise the scene is
@@ -112,6 +112,14 @@ export class GlowRenderer {
   tagGlowing() {
     let glowing = 0;
     this.scene.traverse((object) => {
+      // Lights shine in the glow pass too. Left out, that pass would be lit by
+      // no lights at all, so three.js would switch every lit material's shader
+      // to an unlit variant and back twice a frame (and compile extra ones).
+      // With the same lights, glowing parts draw exactly as in the picture.
+      if (object.isLight) {
+        object.layers.enable(GLOW_LAYER);
+        return;
+      }
       if (!object.material || Array.isArray(object.material)) return;
       if (glows(object.material)) {
         object.layers.enable(GLOW_LAYER);

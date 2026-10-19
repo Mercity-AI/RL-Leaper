@@ -167,6 +167,23 @@ try {
   const after = { programs: renderer.info.programs.length, textures: renderer.info.memory.textures };
   check(warm.textures > 5 && after.programs === before.programs && after.textures === before.textures,
     `after the warm-up a gun swap compiles and uploads nothing new (${before.programs} programs, ${before.textures} textures)`);
+  // A glow frame re-picks no shader program: the glow pass is lit by the same
+  // lights as the picture, so every lit material keeps its program in both
+  // passes. (three.js asks a material for its program key each time it re-picks
+  // one; count those asks over three frames.)
+  let lookups = 0;
+  const watched = new Set();
+  scene.traverse((object) => { if (object.material && !Array.isArray(object.material)) watched.add(object.material); });
+  for (const material of watched) {
+    const own = material.customProgramCacheKey;
+    material.customProgramCacheKey = function () { lookups += 1; return own.call(this); };
+  }
+  engine.render();
+  engine.render();
+  engine.render();
+  for (const material of watched) delete material.customProgramCacheKey;
+  check(engine.glow && rig.materials.glow.userData.glow && lookups === 0,
+    `a glow frame re-picks no shader program (${lookups} look-ups in 3 frames, ${watched.size} materials)`);
 
   // 6. Clean up.
   world.dispose();
