@@ -5,6 +5,7 @@ import { buildCredits } from './CreditsScreen.js';
 import { registerGameSections, settingsScreen } from './SettingsScreen.js';
 import { settings as settingsStore } from './settings.js';
 import { CAPTION_CUES } from './captions.js';
+import { registerAudioSettings } from '../audio/audioSettingsSection.js';
 import { weaponSlots } from '../simulation/PlayerWeapon.js';
 import { touchButtons, wantsTouchControls } from '../input/touch.js';
 import { CONTROLS } from '../input/actions.js';
@@ -86,6 +87,12 @@ export class GameUi {
     });
     this.screens.defineScreen('credits', { title: 'CREDITS', build: (body) => buildCredits(body) });
     registerGameSections(this.settings, { quality: this.quality, playing: () => flow.playing || flow.paused });
+    // Sound: the audio engine's own section (on/off and the volume sliders) replaces
+    // the placeholder; the saved Sound switch starts in step with the engine.
+    if (playtest.audio) {
+      this.offAudioSettings = registerAudioSettings(this.settings, playtest.audio);
+      if (this.settings.get('sound') !== playtest.audio.enabled) this.settings.set('sound', playtest.audio.enabled);
+    }
     // HUD layout: pieces the player may move (EDIT HUD LAYOUT), one layout per form factor.
     this.layout = new HudLayout({
       pieces: Object.entries(MOVABLE_PIECES).map(([name, selector]) => [name, document.querySelector(selector)]),
@@ -253,6 +260,7 @@ export class GameUi {
   dispose() {
     this.offFlow?.();
     this.offSettings?.();
+    this.offAudioSettings?.();
     if (this.editing) this.editLayout(false);
     this.layout?.dispose();
     for (const off of this.offCaptions ?? []) off?.();
