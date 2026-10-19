@@ -35,13 +35,14 @@ body.touch-controls-on .screens-root[data-base="pause"] { bottom: var(--touch-ba
 
 /* ---- Menu items ---- */
 .menu { display: flex; flex-direction: column; gap: var(--gap-s); }
-.menu-item { box-sizing: border-box; display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 48px; padding: var(--gap-m) var(--gap-l); border: 1px solid var(--c-panel-border); border-radius: 8px; background: #ffffff0f; color: var(--c-text); font: 700 var(--font-m)/1.2 var(--font-mono); letter-spacing: 0.2em; text-align: left; cursor: pointer; touch-action: manipulation; }
+.menu-item { box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 2px; width: 100%; min-height: 48px; padding: var(--gap-m) var(--gap-l); border: 1px solid var(--c-panel-border); border-radius: 8px; background: #ffffff0f; color: var(--c-text); font: 700 var(--font-m)/1.2 var(--font-mono); letter-spacing: 0.2em; text-align: left; cursor: pointer; touch-action: manipulation; }
 .menu-item:hover { border-color: var(--c-accent); background: #ff6a3d22; }
 .menu-item:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; border-color: var(--c-focus); background: #ff6a3d33; }
 .menu-item small { color: var(--c-text-dim); font-size: var(--font-s); font-weight: 400; letter-spacing: 0.02em; }
 .menu-primary { border-color: var(--c-accent); background: var(--c-accent-strong); }
 .menu-primary small { color: #ffe4da; }
-.menu-primary:hover { background: #f05a33; }
+.menu-primary:hover,
+.menu-primary:focus-visible { background: #f05a33; }
 .menu-back { align-items: center; text-align: center; }
 
 /* ---- The end screen ---- */

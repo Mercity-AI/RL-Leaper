@@ -78,7 +78,7 @@ test('the end screen summarises the fight: verdict, time, damage, knees and labe
   const loss = endSummary({ winner: 'leaper', practice: true, turret: true, debugUsed: true, seconds: 5 });
   assert.equal(loss.heading, 'DEFEAT');
   assert.deepEqual(loss.tags, ['PRACTICE', 'TURRET', 'DEBUG']);
-  assert.equal(endSummary(null).stats[0].value, '0:00', 'no result yet is shown as zeros');
+  assert.equal(endSummary(null).stats[0].value, '—', 'no time (no result yet, or a practice fight in EXPLORE) is a dash');
   assert.equal(formatTime(3725), '1:02:05');
   assert.equal(formatTime(-3), '0:00');
 });

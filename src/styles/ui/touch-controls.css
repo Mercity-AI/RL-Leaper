@@ -14,7 +14,7 @@ body:not(.touch-play) .touch-look { pointer-events: none; }
 
 /* The band: always on top of the HUD corners, so every button can be pressed. */
 .touch-band { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; box-sizing: border-box; display: flex; justify-content: center; gap: 6px; padding: 6px calc(8px + var(--safe-right, 0px)) calc(6px + var(--safe-bottom, 0px)) calc(8px + var(--safe-left, 0px)); background: linear-gradient(to top, #0b0d10b0, #0b0d1000); touch-action: none; pointer-events: auto; }
-.touch-button { flex: 1 1 0; min-width: 44px; max-width: 76px; height: 52px; padding: 0 2px; border: 1px solid #ffffff4d; border-radius: 10px; background: #15171bf2; color: var(--c-text, #eef3f2); font: 700 var(--font-s, 12px)/1 var(--font-mono, monospace); letter-spacing: .02em; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; pointer-events: auto; cursor: pointer; }
+.touch-button { flex: 1 1 0; min-width: 44px; max-width: 76px; height: 52px; padding: 0 2px; border: 1px solid #ffffff4d; border-radius: 10px; background: #15171bf2; color: var(--c-text, #eef3f2); font: 700 var(--font-s, 12px)/1 var(--font-mono, monospace); letter-spacing: 0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; pointer-events: auto; cursor: pointer; }
 .touch-button.on,
 .touch-button[aria-pressed=true] { border-color: #ff8a6e; background: #ff4a268c; color: #fff; }
 .touch-button[data-disabled=true] { opacity: .4; }

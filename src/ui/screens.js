@@ -115,7 +115,8 @@ export function endSummary(result) {
     line: victory ? 'The Leaper is down.' : 'Lola is down.',
     tags,
     stats: [
-      { label: 'TIME', value: formatTime(result?.seconds) },
+      // (Only a hunt is timed; a practice fight in EXPLORE shows a dash.)
+      { label: 'TIME', value: result?.seconds > 0 ? formatTime(result.seconds) : '—' },
       { label: 'DAMAGE DEALT', value: String(Math.round(result?.damageDealt ?? 0)) },
       { label: 'DAMAGE TAKEN', value: String(Math.round(result?.damageTaken ?? 0)) },
       { label: 'KNEES BROKEN', value: String(result?.jointsBroken ?? 0) },
