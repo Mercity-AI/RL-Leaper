@@ -1,0 +1,126 @@
+{
+ "id": "leaper_7757824",
+ "label": "BRAIN 7,757,824",
+ "num_timesteps": 7757824,
+ "policy_sha256": "883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594",
+ "policy_class": "ResidualLstmPolicy",
+ "recipe": "rl/frozen_7757824",
+ "obs_size": 34,
+ "observation": [
+  "0 target visible now (0/1)",
+  "1 memory age: steps since Lola was last seen / 120, clipped to 1",
+  "2-3 world x/z direction to the last-seen spot (0, 0 before the first sighting)",
+  "4 distance to the last-seen spot / arena diagonal (1 before the first sighting)",
+  "5-6 sin(yaw), cos(yaw)",
+  "7 collided last step (0/1)",
+  "8-9 previous action (throttle, turn) after clipping",
+  "10-25 sixteen 2D rays over 270 degrees: clear distance / 28",
+  "26-27 world x/z direction to the nearest frontier cell of the largest unchecked region",
+  "28 frontier distance / arena diagonal",
+  "29 largest unchecked region size / grid cells",
+  "30 frontier note valid (0/1)",
+  "31-32 last move dx, dz / 0.375 (clipped to [-1, 1])",
+  "33 last turn / 9 degrees (clipped to [-1, 1])"
+ ],
+ "action": {
+  "size": 2,
+  "low": [
+   -1.0,
+   -1.0
+  ],
+  "high": [
+   1.0,
+   1.0
+  ],
+  "throttle": "signed reverse: physical throttle = action[0]; negative backs up; |1| moves 0.375 units per step",
+  "turn": "yaw += action[1] * 9 degrees per step",
+  "clipped_in_graph": true
+ },
+ "lstm": {
+  "layers": 1,
+  "hidden_size": 64,
+  "state_shape": [
+   1,
+   1,
+   64
+  ],
+  "episode_start": "feed zeros on the very first step of a session (SB3 multiplies the incoming memory by 1 - episode_start); carry h_out/c_out afterwards"
+ },
+ "onnx": {
+  "file": "actor.onnx",
+  "sha256": "7d8324ae7e19775228960f28c487497bddc790a103d40c134314ab005d098d82",
+  "bytes": 147639,
+  "opset": 17,
+  "inputs": {
+   "obs": [
+    1,
+    34
+   ],
+   "h": [
+    1,
+    1,
+    64
+   ],
+   "c": [
+    1,
+    1,
+    64
+   ]
+  },
+  "outputs": {
+   "action": [
+    1,
+    2
+   ],
+   "h_out": [
+    1,
+    1,
+    64
+   ],
+   "c_out": [
+    1,
+    1,
+    64
+   ]
+  }
+ },
+ "physics": {
+  "move_speed": 0.375,
+  "turn_speed_degrees": 9.0,
+  "ray_count": 16,
+  "ray_range": 28.0,
+  "vision_fov_degrees": 270.0,
+  "target_radius": 1.4,
+  "memory_steps": 120,
+  "coverage_cell": 3.0,
+  "body_diameter_for_scale": 7.98
+ },
+ "contact_version": 3,
+ "sight_version": "eye-vision-v1",
+ "parity": {
+  "junkyard_steps": 1200,
+  "torch_action": 0.0,
+  "onnx_action": 1.02e-06,
+  "onnx_state": 9.54e-07
+ },
+ "versions": {
+  "torch": "2.14.1+cu130",
+  "stable_baselines3": "2.9.0",
+  "sb3_contrib": "2.9.0",
+  "numpy": "2.5.4",
+  "onnxruntime": "1.31.0",
+  "python": "3.13.16"
+ },
+ "rasters": {
+  "5.5": {
+   "file": "raster-5.5.bin",
+   "shape": [
+    486,
+    455
+   ],
+   "solid": 48684,
+   "raster_sha256": "5c00ab22b50275dd2f60983313f4cd88aa71984d947a46df825d93ea41d323b5",
+   "collision_sha256": "8ae92dd855544fdf5a4e6f869daf613d97a70dbc6200de2f5de84eb56bad2d61"
+  }
+ }
+}
