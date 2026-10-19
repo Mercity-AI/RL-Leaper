@@ -442,6 +442,19 @@ try {
   p.pov.toggle(); p.playerWeapon.update(0);
   check(!target.aimHeld && !cameraController.aiming, 'spectator entry clears player aiming');
   p.pov.toggle(); release(2); frame(0);
+  // A pause while aiming steeply up: the gun lets go of the aim, and the chase
+  // camera must come back inside its own limits instead of staying at the aim's
+  // pitch (which puts the boom under the floor, looking up at Lola).
+  const savedLook = { yaw: cameraController.yaw, pitch: cameraController.pitch };
+  canvas.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+  frame(0);
+  cameraController.lookBy(0, -10);
+  const steepAim = cameraController.pitch;
+  p.paused = true; frame(0);
+  check(steepAim < CAMERA.chasePitch.low && !cameraController.aiming
+    && cameraController.pitch >= CAMERA.chasePitch.low && cameraController.pitch <= CAMERA.chasePitch.high,
+  `a pause during a steep aim brings the chase camera back inside its limits (${steepAim.toFixed(2)} -> ${cameraController.pitch.toFixed(2)})`);
+  p.paused = false; release(2); frame(0); Object.assign(cameraController, savedLook, { viewPitchOffset: 0 });
   engine.camera.position.copy(savedCameraPosition); engine.camera.quaternion.copy(savedCameraRotation); engine.camera.updateMatrixWorld(true);
   p.playerWeapon.reset(); combat.leaperHealth = p.playerWeapon.weapon.damage;
   p.playerWeapon.fire();
@@ -452,6 +465,9 @@ try {
   // tracer, sparks and shake; the aim lets go; Lola is free to walk afterwards.
   p.vitals.reset(); combat.reset(); p.playerWeapon.reset(); p.walking = true; target.cancelShot();
   target.weaponIndex = 0; target.showWeapon();
+  // (The first kill's shake and recoil are dropped before the aim view is placed,
+  // so this shot's aim doesn't depend on where that wobble happened to be.)
+  cameraController.resetEffects();
   pointAimAt(center); p.playerWeapon.setAiming(true); p.playerWeapon.update(1 / 60);
   combat.leaperHealth = 2; cameraController.shakeStrength = 0;
   check(p.playerWeapon.fire() && combat.dead, 'an aimed shot can be the kill shot');

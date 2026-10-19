@@ -221,6 +221,28 @@ test('leaving a steep aim keeps the crosshair on the point, then eases into the 
   assert.equal(controller.viewPitchOffset, 0, 'eased back within a second');
 });
 
+// The aim can end without aimChaseAt: a pause, the fight ending or LEAPER POV take
+// the gun away while it is up. The chase boom must still come back inside its own
+// limits (a boom at the aim's -1 rad sits under the floor, looking up at Lola).
+test('an aim that ends on its own never leaves the chase boom outside its limits', () => {
+  for (const steep of [-10, 10]) {
+    const { controller, camera, eye } = aimHarness();
+    controller.setAiming(true);
+    controller.lookBy(0, steep);
+    const aimPitch = controller.pitch;
+    assert.equal(Math.abs(aimPitch), 1, 'the aim looked as far as it may');
+    controller.setAiming(false);
+    assert.ok(controller.pitch >= CAMERA.chasePitch.low && controller.pitch <= CAMERA.chasePitch.high,
+      `the boom is back inside the chase limits (${controller.pitch})`);
+    assert.ok(Math.abs(controller.pitch + controller.viewPitchOffset - aimPitch) < 1e-9,
+      'the view first keeps looking where the aim did (no snap)');
+    controller.update(null, null, 0);
+    assert.ok(camera.position.y > eye.y - 1.7, 'the camera is not under the floor');
+    for (let i = 0; i < 60; i += 1) controller.update(null, null, 1 / 60);
+    assert.equal(controller.viewPitchOffset, 0, 'and eases into the chase limits within a second');
+  }
+});
+
 test('recoil kicks the view up and settles back', () => {
   const { controller, camera } = aimHarness();
   controller.update(null, null, 1 / 60);

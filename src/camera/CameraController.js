@@ -373,7 +373,17 @@ export class CameraController {
     active = Boolean(active);
     if (active === this.aiming) return;
     this.aiming = active;
-    if (active) this.viewPitchOffset = 0;
+    if (active) {
+      this.viewPitchOffset = 0;
+      return;
+    }
+    // Leaving the aim: the aim may have looked much further up or down than the
+    // chase boom may go. Bring the boom back inside its limits and let the view
+    // ease the rest of the way, so the camera never ends up under the floor when
+    // the aim ends without aimChaseAt (a pause, the fight ending, LEAPER POV).
+    const limited = this.limitPitch(this.pitch);
+    this.viewPitchOffset = this.pitch - limited;
+    this.pitch = limited;
   }
 
   // ---- The per-frame view ----
