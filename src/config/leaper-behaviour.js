@@ -103,6 +103,14 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     onWeakPoint: true,
   }),
 
+  // ---- Walking with legs lost ----
+  crippled: Object.freeze({
+    // The body leans toward the side that lost legs, this many radians per
+    // missing leg's sideways reach, never more than maxLean.
+    leanPerLeg: 0.05,
+    maxLean: 0.12,
+  }),
+
   // ---- Downed: too many legs lost (COMBAT.legs.maxLost) ----
   downed: Object.freeze({
     // The body sinks to the floor over sinkTime and rests at restHeight

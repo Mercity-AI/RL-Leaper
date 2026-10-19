@@ -278,3 +278,22 @@ test('reset(): dormant, standing, normal damage and lights', () => {
   assert.equal(combat.dyingGlow, undefined);
   assert.equal(rig.materials.glowSoft.emissiveIntensity, 1);
 });
+
+test('legs lost on one side make the body lean that way (the side that lost them goes down)', () => {
+  for (const [legs, sign] of [[[0, 2], 1], [[1, 3], -1], [[0, 1], 0]]) {
+    const { actor, frames, rig, simulation } = setup();
+    for (const i of legs) rig.legs[i].disabled = true;
+    frames(1);
+    const roll = actor.posture.roll;
+    if (sign === 0) assert.ok(Math.abs(roll) < 1e-9, 'a front pair lost: no sideways lean');
+    else assert.ok(Math.sign(roll) === sign && Math.abs(roll) <= B.crippled.maxLean + 1e-9, `legs ${legs}: roll ${roll.toFixed(3)}`);
+    // Which side is lower: the hips of the lost legs.
+    if (sign !== 0) {
+      rig.robot.updateMatrixWorld(true);
+      const hip = (i) => rig.robot.localToWorld(rig.legs[i].anchorLocal.clone()).y;
+      const lost = legs.map(hip), kept = rig.legs.filter((l) => !l.disabled && Math.sign(l.out.x) !== Math.sign(rig.legs[legs[0]].out.x)).map((l) => hip(l.index));
+      assert.ok(Math.max(...lost) < Math.min(...kept), 'the missing legs\' side sags');
+    }
+    assert.ok(simulation.state.posture.roll === actor.posture.roll);
+  }
+});

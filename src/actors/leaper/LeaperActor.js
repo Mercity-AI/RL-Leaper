@@ -255,6 +255,8 @@ export class LeaperActor {
     const { state, phase, phaseTime: t, stateTime } = this.director;
     const c = this.config;
     const target = { ...STANDING };
+    // Legs lost: it leans toward the side that lost them (every state below may add to it).
+    target.roll = this.lean();
     if (state === 'stomp') {
       // Crouch for the stamp, then spring back up.
       const crouch = phase === 'windup' ? ease(t / c.stomp.windup) : 1 - ease(t / c.stomp.recovery);
@@ -274,7 +276,7 @@ export class LeaperActor {
       const drop = STANDING_HEIGHT - c.downed.restHeight;
       const down = phase === 'falling' ? ease(t / c.downed.sinkTime) : phase === 'rising' ? 1 - ease(t / c.downed.getUpTime) : 1;
       target.lower = drop * down;
-      target.roll = this.rollSide() * 0.12 * down;
+      target.roll += (this.rollSide() * 0.12 - target.roll) * down;
       target.splay = c.downed.splay * down;
       target.planted = true;
       target.slide = 4;
@@ -282,7 +284,7 @@ export class LeaperActor {
       // The collapse: eases to the floor, rolls toward its missing legs, legs splay.
       const u = state === 'dead' ? 1 : ease(stateTime / c.dying.time);
       target.lower = (STANDING_HEIGHT - c.dying.restHeight) * u;
-      target.roll = this.rollSide() * c.dying.roll * u;
+      target.roll += (this.rollSide() * c.dying.roll - target.roll) * u;
       target.pitch = 0.1 * u;
       target.splay = c.dying.splay * u;
       target.planted = true;
@@ -302,8 +304,18 @@ export class LeaperActor {
 
   // +1 or -1: which way to roll so the side with missing legs goes down.
   rollSide() {
-    const lateral = this.simulation.rig.legs.filter((leg) => leg.disabled).reduce((sum, leg) => sum + leg.out.x, 0);
-    return lateral > 0 ? -1 : 1;
+    return this.lateralLoss() > 0 ? -1 : 1;
+  }
+
+  // How far the missing legs reach sideways (the legs' local x, + = right).
+  lateralLoss() {
+    return this.simulation.rig.legs.filter((leg) => leg.disabled).reduce((sum, leg) => sum + leg.out.x, 0);
+  }
+
+  // The crippled lean: the side with missing legs sags (radians of roll).
+  lean() {
+    const c = this.config.crippled;
+    return -Math.max(-c.maxLean, Math.min(c.maxLean, this.lateralLoss() * c.leanPerLeg));
   }
 
   // ---- Glow: the eye and leg lights fade out as it dies ----
