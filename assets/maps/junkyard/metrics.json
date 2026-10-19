@@ -1,0 +1,73 @@
+{
+  "about": "Junkyard level metrics, baked by scripts/assets/bake-junkyard-metrics.mjs from collision.json and checked by tests/world-map-metrics.test.js. Cells are 0.4 map units; the Leaper is the overlay's conservative single circle of the clearance width, not the brain's 19-disc body.",
+  "collisionSha256": "8ae92dd855544fdf5a4e6f869daf613d97a70dbc6200de2f5de84eb56bad2d61",
+  "startWidth": 5.5,
+  "maxWorkableWidth": 6.5,
+  "atStartWidth": {
+    "width": 5.5,
+    "cells": 13908,
+    "freeCells": 766,
+    "freeShareOfArena": 0.0551,
+    "regions": 19,
+    "largestRegionCells": 247,
+    "spawnRegionCells": 189,
+    "reachableShareOfFree": 0.2467,
+    "reachableShareOfArena": 0.0136,
+    "spawnableCells": 511,
+    "randomStartPossible": true
+  },
+  "byWidth": [
+    {
+      "width": 2.4,
+      "cells": 13908,
+      "freeCells": 4849,
+      "freeShareOfArena": 0.3486,
+      "regions": 10,
+      "largestRegionCells": 3928,
+      "spawnRegionCells": 3928,
+      "reachableShareOfFree": 0.8101,
+      "reachableShareOfArena": 0.2824,
+      "spawnableCells": 3990,
+      "randomStartPossible": true
+    },
+    {
+      "width": 4,
+      "cells": 13908,
+      "freeCells": 2116,
+      "freeShareOfArena": 0.1521,
+      "regions": 21,
+      "largestRegionCells": 1104,
+      "spawnRegionCells": 462,
+      "reachableShareOfFree": 0.2183,
+      "reachableShareOfArena": 0.0332,
+      "spawnableCells": 1628,
+      "randomStartPossible": true
+    },
+    {
+      "width": 5.5,
+      "cells": 13908,
+      "freeCells": 766,
+      "freeShareOfArena": 0.0551,
+      "regions": 19,
+      "largestRegionCells": 247,
+      "spawnRegionCells": 189,
+      "reachableShareOfFree": 0.2467,
+      "reachableShareOfArena": 0.0136,
+      "spawnableCells": 511,
+      "randomStartPossible": true
+    },
+    {
+      "width": 6.5,
+      "cells": 13908,
+      "freeCells": 289,
+      "freeShareOfArena": 0.0208,
+      "regions": 15,
+      "largestRegionCells": 102,
+      "spawnRegionCells": 102,
+      "reachableShareOfFree": 0.3529,
+      "reachableShareOfArena": 0.0073,
+      "spawnableCells": 157,
+      "randomStartPossible": true
+    }
+  ]
+}

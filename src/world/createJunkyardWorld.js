@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { ENCOUNTER } from '../config/encounter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { BODY_COLLISION_RADIUS, STANDING_HEIGHT } from '../config/robot.js';
-import { JunkyardNavigation } from './JunkyardNavigation.js';
+import { buildJunkyardCollision, junkyardScale, WIDTH_LIMITS } from './junkyardCollision.js';
+import metrics from '../../assets/maps/junkyard/metrics.json' with { type: 'json' };
 import { disposeObject3D } from '../core/disposeObject3D.js';
 import { accelerateStaticMeshes, releaseStaticMeshes } from './raycastAcceleration.js';
 
@@ -19,17 +19,16 @@ export async function createJunkyardWorld(scene) {
   const defaultWidth = 2.4 * ENCOUNTER.leaperSize;
   // Size used: the page address, else the last applied size, else the owner's chosen start size.
   const requestedWidth = Number(new URLSearchParams(location.search).get('width') || savedWidth() || ENCOUNTER.startWidth);
-  const width = Number.isFinite(requestedWidth) ? Math.max(1.2, Math.min(8, requestedWidth)) : defaultWidth;
+  const width = Number.isFinite(requestedWidth) ? Math.max(WIDTH_LIMITS.min, Math.min(WIDTH_LIMITS.max, requestedWidth)) : defaultWidth;
   // Keep the existing rig/gait intact; scale the imported map relative to it.
-  const scale = BODY_COLLISION_RADIUS * 2 / width;
+  const scale = junkyardScale(width);
   const [gltf, response] = await Promise.all([
     new GLTFLoader().loadAsync(new URL('../../assets/maps/junkyard/junkyard.glb', import.meta.url).href),
     fetch(new URL('../../assets/maps/junkyard/collision.json', import.meta.url)),
   ]);
   if (!response.ok) throw new Error('The junkyard collision export could not be loaded.');
-  const data = await response.json();
-  const navigation = new JunkyardNavigation(data, width / 2, (STANDING_HEIGHT + 1.5) / scale);
-  const playerNavigation = new JunkyardNavigation(data, 0.25, 1.9 * ENCOUNTER.lolaHeight);
+  // The Leaper's grid (with its connected regions and safe spawn cells) and Lola's.
+  const { navigation, playerNavigation } = buildJunkyardCollision(await response.json(), width);
   const spawnIndex = navigation.nearest({ x: 0, z: 0 });
   if (spawnIndex < 0) throw new Error('No open starting position at this robot size.');
   const spawn = navigation.point(spawnIndex);
@@ -64,6 +63,9 @@ export async function createJunkyardWorld(scene) {
   return {
     dispose,
     colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene,
+    // The largest Leaper size at which RESTART RANDOM still works (the size
+    // slider's maximum), baked by scripts/assets/bake-junkyard-metrics.mjs.
+    maxWidth: metrics.maxWorkableWidth ?? WIDTH_LIMITS.max,
     floorHeight,
     spawn: { x: spawn.x * scale, z: spawn.z * scale },
     initialTarget: { x: goal.x * scale, z: goal.z * scale },
