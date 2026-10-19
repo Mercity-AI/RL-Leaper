@@ -65,8 +65,11 @@ test('the Leaper\'s footsteps are placed at its feet, Lola\'s are not', async ()
   const lola = audio.step('walk');
   assert.equal(lola.panner, null);
   assert.equal(audio.step('run').source.started[2], 0.2, 'sprint: shorter cut of the walk recording');
-  // Old callers that pass a volume instead of a position still work.
+  // Old callers that pass a volume instead of a position still work...
   assert.ok(Math.abs(audio.step('robot', false, 0.5).amp.gain.peak - 0.45 * 0.5) < 1e-9);
+  // ...and once the Leaper's body is known, its steps without a position play there.
+  audio.setEmitter('leaper', at(7, 0, -2));
+  assert.deepEqual(position(audio.step('robot').panner), [7, 0, -2]);
 });
 
 test('mute is the remembered setting, and the toolbar switch drives it', async () => {

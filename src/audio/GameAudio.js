@@ -32,7 +32,7 @@ const FOOTSTEPS = Object.freeze({
 // Buttons that click when pressed (touch gameplay buttons and anything marked
 // data-silent stay quiet).
 const CLICKABLE = 'button, [role=button], summary, select';
-const SILENT = '.touch-controls, [data-silent]';
+const SILENT = '.touch-controls, #touch, [data-silent]';
 
 // A plain { x, y, z } copy of a position (THREE.Vector3 or anything alike), or null.
 const point = (at) => (at ? { x: at.x, y: at.y, z: at.z } : null);
@@ -139,15 +139,15 @@ export class GameAudio {
 
   // One footstep. kind: 'walk' (also crouching), 'run' (sprinting: the walk
   // recording, shorter steps) or 'robot' (the Leaper). volume: 0-1 extra
-  // factor; at: where the foot is (the Leaper's steps are placed in 3D, Lola's
-  // own stay close and centred).
+  // factor; at: where the foot is (the Leaper's steps are placed in 3D, at its
+  // body when no position is given; Lola's own stay close and centred).
   step(kind, crouched = false, volume = 1, at = null) {
     // Sprinting reuses the normal footstep recording; the faster foot contacts
     // already speed it up. Only each step is cut shorter so steps don't overlap.
     const sprinting = kind === 'run';
     if (sprinting) kind = 'walk';
-    const service = this.service, context = service.context;
-    const buffer = service.buffers.get(service.sound(kind)?.variations[0]?.name);
+    const service = this.service, context = service.context, sound = service.sound(kind);
+    const buffer = service.buffers.get(sound?.variations[0]?.name);
     const page = globalThis.document;
     if (service.muted || page?.hidden || page?.hasFocus?.() === false || context?.state !== 'running' || !buffer) return null;
     const peaks = FOOTSTEPS[kind];
@@ -162,7 +162,9 @@ export class GameAudio {
     while (start < end && Math.abs(samples[start]) < maximum * 0.12) start++;
     const duration = kind === 'robot' ? 0.48 : sprinting ? 0.2 : 0.3;
     const gain = (crouched ? 0.45 : 1) * Math.max(0, Math.min(1, volume));
-    return service.play(kind, { buffer, offset: start / rate, duration, fadeIn: 0.003, fadeOut: 0.04, gain, at: point(at) });
+    // Without a position, a step with an emitter (the Leaper's) plays at it.
+    const position = point(at) ?? (sound.emitter ? this.emitterPosition(sound.emitter) : null);
+    return service.play(kind, { buffer, offset: start / rate, duration, fadeIn: 0.003, fadeOut: 0.04, gain, at: position });
   }
 
   // ---- Background and interface ----
