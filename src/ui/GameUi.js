@@ -2,6 +2,9 @@ import { Hud } from './Hud.js';
 import { GameScreens } from './GameScreens.js';
 import { ControlsLegend } from './ControlsLegend.js';
 import { buildCredits } from './CreditsScreen.js';
+import { registerGameSections, settingsScreen } from './SettingsScreen.js';
+import { settings as settingsStore } from './settings.js';
+import { CAPTION_CUES } from './captions.js';
 import { weaponSlots } from '../simulation/PlayerWeapon.js';
 import { touchButtons, wantsTouchControls } from '../input/touch.js';
 import { CONTROLS } from '../input/actions.js';
@@ -19,11 +22,16 @@ import { CAMERA } from '../config/camera.js';
 
 export class GameUi {
   // input: the game's InputController. cameraController: the chase camera (look
-  // speed for touch drags, mouse capture). flow: the GameFlow.
-  constructor({ input, cameraController, flow }) {
+  // speed for touch drags, mouse capture). flow: the GameFlow. events: the
+  // game's event bus (captions). quality: the graphics preset in use.
+  // settings: the player's settings store (src/ui/settings.js).
+  constructor({ input, cameraController, flow, events = null, quality = 'high', settings = settingsStore }) {
     this.inputController = input;
     this.cameraController = cameraController;
     this.flow = flow;
+    this.events = events;
+    this.quality = quality;
+    this.settings = settings;
     // 1. The HUD shell, with the touch band (phones and tablets) pressing the
     //    same input actions as the keys, mouse buttons and gamepad.
     const look = CAMERA.look;
@@ -37,7 +45,7 @@ export class GameUi {
       } : null,
     });
     // 2. The frame's HUD data, refilled in place (no per-frame garbage).
-    this.snapshot = { flow: flow.state.name, menu: false, vitals: null, weapon: null, leapers: [] };
+    this.snapshot = { flow: flow.state.name, menu: false, vitals: null, weapon: null, leapers: [], dt: 0 };
     this.playtest = null;
     this.screens = null;
     // The play mode last used (RESTART after the end screen repeats it).
@@ -67,6 +75,13 @@ export class GameUi {
       }),
     });
     this.screens.defineScreen('credits', { title: 'CREDITS', build: (body) => buildCredits(body) });
+    registerGameSections(this.settings, { quality: this.quality, playing: () => flow.playing || flow.paused });
+    this.screens.defineScreen('settings', { title: 'SETTINGS', ...settingsScreen(this.settings) });
+    // The player's settings apply now and whenever one changes.
+    this.applySettings();
+    this.offSettings = this.settings.onChange((key, value) => this.applySetting(key, value));
+    // Captions for sound cues follow the game's events (shown only when switched on).
+    this.offCaptions = Object.entries(CAPTION_CUES).map(([event, text]) => this.events?.on(event, () => hud.caption(text)));
     // 3. Menus take the controls while they are open, and follow the game state.
     input.setUiCapture?.(() => this.screens.open);
     this.offFlow = flow.onChange((next) => {
@@ -89,6 +104,28 @@ export class GameUi {
     hud.adopt('centre', playtest.pov?.reticle);
     hud.adopt('bottom-left', document.getElementById('joyBase'));
     hud.adopt('bottom-right', document.getElementById('btnSprint'));
+  }
+
+  // ---- Settings ----
+
+  // Every setting, as saved. (Sound only switches off here: a session carried
+  // over a reload may already have switched it.)
+  applySettings() {
+    for (const [key, value] of Object.entries(this.settings.values)) {
+      if (key !== 'sound' || !value) this.applySetting(key, value);
+    }
+  }
+
+  // One setting: the camera's look speed, up/down and field of view, the text
+  // size, captions, and the game's sound.
+  applySetting(key, value) {
+    const camera = this.cameraController;
+    if (key === 'sensitivity') camera.lookSensitivity = value;
+    else if (key === 'invertY') camera.invertY = value;
+    else if (key === 'fov') camera.chaseFov = value;
+    else if (key === 'textSize') document.documentElement.dataset.textSize = value;
+    else if (key === 'captions') this.hud.setCaptions(value);
+    else if (key === 'sound' && this.playtest && this.playtest.audio.enabled !== value) this.playtest.toggleSound();
   }
 
   // What each menu item does, through the game's own actions.
@@ -122,10 +159,11 @@ export class GameUi {
 
   // Late phase: the HUD redraws from this frame's numbers and the title its notice
   // (only what changed reaches the page).
-  lateUpdate() {
+  lateUpdate(dt = 0) {
     const { playtest, snapshot, flow } = this;
     const { encounter } = playtest;
     snapshot.flow = flow.state.name;
+    snapshot.dt = flow.paused ? 0 : dt;
     snapshot.menu = Boolean(this.screens?.open);
     snapshot.vitals = playtest.vitals.view({ over: encounter.over });
     snapshot.weapon = playtest.playerWeapon.hudState;
@@ -142,6 +180,8 @@ export class GameUi {
   // The session is over: menus and HUD leave the page, the input forgets the menus.
   dispose() {
     this.offFlow?.();
+    this.offSettings?.();
+    for (const off of this.offCaptions ?? []) off?.();
     this.inputController.setUiCapture?.(null);
     this.screens?.dispose();
     this.hud.dispose();

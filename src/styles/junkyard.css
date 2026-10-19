@@ -37,7 +37,8 @@ body.mouse-look:not(.touch-play) .hud-region * { pointer-events: none !important
 
 /* Corner regions. On touch screens the bottom corners sit above the touch band. */
 .hud-region[data-region="top-left"] { top: var(--hud-edge-top); left: var(--hud-edge-left); flex-direction: column; align-items: flex-start; max-width: min(320px, calc(50vw - var(--gap-xl))); }
-.hud-region[data-region="top-centre"] { top: var(--hud-edge-top); left: 0; right: 0; justify-content: center; }
+.hud-region[data-region="top-centre"] { top: var(--hud-edge-top); left: 0; right: 0; flex-direction: column; align-items: center; }
+.hud-region[data-region="top-centre"] > * { max-width: calc(100vw - 2 * var(--gap-xl)); }
 .hud-region[data-region="top-right"] { top: var(--hud-edge-top); right: var(--hud-edge-right); flex-direction: row-reverse; align-items: flex-start; }
 .hud-region[data-region="bottom-left"] { bottom: var(--hud-edge-bottom); left: var(--hud-edge-left); flex-direction: column-reverse; align-items: flex-start; }
 .hud-region[data-region="bottom-right"] { bottom: var(--hud-edge-bottom); right: var(--hud-edge-right); flex-direction: column-reverse; align-items: flex-end; }
@@ -64,6 +65,11 @@ body.dev-tools #leaperHealthHud [data-attack] { display: block; }
 
 /* ---- Top centre: the TOP view hint ---- */
 .junkyard-mode #topViewHint { position: static; transform: none; padding: var(--gap-xs) var(--gap-m); border: 1px solid var(--c-panel-border); border-radius: 4px; background: var(--c-panel); color: var(--c-text-dim); font-size: var(--font-s); backdrop-filter: none; }
+
+/* Captions for sound cues (Settings > Accessibility), under the hint. */
+.hud-captions { display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; }
+.hud-captions[hidden] { display: none; }
+.hud-captions p { margin: 0; padding: 2px var(--gap-s); border-radius: 4px; background: #000000b3; color: #fff; font-size: var(--font-m); }
 
 /* ---- Top right: VIEW (and the dev toggle, added by the developer panel) ---- */
 .junkyard-mode #cameraToggle { position: static; min-height: 36px; padding: var(--gap-s) var(--gap-m); border: 1px solid var(--c-panel-border); border-radius: 6px; background: var(--c-panel); color: var(--c-text); font: 700 var(--font-s)/1 var(--font-mono); letter-spacing: 0.15em; backdrop-filter: none; }

@@ -113,7 +113,7 @@ export async function start({ engine, params }) {
   //    weapons and the junkyard panel together and resets the encounter
   //    (Loading -> Ready). The brain owns the provider; the HUD draws Lola's
   //    health and the guns. Then the menus (the title shows in Ready).
-  const ui = new GameUi({ input, cameraController, flow });
+  const ui = new GameUi({ input, cameraController, flow, events, quality: engine.quality.name });
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal,
     brainProvider, hud: ui.hud });
   ui.attach(playtest);

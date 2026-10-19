@@ -217,20 +217,31 @@ export class GameScreens {
     this.actions[id]?.();
   }
 
-  // BACK: close the sub-screen on top; at the pause menu, resume the game.
+  // BACK: close the sub-screen on top (focus returns to the item that opened
+  // it); at the pause menu, resume the game.
   back() {
+    const closing = this.current;
     if (this.stack.back()) {
       this.show();
+      this.currentElement()?.querySelector(`[data-menu-item="${closing}"]`)?.focus({ preventScroll: true });
       return;
     }
     if (this.current === 'pause') this.actions.resume?.();
   }
 
-  // Keyboard: Tab stays inside the open screen; Escape works from a slider or list too.
+  // Keyboard: Tab stays inside the open screen. On a slider, list or tick box
+  // (which the game's input leaves alone) the keys work as everywhere else in the
+  // menus: up / down move between rows, left / right change the value, Escape
+  // goes back. (A slider keeps the browser's own left / right.)
   onKeyDown(event) {
-    if (event.key === 'Escape' && editable(event.target)) {
+    if (editable(event.target)) {
+      const step = { ArrowUp: -1, ArrowDown: 1 }[event.key];
+      const change = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+      if (event.key === 'Escape') this.back();
+      else if (step) this.move(step);
+      else if (change && event.target.type !== 'range') this.adjust(change);
+      else return;
       event.preventDefault();
-      this.back();
       return;
     }
     if (event.key !== 'Tab') return;

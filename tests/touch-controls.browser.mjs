@@ -189,7 +189,8 @@ export default async function touchControls(page, { baseUrl, check }) {
   await until(page, (s) => s.flow === 'paused');
   await tap('[data-menu-item=quit]');
   await until(page, (s) => s.flow === 'ready');
-  check(await page.locator('[data-menu-item=play]').isVisible() && !(await page.locator('.touch-band').isVisible()),
-    'QUIT TO TITLE by touch shows the title again, without the touch band');
+  // (The HUD redraws on the next game frame.)
+  await page.locator('.touch-band').waitFor({ state: 'hidden', timeout: 120000 });
+  check(await page.locator('[data-menu-item=play]').isVisible(), 'QUIT TO TITLE by touch shows the title again, without the touch band');
   return 'Touch controls';
 }

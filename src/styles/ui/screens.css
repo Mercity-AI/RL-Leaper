@@ -6,7 +6,7 @@
 .screens-root { position: fixed; inset: 0; z-index: var(--z-overlay); box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding: var(--hud-edge-top) var(--hud-edge-right) var(--hud-edge-bottom) var(--hud-edge-left); background: var(--c-veil); color: var(--c-text); font: var(--font-m)/1.45 var(--font-mono); -webkit-user-select: none; user-select: none; }
 .screens-root[hidden] { display: none; }
 /* The title shows the junkyard behind it, darker at the edges. */
-.screens-root[data-base="title"] { justify-content: flex-start; background: linear-gradient(90deg, #0b0d10f2 0%, #0b0d10c0 45%, #0b0d1033 100%); }
+.screens-root[data-screen="title"] { justify-content: flex-start; background: linear-gradient(90deg, #0b0d10f2 0%, #0b0d10c0 45%, #0b0d1033 100%); }
 /* While paused on a touch screen, the touch band (with RESUME) stays usable. */
 body.touch-controls-on .screens-root[data-base="pause"] { bottom: var(--touch-band); }
 
@@ -67,6 +67,25 @@ body.touch-controls-on .screens-root[data-base="pause"] { bottom: var(--touch-ba
 .controls-legend thead th { color: var(--c-text-dim); font-weight: 400; letter-spacing: 0.08em; }
 .controls-legend tbody th { color: var(--c-text); font-weight: 700; }
 .controls-legend td { color: #dfe6e7; }
+
+/* ---- Settings ---- */
+.settings { display: flex; flex-direction: column; gap: var(--gap-l); }
+.settings-section { display: flex; flex-direction: column; gap: var(--gap-s); }
+.settings-section h3 { margin: 0; color: var(--c-accent); font-size: var(--font-s); letter-spacing: 0.2em; }
+.setting { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 1.2fr) auto; align-items: center; gap: var(--gap-m); min-height: 40px; }
+.setting label { font-size: var(--font-s); }
+.setting input[type="range"] { width: 100%; accent-color: var(--c-accent); }
+.setting input[type="checkbox"] { justify-self: start; width: 22px; height: 22px; accent-color: var(--c-accent); }
+.setting select { min-height: 36px; padding: 0 var(--gap-s); border: 1px solid var(--c-panel-border); border-radius: 6px; background: var(--c-panel-solid); color: var(--c-text); font: var(--font-s) var(--font-mono); }
+.setting output { min-width: 4ch; color: var(--c-text-dim); font-size: var(--font-s); text-align: right; }
+.setting-button { align-self: flex-start; min-height: 40px; padding: var(--gap-s) var(--gap-m); border: 1px solid var(--c-panel-border); border-radius: 6px; background: #ffffff14; color: var(--c-text); font: 700 var(--font-s) var(--font-mono); letter-spacing: 0.12em; cursor: pointer; }
+.setting-button:hover { border-color: var(--c-accent); }
+.setting-note { margin: 0; color: var(--c-text-dim); font-size: var(--font-s); }
+@media (max-width: 520px) {
+  .setting { grid-template-columns: minmax(0, 1fr) auto; }
+  .setting input[type="range"],
+  .setting select { grid-column: 1 / -1; grid-row: 2; }
+}
 
 /* ---- Credits ---- */
 .credits-section h3 { margin: 0 0 var(--gap-xs); color: var(--c-accent); font-size: var(--font-s); letter-spacing: 0.2em; }

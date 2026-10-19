@@ -2,6 +2,7 @@ import { VitalsView } from './VitalsView.js';
 import { ReticleView } from './ReticleView.js';
 import { WeaponHudView } from './WeaponHudView.js';
 import { TouchControls } from './TouchControls.js';
+import { CaptionsView } from './captions.js';
 import { passivePresenter } from '../game/PlayerVitals.js';
 
 // The game's HUD shell (finding ui-audio-dom-scattered-in-gameplay): the one
@@ -16,7 +17,7 @@ import { passivePresenter } from '../game/PlayerVitals.js';
 //   top-left      the Leaper: its name plate, and the Leaper HUD view (mount point
 //                 for src/ui/LeaperHudView.js: hud.addView('leaper', view,
 //                 { region: 'top-left', select: (s) => s.leapers }))
-//   top-centre    hints (the TOP view hint)
+//   top-centre    hints (the TOP view hint) and captions for sound cues
 //   top-right     VIEW and the developer toggle
 //   bottom-left   Lola's health (and the touch joystick on phones)
 //   bottom-right  her guns (and SPRINT on phones)
@@ -31,6 +32,7 @@ export const HUD_REGIONS = Object.freeze(['top-left', 'top-centre', 'top-right',
 //   vitals   Lola's numbers (PlayerVitals.view())
 //   weapon   the guns' HUD data (PlayerWeapon.hudState: { reticle, weapons, touch, glow })
 //   leapers  [{ health, max }] per Leaper, for views added with addView()
+//   dt       game time since the last frame (0 while paused), for the captions
 
 export class Hud {
   // parent: where the HUD goes (the page body).
@@ -70,7 +72,10 @@ export class Hud {
       reticle: new ReticleView(this.regions.get('centre')),
       weapons: new WeaponHudView(this.regions.get('bottom-right'), { slots: weaponSlots }),
       touch: touch ? new TouchControls(this.band, touch) : null,
+      captions: new CaptionsView(this.regions.get('top-centre')),
     };
+    // Captions only show when the player asked for them (Settings).
+    this.captionsOn = false;
     // Views other code adds (addView), each with the part of the snapshot it reads.
     this.extra = [];
     // Page elements moved in from elsewhere (adopt), to put back on dispose().
@@ -158,7 +163,9 @@ export class Hud {
       if (this.views.touch) this.views.touch.update(Object.assign(this.touchState, weapon.touch, { visible: live }));
       this.strength('reward', live ? weapon.glow ?? 0 : 0);
     }
-    // 4. Views added by other code.
+    // 4. Captions run on game time (they hold while paused).
+    this.views.captions.update(snapshot.dt ?? 0);
+    // 5. Views added by other code.
     for (const { view, select } of this.extra) {
       const part = select(snapshot);
       if (part !== undefined) view.update?.(part);
@@ -169,6 +176,17 @@ export class Hud {
   strength(kind, value) {
     const rounded = Math.round((value || 0) * 100) / 100;
     this.change(`edge.${kind}`, rounded, (amount) => this.edges[kind].style.setProperty('--strength', String(amount)));
+  }
+
+  // A caption for a sound cue (src/ui/captions.js), when captions are on.
+  caption(text) {
+    if (this.captionsOn) this.views.captions.add(text);
+  }
+
+  // Captions on or off (Settings > Accessibility).
+  setCaptions(on) {
+    this.captionsOn = Boolean(on);
+    if (!this.captionsOn) this.views.captions.clear();
   }
 
   // Say something to screen readers (only when it differs from the last line).
@@ -191,7 +209,7 @@ export class Hud {
       if (parent) parent.insertBefore(element, next?.parentNode === parent ? next : null);
     }
     this.views.touch?.dispose();
-    for (const view of [this.views.vitals, this.views.reticle, this.views.weapons]) view.dispose();
+    for (const view of [this.views.vitals, this.views.reticle, this.views.weapons, this.views.captions]) view.dispose();
     this.root.remove();
   }
 }
