@@ -1,6 +1,8 @@
 import { createJunkyardWorld } from '../world/createJunkyardWorld.js';
 import { attachWorldCollision } from '../world/WorldCollision.js';
 import { LolaPlayer } from '../robot/LolaPlayer.js';
+import { Assets, loadLolaFiles } from '../core/Assets.js';
+import { limitShadowCasters, warmUp } from '../core/Quality.js';
 import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
 import { enableMovableHud } from '../controls/MovableHud.js';
 import { EventBus } from '../core/events.js';
@@ -57,29 +59,39 @@ export async function start({ engine, params }) {
   //    systems that support it ends with session.abort() in dispose().
   const session = new AbortController();
   const { signal } = session;
-  // 2. The game state starts in Loading while the assets download. The one sound
-  //    engine for the whole game starts fetching its recordings at the same time.
+  // 2. The game state starts in Loading while the assets download. One loader
+  //    shows the progress bar for everything; the one sound engine for the whole
+  //    game starts fetching its recordings through it straight away.
   const events = new EventBus();
   const flow = new GameFlow({ events });
-  const audio = new LaserAudio({ signal });
+  const assets = new Assets({ title: 'LOADING JUNKYARD' });
+  const audio = new LaserAudio({ signal, fetchFile: (url) => assets.fetch(url) });
   // 3. The Leaper's brain starts loading at once, in its own worker: the saved
   //    network in the browser by default (?brain=http uses the Python service).
   //    Failures are not fatal here: the first reset falls back (finally to turret mode).
   const brainProvider = createGameBrainProvider({ search: location.search });
   const loading = brainLoadingStatus(brainProvider);
   brainProvider.load().catch(() => {});
-  // 4. The junkyard map with its collision service, then Lola (her models need
-  //    the map's scale). Meanwhile the brain prepares the junkyard at this
-  //    Leaper size (baked raster at the default size, built in its worker otherwise).
+  // 4. The map (with its collision grids, built in a worker) and Lola's files
+  //    download side by side; Lola is put together once both are in (her model
+  //    needs the map's scale), then the map gets its collision service. As soon
+  //    as the map is in, the brain prepares the junkyard at this Leaper size
+  //    (baked raster at the default size, built in its worker otherwise).
+  const tag = (label, promise) => promise.catch((error) => { throw new Error(`${label}: ${error.message}`); });
+  const mapForBrain = (map) => { brainProvider.prepare?.(map.width)?.catch(() => {}); return map; };
   let world, target;
   try {
-    world = await loading.run('LOADING MAP…', 'MAP LOAD FAILED', () => createJunkyardWorld(engine.scene));
+    let lola;
+    [world, lola] = await loading.run('LOADING JUNKYARD…', 'LOAD FAILED', () => Promise.all([
+      tag('map', createJunkyardWorld(engine.scene, { assets, quality: engine.quality }).then(mapForBrain)),
+      tag('Lola', loadLolaFiles(assets)),
+    ]));
     attachWorldCollision(world);
-    brainProvider.prepare?.(world.width)?.catch(() => {});
-    target = await loading.run('LOADING LOLA…', 'CHARACTER LOAD FAILED',
-      () => LolaPlayer.create(engine.scene, world, document.getElementById('cuboidToggle')));
+    target = await loading.run('BUILDING LOLA…', 'CHARACTER LOAD FAILED', async () => new LolaPlayer(
+      engine.scene, world, document.getElementById('cuboidToggle'), lola.models, lola.jumps, lola.reloads, lola.runJumps));
   } catch (error) {
-    // The page shows the failure; stop the brain's worker with it.
+    // The page and the loading bar show the failure; stop the brain's worker with it.
+    assets.fail(`LOAD FAILED: ${error.message} — reload to retry`);
     brainProvider.dispose();
     throw error;
   } finally {
@@ -89,6 +101,12 @@ export async function start({ engine, params }) {
   const { rig, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
   cameraController.followSubject = target;
   cameraController.pitch = 0.16;
+  // The Leaper's smallest parts skip the sun's shadow on lower quality, and its
+  // feet kick up dust where the preset allows it.
+  for (const root of [rig.robot, ...rig.legs.flatMap((leg) => [leg.coxa, leg.femur, leg.tibia, leg.calf, leg.knee, leg.calfJoint])]) {
+    limitShadowCasters(root, engine.quality.leaperShadowMinSize);
+  }
+  world.effects.watchFeet(rig);
   // 6. The playtest wires brain, combat, weapons and the junkyard panel together,
   //    then resets the encounter (Loading -> Ready). The brain owns the provider.
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal,
@@ -107,8 +125,14 @@ export async function start({ engine, params }) {
     playtest.brain.useProvider(createGameBrainProvider({ search: url.search }));
     playtest.reset();
   });
+  // 8. The game is ready: upload every texture, compile every shader and draw one
+  //    frame now (so the first shot, jump or gun swap doesn't stall), then the
+  //    loading bar fills and fades (sounds may still be arriving; they play as
+  //    soon as they are in).
+  warmUp(engine.renderer, engine.scene, engine.camera, { render: engine.render });
+  assets.done();
 
-  // 8. The frame phases. After dispose() they do nothing, so a loop that is still
+  // 9. The frame phases. After dispose() they do nothing, so a loop that is still
   //    running for one more frame can't touch a torn-down session.
   let disposed = false;
   const mode = {
@@ -116,7 +140,12 @@ export async function start({ engine, params }) {
     // Read the player's input, run the fight (Encounter order), then presentation.
     input: (dt) => { if (!disposed) playtest.input(dt); },
     update: (dt) => { if (!disposed) playtest.update(dt); },
-    lateUpdate: (dt) => { if (!disposed) playtest.lateUpdate(dt); },
+    lateUpdate: (dt) => {
+      if (disposed) return;
+      playtest.lateUpdate(dt);
+      // Dust and sparks hold still while the game is paused.
+      world.effects.update(flow.paused ? 0 : dt);
+    },
     // Render hooks nest: camera -> weapon -> POV before, undone in reverse after.
     beforeRender() {
       if (disposed) return;

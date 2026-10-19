@@ -1,0 +1,12 @@
+{
+  "about": "Intended Leaper passages in map units (x, z on the floor), checked by tests/junkyard-navigation.test.js with the overlay's single-circle Leaper. openUpTo is the largest clearance width the passage is known to be open at.",
+  "passages": [
+    {
+      "name": "tire passage beside the bus",
+      "from": { "x": 4, "z": -2.5 },
+      "to": { "x": 10, "z": -2.5 },
+      "openUpTo": 2.6,
+      "note": "Opened by moving truck_tire_single.006/.007/.008 2.5 m north (scripts/move_junkyard_tires.py). Blocked at the default width 5.5; widening it is a level-design decision."
+    }
+  ]
+}

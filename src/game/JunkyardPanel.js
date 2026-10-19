@@ -61,7 +61,7 @@ export class JunkyardPanel {
       <label>Leaper clearance width
         <output>${world.width.toFixed(1)} units</output>
       </label>
-      <div class="size-controls"><input type="range" aria-label="Leaper clearance width" min="1.2" max="8" step="0.1" value="${world.width}" />
+      <div class="size-controls"><input type="range" aria-label="Leaper clearance width" min="1.2" max="${world.maxWidth ?? 8}" step="0.1" value="${world.width}" />
       <button data-action="size">APPLY SIZE</button></div>
       <div class="junkyard-actions"><button data-action="reset">RESET</button>
         <button data-action="clearance">SHOW CLEARANCE</button></div>

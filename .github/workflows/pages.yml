@@ -1,0 +1,84 @@
+# Publishes the web game to GitHub Pages: every push to main builds the game
+# and replaces the hosted copy. Feature branches never deploy (they only run
+# CI, see ci.yml). See docs/WEB_DEPLOY.md for what the hosted game can and
+# cannot do yet.
+#
+# One-time repository setting: Settings -> Pages -> "Build and deployment"
+# source = "GitHub Actions".
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+# Only what a Pages deployment needs: read the code, publish the site, and
+# prove to Pages that this workflow is who it says it is.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push waits for the running one instead of
+# cutting it off half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # Build the game exactly as `pnpm build` does locally, but with every asset
+  # address starting with the site's sub-folder (Pages serves this repository
+  # at https://<owner>.github.io/<repository>/).
+  build:
+    name: Build the game for Pages
+    # Belt and braces: even a manually re-run job never publishes another branch.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm's version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install packages exactly as locked
+        run: pnpm install --frozen-lockfile
+
+      # A broken game is never published: the fast checks run first (the
+      # browser pages run in CI on the same push).
+      - name: Lint and unit tests
+        run: |
+          pnpm lint
+          pnpm test
+
+      # base_path is "/<repository>" for a project site, or "" with a custom domain.
+      - name: Read the Pages address
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build with the Pages base path
+        run: pnpm build
+        env:
+          LEAPER_BASE: ${{ steps.pages.outputs.base_path }}/
+
+      - name: Hand the built site to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  # Publish the built site.
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

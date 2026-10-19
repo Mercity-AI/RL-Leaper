@@ -1,13 +1,17 @@
+import { audioUrl } from '../core/Assets.js';
+
+// The recordings, as compressed web copies (Opus or AAC, whichever this browser
+// plays; see scripts/assets/build-assets.mjs) with the WAV as the last resort.
 const CLIPS = {
-  laser: new URL('../../assets/audio/leaper-laser.wav', import.meta.url),
-  pistol: new URL('../../assets/audio/pistol-shot.wav', import.meta.url),
-  m416: new URL('../../assets/audio/m416-shot.wav', import.meta.url),
-  leaper: new URL('../../assets/audio/leaper-hit.wav', import.meta.url),
-  run: new URL('../../assets/audio/lola-run.wav', import.meta.url),
-  walk: new URL('../../assets/audio/lola-walk.wav', import.meta.url),
-  robot: new URL('../../assets/audio/leaper-walk.wav', import.meta.url),
-  m416Reload: new URL('../../assets/audio/m416-reload-reserved.wav', import.meta.url),
-  pistolReload: new URL('../../assets/audio/pistol-reload-reserved.wav', import.meta.url),
+  laser: audioUrl('leaper-laser'),
+  pistol: audioUrl('pistol-shot'),
+  m416: audioUrl('m416-shot'),
+  leaper: audioUrl('leaper-hit'),
+  run: audioUrl('lola-run'),
+  walk: audioUrl('lola-walk'),
+  robot: audioUrl('leaper-walk'),
+  m416Reload: audioUrl('m416-reload-reserved'),
+  pistolReload: audioUrl('pistol-reload-reserved'),
 };
 const LEVELS = { laser: 0.65, m416: 0.12, pistol: 0.45, leaper: 0.7, m416Reload: 0.35, pistolReload: 0.6 };
 // Empty sound slots: drop a .wav with one of these names into public/audio/ and
@@ -32,8 +36,10 @@ const FOOTSTEPS = {
 // Shared recorded combat audio: the game's one sound engine (guns, laser, impacts,
 // footsteps, hurt sounds). The junkyard mode creates it once and hands it out.
 // signal: the game session's AbortSignal; aborting it removes the page listeners.
+// fetchFile: how recordings are downloaded (the game passes its loader, so they
+// count on the loading bar); plain fetch() by default.
 export class LaserAudio {
-  constructor({ signal = null } = {}) {
+  constructor({ signal = null, fetchFile = (url) => fetch(url) } = {}) {
     this._enabled = true;
     this.context = null;
     this.buffers = {};
@@ -42,7 +48,7 @@ export class LaserAudio {
     this.stepIndex = { run: 0, walk: 0, robot: 0 };
     this.robotVoices = new Set();
     this.data = Object.fromEntries(Object.entries(CLIPS).map(([key, url]) => [key,
-      fetch(url).then(response => {
+      fetchFile(url).then(response => {
         if (!response.ok) throw new Error(`Audio ${key}: ${response.status}`);
         return response.arrayBuffer();
       }).catch(error => { console.warn(error); return null; }),

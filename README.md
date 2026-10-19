@@ -174,10 +174,16 @@ exported skeletons and clips, check animation, backward movement, sprinting,
 wall sliding, and weapon switching. Texture decoding and browser mouse capture
 still require a manual visual check.
 
-After editing and saving the Blender map, regenerate the shared export:
+The map's Blender source is in the repository,
+`assets/blockmesh/junkyard/junkyard_arranged.blend` (the three loose tires
+are already moved there, so `scripts/move_junkyard_tires.py` is retired).
+After editing and saving it, regenerate the shared export from the repository
+folder, then the compressed web copies and baked map numbers the game loads
+(the tests fail until `pnpm assets` has run):
 
 ```powershell
-& 'C:/Program Files/Blender Foundation/Blender 4.3/blender.exe' -b 'C:/Blender/Junkyard_Blockmesh.blend' --python scripts/export_junkyard.py
+& 'C:/Program Files/Blender Foundation/Blender 4.3/blender.exe' -b assets/blockmesh/junkyard/junkyard_arranged.blend --python scripts/export_junkyard.py
+pnpm assets
 ```
 
 Restart the inference service to reload collision geometry, and reload the
