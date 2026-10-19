@@ -47,7 +47,10 @@ export default async function touchControls(page, { baseUrl, check }) {
   await page.goto(`${baseUrl}/?debug`, { timeout: 300000 });
   await page.waitForFunction(() => window.leaperPlaytest?.playerWeapon, null, { timeout: 300000 });
   check(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'the page sees a coarse (touch) pointer');
-  check(await page.locator('.touch-band').isVisible(), 'the touch controls are shown on a touch screen');
+  // The band is built on a touch screen, but stays out of sight until play
+  // starts (there is nothing to fire or reload on the title screen).
+  check(await page.locator('.touch-band').count() === 1 && !(await page.locator('.touch-band').isVisible()),
+    'the touch controls are built on a touch screen and wait, hidden, for play');
   const touch = await page.context().newCDPSession(page);
   const centre = async (selector) => {
     const box = await page.locator(selector).first().boundingBox();
@@ -74,6 +77,8 @@ export default async function touchControls(page, { baseUrl, check }) {
   let now = await until(page, (s) => s.flow === 'playing');
   check(now.mode === 'explore' && !now.locked && !now.mouseLook && now.touchPlay,
     'START PLAYER on a phone never captures the mouse (no pointer lock, no mouse-look)');
+  await page.locator('.touch-band').waitFor({ state: 'visible', timeout: 120000 });
+  check(true, 'the touch controls are shown once play starts');
   // Every on-screen control is still the thing under its own centre, and takes touches.
   const controls = ['#joyBase', '#btnSprint', '[data-action=player]', '#cameraToggle',
     ...['fire', 'aim', 'reload', 'switchWeapon', 'crouch', 'jump', 'pause'].map(action => `.touch-band [data-action=${action}]`)];

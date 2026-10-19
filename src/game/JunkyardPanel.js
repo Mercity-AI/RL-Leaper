@@ -21,12 +21,12 @@ export function toolbarLabels(state) {
 // Builds the panel once per session; the playtest binds what its buttons do.
 export class JunkyardPanel {
   constructor({ world }) {
-    // 1. Page chrome for the junkyard: title line, controls help, body class.
+    // 1. The page is in game mode (the controls legend is src/ui/ControlsLegend.js,
+    //    built from the input bindings, so no hand-written key list here).
     document.body.classList.add('junkyard-mode');
-    document.querySelector('.sub').textContent = 'JUNKYARD // LOLA + LEAPER';
-    document.querySelector('.keys').innerHTML = '<b>WASD</b> RUN · <b>SHIFT</b> SPRINT · <b>SPACE</b> JUMP<br /><b>C</b> CROUCH · <b>1 / 2</b> GUN · <b>LEFT CLICK</b> FIRE · <b>HOLD RIGHT CLICK</b> AIM ×1.25 · MOUSE LOOK<br /><b>ESC</b> RELEASE · <b>DOUBLE-TAP + DRAG</b> MOVE SCREEN CONTROLS';
 
-    // 2. The toolbar and the (initially hidden) OPTIONS panel.
+    // 2. The toolbar and the (initially hidden) OPTIONS panel. The badge and
+    //    sight readouts change every brain step, so they are no live regions.
     this.element = document.createElement('section');
     this.element.id = 'junkyardPanel';
     this.element.innerHTML = `
@@ -37,9 +37,9 @@ export class JunkyardPanel {
         <button data-action="panel" aria-expanded="false" aria-controls="junkyardOptions">OPTIONS</button>
         <button data-action="sound" aria-pressed="true">SOUND: ON</button>
       </div>
-      <div class="brain-state" aria-live="polite">BRAIN CONNECTING</div>
-      <div data-sight-status aria-live="polite">SIGHT CONNECTING…</div>
-      <p data-message role="status">WASD to explore. In TOP view, Shift + click sets the destination.</p>
+      <div class="brain-state">BRAIN CONNECTING</div>
+      <div data-sight-status>SIGHT CONNECTING…</div>
+      <p data-message>WASD to explore. In TOP view, Shift + click sets the destination.</p>
       <div id="junkyardOptions" hidden>
       <strong>JUNKYARD PLAYTEST</strong>
       <label>Vision (changing mode resets the run)

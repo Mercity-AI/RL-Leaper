@@ -11,6 +11,11 @@ import { disposeObject3D } from '../core/disposeObject3D.js';
 import { LaserAudio } from '../simulation/LaserAudio.js';
 import { createGameBrainProvider } from '../simulation/JunkyardBrain.js';
 import { brainChoice, describeProgress } from '../brain/BrainProvider.js';
+import { weaponSlots } from '../simulation/PlayerWeapon.js';
+import { Hud } from '../ui/Hud.js';
+import '../styles/ui/dev-panel.css';
+import { touchButtons, wantsTouchControls } from '../input/touch.js';
+import { CAMERA } from '../config/camera.js';
 import { createLeaperScene, loadStep, removeFromScene, setStatus } from './shared.js';
 
 // The game (default page, also ?map=junkyard): Lola vs. the Leaper in the
@@ -29,6 +34,50 @@ let movableHudEnabled = false;
 // Loading steps with the brain's own progress beside them, e.g.
 // "LOADING LOLA… · LOADING BRAIN · ONNX · IN BROWSER · 64% · DOWNLOADING BRAIN RUNTIME".
 // The brain loads in its worker while the map and Lola load here.
+// The HUD shell (src/ui/Hud.js) with the touch band wired to the input actions:
+// a touch button presses the same action as its key, mouse button and pad button.
+function createHud({ input, cameraController }) {
+  const look = CAMERA.look;
+  return new Hud({
+    weaponSlots: weaponSlots(),
+    touch: wantsTouchControls() ? {
+      buttons: touchButtons(),
+      onDown: (action) => input.virtualDown(action),
+      onUp: (action) => input.virtualUp(action),
+      onLook: (dx, dy) => cameraController.lookBy(dx * look.touch, dy * look.touch * look.verticalRatio),
+    } : null,
+  });
+}
+
+// Move the page's existing HUD pieces into their corners: VIEW top right, the
+// TOP view hint top centre, the Leaper's name plate top left, the LEAPER POV
+// crosshair centre, and on phones the joystick (bottom left) and SPRINT (bottom right).
+function mountPagePieces(hud, playtest) {
+  hud.adopt('top-right', document.getElementById('cameraToggle'));
+  hud.adopt('top-centre', document.getElementById('topViewHint'));
+  const plate = hud.adopt('top-left', playtest.combat.enemyHud);
+  // Its attack-state line is rewritten every frame: no screen-reader live region.
+  plate?.querySelector('[data-attack]')?.removeAttribute('role');
+  hud.adopt('centre', playtest.pov.reticle);
+  hud.adopt('bottom-left', document.getElementById('joyBase'));
+  hud.adopt('bottom-right', document.getElementById('btnSprint'));
+}
+
+// The plain data the HUD draws each frame, refilled in place (no per-frame garbage).
+function hudSnapshot(snapshot, { flow, playtest }) {
+  const { encounter } = playtest;
+  snapshot.flow = flow.state.name;
+  snapshot.vitals = playtest.vitals.view({ over: encounter.over });
+  snapshot.weapon = playtest.playerWeapon.hudState;
+  encounter.enemies.forEach(({ combat }, index) => {
+    const leaper = snapshot.leapers[index] ??= { health: 0, max: 0 };
+    leaper.health = combat.leaperHealth;
+    leaper.max = combat.config.leaperHealth;
+  });
+  snapshot.leapers.length = encounter.enemies.length;
+  return snapshot;
+}
+
 function brainLoadingStatus(brainProvider) {
   let step = '';
   let brain = '';
@@ -98,7 +147,7 @@ export async function start({ engine, params }) {
     loading.done();
   }
   // 5. The Leaper rig, input and a chase camera that follows Lola.
-  const { rig, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
+  const { rig, input, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
   cameraController.followSubject = target;
   cameraController.pitch = 0.16;
   // The Leaper's smallest parts skip the sun's shadow on lower quality, and its
@@ -107,10 +156,14 @@ export async function start({ engine, params }) {
     limitShadowCasters(root, engine.quality.leaperShadowMinSize);
   }
   world.effects.watchFeet(rig);
-  // 6. The playtest wires brain, combat, weapons and the junkyard panel together,
-  //    then resets the encounter (Loading -> Ready). The brain owns the provider.
+  // 6. The HUD shell, then the playtest, which wires brain, combat, weapons and
+  //    the junkyard panel together and resets the encounter (Loading -> Ready).
+  //    The brain owns the provider; the HUD draws Lola's health and the guns.
+  const hud = createHud({ input, cameraController });
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal,
-    brainProvider });
+    brainProvider, hud });
+  mountPagePieces(hud, playtest);
+  const snapshot = { flow: 'loading', menu: false, vitals: null, weapon: null, leapers: [] };
   if (!movableHudEnabled) {
     enableMovableHud();
     movableHudEnabled = true;
@@ -145,6 +198,8 @@ export async function start({ engine, params }) {
       playtest.lateUpdate(dt);
       // Dust and sparks hold still while the game is paused.
       world.effects.update(flow.paused ? 0 : dt);
+      // The HUD redraws from this frame's numbers (only what changed reaches the page).
+      hud.update(hudSnapshot(snapshot, { flow, playtest }));
     },
     // Render hooks nest: camera -> weapon -> POV before, undone in reverse after.
     beforeRender() {
@@ -166,6 +221,7 @@ export async function start({ engine, params }) {
       if (disposed) return;
       disposed = true;
       playtest.dispose();
+      hud.dispose();
       session.abort();
       audio.dispose();
       removeFromScene(engine.scene, { world: null, rig, target });

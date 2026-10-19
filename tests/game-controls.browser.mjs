@@ -127,9 +127,10 @@ export default async function gameControls(page, { baseUrl, check }) {
   });
   await page.goto(`${baseUrl}/?debug&touch`, { timeout: 300000 });
   await page.waitForFunction(() => window.leaperPlaytest?.playerWeapon, null, { timeout: 300000 });
-  check(await page.locator('.touch-band').isVisible(), '?touch shows the touch band on a desktop');
   await page.click('[data-action=player]');
   await until(page, (s) => s.flow === 'playing');
+  await page.locator('.touch-band').waitFor({ state: 'visible', timeout: 120000 });
+  check(true, '?touch shows the touch band on a desktop once play starts');
   await page.waitForFunction(() => document.body.classList.contains('mouse-look'), null, { timeout: 60000 });
   now = await state(page);
   const right = { x: canvas.x + canvas.width * 0.8, y: canvas.y + canvas.height * 0.5 };

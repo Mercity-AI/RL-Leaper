@@ -30,9 +30,11 @@ export class JunkyardPlaytest {
   // audio: the one sound engine (LaserAudio), created by the junkyard mode.
   // signal: the mode's AbortSignal; every page listener of this session ends with it.
   // brainProvider: where the brain runs (see src/brain/BrainProvider.js); the brain owns it.
+  // hud: the game's HUD shell (src/ui/Hud.js), if any: Lola's health and the guns
+  //   then only keep their numbers and the shell draws them.
   constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null, signal = null,
-    brainProvider = null }) {
-    Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal });
+    brainProvider = null, hud = null }) {
+    Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal, hud });
     // 1. Game state and the event bus every system reports to.
     this.events = events ?? new EventBus();
     this.flow = flow ?? new GameFlow({ events: this.events });
@@ -45,7 +47,7 @@ export class JunkyardPlaytest {
     this.brainLabel = this.panelView.brainLabel;
 
     // 3. Lola's health and HUD (no longer owned by the Leaper's combat).
-    this.vitals = new PlayerVitals({ player: target, audio, events: this.events });
+    this.vitals = new PlayerVitals({ player: target, audio, events: this.events, hud: hud?.vitalsPresenter ?? null });
     this.vitals.onRestart = () => this.restartEncounter();
 
     // 4. Gameplay systems. Each receives this playtest as its context, so the

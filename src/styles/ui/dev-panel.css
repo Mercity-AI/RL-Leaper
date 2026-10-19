@@ -1,0 +1,30 @@
+/* The developer tools (src/debug/DevPanel.js, loaded only with ?dev or on the
+   dev server): the old toolbar and OPTIONS panel (src/game/JunkyardPanel.js),
+   the brain badge, the perf overlay and the tuning panel. Never shown to players. */
+
+/* The old toolbar and OPTIONS panel. */
+#junkyardPanel { position: fixed; top: calc(var(--hud-edge-top) + 56px); left: var(--hud-edge-left); z-index: var(--z-dev); box-sizing: border-box; width: auto; max-width: calc(100vw - 2 * var(--gap-l)); padding: 6px; border: 1px solid #bac3ba; border-radius: 8px; background: rgba(247, 249, 245, 0.95); box-shadow: 0 8px 32px #17231822; color: var(--ink); font: var(--font-s)/1.5 var(--font-mono); }
+#junkyardPanel.expanded { width: min(340px, calc(100vw - 2 * var(--gap-l))); }
+#junkyardPanel .junkyard-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
+#junkyardPanel .brain-state { max-width: 300px; margin: 5px 2px 0; color: #43594d; font-size: var(--font-s); }
+#junkyardPanel [data-sight-status] { margin: 3px 2px; color: #253e36; font-size: var(--font-s); }
+/* The status message: two lines while folded, all of it with OPTIONS open. */
+#junkyardPanel [data-message] { display: -webkit-box; max-width: 360px; margin: 3px 2px 0; overflow: hidden; color: #253e36; font-size: var(--font-s); -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+#junkyardPanel.expanded [data-message] { -webkit-line-clamp: unset; line-clamp: unset; }
+/* OPTIONS scrolls inside the screen. */
+#junkyardOptions { max-height: calc(100dvh - 240px); padding: 12px 4px 4px; overflow-y: auto; touch-action: pan-y; }
+#junkyardOptions[hidden] { display: none; }
+#junkyardPanel strong { letter-spacing: 0.15em; }
+#junkyardPanel label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+#junkyardPanel label:has([data-sight-mode]),
+#junkyardPanel label:has([data-brain-provider]) { flex-direction: column; align-items: stretch; gap: 4px; }
+#junkyardPanel select,
+#junkyardPanel button { padding: 8px; border: 1px solid #bac3ba; border-radius: 4px; background: white; color: var(--ink); font: inherit; cursor: pointer; }
+#junkyardPanel button:disabled { opacity: 0.45; cursor: not-allowed; }
+#junkyardPanel [data-action="route"] { background: #253e36; color: white; }
+#junkyardPanel [data-action="debug-damage"] { margin-top: 10px; border-color: #d98b44; }
+#junkyardPanel .junkyard-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#junkyardPanel .size-controls { display: flex; gap: 12px; margin-bottom: 12px; }
+#junkyardPanel .size-controls input { flex: 1; min-width: 0; accent-color: #253e36; }
+#junkyardPanel p { margin: 12px 0 6px; }
+#junkyardPanel small { color: #657065; font-size: var(--font-s); }

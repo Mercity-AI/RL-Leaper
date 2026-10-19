@@ -1,200 +1,142 @@
-/* Escape releases mouse look before toolbar interaction resumes. */
-body.mouse-look, body.mouse-look * { cursor: none !important; }
-body.mouse-look .movable-hud, body.mouse-look .movable-hud * { pointer-events: none !important; }
+/* The game's HUD (the junkyard page). One owner per screen corner, each a region
+   of the HUD shell (src/ui/Hud.js):
+     top-left      the Leaper            top-right     VIEW and the dev toggle
+     bottom-left   Lola                  bottom-right  her guns
+     centre        the crosshair         band          the touch controls (phones)
+   Each element below has one rule; a touch-screen or narrow-screen variant sits
+   directly under it. The tokens (spacing, colours, z-index, text sizes) are in
+   main.css. The menus are in ui/screens.css, the crosshair, guns and touch band
+   in their own files under ui/. */
 
-#junkyardPanel {
-  position: fixed;
-  bottom: 40px;
-  left: 16px;
-  z-index: 10;
-  width: auto;
-  max-width: calc(100vw - 48px);
-  padding: 6px;
-  background: rgba(247, 249, 245, 0.95);
-  border: 1px solid #bac3ba;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px #17231822;
-  font: 12px/1.5 ui-monospace, monospace;
-}
-#junkyardPanel.expanded { width: min(320px, calc(100vw - 48px)); }
-.junkyard-mode .movable-hud { pointer-events: auto; touch-action: none; }
-.junkyard-mode .hud-dragging { cursor: grabbing !important; outline: 2px dashed #53716a; z-index: 30 !important; }
-.junkyard-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
-.brain-state { margin: 5px 2px 0; font-size: 9px; color: #43594d; max-width: 280px; }
-#junkyardPanel [data-sight-status] { margin: 3px 2px; color: #253e36; font-size: 10px; }
-#junkyardPanel label:has([data-sight-mode]) { flex-direction: column; align-items: stretch; gap: 4px; }
-#junkyardOptions { padding: 12px 4px 4px; max-height: calc(100dvh - 180px); overflow-y: auto; touch-action: pan-y; }
-#junkyardOptions[hidden] { display: none; }
-#junkyardPanel strong { letter-spacing: 0.15em; }
-#junkyardPanel label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
-#junkyardPanel select, #junkyardPanel button { padding: 8px; font: inherit; border: 1px solid #bac3ba; border-radius: 4px; background: white; cursor: pointer; }
-.junkyard-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.size-controls { display: flex; gap: 12px; margin-bottom: 12px; }
-.size-controls input { flex: 1; min-width: 0; accent-color: #253e36; }
-#junkyardPanel [data-action=route] { background: #253e36; color: white; }
-#junkyardPanel p { margin: 12px 0 6px; }
-#junkyardPanel small { color: #657065; font-size: 10px; }
-@media (max-width: 700px) {
-  .junkyard-mode .hud .keys { display: none; }
-  .junkyard-mode #topViewHint { top: 100px; width: 80%; text-align: center; font-size: 9px; }
-  #junkyardPanel { bottom: 150px; font-size: 10px; }
-  #junkyardOptions { max-height: calc(100dvh - 300px); }
-  .junkyard-mode #status { font-size: 8px; letter-spacing: 0; }
-}
+/* ---- The page in game mode ---- */
+body.junkyard-mode { background: #2e3134; color: var(--c-text); }
+/* The lab pages' sandbox title and status line are not part of the game (the
+   status line shows in the developer panel instead). */
+.junkyard-mode .hud,
+.junkyard-mode > #status,
+.junkyard-mode #cuboidToggle,
+.junkyard-mode #btnJump { display: none; }
+/* While the mouse is captured, a click always goes to the game: the HUD never
+   takes it (touch play never captures the mouse, so its controls keep working). */
+body.mouse-look,
+body.mouse-look * { cursor: none !important; }
+body.mouse-look:not(.touch-play) .hud-region,
+body.mouse-look:not(.touch-play) .hud-region * { pointer-events: none !important; }
 
-/* Combat stays readable above the canvas and below the existing controls. */
-#combatHud { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30; color: #fff; background: #15171bea; border: 1px solid #65666b; border-radius: 9px; padding: 12px 18px; font: 12px/1.6 monospace; text-align: center; pointer-events: none; min-width: 250px; }
-#combatHud progress { display: block; width: 100%; height: 10px; margin: 5px 0; accent-color: #fa665b; }
-#combatHud [data-result] { margin-top: 12px; }
-#combatHud [data-result] strong { display: block; color: #ff8d83; }
-#combatHud button { pointer-events: auto; margin-top: 8px; padding: 10px; cursor: pointer; }
-body.junkyard-mode::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 20; box-shadow: inset 0 0 90px 20px #e62828; opacity: var(--damage-flash, 0); transition: opacity .08s; }
-#leaperReticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 25; color: #ffb6a9; font: 28px monospace; text-shadow: 0 1px 3px #000; pointer-events: none; }
-#leaperReticle[data-locked=true] { color: #fff; }
-#junkyardPanel [data-action=debug-damage] { margin-top: 10px; border-color: #d98b44; }
-#junkyardPanel .junkyard-toolbar { flex-wrap: wrap; }
+/* ---- The HUD shell ---- */
+.hud-root { position: fixed; inset: 0; z-index: var(--z-hud); pointer-events: none; color: var(--c-text); font: var(--font-s)/1.45 var(--font-mono); }
+.hud-region { position: fixed; z-index: 1; display: flex; gap: var(--gap-s); pointer-events: none; }
+.hud-region > * { pointer-events: auto; }
+/* The HUD only shows while playing; menus and the title screen replace it. The
+   touch band stays during a pause (its PAUSE button reads RESUME). */
+.hud-root:not([data-flow="playing"]) .hud-region,
+.hud-root[data-menu="true"] .hud-region { visibility: hidden; }
+.hud-root:not([data-flow="playing"]):not([data-flow="paused"]) .hud-band,
+.hud-root[data-flow="paused"][data-menu-blocks-band="true"] .hud-band { visibility: hidden; }
+.hud-root[data-flow="loading"] { display: none; }
 
-#leaperHealthHud { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); width: min(280px, 35vw); z-index: 20; padding: 10px 14px; border-radius: 6px; background: #17191de8; color: #eee; font: 11px/1.5 monospace; text-align: center; pointer-events: none; }
-#leaperHealthHud progress { display: block; width: 100%; height: 8px; margin-top: 5px; accent-color: #b50913; }
-#combatHud[data-hit=true] .combat-health { color: #ffb09d; }
-@media(max-width:700px) { #leaperHealthHud { top: 108px; width: 200px; padding: 6px 10px; } }
+/* Corner regions. On touch screens the bottom corners sit above the touch band. */
+.hud-region[data-region="top-left"] { top: var(--hud-edge-top); left: var(--hud-edge-left); flex-direction: column; align-items: flex-start; max-width: min(320px, calc(50vw - var(--gap-xl))); }
+.hud-region[data-region="top-centre"] { top: var(--hud-edge-top); left: 0; right: 0; justify-content: center; }
+.hud-region[data-region="top-right"] { top: var(--hud-edge-top); right: var(--hud-edge-right); flex-direction: row-reverse; align-items: flex-start; }
+.hud-region[data-region="bottom-left"] { bottom: var(--hud-edge-bottom); left: var(--hud-edge-left); flex-direction: column-reverse; align-items: flex-start; }
+.hud-region[data-region="bottom-right"] { bottom: var(--hud-edge-bottom); right: var(--hud-edge-right); flex-direction: column-reverse; align-items: flex-end; }
+.hud-region[data-region="centre"] { inset: 0; pointer-events: none; }
+.hud-region[data-region="centre"] > * { pointer-events: none; }
+body.touch-controls-on .hud-region[data-region="bottom-left"],
+body.touch-controls-on .hud-region[data-region="bottom-right"] { bottom: calc(var(--touch-band) + var(--gap-s)); }
+/* The touch band's own layer (its band and look area place themselves). */
+.hud-band { position: static; }
 
-/* Opposing health bars; both are included in the movable HUD layout. */
-#leaperHealthHud, #combatHud { top: 14px; bottom: auto; transform: none; width: min(140px, calc(50vw - 28px)); min-width: 0; box-sizing: border-box; padding: 10px 12px; font: 11px/1.5 monospace; border-radius: 6px; pointer-events: auto; }
-#leaperHealthHud { left: 16px; right: auto; text-align: left; }
-#combatHud { left: auto; right: 16px; text-align: right; }
-#leaperHealthHud progress, #combatHud progress { height: 9px; margin: 5px 0; }
-#leaperHealthHud [data-attack] { font-size: 9px; color: #c8bbc0; }
-.junkyard-mode .hud { display: none; }
-.junkyard-mode #cameraToggle { top: 112px; }
-.junkyard-mode #cuboidToggle { top: 156px; }
+/* Screen-edge flashes: red while Lola is badly hurt, blue after a big hit. */
+.hud-edge { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: var(--strength, 0); transition: opacity .08s; }
+.hud-edge[data-edge="danger"] { box-shadow: inset 0 0 90px 20px #e62828; }
+.hud-edge[data-edge="reward"] { box-shadow: inset 0 0 110px 26px #2f8cff; }
 
-#playerReticle { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; text-shadow: 0 0 3px black; font: 24px monospace; pointer-events: none; z-index: 12; }
-/* Clear aiming view: just the crosshair (no ring), with only 4% shading at the edges. */
-#playerReticle[data-aim=true] {
-  width: 32px;
-  height: 32px;
-  font-size: 0;
-  text-shadow: none;
-  background:
-    linear-gradient(currentColor, currentColor) center top / 1px 9px,
-    linear-gradient(currentColor, currentColor) center bottom / 1px 9px,
-    linear-gradient(currentColor, currentColor) left center / 9px 1px,
-    linear-gradient(currentColor, currentColor) right center / 9px 1px,
-    radial-gradient(circle, currentColor 0 1px, transparent 1.5px) center / 4px 4px;
-  background-repeat: no-repeat;
-}
-#playerReticle[data-aim=true]::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  width: 100vw;
-  height: 100vh;
-  background: radial-gradient(ellipse at center, transparent 65%, rgba(0, 0, 0, 0.04) 100%);
-}
-#playerReticle[hidden] { display: none; }
-/* Hits kick the crosshair outward in crimson; a big hit (joint snapped) holds it larger. */
-#playerReticle { transition: transform .12s ease-out, color .2s; }
-#playerReticle[data-aim=true]::after { transition: transform .12s ease-out; }
-#playerReticle[data-hit=true] { color: #dc143c; text-shadow: 0 0 4px #8b0000, 0 0 2px #000; transform: translate(-50%, -50%) scale(1.4); transition-duration: .04s; }
-#playerReticle[data-big=true] { color: #dc143c; text-shadow: 0 0 8px #dc143c, 0 0 2px #000; transform: translate(-50%, -50%) scale(1.7); transition-duration: .06s, .06s; }
-/* The edge shading must not grow along with the crosshair. */
-#playerReticle[data-aim=true][data-hit=true]::after { transform: translate(-50%, -50%) scale(calc(1 / 1.4)); }
-#playerReticle[data-aim=true][data-big=true]::after { transform: translate(-50%, -50%) scale(calc(1 / 1.7)); }
+/* ---- Top left: the Leaper ---- */
+#leaperHealthHud { box-sizing: border-box; min-width: 120px; padding: var(--gap-s) var(--gap-m); border-radius: 6px; background: var(--c-panel); font: var(--font-s)/1.5 var(--font-mono); letter-spacing: 0.18em; pointer-events: none; }
+#leaperHealthHud > b { display: block; color: var(--c-accent); }
+/* Its health is the floating bar over the robot; the progress bar is for screen readers. */
+#leaperHealthHud progress { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+/* The AI's attack state is a developer readout (players read the eye glow instead). */
+#leaperHealthHud [data-attack] { display: none; margin-top: 2px; color: var(--c-text-dim); letter-spacing: 0.06em; }
+body.dev-tools #leaperHealthHud [data-attack] { display: block; }
 
-/* Big-hit reward: a cool blue glow at the screen edges (red stays for danger). */
-body.junkyard-mode::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 19; box-shadow: inset 0 0 110px 26px #2f8cff; opacity: var(--good-flash, 0); }
+/* ---- Top centre: the TOP view hint ---- */
+.junkyard-mode #topViewHint { position: static; transform: none; padding: var(--gap-xs) var(--gap-m); border: 1px solid var(--c-panel-border); border-radius: 4px; background: var(--c-panel); color: var(--c-text-dim); font-size: var(--font-s); backdrop-filter: none; }
 
+/* ---- Top right: VIEW (and the dev toggle, added by the developer panel) ---- */
+.junkyard-mode #cameraToggle { position: static; min-height: 36px; padding: var(--gap-s) var(--gap-m); border: 1px solid var(--c-panel-border); border-radius: 6px; background: var(--c-panel); color: var(--c-text); font: 700 var(--font-s)/1 var(--font-mono); letter-spacing: 0.15em; backdrop-filter: none; }
+.junkyard-mode #cameraToggle:hover,
+.junkyard-mode #cameraToggle.on { border-color: var(--c-accent); background: #ff4a2640; }
 
-/* Health meters: solid fill = current health, pale trail = chunk just lost. */
-.hp-text { float: right; font-weight: normal; color: #cfd4d2; }
-#combatHud .hp-text { float: none; }
-#leaperHealthHud progress, #combatHud progress { position: absolute; width: 1px !important; height: 1px !important; margin: 0 !important; opacity: 0; pointer-events: none; }
-.health-meter { position: relative; height: 10px; margin: 5px 0; border-radius: 3px; overflow: hidden; background: #2a2d33; box-shadow: inset 0 0 0 1px #0007;
-  background-image: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), #0006 calc(10% - 1px) 10%); }
+/* ---- Bottom left: Lola ---- */
+#combatHud { box-sizing: border-box; width: min(260px, calc(100vw - 2 * var(--gap-l))); padding: var(--gap-s) var(--gap-m); border: 1px solid #ffffff1f; border-radius: 8px; background: var(--c-panel); color: var(--c-text); font: var(--font-s)/1.5 var(--font-mono); pointer-events: none; }
+#combatHud[data-hit="true"] .combat-health { color: #ffb09d; }
+#combatHud .combat-health b { display: flex; gap: var(--gap-s); align-items: baseline; letter-spacing: 0.15em; }
+#combatHud .hp-text { margin-left: auto; color: #cfd4d2; font-weight: normal; letter-spacing: 0; }
+#combatHud[data-level="low"] .hp-text { color: #ff6a5b; }
+#combatHud [data-hit-label] { color: #ff8d83; }
+#combatHud progress { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+/* Her health meter: solid fill = health now, pale trail = the chunk just lost. */
+.health-meter { position: relative; height: 14px; margin: var(--gap-xs) 0 0; overflow: hidden; border-radius: 3px; background: #2a2d33; box-shadow: inset 0 0 0 1px #0007; background-image: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), #0006 calc(10% - 1px) 10%); }
 .health-meter i { position: absolute; inset: 0 auto 0 0; display: block; }
 .health-meter .hp-trail { width: calc(var(--trail, 1) * 100%); background: #ffe9d6; opacity: .85; }
-.health-meter .hp-fill { width: calc(var(--hp, 1) * 100%); background: #b50913; transition: width .08s; }
-#combatHud .health-meter .hp-fill { background: #4fd18b; }
-#combatHud[data-level=mid] .health-meter .hp-fill { background: #ffb347; }
-#combatHud[data-level=low] .health-meter .hp-fill { background: #ff3b30; animation: hp-low .6s ease-in-out infinite alternate; }
-#combatHud[data-level=low] .hp-text { color: #ff6a5b; }
+.health-meter .hp-fill { width: calc(var(--hp, 1) * 100%); background: var(--c-good); transition: width .08s; }
+#combatHud[data-level="mid"] .hp-fill { background: var(--c-warn); }
+#combatHud[data-level="low"] .hp-fill { background: var(--c-danger); animation: hp-low .6s ease-in-out infinite alternate; }
 @keyframes hp-low { from { filter: brightness(.7); } to { filter: brightness(1.35); } }
-.combat-health b, #leaperHealthHud > b { display: block; }
+@media (max-width: 520px) {
+  #combatHud { width: min(210px, calc(55vw - var(--gap-l))); }
+}
 
-/* Layout: Leaper health top-left, controls panel under it, Lola health bottom-left,
-   weapons bottom-right. */
-#combatHud { top: auto; bottom: 40px; left: 16px; right: auto; width: min(260px, calc(100vw - 32px)); text-align: left; font-size: 12px; }
-#combatHud .health-meter { height: 14px; }
-#junkyardPanel { top: 96px; bottom: auto; }
-#junkyardOptions { max-height: calc(100dvh - 240px); }
-@media (max-width: 700px) { #junkyardPanel { top: 150px; bottom: auto; } }
+/* Touch joystick (bottom left) and SPRINT (bottom right) join the corners on phones. */
+.junkyard-mode #joyBase { position: relative; left: auto; bottom: auto; display: none; flex: none; }
+.junkyard-mode #btnSprint { position: relative; right: auto; bottom: auto; display: none; flex: none; }
+body.touch-controls-on.junkyard-mode #joyBase { display: block; }
+body.touch-controls-on.junkyard-mode #btnSprint { display: flex; }
 
-/* Weapon icons: the equipped gun's circle is larger and filled with colour that
-   drains with its magazine; low ammo turns it red, reloading refills it cyan. */
-#playerGuns { position: fixed; right: 18px; bottom: 20px; z-index: 12; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; color: #eef3f2; font: bold 15px/1 monospace; text-shadow: 0 1px 3px #000; }
-#playerGuns[hidden] { display: none; }
-#playerGuns .gun-row { display: flex; align-items: flex-end; gap: 12px; }
-#playerGuns .gun { --fill: #3ec7c2; position: relative; width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: #15171bcc; border: 2px solid #ffffff40; transition: width .25s ease, height .25s ease, border-color .2s, opacity .2s; opacity: .6; }
-#playerGuns .gun[data-active=true] { width: 78px; height: 78px; opacity: 1; border-color: #fff; box-shadow: 0 0 12px #0008; }
-#playerGuns .gun-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--ammo, 1) * 100%); background: var(--fill); opacity: .3; transition: height .1s linear, background .2s; }
-#playerGuns .gun[data-active=true] .gun-fill { opacity: .9; }
-#playerGuns .gun[data-level=low] { --fill: #ff4b3e; }
-#playerGuns .gun[data-level=empty] { --fill: #ff4b3e; border-color: #ff4b3e; }
-#playerGuns .gun[data-active=true][data-level=empty] { animation: gun-empty .7s ease-in-out infinite alternate; }
-#playerGuns .gun[data-level=reloading] { --fill: #84d3e4; border-color: #84d3e4; }
-#playerGuns .gun-icon { position: absolute; inset: 14%; width: 72%; height: 72%; fill: #fff; filter: drop-shadow(0 1px 1px #000c); }
-/* Key that selects the gun (1 = pistol, 2 = M416). */
-#playerGuns .gun-tag { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); font-size: 10px; color: #fff; opacity: .85; }
-@keyframes gun-empty { from { box-shadow: 0 0 0 0 #ff4b3e00; } to { box-shadow: 0 0 14px 3px #ff4b3e; } }
+/* ---- Centre: the LEAPER POV crosshair (developer view) ---- */
+#leaperReticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #ffb6a9; font: 28px var(--font-mono); text-shadow: 0 1px 3px #000; pointer-events: none; }
+#leaperReticle[data-locked="true"] { color: #fff; }
 
-/* Floating Leaper health bar (positioned, shaken and scale-punched each frame by
-   LeaperHealthBar.js). Hot orange at full health, deep red when nearly dead. */
-#leaperWorldBar { position: fixed; left: 0; top: 0; z-index: 11; pointer-events: none; opacity: 0; will-change: transform, opacity; display: flex; align-items: center; transform-origin: 50% 100%; }
-/* Diamond eye badge at the left end; the bar comes out of its right corner. */
-#leaperWorldBar .bar-eye { position: relative; z-index: 1; width: 34px; height: 34px; margin-right: -6px; flex: none; overflow: visible; filter: drop-shadow(0 2px 3px #000a); }
+/* ---- World-pinned: the floating Leaper health bar ----
+   Placed, shaken and scale-punched each frame by LeaperHealthBar.js. Hot orange
+   at full health, deep red when nearly dead. */
+#leaperWorldBar { position: fixed; left: 0; top: 0; z-index: var(--z-world-ui); display: flex; align-items: center; opacity: 0; pointer-events: none; transform-origin: 50% 100%; will-change: transform, opacity; }
+#leaperWorldBar .bar-eye { position: relative; z-index: 1; flex: none; width: 34px; height: 34px; margin-right: -6px; overflow: visible; filter: drop-shadow(0 2px 3px #000a); }
 #leaperWorldBar .bar-eye-shield { stroke: #c8743a; stroke-width: 1.6; stroke-linejoin: round; }
 #leaperWorldBar .bar-eye-socket { stroke: #2b1d16; stroke-width: 1.2; }
 #leaperWorldBar .bar-eye-core { fill: #ff2414; filter: drop-shadow(0 0 2.5px #ff3b1a); transform-origin: 20px 20px; animation: bar-eye-pulse 1.6s ease-in-out infinite; }
-#leaperWorldBar[data-level=low] .bar-eye-core { animation-duration: .7s; }
-#leaperWorldBar[data-level=low] .bar-eye-iris { animation: bar-throb .7s ease-in-out infinite alternate; }
-#leaperWorldBar[data-flash=true] .bar-eye-shield { fill: #fff; stroke: #fff; }
-#leaperWorldBar[data-flash=true] .bar-eye-core { fill: #fff; transform: scale(.6); animation: none; }
-@keyframes bar-eye-pulse { 0%, 100% { transform: scale(.85); } 50% { transform: scale(1.15); } }
-#leaperWorldBar .bar-frame { position: relative; width: 120px; height: 11px; border-radius: 6px; overflow: hidden; background: #111317d9; border: 1.5px solid #000c; box-shadow: 0 0 0 1px #ffffff26, 0 2px 6px #0009; transform-origin: 50% 50%; }
+#leaperWorldBar .bar-frame { position: relative; width: 120px; height: 11px; overflow: hidden; border: 1.5px solid #000c; border-radius: 6px; background: #111317d9; box-shadow: 0 0 0 1px #ffffff26, 0 2px 6px #0009; transform-origin: 50% 50%; }
 #leaperWorldBar .bar-frame i { position: absolute; inset: 0 auto 0 0; display: block; }
 #leaperWorldBar .bar-trail { width: calc(var(--trail, 1) * 100%); background: #fff3d6; opacity: .9; }
 #leaperWorldBar .bar-fill { width: calc(var(--hp, 1) * 100%); background: linear-gradient(180deg, color-mix(in srgb, var(--hp-colour, #ff7a30) 72%, #fff) 0%, var(--hp-colour, #ff7a30) 45%, color-mix(in srgb, var(--hp-colour, #ff7a30) 70%, #000) 100%); box-shadow: 0 0 8px var(--hp-colour, #ff7a30); transition: width .1s linear; }
 /* A warm highlight sweeps across the filled part. */
 #leaperWorldBar .bar-shine { inset: 0; width: calc(var(--hp, 1) * 100%); overflow: hidden; }
-#leaperWorldBar .bar-shine::after { content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -40%; background: linear-gradient(100deg, transparent 0%, #ffe2c299 50%, transparent 100%); animation: bar-shine 2.4s ease-in-out infinite; }
-/* Under 25%: the fill throbs in brightness and the frame glows red, like it's panicking. */
-#leaperWorldBar[data-level=low] .bar-fill { animation: bar-throb .7s ease-in-out infinite alternate; }
-#leaperWorldBar[data-level=low] .bar-frame { animation: bar-danger .7s ease-in-out infinite alternate; }
-/* Hit flash: the whole bar goes pure white for ~2 frames, then snaps back to colour. */
-#leaperWorldBar[data-flash=true] .bar-frame { background: #fff; border-color: #fff; }
-#leaperWorldBar[data-flash=true] .bar-frame i { background: #fff; box-shadow: none; animation: none; transition: none; }
-#leaperWorldBar[data-flash=true] .bar-shine::after { display: none; }
+#leaperWorldBar .bar-shine::after { content: ''; position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; background: linear-gradient(100deg, transparent 0%, #ffe2c299 50%, transparent 100%); animation: bar-shine 2.4s ease-in-out infinite; }
+/* Under 25%: the fill and the eye throb and the frame glows red. */
+#leaperWorldBar[data-level="low"] .bar-eye-core { animation-duration: .7s; }
+#leaperWorldBar[data-level="low"] .bar-eye-iris,
+#leaperWorldBar[data-level="low"] .bar-fill { animation: bar-throb .7s ease-in-out infinite alternate; }
+#leaperWorldBar[data-level="low"] .bar-frame { animation: bar-danger .7s ease-in-out infinite alternate; }
+/* Hit flash: the whole bar goes white for about two frames. */
+#leaperWorldBar[data-flash="true"] .bar-eye-shield { fill: #fff; stroke: #fff; }
+#leaperWorldBar[data-flash="true"] .bar-eye-core { fill: #fff; transform: scale(.6); animation: none; }
+#leaperWorldBar[data-flash="true"] .bar-frame { border-color: #fff; background: #fff; }
+#leaperWorldBar[data-flash="true"] .bar-frame i { background: #fff; box-shadow: none; animation: none; transition: none; }
+#leaperWorldBar[data-flash="true"] .bar-shine::after { display: none; }
+@keyframes bar-eye-pulse { 0%, 100% { transform: scale(.85); } 50% { transform: scale(1.15); } }
 @keyframes bar-shine { 0% { left: -40%; } 60%, 100% { left: 110%; } }
 @keyframes bar-throb { from { filter: brightness(.7); } to { filter: brightness(1.45); } }
 @keyframes bar-danger { from { box-shadow: 0 0 0 1px #ffffff26, 0 0 4px #c41c1866; } to { box-shadow: 0 0 0 1px #ff5a4a, 0 0 14px #c41c18; } }
-/* Weak-point (eye core) hit: brighter crimson glow on the crosshair. */
-#playerReticle[data-crit=true] { color: #ff1a40; text-shadow: 0 0 8px #dc143c, 0 0 2px #000; }
 
-/* The panel's status message sits under the brain badge and is always visible
-   (review 5.11): two lines while the panel is folded, all of it with OPTIONS open. */
-#junkyardPanel [data-message] { margin: 3px 2px 0; max-width: 360px; font-size: 10px; color: #253e36;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-#junkyardPanel.expanded [data-message] { -webkit-line-clamp: unset; line-clamp: unset; }
-/* START RUN / START PLAYER are disabled while a finished fight waits for a restart. */
-#junkyardPanel button:disabled { opacity: 0.45; cursor: not-allowed; }
-
-/* Escape pauses the game: a dim veil over the 3D view only (review 5.16). It sits
-   under the toolbar, HUD and view buttons, which stay usable while paused. */
-#pauseOverlay { position: fixed; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  background: #0b0d1059; color: #f3f6f4; font: 600 18px/1.4 ui-monospace, monospace; letter-spacing: 0.12em; text-shadow: 0 1px 4px #000; cursor: pointer; }
+/* ---- Pause veil for pages without the game's menus (tests, tools) ---- */
+#pauseOverlay { position: fixed; inset: 0; z-index: var(--z-world-ui); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: #0b0d1059; color: #f3f6f4; font: 600 var(--font-l)/1.4 var(--font-mono); letter-spacing: 0.12em; text-shadow: 0 1px 4px #000; cursor: pointer; }
 #pauseOverlay[hidden] { display: none; }
-#pauseOverlay small { font-size: 11px; font-weight: 400; letter-spacing: 0.05em; opacity: 0.8; }
+#pauseOverlay small { font-size: var(--font-s); font-weight: 400; letter-spacing: 0.05em; opacity: 0.8; }
+
+/* ---- HUD layout editing (Settings > EDIT HUD LAYOUT) ---- */
+body.hud-editing .movable-hud { outline: 2px dashed var(--c-focus); outline-offset: 3px; cursor: grab; touch-action: none; pointer-events: auto !important; }
+body.hud-editing .movable-hud * { pointer-events: none !important; }
+body.hud-editing .hud-dragging { cursor: grabbing; outline-style: solid; }
