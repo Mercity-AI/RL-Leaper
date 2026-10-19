@@ -122,14 +122,15 @@ try {
     await until(() => p.brain.brainFrame && Math.hypot(p.brain.brainFrame.x - land.position.x, p.brain.brainFrame.z - land.position.z) < 1e-3, 10, 'the pose sync');
     check(true, 'the brain\'s pose is synced to the landing spot');
     // ...and its next moves start from there (it never slides back to the take-off).
+    // Landing next to Lola it may also hold still again at once (Engage, or a
+    // stomp when she is pinned inside its reach), which can begin a frame after
+    // the leap ends, so both outcomes are waited for together.
     const steps = p.brain.frame.step ?? 0;
     await until(() => director.state !== 'leap', 20, 'the recovery');
-    if (director.state === 'engage') {
-      check(true, 'after landing next to Lola it holds and shoots (Engage)');
-    } else {
-      await until(() => (p.brain.frame.step ?? 0) >= steps + 3, 60, 'brain moves after the leap');
-      check(true, `the brain walks on (${(p.brain.frame.step ?? 0) - steps} moves after the landing)`);
-    }
+    const after = await until(() => ((p.brain.frame.step ?? 0) >= steps + 3 ? 'walks'
+      : ['engage', 'stomp'].includes(director.state) ? director.state : null), 60, 'brain moves (or a hold) after the leap');
+    check(true, after === 'walks' ? `the brain walks on (${(p.brain.frame.step ?? 0) - steps} moves after the landing)`
+      : `after landing next to Lola it holds still again (${after})`);
     check(Math.hypot(state.position.x - land.position.x, state.position.z - land.position.z) < 2.5, 'from the landing spot, not the take-off');
   }
 
@@ -185,6 +186,17 @@ try {
     const foot = { x: state.position.x + Math.sin(angle) * 3.24, z: state.position.z + Math.cos(angle) * 3.24 };
     check(!leaperBlocksMove(foot.x, foot.z, { x: foot.x * 2, z: foot.z * 2 }, poses, world.scale), 'she can walk up to the wreck between its legs');
     check(leaperBlocksMove(state.position.x, state.position.z, foot, poses, world.scale), 'but not through its hull');
+    // RESTART ENCOUNTER after the kill: a whole, standing, dormant Leaper with its
+    // lights on and nothing of the wreck left behind.
+    p.reset();
+    const posture = state.posture;
+    check(director.state === 'dormant' && rig.legs.every((leg) => !leg.disabled) && rig.mobility === 1,
+      'after a restart it is dormant with every leg back');
+    check(['lower', 'pitch', 'roll', 'splay'].every((key) => posture[key] === 0) && !posture.planted, 'standing, not collapsed');
+    check(p.combat.damageScale === 1 && p.combat.dyingGlow === undefined && rig.materials.glowSoft.emissiveIntensity === 1,
+      'normal damage, lights back on');
+    check(actor.feedback.debris.length === 0 && Object.values(actor.feedback.rings).every((ring) => !ring.mesh.visible),
+      'no debris or rings left from the wreck');
   }
 
   // ---- 5. Lola's real gun: every hit flashes the hull; a crit on the eye core staggers it ----
