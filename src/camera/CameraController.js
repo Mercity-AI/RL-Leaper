@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { STANDING_HEIGHT } from '../config/robot.js';
-import { CAMERA } from '../config/camera.js';
+import { CAMERA } from '../config/tuning/index.js';
 import { CameraOcclusion } from './CameraOcclusion.js';
 
 // The camera for every mode: the chase view behind Lola (and its first-person
@@ -53,8 +53,11 @@ export class CameraController {
     // Camera height on Lola, as a fraction of her height (eases while crouching).
     this.followHeight = 1.05;
     this.aiming = false;
-    // The player's look-speed setting (a settings menu would change this).
+    // The player's settings (Settings menu, src/ui/settings.js): look speed,
+    // up/down inverted, and the chase view's field of view in degrees.
     this.lookSensitivity = LOOK.sensitivity;
+    this.invertY = LOOK.invertY;
+    this.chaseFov = CAMERA.chaseFov;
     // Aiming magnification; the gun sets its own (WEAPONS[id].ads.zoom).
     this.aimZoom = CAMERA.aimZoom;
     // After leaving a steep aim the chase view still looks this much further
@@ -259,7 +262,7 @@ export class CameraController {
     this.toggleButton.classList.toggle('on', this.mode !== 'CHASE');
     document.body.classList.toggle('top-view', this.mode === 'TOP');
     this.canvas.style.cursor = this.mode === 'TOP' ? 'grab' : 'default';
-    this.camera.fov = this.eyeView ? CAMERA.eyeFov : this.mode === 'TOP' ? CAMERA.topFov : CAMERA.chaseFov;
+    this.camera.fov = this.eyeView ? CAMERA.eyeFov : this.mode === 'TOP' ? CAMERA.topFov : this.chaseFov;
     this.camera.up.set(0, 1, 0);
     this.scene.fog.far = (this.mode === 'TOP' ? 220 : 64) * this.mapScale;
     this.camera.updateProjectionMatrix();
@@ -319,7 +322,7 @@ export class CameraController {
   // moves the view the same distance on screen as it does unzoomed (review 5.38).
   zoomLookScale() {
     const half = (fov) => Math.tan(THREE.MathUtils.degToRad(fov) / 2);
-    return half(this.camera.fov) / half(CAMERA.chaseFov);
+    return half(this.camera.fov) / half(this.chaseFov);
   }
 
   // Turn Lola's chase / aim view by a raw amount (radians at sensitivity 1):
@@ -330,7 +333,7 @@ export class CameraController {
     if (this.spectator?.active || this.mode !== 'CHASE' || !this.followSubject) return;
     const scale = this.lookSensitivity * (this.aiming ? this.zoomLookScale() : 1);
     this.yaw -= yawDelta * scale;
-    this.pitch = this.limitPitch(this.pitch + pitchDelta * scale * (LOOK.invertY ? -1 : 1));
+    this.pitch = this.limitPitch(this.pitch + pitchDelta * scale * (this.invertY ? -1 : 1));
   }
 
   // Keep a pitch inside the current view's limits. Aiming down the sights may
@@ -431,7 +434,7 @@ export class CameraController {
     }
     if (this.followSubject) {
       // Aiming changes lens magnification (the gun's zoom); cover never changes the chosen FOV.
-      const fov = this.aiming ? zoomedFov(this.aimZoom) : CAMERA.chaseFov;
+      const fov = this.aiming ? zoomedFov(this.aimZoom, this.chaseFov) : this.chaseFov;
       this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, fov, 1 - Math.exp(-CAMERA.fovEase * deltaTime));
       this.camera.updateProjectionMatrix();
     }

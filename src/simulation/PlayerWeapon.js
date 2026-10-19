@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { GunshotEffects } from './GunshotEffects.js';
-import { SHOOTING, WEAPONS, WEAPON_SLOTS, weaponForSlot } from '../config/weapons.js';
-import { CAMERA } from '../config/camera.js';
+import { CAMERA, SHOOTING, WEAPONS, WEAPON_SLOTS, weaponForSlot } from '../config/tuning/index.js';
 import { WeaponState } from '../weapons/WeaponState.js';
 import { resolveShot, sightDepth, traceSight } from '../weapons/resolveShot.js';
 import { TargetRegistry } from '../weapons/TargetRegistry.js';
@@ -14,6 +13,11 @@ import { ReticleView } from '../ui/ReticleView.js';
 import { WeaponHudView } from '../ui/WeaponHudView.js';
 import { TouchControls } from '../ui/TouchControls.js';
 import { touchButtons, wantsTouchControls } from '../input/touch.js';
+
+// The gun icons the HUD shows, one per gun: { id, key, label, icon }.
+export function weaponSlots() {
+  return WEAPON_SLOTS.map(id => ({ id, key: WEAPONS[id].key, label: WEAPONS[id].label, icon: WEAPONS[id].icon }));
+}
 
 // Lola's guns, as a thin coordinator. The pieces it connects:
 //   src/config/weapons.js      every gun's numbers (damage, rate, spread, recoil...)
@@ -66,17 +70,27 @@ export class PlayerWeapon {
 
     // 5. The HUD: crosshair, gun icons and, on touch screens, the touch controls
     //    (their buttons press the same input actions as the keyboard and gamepad).
-    this.reticleView = new ReticleView(document.body);
-    this.weaponHud = new WeaponHudView(document.body, {
-      slots: WEAPON_SLOTS.map(id => ({ id, key: WEAPONS[id].key, label: WEAPONS[id].label, icon: WEAPONS[id].icon })),
-    });
+    //    In the game they belong to the HUD shell (p.hud, src/ui/Hud.js): this
+    //    class only fills hudState and the shell draws it once per frame. A page
+    //    without the shell gets its own views, drawn straight away.
+    const views = p.hud?.weaponViews ?? null;
+    this.ownsViews = !views;
+    this.reticleView = views?.reticle ?? new ReticleView(document.body);
+    this.weaponHud = views?.weapons ?? new WeaponHudView(document.body, { slots: weaponSlots() });
     this.hudGuns = WEAPON_SLOTS.map(id => ({ id, active: false, reloading: false, empty: false, fraction: 1 }));
-    this.touch = wantsTouchControls() ? new TouchControls(document.body, {
+    this.touch = views ? views.touch : wantsTouchControls() ? new TouchControls(document.body, {
       buttons: touchButtons(),
       onDown: action => this.input.virtualDown?.(action),
       onUp: action => this.input.virtualUp?.(action),
       onLook: (dx, dy) => p.cameraController.lookBy?.(dx * CAMERA.look.touch, dy * CAMERA.look.touch * CAMERA.look.verticalRatio),
     }) : null;
+    this.hudState = {
+      reticle: { visible: false, aiming: false, hit: false, crit: false, big: false, blocked: false,
+        blockOffset: this.obstruction.offset, spread: 0, marker: null },
+      weapons: { visible: false, reloading: false, empty: false, guns: this.hudGuns },
+      touch: { visible: true, gunReady: false, aiming: false, crouching: false, paused: false },
+      glow: 0,
+    };
 
     // 6. The gamepad's Start and the touch RESUME button resume the game the
     //    same way the pause overlay does (the junkyard already sets onPauseRequested).
@@ -101,13 +115,16 @@ export class PlayerWeapon {
   dispose() {
     this.firstPerson.dispose();
     this.visuals.dispose();
-    this.reticleView.dispose();
-    this.weaponHud.dispose();
-    this.touch?.dispose();
+    // (The HUD shell's views leave the page with the shell.)
+    if (this.ownsViews) {
+      this.reticleView.dispose();
+      this.weaponHud.dispose();
+      this.touch?.dispose();
+      document.documentElement.style.setProperty('--good-flash', '0');
+    }
     this.removeLeaperTarget();
     this.targets.clear();
     if (this.ownsInput) this.input.dispose();
-    document.documentElement.style.setProperty('--good-flash', '0');
   }
 
   // ---- What the rest of the game (and the tests) read ----
@@ -286,7 +303,8 @@ export class PlayerWeapon {
     // 1. Hit feedback and the blue edge glow fade even while the gun can't be used
     //    (the kill shot's reward plays out after the fight ends).
     this.feedback.update(dt);
-    document.documentElement.style.setProperty('--good-flash', this.feedback.glow.toFixed(3));
+    this.hudState.glow = this.feedback.glow;
+    if (this.ownsViews) document.documentElement.style.setProperty('--good-flash', this.feedback.glow.toFixed(3));
     // 2. This frame's input. Presses count once, however often update() runs.
     const fresh = this.input.frame !== this.inputFrame;
     this.inputFrame = this.input.frame;
@@ -364,22 +382,25 @@ export class PlayerWeapon {
 
   // ---- The HUD ----
 
-  // Hand the views this frame's data (they only touch the page on changes).
+  // This frame's HUD data (hudState); the views only touch the page on changes.
   renderHud() {
     const p = this.p, cc = p.cameraController, available = this.available;
     const feedback = this.feedback.state, state = this.state;
+    const { reticle, weapons, touch } = this.hudState;
     // The spread cone as pixels on screen from the crosshair.
     const canvas = p.engine.renderer?.domElement;
     const height = canvas?.clientHeight || globalThis.innerHeight || 1;
     const halfFov = THREE.MathUtils.degToRad(p.engine.camera.fov ?? CAMERA.chaseFov) / 2;
-    const spread = Math.tan(state.spread({ aiming: cc.aiming, moving: this.moving })) / Math.tan(halfFov) * height / 2;
     // The kill shot's marker stays on screen while it fades, though the gun is
     // already put away (the fight just ended on that shot).
-    this.reticleView.update({
-      visible: available || feedback.marker?.kind === 'kill', aiming: cc.aiming, hit: feedback.hit, crit: feedback.crit, big: feedback.big,
-      blocked: available && this.obstruction.blocked, blockOffset: this.obstruction.offset,
-      spread, marker: feedback.marker,
-    });
+    reticle.visible = available || feedback.marker?.kind === 'kill';
+    reticle.aiming = cc.aiming;
+    reticle.hit = feedback.hit;
+    reticle.crit = feedback.crit;
+    reticle.big = feedback.big;
+    reticle.blocked = available && this.obstruction.blocked;
+    reticle.spread = Math.tan(state.spread({ aiming: cc.aiming, moving: this.moving })) / Math.tan(halfFov) * height / 2;
+    reticle.marker = feedback.marker;
     // The gun icons: the equipped gun's fill drains with its magazine or refills while it reloads.
     const weaponIndex = p.target.weaponIndex;
     this.states.forEach((gunState, index) => {
@@ -389,10 +410,18 @@ export class PlayerWeapon {
       gun.empty = !gun.reloading && gunState.mag <= 0;
       gun.fraction = gun.reloading ? gunState.reloadProgress : gunState.mag / gunState.weapon.magazine;
     });
-    this.weaponHud.update({ visible: available, reloading: state.reloading, empty: !state.reloading && state.mag <= 0,
-      guns: this.hudGuns });
-    this.touch?.update({ visible: true, gunReady: available, aiming: cc.aiming, crouching: p.target.crouching,
-      paused: Boolean(p.paused) });
+    weapons.visible = available;
+    weapons.reloading = state.reloading;
+    weapons.empty = !state.reloading && state.mag <= 0;
+    touch.gunReady = available;
+    touch.aiming = cc.aiming;
+    touch.crouching = Boolean(p.target.crouching);
+    touch.paused = Boolean(p.paused);
+    // Without the HUD shell, draw it now.
+    if (!this.ownsViews) return;
+    this.reticleView.update(reticle);
+    this.weaponHud.update(weapons);
+    this.touch?.update(touch);
   }
 
   // Kept for older callers: the HUD now redraws itself every frame.

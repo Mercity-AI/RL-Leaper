@@ -1,21 +1,20 @@
 /* The crosshair view (src/ui/ReticleView.js). Self-contained: everything the
-   reticle needs is here, so it keeps its look when the old HUD rules in
-   junkyard.css are consolidated. */
+   reticle needs is here. In the game it sits in the HUD's centre region. */
 
-/* The layer itself never takes clicks or taps. */
-.reticle-layer { position: fixed; inset: 0; z-index: 12; pointer-events: none; }
+/* The layer covers the screen and never takes clicks or taps. */
+.reticle-layer { position: fixed; inset: 0; pointer-events: none; }
 .reticle-layer[hidden] { display: none; }
 
-/* Hip-fire "+" in the screen centre. */
-.reticle-layer .reticle {
-  --gap: 9px;
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  color: white; text-shadow: 0 0 3px black; font: 24px monospace;
-  pointer-events: none; transition: transform .12s ease-out, color .2s;
-}
+/* Hip-fire "+" in the screen centre. Hits kick it outward in crimson, a big hit
+   (a joint snapped, the kill) holds it larger, a weak-point hit glows brighter. */
+.reticle-layer .reticle { --gap: 9px; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; text-shadow: 0 0 3px black; font: 24px var(--font-mono, monospace); pointer-events: none; transition: transform .12s ease-out, color .2s; }
 .reticle-layer .reticle[hidden] { display: none; }
+.reticle-layer .reticle[data-hit=true] { color: #dc143c; text-shadow: 0 0 4px #8b0000, 0 0 2px #000; transform: translate(-50%, -50%) scale(1.4); transition-duration: .04s; }
+.reticle-layer .reticle[data-big=true] { color: #dc143c; text-shadow: 0 0 8px #dc143c, 0 0 2px #000; transform: translate(-50%, -50%) scale(1.7); transition-duration: .06s, .06s; }
+.reticle-layer .reticle[data-crit=true] { color: #ff1a40; text-shadow: 0 0 8px #dc143c, 0 0 2px #000; }
 
-/* Aiming down the sights: a thin crosshair with a centre dot, no ring. */
+/* Aiming down the sights: a thin crosshair with a centre dot, no ring, and only
+   4% shading at the screen edges, which never grows with a hit kick. */
 .reticle-layer .reticle[data-aim=true] {
   --gap: 18px;
   width: 32px; height: 32px; font-size: 0; text-shadow: none;
@@ -27,35 +26,22 @@
     radial-gradient(circle, currentColor 0 1px, transparent 1.5px) center / 4px 4px;
   background-repeat: no-repeat;
 }
-/* ...with only 4% shading at the screen edges, which never grows with a hit kick. */
-.reticle-layer .reticle[data-aim=true]::after {
-  content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: 100vw; height: 100vh; pointer-events: none; transition: transform .12s ease-out;
-  background: radial-gradient(ellipse at center, transparent 65%, rgba(0, 0, 0, 0.04) 100%);
-}
+.reticle-layer .reticle[data-aim=true]::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100vw; height: 100vh; pointer-events: none; transition: transform .12s ease-out; background: radial-gradient(ellipse at center, transparent 65%, rgba(0, 0, 0, 0.04) 100%); }
 .reticle-layer .reticle[data-aim=true][data-hit=true]::after { transform: translate(-50%, -50%) scale(calc(1 / 1.4)); }
 .reticle-layer .reticle[data-aim=true][data-big=true]::after { transform: translate(-50%, -50%) scale(calc(1 / 1.7)); }
-
-/* Hits kick it outward in crimson; a big hit (a joint snapped, the kill) holds it larger. */
-.reticle-layer .reticle[data-hit=true] { color: #dc143c; text-shadow: 0 0 4px #8b0000, 0 0 2px #000; transform: translate(-50%, -50%) scale(1.4); transition-duration: .04s; }
-.reticle-layer .reticle[data-big=true] { color: #dc143c; text-shadow: 0 0 8px #dc143c, 0 0 2px #000; transform: translate(-50%, -50%) scale(1.7); transition-duration: .06s, .06s; }
-/* Weak-point (eye core) hit: a brighter crimson glow. */
-.reticle-layer .reticle[data-crit=true] { color: #ff1a40; text-shadow: 0 0 8px #dc143c, 0 0 2px #000; }
+/* OBSTRUCTED: the barrel is blocked before the crosshair's point, so the
+   crosshair greys out (unless it is showing a hit). */
+/* off: .reticle-layer .reticle[data-blocked=true]:not([data-hit=true]):not([data-big=true]) { color: #9aa0a6; opacity: .85; } */
 
 /* The owner prefers the original plain crosshair (2026-10-19): the spread ticks,
-   the hit-marker X and the OBSTRUCTED look below are kept but not drawn (each
-   marked "off"). The crosshair's states are still set, so a look can come back
-   by removing its "off" line. */
+   the hit-marker X and the OBSTRUCTED look are kept but not drawn (each marked
+   "off"). The crosshair's states are still set, so a look can come back by
+   removing its "off" line. */
 
 /* Spread: four ticks that open up as the gun's shots spread wider. */
-.reticle-spread, .reticle-marker { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.reticle-spread { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
 .reticle-spread { display: none; } /* off */
-.reticle-spread i, .reticle-marker i {
-  position: absolute; left: 0; top: 0; display: block; background: currentColor;
-  box-shadow: 0 0 2px #000a;
-}
-.reticle-spread i { width: 2px; height: 5px; opacity: .8;
-  transform: translate(-50%, -50%) rotate(var(--turn)) translateY(calc(-1 * (var(--spread, 0px) + var(--gap)))); }
+.reticle-spread i { position: absolute; left: 0; top: 0; display: block; width: 2px; height: 5px; background: currentColor; box-shadow: 0 0 2px #000a; opacity: .8; transform: translate(-50%, -50%) rotate(var(--turn)) translateY(calc(-1 * (var(--spread, 0px) + var(--gap)))); }
 .reticle-spread i:nth-child(1) { --turn: 0deg; }
 .reticle-spread i:nth-child(2) { --turn: 90deg; }
 .reticle-spread i:nth-child(3) { --turn: 180deg; }
@@ -64,26 +50,19 @@
 /* Hit marker: an X around the crosshair, fading with --marker (1 -> 0).
    white = an ordinary hit, crimson = the weak point, amber = a joint snapped,
    red and large = the kill. */
-.reticle-marker { opacity: var(--marker, 0); }
-.reticle .reticle-marker { display: none; }
+.reticle-marker { position: absolute; left: 50%; top: 50%; display: none; width: 0; height: 0; opacity: var(--marker, 0); }
 /* off: .reticle:not([data-marker=none]):not([data-marker='']) .reticle-marker { display: block; } */
-.reticle-marker i { width: 2px; height: 8px; color: #fff;
-  transform: translate(-50%, -50%) rotate(var(--turn)) translateY(-13px); }
+.reticle-marker i { position: absolute; left: 0; top: 0; display: block; width: 2px; height: 8px; background: #fff; box-shadow: 0 0 2px #000a; transform: translate(-50%, -50%) rotate(var(--turn)) translateY(-13px); }
 .reticle-marker i:nth-child(1) { --turn: 45deg; }
 .reticle-marker i:nth-child(2) { --turn: 135deg; }
 .reticle-marker i:nth-child(3) { --turn: 225deg; }
 .reticle-marker i:nth-child(4) { --turn: 315deg; }
-.reticle[data-marker=normal] .reticle-marker i { background: #ffffff; }
-.reticle[data-marker=weak] .reticle-marker i { background: #ff1a40; height: 10px; }
-.reticle[data-marker=joint] .reticle-marker i { background: #ffb02e; height: 11px; transform: translate(-50%, -50%) rotate(var(--turn)) translateY(-15px); }
-.reticle[data-marker=kill] .reticle-marker i { background: #ff2a2a; width: 3px; height: 14px; transform: translate(-50%, -50%) rotate(var(--turn)) translateY(-18px); }
+.reticle[data-marker=weak] .reticle-marker i { height: 10px; background: #ff1a40; }
+.reticle[data-marker=joint] .reticle-marker i { height: 11px; background: #ffb02e; transform: translate(-50%, -50%) rotate(var(--turn)) translateY(-15px); }
+.reticle[data-marker=kill] .reticle-marker i { width: 3px; height: 14px; background: #ff2a2a; transform: translate(-50%, -50%) rotate(var(--turn)) translateY(-18px); }
 
-/* OBSTRUCTED: the barrel is blocked before the crosshair's point. The crosshair
-   greys out (unless it is showing a hit) and a marker sits on the cover. */
-/* off: #playerReticle.reticle[data-blocked=true]:not([data-hit=true]):not([data-big=true]) { color: #9aa0a6; opacity: .85; } */
-.reticle-block { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
-  display: flex; align-items: center; justify-content: center;
-  color: #ff8a3d; font: bold 16px/1 monospace; text-shadow: 0 0 3px #000, 0 0 1px #000; }
+/* The marker on the cover that blocks the barrel. */
+.reticle-block { position: fixed; left: 50%; top: 50%; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin: -9px 0 0 -9px; color: #ff8a3d; font: bold 16px/1 var(--font-mono, monospace); text-shadow: 0 0 3px #000, 0 0 1px #000; }
 .reticle-block { display: none; } /* off */
 
 /* Read out to screen readers only. */

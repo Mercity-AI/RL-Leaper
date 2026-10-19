@@ -1,0 +1,54 @@
+/* The developer tools (src/debug/DevPanel.js, loaded only with ?dev or on the
+   dev server): the DEV button, the drawer with the old toolbar and OPTIONS
+   (src/game/JunkyardPanel.js), brain details and the perf overlay. Never shown
+   to players, and only downloaded with the tools. */
+
+/* ---- The DEV button (top-right corner; VIEW moves over to make room) ---- */
+.dev-toggle { position: fixed; top: var(--hud-edge-top); right: var(--hud-edge-right); z-index: var(--z-dev); min-height: 36px; padding: var(--gap-s) var(--gap-m); border: 1px dashed var(--c-focus); border-radius: 6px; background: #2a2412e6; color: var(--c-focus); font: 700 var(--font-s)/1 var(--font-mono); letter-spacing: 0.15em; cursor: pointer; }
+.dev-toggle.on { background: #5a4a14; }
+body.dev-tools .hud-region[data-region="top-right"] { right: calc(var(--hud-edge-right) + 72px); }
+
+/* ---- The drawer (left side, scrolls inside the window) ---- */
+.dev-drawer { position: fixed; top: calc(var(--hud-edge-top) + 56px); left: var(--hud-edge-left); bottom: var(--hud-edge-bottom); z-index: var(--z-dev); box-sizing: border-box; display: flex; flex-direction: column; gap: var(--gap-m); width: min(380px, calc(100vw - 2 * var(--gap-l))); padding: var(--gap-m); overflow-y: auto; overscroll-behavior: contain; border: 1px solid #bac3ba; border-radius: 8px; background: rgba(247, 249, 245, 0.97); box-shadow: 0 8px 32px #0006; color: var(--ink); font: var(--font-s)/1.5 var(--font-mono); touch-action: pan-y; }
+.dev-drawer[hidden] { display: none; }
+.dev-header { display: flex; align-items: center; justify-content: space-between; letter-spacing: 0.15em; }
+.dev-header button { min-width: 36px; min-height: 32px; border: 1px solid #bac3ba; border-radius: 4px; background: white; font: inherit; font-size: var(--font-m); cursor: pointer; }
+.dev-section h3 { margin: 0 0 var(--gap-xs); color: #8a3a1c; font-size: var(--font-s); letter-spacing: 0.18em; }
+.dev-facts { display: grid; grid-template-columns: auto 1fr; gap: 2px var(--gap-s); margin: 0; }
+.dev-facts dt { color: #657065; }
+.dev-facts dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.dev-check { display: flex; align-items: center; gap: var(--gap-s); }
+
+/* ---- The perf overlay (bottom centre) ---- */
+.dev-perf { position: fixed; left: 50%; bottom: var(--hud-edge-bottom); z-index: var(--z-dev); margin: 0; padding: var(--gap-xs) var(--gap-s); border-radius: 4px; background: #000000c0; color: #b8f7c8; font: var(--font-s)/1.4 var(--font-mono); white-space: pre; pointer-events: none; transform: translateX(-50%); }
+.dev-perf[hidden] { display: none; }
+body.touch-controls-on .dev-perf { bottom: calc(var(--touch-band) + var(--gap-s)); }
+
+/* ---- The old toolbar and OPTIONS, inside the drawer ---- */
+#junkyardPanel { box-sizing: border-box; padding: 6px; border: 1px solid #bac3ba; border-radius: 8px; background: white; color: var(--ink); font: var(--font-s)/1.5 var(--font-mono); }
+#junkyardPanel .junkyard-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
+#junkyardPanel .brain-state { margin: 5px 2px 0; color: #43594d; font-size: var(--font-s); }
+#junkyardPanel [data-sight-status] { margin: 3px 2px; color: #253e36; font-size: var(--font-s); }
+#junkyardPanel [data-message] { margin: 3px 2px 0; color: #253e36; font-size: var(--font-s); }
+#junkyardOptions { padding: 12px 4px 4px; }
+#junkyardOptions[hidden] { display: none; }
+#junkyardPanel strong { letter-spacing: 0.15em; }
+#junkyardPanel label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+#junkyardPanel label:has([data-sight-mode]),
+#junkyardPanel label:has([data-brain-provider]) { flex-direction: column; align-items: stretch; gap: 4px; }
+#junkyardPanel select,
+#junkyardPanel button { padding: 8px; border: 1px solid #bac3ba; border-radius: 4px; background: white; color: var(--ink); font: inherit; cursor: pointer; }
+#junkyardPanel button:disabled { opacity: 0.45; cursor: not-allowed; }
+#junkyardPanel [data-action="route"] { background: #253e36; color: white; }
+#junkyardPanel [data-action="debug-damage"] { margin-top: 10px; border-color: #d98b44; }
+#junkyardPanel .junkyard-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#junkyardPanel .size-controls { display: flex; gap: 12px; margin-bottom: 12px; }
+#junkyardPanel .size-controls input { flex: 1; min-width: 0; accent-color: #253e36; }
+#junkyardPanel p { margin: 12px 0 6px; }
+#junkyardPanel small { color: #657065; font-size: var(--font-s); }
+
+/* ---- The live tuning panel (src/debug/TuningPanel.js, Tweakpane) ---- */
+/* Tweakpane's own dark theme, full drawer width; each config's note on top. */
+.dev-section[data-dev-section="tuning"] .tp-rotv { width: 100%; }
+.tuning-note { margin: 4px 8px 6px; color: #c8cdc8; font: 11px/1.45 var(--font-mono); white-space: normal; }
+.tuning-json { box-sizing: border-box; width: 100%; margin-top: var(--gap-s); font: var(--font-s)/1.4 var(--font-mono); }

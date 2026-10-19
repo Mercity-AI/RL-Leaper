@@ -1,14 +1,13 @@
 // Browser checks for the audio engine (src/audio/): every sound in the manifest
 // downloads and decodes in this browser's format, 3D sounds really come from
 // the side the listener hears them on (rendered offline and measured per ear),
-// the credits view lists everyone the licences name, and the sound settings
-// view moves the real mixer and is remembered. Run with
-// `pnpm test:browser` (headless Chromium).
+// and the stand-alone sound settings view moves the real mixer and is
+// remembered. Run with `pnpm test:browser` (headless Chromium). (The CREDITS
+// screen's list is checked in tests/game-screens.test.js.)
 import * as THREE from 'three';
 import { AudioService } from '../src/audio/AudioService.js';
 import { AudioSettings } from '../src/audio/AudioSettings.js';
 import { supportedFormats } from '../src/audio/formats.js';
-import { CreditsView } from '../src/ui/CreditsView.js';
 import { AudioSettingsView } from '../src/ui/AudioSettingsView.js';
 import { GameAudio } from '../src/audio/GameAudio.js';
 import { AUDIO_CONFIG } from '../src/audio/audioConfig.js';
@@ -130,25 +129,7 @@ try {
   const loudness = (e) => e.left + e.right;
   check(loudness(far) < loudness(near) * 0.3, `a far sound is quieter (${(loudness(far) / loudness(near)).toFixed(2)} of near)`);
 
-  // 3. The credits view: every author the licences name, links that open safely, BACK and Escape.
-  let closed = 0;
-  const credits = new CreditsView(views, { onClose: () => { closed += 1; } });
-  const text = credits.element.textContent;
-  for (const name of ['Artninja', 'gpag1', 'Luca2399', 'Astounded', 'qubodup', 'OGsoundFX', 'TB0Y298', 'Kenney', 'three.js']) {
-    check(text.includes(name), `the credits name ${name}`);
-  }
-  check(text.indexOf('Sounds that require credit') < text.indexOf('Public-domain sounds'), 'required credits come first');
-  const links = [...credits.element.querySelectorAll('a')];
-  check(links.length > 10 && links.every((link) => link.target === '_blank' && link.rel.includes('noopener')), 'links open in a new tab safely');
-  credits.back.click();
-  credits.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-  check(closed === 2, 'BACK and Escape close the credits');
-  credits.hide();
-  check(credits.element.hidden, 'hide() hides it');
-  credits.show();
-  check(!credits.element.hidden && document.activeElement === credits.element, 'show() shows it and moves focus to it');
-
-  // 4. The sound settings view on the game's audio: sliders move the mixer's
+  // 3. The sound settings view on the game's audio: sliders move the mixer's
   //    buses at once, the switch is the game's mute, and both are remembered.
   try { localStorage.removeItem('leaper.audio'); } catch { /* Private storage. */ }
   const mixer = offlineContext();
@@ -181,7 +162,7 @@ try {
   panel.element.querySelector('.audio-settings-reset').click();
   check(['master', 'sfx', 'ambience', 'ui'].every((name) => audio.settings.get(name) === 1 && slider(name).value === '100'),
     'RESET VOLUMES brings every slider back to 100%');
-  // Leave the views on the page for the screenshots.
+  // Leave the view on the page for the screenshots.
   audio.service.stopAll();
 
   result.textContent += `\nALL ${passed} CHECKS PASSED`;

@@ -31,9 +31,11 @@ export class JunkyardPlaytest {
   // audio: the one sound engine (LaserAudio), created by the junkyard mode.
   // signal: the mode's AbortSignal; every page listener of this session ends with it.
   // brainProvider: where the brain runs (see src/brain/BrainProvider.js); the brain owns it.
+  // hud: the game's HUD shell (src/ui/Hud.js), if any: Lola's health and the guns
+  //   then only keep their numbers and the shell draws them.
   constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null, signal = null,
-    brainProvider = null }) {
-    Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal });
+    brainProvider = null, hud = null }) {
+    Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal, hud });
     // 1. Game state and the event bus every system reports to.
     this.events = events ?? new EventBus();
     this.flow = flow ?? new GameFlow({ events: this.events });
@@ -46,7 +48,7 @@ export class JunkyardPlaytest {
     this.brainLabel = this.panelView.brainLabel;
 
     // 3. Lola's health and HUD (no longer owned by the Leaper's combat).
-    this.vitals = new PlayerVitals({ player: target, audio, events: this.events });
+    this.vitals = new PlayerVitals({ player: target, audio, events: this.events, hud: hud?.vitalsPresenter ?? null });
     this.vitals.onRestart = () => this.restartEncounter();
 
     // 4. Gameplay systems. Each receives this playtest as its context, so the
@@ -80,7 +82,8 @@ export class JunkyardPlaytest {
 
     // 7. The game state drives mouse capture, the toolbar labels and the pause
     //    overlay; Escape (or a lost mouse lock) pauses, a click on the overlay resumes.
-    this.pauseOverlay = new PauseOverlay({ onResume: () => this.resume(), signal });
+    // (With the game's HUD shell its pause menu takes this job: src/ui/GameScreens.js.)
+    this.pauseOverlay = hud ? null : new PauseOverlay({ onResume: () => this.resume(), signal });
     this.offFlowChange = this.flow.onChange((next, previous) => this.onFlowChange(next, previous));
     cameraController.onPauseRequested = () => this.pause();
     target.setSelected(true);
@@ -149,7 +152,7 @@ export class JunkyardPlaytest {
       this.cameraController.releaseMouse();
     }
     this.panelView.renderFlow(next);
-    this.pauseOverlay.render(next);
+    this.pauseOverlay?.render(next);
   }
 
   // ---- Toolbar actions ----
@@ -335,7 +338,7 @@ export class JunkyardPlaytest {
     }
     // 3. Page-side: HUD panels, overlays, the LEAPER POV reticle and the toolbar.
     this.removePlacement();
-    this.pauseOverlay.dispose();
+    this.pauseOverlay?.dispose();
     this.vitals.dispose();
     this.pov.reticle.remove();
     this.panelView.dispose();

@@ -11,8 +11,8 @@ for tuning and adding sounds without reading the code.
 | The mix: bus levels, voice limits, limiter, 3D distances, listener | `src/audio/audioConfig.js` |
 | The engine (AudioContext, buses, voices, 3D sound) | `src/audio/AudioService.js` |
 | The game's calls (`fire`, `play`, `playSlot`, `step`, ...) | `src/audio/GameAudio.js` (old name: `src/simulation/LaserAudio.js`) |
-| Player volume settings | `src/ui/AudioSettingsView.js`, `src/audio/audioSettingsSection.js` |
-| Credits | `CREDITS.md` and `src/ui/CreditsView.js`, both made from the manifest |
+| Player volume settings | `src/audio/audioSettingsSection.js` (the SETTINGS screen's AUDIO section); `src/ui/AudioSettingsView.js` is the stand-alone version for a page without that screen |
+| Credits | `CREDITS.md` and the CREDITS screen (`src/ui/credits.js`, `src/ui/CreditsScreen.js`), both made from the manifest |
 | Edited WAVs (build sources, never shipped) | `assets/audio/` |
 | Original downloads | `assets/audio/sources/` |
 | What the game downloads (Opus `.ogg` and AAC `.m4a`) | `assets/build/audio/`, written by `pnpm assets` |
@@ -77,7 +77,6 @@ audio.playAt('leaperBoltImpact', boltPosition);  // same as play(id, { at })
 audio.step('robot', false, 1, footPosition);     // one footstep
 audio.updateListener(camera, lolaPosition);      // every frame, late phase (the junkyard mode does it)
 registerAudioSettings(settings, audio);          // the SETTINGS screen's audio section
-new CreditsView(container, { onClose });         // the credits, for a menu
 ```
 
 Emitters are set once by the junkyard mode: `'leaper'` (the Leaper's body)

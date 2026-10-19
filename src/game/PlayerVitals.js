@@ -1,49 +1,47 @@
-import { COMBAT } from '../config/combat.js';
+import { COMBAT } from '../config/tuning/index.js';
 import { GAME_EVENTS } from '../core/events.js';
+import { VitalsView } from '../ui/VitalsView.js';
 
-// Lola's health and her on-screen health panel (#combatHud), plus the result
-// banner with RESTART ENCOUNTER. These used to live inside the Leaper's combat
-// class, so the enemy owned the player's health; with a second Leaper Lola would
-// have had two health bars (review finding enemy-combat-god-class-owns-player).
-// PlayerVitals holds the numbers and rules (testable without a page);
-// PlayerVitalsHud only draws them.
+// Lola's health and the rules around it: damage, the hit flash, the draining
+// "chunk lost" trail and being defeated. These used to live inside the Leaper's
+// combat class, so the enemy owned the player's health; with a second Leaper
+// Lola would have had two health bars (finding enemy-combat-god-class-owns-player).
+// PlayerVitals holds the numbers and rules (testable without a page) and hands
+// plain numbers (view()) to whatever draws them:
+//   - in the game, the HUD shell (src/ui/Hud.js) reads view() once per frame and
+//     the end screen shows the result, so PlayerVitals gets passivePresenter();
+//   - pages without the HUD (test pages, tools) get PlayerVitalsHud below.
 
-// Health meter: the solid fill is current health; the pale "trail" shows the chunk
-// just lost, holds briefly, then drains so each hit's size is readable.
-const METER = '<div class="health-meter" aria-hidden="true"><i class="hp-trail"></i><i class="hp-fill"></i></div>';
 export const TRAIL_HOLD = 0.45; // seconds the lost chunk stays before draining
 export const TRAIL_DRAIN = 0.6; // share of a full bar drained per second
 // Seconds the "HIT" label and the highlighted health readout show after a hit.
 const HIT_FLASH = 0.4;
 
-// The page side: Lola's panel and the result banner.
+// The page side for pages without the game's HUD: Lola's panel, a result banner
+// with RESTART ENCOUNTER, and the red screen-edge tint (a page-wide variable).
 export class PlayerVitalsHud {
   constructor({ onRestart }) {
-    // 1. Name, HIT label, number, screen-reader progress bar, meter, and the
-    //    (hidden) end-of-fight result with its restart button.
-    this.element = document.createElement('div');
-    this.element.id = 'combatHud';
-    this.element.innerHTML = `<div class="combat-health"><b>LOLA <span data-hit-label hidden>HIT</span> <span class="hp-text" data-hp-text></span></b><progress aria-label="Lola health" data-health-bar max="100" value="100"></progress>${METER}</div>
-      <div data-result hidden><strong></strong><button data-restart>RESTART ENCOUNTER</button></div>`;
-    document.body.appendChild(this.element);
-    this.result = this.element.querySelector('[data-result]');
+    // 1. Lola's panel (src/ui/VitalsView.js) on the page, plus the (hidden)
+    //    end-of-fight result with its restart button.
+    this.view = new VitalsView(document.body);
+    this.element = this.view.element;
+    this.result = document.createElement('div');
+    this.result.dataset.result = '';
+    this.result.hidden = true;
+    this.result.innerHTML = '<strong></strong><button type="button" data-restart>RESTART ENCOUNTER</button>';
+    this.element.append(this.result);
     // 2. RESTART ENCOUNTER: what it does is the game's decision.
     this.result.querySelector('[data-restart]').onclick = () => onRestart();
+    this.edgeTint = null;
   }
 
-  // view: the numbers from PlayerVitals.view().
-  render({ health, max, hit, level, share, trail, edgeTint }) {
-    const hud = this.element;
-    const bar = hud.querySelector('[data-health-bar]');
-    bar.max = max; bar.value = health;
-    hud.querySelector('[data-hp-text]').textContent = `${Math.ceil(health)}`;
-    hud.querySelector('[data-hit-label]').hidden = !hit;
-    hud.dataset.hit = String(hit);
-    hud.dataset.level = level;
-    const meter = hud.querySelector('.health-meter');
-    meter.style.setProperty('--hp', String(share));
-    meter.style.setProperty('--trail', String(trail));
-    document.documentElement.style.setProperty('--damage-flash', String(edgeTint));
+  // view: the numbers from PlayerVitals.view(). Every write happens only on a change.
+  render(view) {
+    this.view.update(view);
+    const tint = String(view.edgeTint);
+    if (tint === this.edgeTint) return;
+    this.edgeTint = tint;
+    document.documentElement.style.setProperty('--damage-flash', tint);
   }
 
   // The end-of-fight banner, and hiding it again on a restart.
@@ -58,15 +56,22 @@ export class PlayerVitalsHud {
 
   // The session is over: the panel leaves the page and the red screen edges are cleared.
   dispose() {
-    this.element.remove();
+    this.view.dispose();
     document.documentElement.style.setProperty('--damage-flash', '0');
   }
+}
+
+// A presenter that draws nothing, for the game: its HUD reads view() itself each
+// frame and the end screen shows the result. element: the HUD's panel (for tools).
+export function passivePresenter(element = null) {
+  return { passive: true, element, render() {}, showResult() {}, hideResult() {}, dispose() {} };
 }
 
 export class PlayerVitals {
   // player: Lola (her hit flinch and `defeated` flag). audio: the shared sound
   // engine (hurt sounds). events: the game's event bus (lolaDamaged).
-  // hud: what draws the numbers (the page panel by default).
+  // hud: what draws the numbers (PlayerVitalsHud by default, passivePresenter()
+  // when the game's HUD shell draws them).
   constructor({ player, audio = null, events = null, config = COMBAT, hud = null }) {
     Object.assign(this, { player, audio, events, config });
     this.max = config.lolaHealth;
@@ -146,8 +151,10 @@ export class PlayerVitals {
     };
   }
 
-  // Hand the current numbers to whatever draws them.
+  // Hand the current numbers to whatever draws them (nothing to do when the
+  // game's HUD reads them itself).
   updateHud({ over = false } = {}) {
+    if (this.hud.passive) return;
     this.hud.render(this.view({ over }));
   }
 

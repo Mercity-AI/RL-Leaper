@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LEAPER_ANGLES, LEAPER_BEHAVIOUR } from '../../config/leaper-behaviour.js';
+import { LEAPER_ANGLES, LEAPER_BEHAVIOUR } from '../../config/tuning/index.js';
 import { STANDING_HEIGHT } from '../../config/robot.js';
 import { contact, leaperReach, severedLegs } from '../../world/playerContact.js';
 import { shortestAngle, turnToward, wrapAngle } from '../../core/angles.js';

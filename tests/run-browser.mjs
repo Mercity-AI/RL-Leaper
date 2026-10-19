@@ -25,6 +25,8 @@ const PAGES = ['tests/browser-combat.html', 'tests/camera-player.html', 'tests/b
 const SCRIPTS = [
   { path: 'tests/game-controls.browser.mjs' },
   { path: 'tests/touch-controls.browser.mjs', device: 'Pixel 7' },
+  { path: 'tests/game-flow.browser.mjs' },
+  { path: 'tests/hud-layout.browser.mjs', device: 'Pixel 7', viewport: { width: 412, height: 839 } },
 ];
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TIMEOUT_SECONDS = Number(process.env.BROWSER_TEST_TIMEOUT || 300);
@@ -73,10 +75,12 @@ async function runPage(browser, baseUrl, path) {
 }
 
 // --- One scripted test -------------------------------------------------------------
-// The script's default export drives a page opened on its device and calls
-// check(condition, label) for every check; a failed check throws.
-async function runScript(browser, baseUrl, { path, device }) {
-  const context = await browser.newContext(device ? devices[device] : { viewport: { width: 1280, height: 720 } });
+// The script's default export drives a page opened on its device (optionally at
+// another window size) and calls check(condition, label) for every check; a
+// failed check throws.
+async function runScript(browser, baseUrl, { path, device, viewport }) {
+  const base = device ? devices[device] : { viewport: { width: 1280, height: 720 } };
+  const context = await browser.newContext(viewport ? { ...base, viewport } : base);
   const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
@@ -95,7 +99,7 @@ async function runScript(browser, baseUrl, { path, device }) {
       lines.push(`PASS ${label}`);
     };
     const name = await run(page, { baseUrl, check });
-    title = `PASS ${lines.length} · ${name}${device ? ` · ${device}` : ''}`;
+    title = `PASS ${lines.length} · ${name}${device ? ` · ${device}` : ''}${viewport ? ` ${viewport.width} x ${viewport.height}` : ''}`;
     passed = pageErrors.length === 0;
   } catch (error) {
     title = `FAIL · ${path}`;

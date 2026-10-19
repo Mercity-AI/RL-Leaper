@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HangingLeg } from './HangingLeg.js';
-import { COMBAT } from '../config/combat.js';
+import { COMBAT } from '../config/tuning/index.js';
 
 const PARTS = ['coxa', 'femur', 'tibia', 'calf', 'knee', 'calfJoint'];
 const BELOW = { upper: ['knee', 'tibia', 'calfJoint', 'calf'], lower: ['calfJoint', 'calf'],

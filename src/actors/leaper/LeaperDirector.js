@@ -1,5 +1,5 @@
 import { LEAPER_BEHAVIOUR } from '../../config/leaper-behaviour.js';
-import { COMBAT } from '../../config/combat.js';
+import { COMBAT } from '../../config/tuning/index.js';
 
 // The Leaper's decision layer: an explicit state machine above the frozen brain
 // (review theme 6.4, finding brain-ai-no-behaviour-layer), in the style of
