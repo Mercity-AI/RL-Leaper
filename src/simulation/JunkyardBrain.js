@@ -185,6 +185,10 @@ export class JunkyardBrain {
     this.failedSteps = 0;
     this.progress = null;
     // 1. The previous session is finished with (RESET, vision change, retry).
+    //    A pose sync still waiting for it is dropped, not replayed into the new
+    //    episode: that starts from the animator's pose, where the game (RESET's
+    //    spawn, or the teleport itself) has already put the Leaper.
+    this.settleSync(null, new Error('The brain session restarted before the pose sync'));
     this.closeSession(this.token);
     this.token = null;
     this.pendingRestart = null;
@@ -304,8 +308,9 @@ export class JunkyardBrain {
   // pose there too. The Leaper shows and touches Lola at the new spot at once;
   // the brain is told before its next move. Resolves with the brain's frame at
   // the new pose. If the brain refuses (the spot overlaps a wreck), it rejects
-  // and the Leaper goes back to the brain's pose. Without a brain session (turret
-  // mode, or before the first reset) it just moves the planted Leaper.
+  // and the Leaper goes back to the brain's pose; a RESET (new episode) before it
+  // is sent rejects it too. Without a brain session (turret mode, or before the
+  // first reset) it just moves the planted Leaper.
   syncPose({ x, z, yaw }) {
     const pose = { x, z, yaw };
     this.frame = { ...(this.frame || {}), ...pose };

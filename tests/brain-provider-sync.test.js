@@ -234,6 +234,50 @@ test('a sync queued while the brain loads is sent once it is ready; dispose reje
   await tick();
 });
 
+test('RESET drops a sync still waiting: the new episode is never moved back to the old leap spot', async () => {
+  globalThis.document = { hidden: false };
+  const p = playtest();
+  const brain = new JunkyardBrain(p);
+  const calls = [];
+  let finishStep;
+  let sessions = 0;
+  brain.request = (path, data) => {
+    calls.push(path);
+    if (path === 'step') return new Promise((resolve) => { finishStep = resolve; });
+    if (path === 'sync') return Promise.resolve({ ...frame, x: data.position[0], z: data.position[1] });
+    return Promise.resolve({ ...frame, x: data.position[0], z: data.position[1], token: `s${++sessions}` });
+  };
+  await brain.reset();
+  brain.start();
+  brain.update(0.1);
+  // A leap while a move is computing: the sync waits for that move...
+  p.simulation.state.position.set(8, 0, 1);
+  const synced = brain.syncPose({ x: 8, z: 1, yaw: 0 });
+  // ...but RESET comes first: the encounter puts the Leaper at its spawn and starts a new episode.
+  p.simulation.state.position.set(0, 0, 0);
+  await brain.reset();
+  await assert.rejects(synced, /restarted before the pose sync/);
+  finishStep({ ...frame, x: 0.375, step: 1 });
+  await tick();
+  assert.deepEqual(calls, ['reset', 'step', 'reset'], 'the stale sync is never sent to the new session');
+  assert.equal(brain.token, 's2');
+  assert.deepEqual([brain.frame.x, brain.frame.z], [0, 0], 'the Leaper stays at the spawn');
+  assert.equal(brain.contactPoses().to.x, 0);
+  // A sync asked for after the RESET began is still sent once it is ready.
+  let finishReset;
+  brain.request = (path, data) => {
+    calls.push(path);
+    if (path === 'reset') return new Promise((resolve) => { finishReset = resolve; });
+    return Promise.resolve({ ...frame, x: data.position[0], token: 's3' });
+  };
+  const resetting = brain.reset();
+  const later = brain.syncPose({ x: 3, z: 0, yaw: 0 });
+  finishReset({ ...frame, token: 's3' });
+  await resetting;
+  assert.equal((await later).x, 3);
+  assert.deepEqual(calls.slice(-2), ['reset', 'sync']);
+});
+
 test('a sync waiting when the brain goes offline just moves the planted Leaper', async () => {
   globalThis.document = { hidden: false };
   const brain = new JunkyardBrain(playtest());

@@ -123,7 +123,9 @@ else between two brain moves, use:
 - or `brain.syncPose({ x, z, yaw })` directly: the Leaper is shown and blocks
   Lola at the new spot at once; the sync is sent before the next move (after a
   move already in flight, whose old-spot reply is not shown); without a brain
-  session (turret mode) it only moves the planted Leaper.
+  session (turret mode) it only moves the planted Leaper. A RESET (a new
+  episode) before a waiting sync is sent rejects that sync instead of moving
+  the fresh episode back to the old spot.
 
 Both providers implement it the same way (`brainSession.js` `sync()`, Python
 `BrainSession.sync` behind `POST /sync`): refuse a pose whose body or leg discs
