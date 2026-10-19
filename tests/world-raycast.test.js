@@ -88,13 +88,25 @@ test('fast map rays are much quicker (timing report)', async () => {
   const { plain, fast } = await maps();
   const random = seededRandom(3);
   const rays = Array.from({ length: 2000 }, () => randomRay(random));
+  // One timed round: milliseconds per ray over all 2,000 rays.
   const time = (geometry) => {
-    for (const { origin, direction, distance } of rays.slice(0, 100)) geometry.hit(origin, direction, distance);
     const start = performance.now();
     for (const { origin, direction, distance } of rays) geometry.hit(origin, direction, distance);
     return (performance.now() - start) / rays.length;
   };
-  const before = time(plain), after = time(fast);
+  // Warm both up, then keep each one's best of five alternating rounds. The other
+  // test files run at the same time, and a busy moment can only make a round
+  // slower, never faster; a single round of the quick (~20 ms) loop could
+  // otherwise lose the race to one hiccup and fail for no real reason.
+  for (const { origin, direction, distance } of rays.slice(0, 100)) {
+    plain.hit(origin, direction, distance);
+    fast.hit(origin, direction, distance);
+  }
+  let before = Infinity, after = Infinity;
+  for (let round = 0; round < 5; round += 1) {
+    before = Math.min(before, time(plain));
+    after = Math.min(after, time(fast));
+  }
   console.log(`map ray: ${before.toFixed(4)} ms brute force -> ${after.toFixed(4)} ms with the hierarchy (${(before / after).toFixed(1)}x)`);
   assert.ok(after * 3 < before, `the hierarchy should be at least 3x faster (${before} vs ${after} ms)`);
 });
