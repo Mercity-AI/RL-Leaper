@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LeaperLegDamage } from './LeaperLegDamage.js';
 import { createLaserVisual } from './LaserVisual.js';
-import { COMBAT } from '../config/combat.js';
+import { COMBAT } from '../config/tuning/index.js';
 import { AttackController } from './AttackController.js';
 import { CombatGeometry, aimAngles, withinAim, capsuleHit } from './CombatGeometry.js';
 import { LeaperHealthBar } from './LeaperHealthBar.js';

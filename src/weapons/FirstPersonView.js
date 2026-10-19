@@ -1,4 +1,4 @@
-import { CAMERA } from '../config/tuning/index.js';
+import { CAMERA } from '../config/camera.js';
 
 // Aiming down the sights puts the camera inside Lola's head. Instead of hiding
 // all of her for each render (which also removed her shadow and her gun), only

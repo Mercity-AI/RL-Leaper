@@ -1,13 +1,13 @@
 // The designer tuning registry (finding game-architecture-tuning-scattered-no-live-ui):
 // one place that knows every tunable config, owns a mutable copy of each, and
-// lets the developer panel change them live, copy them as JSON, reset them and
-// remember the changes in this browser.
+// lets the developer panel change them live, copy the changes as JSON, reset
+// them and remember them in this browser.
 //
 // The config files stay as they are, Object.freeze'd: the registry never
-// touches them. When tuning is on (the dev server, ?dev or ?tune) it hands out
-// deep copies, changed in place, so a module that read a config once still sees
-// every later change. When tuning is off (players) it hands out the frozen
-// configs themselves, so the game is exactly as written and pays nothing.
+// touches them. When tuning is on (the developer tools: the dev server or ?dev)
+// it hands out deep copies, changed in place, so a module that read a config
+// once still sees every later change. When tuning is off (players) it hands out
+// the frozen configs themselves, so the game is exactly as written.
 // Configs the frozen brain depends on are registered read-only: shown, never changed.
 
 // Where changes are remembered in this browser (dev only).
@@ -20,7 +20,8 @@ export function deepCopy(value) {
   return value;
 }
 
-// Read / write a value at a dotted path ('look.sensitivity').
+// Read a value at a dotted path ('look.mouse'); the parent object and last key
+// of a path, for writing.
 export function readPath(object, path) {
   return path.split('.').reduce((node, key) => node?.[key], object);
 }
@@ -31,18 +32,20 @@ function parentOf(object, path) {
 }
 
 // Slider limits for a value nobody gave limits for: from 0 to four times it
-// (the other way for a negative), in steps of about a hundredth of it.
+// (the other way for a negative). Whole numbers of 2 or more (magazines, health,
+// lenses) move in whole steps; others get no step, so the panel never rounds a
+// value such as 1/7 that it did not change.
 export function rangeFor(value) {
-  if (value === 0) return { min: 0, max: 1, step: 0.01 };
+  if (value === 0) return { min: 0, max: 1 };
   const size = Math.abs(value);
-  const step = Number.isInteger(value) && size >= 2 ? 1 : 10 ** (Math.floor(Math.log10(size)) - 2);
   const far = Math.max(size * 4, size + 1);
-  return value > 0 ? { min: 0, max: far, step } : { min: -far, max: 0, step };
+  const step = Number.isInteger(value) && size >= 2 ? { step: 1 } : {};
+  return value > 0 ? { min: 0, max: far, ...step } : { min: -far, max: 0, ...step };
 }
 
 export class TuningRegistry {
   // live: hand out mutable copies (tuning on). storage: where changes are
-  // remembered (only used while live).
+  // remembered (a localStorage-like object; only used while live).
   constructor({ live = false, storage = null, key = TUNING_KEY } = {}) {
     Object.assign(this, { live, storage, key });
     this.entries = new Map();
@@ -52,12 +55,14 @@ export class TuningRegistry {
   // ---- Registering ----
 
   // id: a short name ('camera'). source: the config object as written.
-  // label: shown in the panel. readOnly: never changed (the brain contract).
-  // note: one line of small print. limits: { 'dotted.path': { min, max, step } }.
-  register(id, { source, label = id, readOnly = false, note = '', limits = {} }) {
+  // label: shown in the panel. readOnly: the whole config is never changed (the
+  // brain contract). fixed: dotted paths shown but not tunable live (read once
+  // at load, or owned by the player's SETTINGS). note: one line of small print.
+  // limits: { 'dotted.path': { min, max, step } }.
+  register(id, { source, label = id, readOnly = false, fixed = [], note = '', limits = {} }) {
     if (this.entries.has(id)) throw new Error(`Tuning config "${id}" is already registered`);
     const values = this.live && !readOnly ? deepCopy(source) : source;
-    this.entries.set(id, { id, source, values, label, readOnly, note, limits });
+    this.entries.set(id, { id, source, values, label, readOnly, fixed: new Set(fixed), note, limits });
     return values;
   }
 
@@ -74,19 +79,21 @@ export class TuningRegistry {
     return this.entry(id).values;
   }
 
-  // The tunable leaves of a config: numbers and on/off switches, with limits.
-  // Each: { path, value, default, type: 'number' | 'boolean', min, max, step, readOnly }.
+  // The leaves of a config the panel shows: finite numbers and on/off switches,
+  // also inside lists ('eyeOffset.1'). Text is never shown.
+  // Each: { path, value, default, type: 'number' | 'boolean', min, max, step?, readOnly }.
   fields(id) {
-    const { values, source, readOnly, limits } = this.entry(id);
+    const { values, source, readOnly, fixed, limits } = this.entry(id);
     const fields = [];
     const walk = (node, prefix) => {
       for (const [key, value] of Object.entries(node)) {
         const path = prefix ? `${prefix}.${key}` : key;
+        const base = { path, value, default: readPath(source, path), readOnly: readOnly || fixed.has(path) };
         if (typeof value === 'number' && Number.isFinite(value)) {
-          fields.push({ path, value, default: readPath(source, path), type: 'number', ...rangeFor(readPath(source, path)), ...limits[path], readOnly });
+          fields.push({ ...base, type: 'number', ...rangeFor(base.default), ...limits[path] });
         } else if (typeof value === 'boolean') {
-          fields.push({ path, value, default: readPath(source, path), type: 'boolean', readOnly });
-        } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+          fields.push({ ...base, type: 'boolean' });
+        } else if (value && typeof value === 'object') {
           walk(value, path);
         }
       }
@@ -95,37 +102,44 @@ export class TuningRegistry {
     return fields;
   }
 
+  // One tunable leaf by path, or undefined.
+  field(id, path) {
+    return this.fields(id).find((field) => field.path === path);
+  }
+
   // ---- Changing ----
 
-  // Change one value live. Refused (throws) for read-only configs, while tuning
-  // is off, for unknown paths and for a value of the wrong kind.
+  // Change one value live. Refused (throws) while tuning is off, for read-only
+  // configs or fixed paths, for paths the panel does not show and for a value
+  // of the wrong kind. Returns whether anything changed.
   set(id, path, value) {
     const entry = this.entry(id);
-    if (entry.readOnly) throw new Error(`"${id}" is read-only (the frozen brain depends on it)`);
-    if (!this.live) throw new Error('Tuning is off (open the game with ?dev or ?tune)');
+    if (entry.readOnly) throw new Error(`"${id}" is read-only (the frozen brain depends on it, or it is read at load)`);
+    if (!this.live) throw new Error('Tuning is off (open the game with ?dev)');
+    const field = this.field(id, path);
+    if (!field) throw new Error(`Unknown tunable "${id}.${path}"`);
+    if (field.readOnly) throw new Error(`"${id}.${path}" is not tunable live`);
+    const next = field.type === 'number' ? Number(value) : value;
+    if (field.type === 'number' && !Number.isFinite(next)) throw new Error(`"${id}.${path}" needs a number`);
+    if (field.type === 'boolean' && typeof next !== 'boolean') throw new Error(`"${id}.${path}" needs true or false`);
+    if (next === field.value) return false;
     const { parent, last } = parentOf(entry.values, path);
-    const current = parent?.[last];
-    if (parent === undefined || current === undefined || typeof current === 'object') throw new Error(`Unknown tunable "${id}.${path}"`);
-    const next = typeof current === 'number' ? Number(value) : typeof current === 'boolean' ? Boolean(value) : value;
-    if (typeof current === 'number' && !Number.isFinite(next)) throw new Error(`"${id}.${path}" needs a number`);
-    if (next === current) return false;
     parent[last] = next;
     this.save();
-    for (const listener of [...this.listeners]) listener(id, path, next);
+    this.emit(id, path, next);
     return true;
   }
 
   // Back to the values as written: one config, or every one.
   reset(id = null) {
+    if (!this.live) return;
     for (const entry of id ? [this.entry(id)] : this.entries.values()) {
-      if (entry.readOnly || !this.live) continue;
-      for (const { path } of this.fields(entry.id)) {
-        const { parent, last } = parentOf(entry.values, path);
-        const original = readPath(entry.source, path);
-        if (parent[last] !== original) {
-          parent[last] = original;
-          for (const listener of [...this.listeners]) listener(entry.id, path, original);
-        }
+      if (entry.readOnly) continue;
+      for (const field of this.fields(entry.id)) {
+        if (field.readOnly || field.value === field.default) continue;
+        const { parent, last } = parentOf(entry.values, field.path);
+        parent[last] = field.default;
+        this.emit(entry.id, field.path, field.default);
       }
     }
     this.save();
@@ -137,6 +151,10 @@ export class TuningRegistry {
     return () => this.listeners.delete(listener);
   }
 
+  emit(id, path, value) {
+    for (const listener of [...this.listeners]) listener(id, path, value);
+  }
+
   // ---- Saving and sharing ----
 
   // Every value that differs from the config as written: { id: { path: value } }.
@@ -145,18 +163,20 @@ export class TuningRegistry {
     for (const entry of this.entries.values()) {
       if (entry.readOnly) continue;
       for (const field of this.fields(entry.id)) {
-        if (field.value !== field.default) (changed[entry.id] ??= {})[field.path] = field.value;
+        if (!field.readOnly && field.value !== field.default) (changed[entry.id] ??= {})[field.path] = field.value;
       }
     }
     return changed;
   }
 
-  // Apply saved changes (unknown, read-only or invalid ones are skipped).
+  // Apply saved changes; unknown, read-only or invalid ones are skipped.
+  // Returns how many values changed.
   applyOverrides(overrides = {}) {
     let applied = 0;
-    for (const [id, paths] of Object.entries(overrides ?? {})) {
-      if (!this.has(id) || this.entry(id).readOnly) continue;
-      for (const [path, value] of Object.entries(paths ?? {})) {
+    if (!overrides || typeof overrides !== 'object') return applied;
+    for (const [id, paths] of Object.entries(overrides)) {
+      if (!this.has(id) || this.entry(id).readOnly || !paths || typeof paths !== 'object') continue;
+      for (const [path, value] of Object.entries(paths)) {
         try {
           if (this.set(id, path, value)) applied += 1;
         } catch { /* An old or broken entry: skipped. */ }
@@ -165,27 +185,30 @@ export class TuningRegistry {
     return applied;
   }
 
-  // Remember / read back the changes in this browser (only while tuning).
+  // Remember the changes in this browser (only while tuning). Nothing changed:
+  // nothing saved. Private or full storage: the changes last for this page only.
   save() {
-    if (!this.live) return;
+    if (!this.live || !this.storage) return;
     try {
-      this.storage?.setItem(this.key, JSON.stringify(this.overrides()));
-    } catch { /* Private storage: the changes last for this page only. */ }
+      const changed = this.overrides();
+      if (Object.keys(changed).length) this.storage.setItem(this.key, JSON.stringify(changed));
+      else this.storage.removeItem(this.key);
+    } catch { /* Storage refused: kept for this page only. */ }
   }
 
+  // Read the saved changes back (only while tuning). Returns how many applied.
   load() {
-    if (!this.live) return 0;
-    let saved = {};
+    if (!this.live || !this.storage) return 0;
+    let saved = null;
     try {
-      saved = JSON.parse(this.storage?.getItem(this.key) ?? '{}');
+      saved = JSON.parse(this.storage.getItem(this.key) ?? 'null');
     } catch { /* Unreadable: nothing applied. */ }
     return this.applyOverrides(saved);
   }
 
-  // The current values of the tunable configs as JSON text, ready to paste
-  // into the config files (Infinity, which JSON lacks, is written "Infinity").
-  toJSON(ids = this.ids().filter((id) => !this.entry(id).readOnly)) {
-    const out = Object.fromEntries(ids.map((id) => [id, this.values(id)]));
-    return JSON.stringify(out, (key, value) => (value === Infinity ? 'Infinity' : value === -Infinity ? '-Infinity' : value), 2);
+  // COPY JSON: the values that differ from the config files, by config and
+  // dotted path, ready to carry over into src/config/ by hand.
+  changesJson() {
+    return JSON.stringify(this.overrides(), null, 2);
   }
 }

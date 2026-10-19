@@ -14,7 +14,8 @@ import { NO_TIMER, PhaseTimer, perfText, rendererCounts } from './PhaseTimer.js'
 //   PERF      a small overlay: frames per second, frame time, milliseconds per
 //             frame phase and the renderer's counters (draw calls, triangles,
 //             geometries, textures, shader programs)
-//   TUNING    a mount point for the live tuning panel (mountTuning)
+//   TUNING    the live tuning panel (src/debug/TuningPanel.js), downloaded with
+//             Tweakpane the first time the drawer opens
 // What is open is remembered in this browser.
 
 const STORAGE_KEY = 'leaper.dev-tools.v1';
@@ -108,8 +109,25 @@ export class DevPanel {
     this.drawer.hidden = !this.state.open;
     this.toggle.setAttribute('aria-expanded', String(this.state.open));
     this.toggle.classList.toggle('on', this.state.open);
+    if (this.state.open) this.mountTuning();
     this.save();
     this.refresh();
+  }
+
+  // The tuning panel and Tweakpane are downloaded the first time the drawer
+  // opens (dynamic import), so the rest of the tools stay small.
+  mountTuning() {
+    if (this.tuning) return;
+    this.tuning = import('./TuningPanel.js')
+      .then(({ createTuningPanel }) => {
+        if (this.disposed) return null;
+        this.tuningPanel = createTuningPanel({ container: this.tuningSection });
+        return this.tuningPanel;
+      })
+      .catch((error) => {
+        this.tuningSection.append(Object.assign(document.createElement('small'), { textContent: `Tuning panel failed to load: ${error.message}` }));
+        return null;
+      });
   }
 
   setPerf(on) {
@@ -125,7 +143,7 @@ export class DevPanel {
     } catch { /* Private storage: remembered for this page only. */ }
   }
 
-  // A mount point for the live tuning panel: its section element.
+  // Where the live tuning panel goes: the TUNING section.
   get tuningSection() {
     return this.drawer.querySelector('[data-dev-section="tuning"]');
   }
@@ -149,6 +167,7 @@ export class DevPanel {
     if (this.disposed) return;
     this.disposed = true;
     clearInterval(this.interval);
+    this.tuningPanel?.dispose();
     if (this.ui.profiler === this.timer) this.ui.profiler = NO_TIMER;
     document.body.classList.remove('dev-tools');
     this.toggle.remove();
