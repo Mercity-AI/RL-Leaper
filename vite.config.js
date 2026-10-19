@@ -35,8 +35,13 @@ export default defineConfig({
       output: {
         // three.js gets a file of its own: it never changes between game updates,
         // so returning players keep it cached. Each mode is already its own file.
+        // The engine core (src/core) gets one too. It is shared by the page's
+        // entry and the modes; left in the entry file, a mode would import the
+        // entry while the entry is still waiting for that mode to start, and
+        // the page would hang at boot (a cycle through main.js's top-level await).
         manualChunks(id) {
           if (/[\\/]node_modules[\\/](\.pnpm[\\/]three@[^\\/]+[\\/]node_modules[\\/])?three[\\/]/.test(id)) return 'three';
+          if (/[\\/]src[\\/]core[\\/]/.test(id)) return 'core';
           return undefined;
         },
       },
