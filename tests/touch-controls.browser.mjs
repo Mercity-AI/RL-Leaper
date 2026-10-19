@@ -6,8 +6,9 @@
 // It checks that START PLAYER never captures the mouse on touch, that every
 // on-screen control still receives touches afterwards, and that each touch
 // button works: the joystick moves Lola, FIRE held fires, AIM toggles the
-// sights, RELOAD / SWITCH / CROUCH / JUMP do their job, the right side turns
-// the camera, PAUSE pauses and RESUME carries on, and while paused a tap on the
+// sights, RELOAD / SWITCH / CROUCH / JUMP do their job, in the TOP view FIRE
+// dims and does nothing while SWITCH still works, the right side turns the
+// camera, PAUSE pauses and RESUME carries on, and while paused a tap on the
 // right side resumes instead of turning the camera.
 //
 // The page renders in software at a few frames a second, so the checks look at
@@ -120,7 +121,7 @@ export default async function touchControls(page, { baseUrl, check }) {
   await hold('.touch-look', 400, { x: -80, y: 0 });
   check(Math.abs((await state(page)).yaw - now.yaw) > 0.05, 'dragging the right side turns the camera');
 
-  // 8. SWITCH, CROUCH and JUMP.
+  // 8. SWITCH, CROUCH and JUMP (and the gun's buttons in the TOP view).
   now = await state(page);
   await tap('.touch-band [data-action=switchWeapon]');
   await until(page, (s) => s.weaponIndex !== now.weaponIndex);
@@ -133,6 +134,20 @@ export default async function touchControls(page, { baseUrl, check }) {
   await tap('.touch-band [data-action=jump]');
   await until(page, (s) => s.jumping);
   check(true, 'JUMP jumps');
+  // In the TOP view the gun is put away: FIRE dims and does nothing, while SWITCH
+  // stays lit because swapping guns still works there.
+  await tap('#cameraToggle');
+  await page.waitForFunction(() => document.querySelector('.touch-band [data-action=fire]').dataset.disabled === 'true', null, { timeout: 120000 });
+  check(await page.locator('.touch-band [data-action=switchWeapon]').getAttribute('data-disabled') !== 'true',
+    'in the TOP view FIRE dims but SWITCH stays lit');
+  now = await state(page);
+  await hold('.touch-band [data-action=fire]', 800);
+  check((await state(page)).mag === now.mag, 'the dimmed FIRE fires nothing in the TOP view');
+  await tap('.touch-band [data-action=switchWeapon]');
+  await until(page, (s) => s.weaponIndex !== now.weaponIndex);
+  check(true, 'SWITCH swaps guns in the TOP view');
+  await tap('#cameraToggle');
+  await page.waitForFunction(() => document.querySelector('.touch-band [data-action=fire]').dataset.disabled === 'false', null, { timeout: 120000 });
 
   // 9. PAUSE pauses everything; the same button (now RESUME) carries on.
   await tap('.touch-band [data-action=pause]');

@@ -14,12 +14,13 @@ import { BUTTON_ACTIONS } from './actions.js';
 //                  tap again to lower them)
 //         'tap'    one press per tap
 //   gun   the button belongs to the gun, so it dims while the gun can't be used
-//         (TOP view, LEAPER POV, paused, the fight is over)
+//         (TOP view, LEAPER POV, paused, the fight is over). SWITCH is not one:
+//         like CROUCH and JUMP, swapping guns works in all of those but a pause.
 export const TOUCH_BAND = Object.freeze([
   Object.freeze({ action: 'pause', mode: 'tap' }),
   Object.freeze({ action: 'crouch', mode: 'tap' }),
   Object.freeze({ action: 'jump', mode: 'tap' }),
-  Object.freeze({ action: 'switchWeapon', mode: 'tap', gun: true }),
+  Object.freeze({ action: 'switchWeapon', mode: 'tap' }),
   Object.freeze({ action: 'reload', mode: 'tap', gun: true }),
   Object.freeze({ action: 'aim', mode: 'toggle', gun: true }),
   Object.freeze({ action: 'fire', mode: 'hold', gun: true }),

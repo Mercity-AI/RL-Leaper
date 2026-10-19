@@ -20,9 +20,11 @@ test('the touch band has every control a phone player needs, as input actions', 
   for (const action of ['reload', 'switchWeapon', 'crouch', 'jump', 'pause']) assert.equal(byAction[action].mode, 'tap');
   // The right thumb sits on AIM and FIRE at the right-hand end.
   assert.deepEqual(buttons.slice(-2).map(button => button.action), ['aim', 'fire']);
-  // Only the gun's buttons dim while the gun can't be used.
+  // Only the buttons that really do nothing while the gun can't be used dim then.
+  // (SWITCH stays lit: Lola swaps guns in the TOP view, LEAPER POV and after the
+  // fight too, so a dimmed SWITCH that still worked would mislead.)
   assert.deepEqual(buttons.filter(button => button.gun).map(button => button.action).sort(),
-    ['aim', 'fire', 'reload', 'switchWeapon']);
+    ['aim', 'fire', 'reload']);
 });
 
 test('the band\'s labels are the controls list\'s touch names', () => {
