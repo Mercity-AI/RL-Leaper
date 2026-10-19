@@ -68,6 +68,9 @@ export function checkManifest(manifest, { buses = AUDIO_CONFIG.buses } = {}) {
       errors.push(`${label} has a bad maxVoices`);
     }
     if (sound.emitter !== undefined && !EMITTERS.includes(sound.emitter)) errors.push(`${label} names an unknown emitter "${sound.emitter}"`);
+    if (typeof sound.loop === 'object' && !(sound.loop.start >= 0 && sound.loop.end > sound.loop.start)) {
+      errors.push(`${label} needs a loop { start, end } with end after start`);
+    }
     if (!Array.isArray(sound.variations)) errors.push(`${label} needs a variations list (empty = silent slot)`);
     // 2. Each take: a unique name, loadable files, credits that exist.
     for (const variation of sound.variations ?? []) {

@@ -429,7 +429,15 @@ export class AudioService {
     source.buffer = recording;
     const playbackRate = rate * spread(sound.variation?.pitch);
     if (source.playbackRate) source.playbackRate.value = playbackRate;
+    // A loop can name the part of its file to repeat (the file carries some
+    // of the loop again on both sides, so the codec's edges are never heard).
     source.loop = loop || Boolean(sound.loop);
+    const region = source.loop && typeof sound.loop === 'object' ? sound.loop : null;
+    if (region) {
+      source.loopStart = region.start;
+      source.loopEnd = region.end;
+      if (!offset) offset = region.start;
+    }
     // 2. Its volume (with this play's spread), as an envelope when only part plays.
     const level = sound.gain * gain * spread(sound.variation?.volume);
     const amp = context.createGain();

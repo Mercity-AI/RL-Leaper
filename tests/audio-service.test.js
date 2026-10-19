@@ -339,6 +339,8 @@ test('the ambience bed loops on its bus, survives effect stops, and stops when a
   service.startLoop('bed');
   const bed = service.loops.get('bed');
   assert.ok(bed?.source.loop, 'it loops');
+  // Only the named part of the file repeats (the codec's edges are outside it), starting there.
+  assert.deepEqual([bed.source.loopStart, bed.source.loopEnd, bed.source.started[1]], [0.25, 0.75, 0.25]);
   assert.equal(bed.amp.outputs[0], service.nodes.buses.ambience);
   service.stopAll({ keepLoops: true });
   assert.ok(!bed.stopped, 'a reset or a tab switch leaves the bed alone');
@@ -376,7 +378,7 @@ test('the sound manifest is complete, and the checker catches what a designer mi
   const broken = {
     sounds: [
       { id: 'a', bus: 'drums', gain: 9, priority: 11, variations: [{ name: 'x', files: { ogg: 'assets/audio/x.wav' }, credits: ['nope'] }] },
-      { id: 'a', bus: 'sfx', gain: 1, priority: 1, emitter: 'moon', variations: [{ name: 'x', files: {}, credits: [] }] },
+      { id: 'a', bus: 'sfx', gain: 1, priority: 1, emitter: 'moon', loop: { start: 2, end: 1 }, variations: [{ name: 'x', files: {}, credits: [] }] },
     ],
     sources: { cc: { title: 'T', author: 'Someone', sourceUrl: 'u', licence: 'CC BY 4.0', attribution: 'T by nobody', notes: '-' },
       odd: { title: 'T', author: 'A', licence: 'Mine' } },
@@ -384,7 +386,21 @@ test('the sound manifest is complete, and the checker catches what a designer mi
   const found = checkManifest(broken).errors.join('\n');
   for (const problem of ['unknown bus "drums"', 'gain between 0 and 4', 'priority from 0 to 10', 'is not a .ogg file',
     'unknown source "nope"', 'is listed twice', 'unknown emitter "moon"', 'has no files', 'credits no source',
-    'needs attribution text naming Someone', 'has no sourceUrl', 'unknown licence "Mine"']) {
+    'needs attribution text naming Someone', 'has no sourceUrl', 'unknown licence "Mine"', 'needs a loop { start, end }']) {
     assert.ok(found.includes(problem), `the checker reports: ${problem}`);
   }
+});
+
+test('the ambience source repeats its loop around both ends, so any loop-length window is seamless', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const bytes = await readFile(new URL('../assets/audio/yard-ambience.wav', import.meta.url));
+  const rate = bytes.readUInt32LE(24);
+  const samples = new Int16Array(bytes.buffer, bytes.byteOffset + 44, (bytes.length - 44) / 2);
+  const { start, end } = findSound(SOUNDS, 'yardAmbience').loop;
+  const period = Math.round((end - start) * rate);
+  // Every sample one loop-length apart is the same: the file is the loop, repeated.
+  let differences = 0;
+  for (let i = 0; i + period < samples.length; i += 1) if (samples[i] !== samples[i + period]) differences += 1;
+  assert.equal(differences, 0);
+  assert.ok(Math.round(start * rate) > 0 && Math.round(end * rate) < samples.length, 'the loop region sits inside the file');
 });

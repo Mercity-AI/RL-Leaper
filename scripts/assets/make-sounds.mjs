@@ -29,6 +29,9 @@ const FFMPEG = process.env.FFMPEG || '/usr/bin/ffmpeg';
 //            and lower), lowpass (Hz), fadeIn / fadeOut (per layer)
 //   fadeIn / fadeOut  on the whole mix; peak: loudest sample after mixing, in dBFS
 //   loop     crossfade (seconds) that makes the file loop without a seam
+//   pad      seconds of the loop repeated before and after it, so the codec's
+//            start and end (priming, padding) fall outside the part the game
+//            loops (sounds.json loop { start: pad, end: pad + length })
 const RECIPES = [
   // Lola's short pain grunts (three takes, picked at random in the game).
   { name: 'lola-hurt-1', layers: [{ file: 'opengameart/ezduzziteh_hurt_03.mp3' }], fadeOut: 0.04, peak: -3 },
@@ -102,7 +105,7 @@ const RECIPES = [
   // Menu and button clicks.
   { name: 'ui-click', layers: [{ file: 'kenney/interface-sounds/select_001.ogg' }], fadeOut: 0.01, peak: -6 },
   // The yard's background: a dark machine hum under gusts of wind, looping.
-  { name: 'yard-ambience', rate: 24000, length: 10, loop: 1.5, layers: [
+  { name: 'yard-ambience', rate: 24000, length: 10, loop: 1.5, pad: 0.25, layers: [
     { file: 'kenney/sci-fi-sounds/spaceEngineLow_001.ogg', gain: 0.35, lowpass: 260, tile: 0.8 },
     { wind: { seed: 7, gain: 1 } },
   ], peak: -6 },
@@ -221,6 +224,16 @@ function seamless(samples, length, blend) {
   return out;
 }
 
+// A seamless loop with `pad` samples of itself before and after: any window
+// of the loop's length inside the result loops just as seamlessly.
+function wrap(loop, pad) {
+  const out = new Float32Array(loop.length + 2 * pad);
+  out.set(loop.subarray(loop.length - pad), 0);
+  out.set(loop, pad);
+  out.set(loop.subarray(0, pad), pad + loop.length);
+  return out;
+}
+
 // ---- One recipe ----
 
 function make(recipe) {
@@ -249,6 +262,7 @@ function make(recipe) {
   }
   // 3. Loop seam or fades, then the loudest sample at the recipe's peak.
   mix = blend ? seamless(mix, length, blend) : fade(mix.subarray(0, length), rate, recipe.fadeIn, recipe.fadeOut);
+  if (recipe.pad) mix = wrap(mix, Math.round(recipe.pad * rate));
   const loudest = mix.reduce((max, value) => Math.max(max, Math.abs(value)), 0) || 1;
   const scale = 10 ** ((recipe.peak ?? -1) / 20) / loudest;
   return wav(mix.map((value) => value * scale), rate);

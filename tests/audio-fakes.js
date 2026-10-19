@@ -110,7 +110,7 @@ export function testManifest() {
       { id: 'grunt', bus: 'sfx', gain: 0.7, priority: 9, variation: { pitch: 0.1, volume: 0.2 },
         variations: [take('grunt-1'), take('grunt-2')] },
       { id: 'empty', bus: 'sfx', gain: 1, priority: 5, variations: [] },
-      { id: 'bed', bus: 'ambience', gain: 0.3, priority: 10, loop: true, variations: [take('bed')] },
+      { id: 'bed', bus: 'ambience', gain: 0.3, priority: 10, loop: { start: 0.25, end: 0.75 }, variations: [take('bed')] },
       { id: 'click', bus: 'ui', gain: 0.5, priority: 1, variations: [take('click')] },
     ],
     sources: { cc0: { title: 'T', author: 'A', sourceUrl: 'https://example.org', licence: 'CC0 1.0', attribution: 'T by A', notes: '-' } },

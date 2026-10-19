@@ -528,17 +528,17 @@
     },
     "audio/yard-ambience.ogg": {
       "source": "assets/audio/yard-ambience.wav",
-      "sourceBytes": 480044,
-      "sourceSha256": "996b070d499b7d6112dd35bc4a5e0a022564ad2d3b51ac72218514f7deb6e33c",
-      "bytes": 57097,
-      "sha256": "e5db8ef9a149060c4950e237a601cafd672b2955f40ec6a97d71f9be9ac4f7f6"
+      "sourceBytes": 504044,
+      "sourceSha256": "5cca6c0e105f91d18b91acee598003dea8e3eaefa69ee80f7f7c52f15790c497",
+      "bytes": 59544,
+      "sha256": "fe185ced57a9c24aff77e9c7db8239f2095acc6e31bb47a404477690f8e088de"
     },
     "audio/yard-ambience.m4a": {
       "source": "assets/audio/yard-ambience.wav",
-      "sourceBytes": 480044,
-      "sourceSha256": "996b070d499b7d6112dd35bc4a5e0a022564ad2d3b51ac72218514f7deb6e33c",
-      "bytes": 81653,
-      "sha256": "b11a7f4f600531e6f55961943c3d3e159cf09444bb419118d42b930141860c85"
+      "sourceBytes": 504044,
+      "sourceSha256": "5cca6c0e105f91d18b91acee598003dea8e3eaefa69ee80f7f7c52f15790c497",
+      "bytes": 85868,
+      "sha256": "316820c8bba39ec47b844b89ccf091690b08a8c46968daf6da0493a06a138778"
     }
   },
   "textures": {
