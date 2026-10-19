@@ -1,0 +1,20 @@
+/* The weapon icons (src/ui/WeaponHudView.js), bottom right. Self-contained, so
+   they keep their look when the old HUD rules in junkyard.css are consolidated.
+   The equipped gun's circle is larger and filled with colour that drains with
+   its magazine; low ammo turns it red, reloading refills it cyan. */
+.weapon-hud { position: fixed; right: 18px; bottom: 20px; z-index: 12; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; color: #eef3f2; font: bold 15px/1 monospace; text-shadow: 0 1px 3px #000; }
+.weapon-hud[hidden] { display: none; }
+.weapon-hud .gun-row { display: flex; align-items: flex-end; gap: 12px; }
+.weapon-hud .gun { --fill: #3ec7c2; position: relative; width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: #15171bcc; border: 2px solid #ffffff40; transition: width .25s ease, height .25s ease, border-color .2s, opacity .2s; opacity: .6; }
+.weapon-hud .gun[data-active=true] { width: 78px; height: 78px; opacity: 1; border-color: #fff; box-shadow: 0 0 12px #0008; }
+.weapon-hud .gun-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--ammo, 1) * 100%); background: var(--fill); opacity: .3; transition: height .1s linear, background .2s; }
+.weapon-hud .gun[data-active=true] .gun-fill { opacity: .9; }
+.weapon-hud .gun[data-level=low] { --fill: #ff4b3e; }
+.weapon-hud .gun[data-level=empty] { --fill: #ff4b3e; border-color: #ff4b3e; }
+.weapon-hud .gun[data-active=true][data-level=empty] { animation: weapon-hud-empty .7s ease-in-out infinite alternate; }
+.weapon-hud .gun[data-level=reloading] { --fill: #84d3e4; border-color: #84d3e4; }
+.weapon-hud .gun-icon { position: absolute; inset: 14%; width: 72%; height: 72%; fill: #fff; filter: drop-shadow(0 1px 1px #000c); }
+/* Key that selects the gun (1 = pistol, 2 = M416). */
+.weapon-hud .gun-tag { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); font-size: 10px; color: #fff; opacity: .85; }
+@keyframes weapon-hud-empty { from { box-shadow: 0 0 0 0 #ff4b3e00; } to { box-shadow: 0 0 14px 3px #ff4b3e; } }
+
