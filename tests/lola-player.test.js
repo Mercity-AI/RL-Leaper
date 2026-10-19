@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { LolaPlayer, LOLA_PACE } from '../src/robot/LolaPlayer.js';
+import { InputController } from '../src/input/InputController.js';
+import { PlayerController } from '../src/game/PlayerController.js';
 import profiles from '../assets/characters/lola/stride-profiles.json' with { type: 'json' };
 import { ENCOUNTER } from '../src/config/encounter.js';
 import { footLift } from '../src/robot/footstepContacts.js';
@@ -101,15 +103,24 @@ test('each complete movement cycle travels its measured stride, with a stable fl
 });
 
 test('C toggles crouch once per press and A/D select authored crossovers for both guns', async () => {
+  // The C / 1 / 2 keys are input actions now (src/input/actions.js), applied by
+  // PlayerController each frame, so drive them through the real InputController.
   let keydown;
   const originalListener = window.addEventListener;
   window.addEventListener = (name, callback) => { if (name === 'keydown') keydown = callback; };
+  const input = new InputController();
+  window.addEventListener = originalListener;
   const models = await Promise.all([load('m416'), load('basic')]);
   const button = { addEventListener() {}, classList: { add() {} } };
   const player = new LolaPlayer(new THREE.Scene(),
     { scale: 1, initialTarget: { x: 0, z: 0 }, playerBlocked: () => false }, button, models);
-  window.addEventListener = originalListener;
-  const press = (code, repeat = false) => keydown({ code, repeat, target: { tagName: 'CANVAS' }, preventDefault() {} });
+  const controller = new PlayerController({ player, input, cameraController: { getMovementHeading: () => 0 } });
+  // One key event, then one frame (input phase, then gameplay phase) applies it.
+  const press = (code, repeat = false) => {
+    keydown({ code, repeat, target: { tagName: 'CANVAS' }, preventDefault() {} });
+    controller.sample(1 / 60);
+    controller.update(1 / 60);
+  };
   const move = (f, s) => { for (let i = 0; i < 30; i++) player.move(f, s, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, 1 / 60); };
   for (let weapon = 0; weapon < 2; weapon += 1) {
     move(0, -1);

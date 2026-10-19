@@ -87,18 +87,12 @@ export class LolaPlayer {
     this.outfits = prepareOutfits(models, { jumps, reloads, runJumps }, world, this.mesh);
     scene.add(this.mesh);
 
-    // The on-screen weapon button and the C / 1 / 2 keys.
+    // The on-screen weapon button. (The C / 1 / 2 keys, the gamepad and the touch
+    // buttons are input actions now, applied by PlayerController, so a pause
+    // freezes them like every other control.)
     this.toggleButton = toggleButton;
     toggleButton.addEventListener('pointerdown', (event) => event.stopPropagation());
     toggleButton.addEventListener('click', () => this.switchWeapon());
-    window.addEventListener('keydown', (event) => {
-      // 1 = basic pistol, 2 = M416 (weaponIndex 1 / 0).
-      const pick = { Digit1: 1, Numpad1: 1, Digit2: 0, Numpad2: 0 }[event.code];
-      if ((pick === undefined && event.code !== 'KeyC') || event.repeat || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
-      event.preventDefault();
-      if (event.code === 'KeyC') this.toggleCrouch();
-      else if (pick !== this.weaponIndex) this.switchWeapon();
-    });
     this.showWeapon();
   }
 

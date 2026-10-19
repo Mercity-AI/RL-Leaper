@@ -13,6 +13,8 @@ import { LeaperPov } from '../src/camera/LeaperPov.js';
 import { CombatGeometry } from '../src/simulation/CombatGeometry.js';
 import { LeaperSimulation } from '../src/simulation/LeaperSimulation.js';
 import { PlayerWeapon, bulletHit } from '../src/simulation/PlayerWeapon.js';
+import { InputController } from '../src/input/InputController.js';
+import { PlayerController } from '../src/game/PlayerController.js';
 import { LaserAudio } from '../src/simulation/LaserAudio.js';
 import { PlayerVitals } from '../src/game/PlayerVitals.js';
 import { COMBAT } from '../src/config/combat.js';
@@ -206,6 +208,17 @@ try {
   check(combat.core?.userData.weakPoint && combat.core.material.emissiveIntensity >= 0, 'Leaper eye has a glowing red weak-point core');
   cameraController.mode = 'CHASE';
   p.playerWeapon = new PlayerWeapon(p);
+  // The gun keys are input actions, applied by the player's controls each frame
+  // (keyFrame) and frozen by a pause.
+  const input = new InputController();
+  const keyController = new PlayerController({ player: target, input,
+    cameraController: { getMovementHeading: () => target.mesh.rotation.y, requestPause() {}, requestResume() {}, lookBy() {} } });
+  const keyFrame = (options) => { keyController.sample(1 / 60, options); keyController.update(options?.frozen ? 0 : 1 / 60); };
+  const pressKey = (code, options) => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
+    keyFrame(options);
+    window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
+  };
   target.mesh.position.copy(lane);
   target.mesh.rotation.y = Math.PI;
   const center = rig.robot.getWorldPosition(new THREE.Vector3());
@@ -292,15 +305,18 @@ try {
   window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
   cameraController.releaseMouse(); cameraController.gameplayStarted = false;
   p.walking = true; p.brain.ready = true;
-  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit2', bubbles: true }));
+  pressKey('Digit2', { frozen: true });
+  keyFrame();
+  check(target.weaponIndex === 1, '2 does nothing while paused');
+  pressKey('Digit2');
   check(target.weaponIndex === 0, '2 switches from pistol to M416');
-  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit1', bubbles: true }));
+  pressKey('Digit1');
   check(target.weaponIndex === 1, '1 switches back to pistol');
   const slots = [...document.querySelectorAll('#playerGuns .gun')];
   check(slots[0].dataset.gun === 'pistol' && slots[0].textContent.trim() === '1' && slots[1].dataset.gun === 'm416',
     'gun icons read pistol (1) then M416 (2), left to right');
   for (const weaponIndex of [0, 1]) {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: weaponIndex ? 'Digit1' : 'Digit2', bubbles: true }));
+    pressKey(weaponIndex ? 'Digit1' : 'Digit2');
     const weapon = p.playerWeapon, name = weaponIndex ? 'pistol' : 'M416';
     const sounds = [], play = combat.audio.play;
     combat.audio.play = key => { sounds.push(key); return play.call(combat.audio, key); };
