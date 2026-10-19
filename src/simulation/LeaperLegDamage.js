@@ -9,8 +9,9 @@ const BELOW = { upper: ['knee', 'tibia', 'calfJoint', 'calf'], lower: ['calfJoin
 const ROOT = { upper: 'knee', lower: 'calfJoint', coxa: 'coxa', femur: 'femur', tibia: 'tibia', calf: 'calf' };
 // Bullets (of either gun) a piece takes before it snaps off, as an inclusive
 // [min, max] range picked per piece each encounter. Knees are the smart target;
-// the long leg pieces (shafts) take about 3x as many.
-export const LEG_HITS = Object.freeze({ knee: [8, 10], shaft: [24, 26] });
+// the long leg pieces (shafts) take about 3x as many. Raised about 30% on
+// 2026-10-19 (owner: legs came off too easily), from knee [8, 10], shaft [24, 26].
+export const LEG_HITS = Object.freeze({ knee: [11, 13], shaft: [32, 34] });
 const DOWN = new THREE.Vector3(0, -1, 0);
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -25,6 +26,15 @@ function contactBounds(object) {
     }
   });
   return bounds;
+}
+
+// The side (+1 = right, -1 = left: the sign of the legs' local x) with no
+// standing leg left, so nothing holds it up; 0 while both sides stand.
+export function unsupportedSide(rig) {
+  for (const side of [1, -1]) {
+    if (!rig.legs.some((leg) => Math.sign(leg.out.x) === side && !leg.disabled)) return side;
+  }
+  return 0;
 }
 
 // Joint damage is counted per direct bullet, independently of body health.
@@ -60,10 +70,12 @@ export class LeaperLegDamage {
         leg.damage[key] = { hits: 0, threshold: hits(LEG_HITS.shaft), broken: false };
       }
       leg.disabled = false;
+      leg.stump = false;
       leg.hanging = null;
       for (const key of PARTS) { leg[key].visible = true; leg[key].userData.detached = false; }
     }
     this.rig.damagedLegCount = 0;
+    this.rig.stumpLegCount = 0;
     this.rig.mobility = 1;
   }
 
@@ -137,16 +149,27 @@ export class LeaperLegDamage {
     for (const [name, key] of Object.entries(ROOT)) {
       if (leg[key].userData.detached) leg.damage[name].broken = true;
     }
-    leg.disabled = true;
-    leg.hanging = new HangingLeg(this.rig, leg);
-    // The other legs carry on: a foot in mid-step finishes its step instead of
-    // snapping to the floor (review fix 5.19). Only the broken leg stops stepping.
-    leg.stepping = false;
+    // Cut below the lower knee, the thigh and shin still reach the floor: the
+    // leg walks on as a stump. Cut any higher, it curls up and hangs.
+    const stands = !['femur', 'knee', 'tibia'].some((key) => leg[key].userData.detached);
+    if (stands) {
+      leg.stump = true;
+    } else {
+      leg.stump = false;
+      leg.disabled = true;
+      leg.hanging = new HangingLeg(this.rig, leg);
+      // The other legs carry on: a foot in mid-step finishes its step instead of
+      // snapping to the floor (review fix 5.19). Only the broken leg stops stepping.
+      leg.stepping = false;
+    }
     // Fewer legs, slower brain steps (the limp), down to the configured floor.
     const lost = this.rig.legs.filter(l => l.disabled).length;
+    const stumps = this.rig.legs.filter(l => l.stump).length;
     this.rig.damagedLegCount = lost;
-    this.rig.mobility = Math.max(this.rules.minMobility, 1 - lost * this.rules.mobilityPerLeg);
-    this.onBroken?.({ leg, joint, position: pivot.clone(), lost });
+    this.rig.stumpLegCount = stumps;
+    this.rig.mobility = Math.max(this.rules.minMobility,
+      1 - (lost + stumps * this.rules.stumpCost) * this.rules.mobilityPerLeg);
+    this.onBroken?.({ leg, joint, position: pivot.clone(), lost, stump: stands, unsupportedSide: unsupportedSide(this.rig) });
   }
 
   update(dt) {

@@ -284,7 +284,9 @@ export class LeaperActor {
     } else if (state === 'downed') {
       // Sinks to the floor from wherever the body was (standing, staggered, half
       // way up), legs splayed and planted; later stands back up.
-      const down = { lower: STANDING_HEIGHT - c.downed.restHeight, pitch: 0, roll: this.rollSide() * c.downed.roll, splay: c.downed.splay };
+      // A whole side gone: it tips right over onto that side.
+      const roll = this.director.toppled ? c.downed.toppledRoll : c.downed.roll;
+      const down = { lower: STANDING_HEIGHT - c.downed.restHeight, pitch: 0, roll: this.rollSide() * roll, splay: c.downed.splay };
       if (phase === 'falling') blendPosture(target, this.entryPosture, down, ease(t / c.downed.sinkTime));
       else if (phase === 'rising') blendPosture(target, down, { ...target }, ease(t / c.downed.getUpTime));
       else Object.assign(target, down);
@@ -316,9 +318,12 @@ export class LeaperActor {
     return this.lateralLoss() > 0 ? -1 : 1;
   }
 
-  // How far the missing legs reach sideways (the legs' local x, + = right).
+  // How far the missing legs reach sideways (the legs' local x, + = right). A
+  // stump still stands, but shorter, so it counts stumpLean of a missing leg.
   lateralLoss() {
-    return this.simulation.rig.legs.filter((leg) => leg.disabled).reduce((sum, leg) => sum + leg.out.x, 0);
+    const stumpLean = this.config.crippled.stumpLean;
+    return this.simulation.rig.legs.reduce((sum, leg) =>
+      sum + leg.out.x * (leg.disabled ? 1 : leg.stump ? stumpLean : 0), 0);
   }
 
   // The crippled lean: the side with missing legs sags (radians of roll).

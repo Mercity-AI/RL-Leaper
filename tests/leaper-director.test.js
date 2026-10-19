@@ -252,6 +252,26 @@ test(`downed: losing ${COMBAT.legs.maxLost} legs knocks it down; it gets up afte
   assert.equal(d.label, 'DOWN FOR GOOD');
 });
 
+test('toppled: a whole side with no standing leg tips it over for good, even with legs to spare', () => {
+  const d = director();
+  d.update(DT, sense({ aware: true }));
+  d.legBroken({ lost: 2 });
+  d.update(DT, sense({ aware: true }));
+  d.legBroken({ lost: 3, unsupportedSide: -1 });
+  run(d, B.stagger.time + 0.1, sense({ aware: true }));
+  assert.equal(d.state, 'downed', `three legs on one side are fewer than maxLost (${COMBAT.legs.maxLost}) but still fell`);
+  assert.equal(d.toppled, true);
+  assert.equal(d.permanent, true);
+  assert.equal(d.reason, 'a whole side lost');
+  assert.deepEqual(d.calls.find(([n]) => n === 'onDowned')[1], { permanent: true });
+  run(d, B.downed.sinkTime + B.downed.recoverTime + B.downed.getUpTime + 1, sense({ aware: true }));
+  assert.equal(d.state, 'downed', 'never gets up');
+  assert.equal(d.locomotion, 'hold', 'never walks again');
+  assert.equal(d.label, 'DOWN FOR GOOD');
+  d.reset();
+  assert.equal(d.toppled, false, 'a restart stands it back up');
+});
+
 test('downed: a leg lost while down, or while getting up, keeps it down', () => {
   const d = director();
   d.update(DT, sense());

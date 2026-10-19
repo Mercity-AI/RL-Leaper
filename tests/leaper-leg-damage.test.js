@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createHexapod } from '../src/robot/createHexapod.js';
 import { LeaperSimulation } from '../src/simulation/LeaperSimulation.js';
-import { LeaperLegDamage } from '../src/simulation/LeaperLegDamage.js';
+import { LeaperLegDamage, unsupportedSide } from '../src/simulation/LeaperLegDamage.js';
+import { FOOT_HEIGHT, SHIN_LENGTH } from '../src/config/robot.js';
 import { createLeaperHitboxes } from '../src/weapons/Hitboxes.js';
 import { COMBAT } from '../src/config/combat.js';
 import { LeaperFeedback } from '../src/actors/leaper/LeaperFeedback.js';
@@ -105,7 +106,8 @@ for (const indices of [[1], [0, 1]]) test(`movement survives broken legs ${indic
   assert.equal(stepped, true); assert.equal(sim.state.position.x, 2);
   for (const i of indices) assert.equal(rig.legs[i].knee.visible, false);
 });
-for (const joint of ['upper', 'lower']) test(`${joint} break curls up, swings with its anchor, and settles`, () => {
+// (A lower-knee break leaves a stump that walks on; see the stump tests below.)
+for (const joint of ['upper']) test(`${joint} break curls up, swings with its anchor, and settles`, () => {
   const { rig, sim, damage } = setup(); const leg = rig.legs[0];
   shoot(damage, joint === 'upper' ? leg.knee : leg.calfJoint, 5);
   const hanging = leg.hanging;
@@ -147,7 +149,7 @@ for (const joint of ['upper', 'lower']) test(`${joint} break curls up, swings wi
 });
 
 test('hanging motion remains finite at low frame rate and on a long frame', () => {
-  const { rig, damage } = setup(); shoot(damage, rig.legs[0].calfJoint, 5);
+  const { rig, damage } = setup(); shoot(damage, rig.legs[0].knee, 5);
   for (let i=0;i<100;i++) damage.update(1/15);
   damage.update(2);
   assert.ok(rig.legs[0].hanging.points.every(p => p.toArray().every(Number.isFinite)));
@@ -181,8 +183,8 @@ test('fragments rest on a map floor below zero', () => {
   for(let i=0;i<300;i++)damage.update(1/60);
   assert.ok(Math.abs(lowestVertex(damage.debris[0].mesh) - (-0.218)) < 0.0001);
 });
-test('production knees choose 8, 9 or 10 hits and shafts choose 24, 25 or 26', () => {
-  for (const [rng, kneeHits, shaftHits] of [[0,8,24],[0.5,9,25],[0.99,10,26]]) {
+test('production knees choose 11, 12 or 13 hits and shafts choose 32, 33 or 34', () => {
+  for (const [rng, kneeHits, shaftHits] of [[0,11,32],[0.5,12,33],[0.99,13,34]]) {
     const { rig, damage } = setup(() => rng); damage.reset();
     for(const leg of rig.legs) {
       assert.equal(leg.damage.upper.threshold,kneeHits); assert.equal(leg.damage.lower.threshold,kneeHits);
@@ -209,7 +211,7 @@ for (const key of ['coxa','femur','tibia','calf']) test(`${key} breaks at its ow
 });
 test('a remaining thigh can break after the upper knee has already detached', () => {
   const {rig,damage}=setup(); damage.reset(); const leg=rig.legs[0];
-  shoot(damage,leg.knee,8); shoot(damage,leg.femur.children[0],24);
+  shoot(damage,leg.knee,11); shoot(damage,leg.femur.children[0],32);
   assert.equal(damage.debris.length,2); assert.equal(damage.debris[1].mesh.children.length,1);
   assert.equal(leg.coxa.visible,true); damage.update(1/60);
 });
@@ -248,6 +250,47 @@ test('mobility follows COMBAT.legs; every break is reported with where it happen
   // The break point is the knee that snapped (where the burst of sparks belongs).
   assert.ok(breaks[0].position.distanceTo(rig.legs[0].hanging.points[1]) < 3, 'near the broken knee');
   assert.equal(COMBAT.legs.maxLost, 4, 'four lost legs knock the Leaper down (src/config/leaper-behaviour.js)');
+});
+
+// ---- Stumps and support (owner request 2026-10-19: no walking on air) ----
+
+test('a leg cut below its lower knee walks on its stump, shin tip on the floor', () => {
+  const { rig, sim, damage } = setup();
+  const leg = rig.legs[1];
+  const breaks = [];
+  damage.onBroken = (event) => breaks.push(event);
+  shoot(damage, leg.calfJoint, 5);
+  assert.equal(leg.stump, true); assert.equal(leg.disabled, false); assert.equal(leg.hanging, null);
+  assert.equal(rig.damagedLegCount, 0, 'a stump is not a lost leg');
+  assert.equal(rig.mobility, 1 - COMBAT.legs.stumpCost * COMBAT.legs.mobilityPerLeg, 'but it limps a little');
+  assert.equal(breaks[0].stump, true); assert.equal(breaks[0].unsupportedSide, 0);
+  let stepped = false, planted = 0;
+  for (let frame = 1; frame <= 240; frame++) {
+    sim.updateExternal({ x: frame / 120, z: 0, yaw: Math.PI / 2, collision: false, distance: 2 }, 1 / 60, { checkpoint: { step: 1 } });
+    if (leg.stepping) stepped = true;
+    const tip = leg.calfJoint.position, knee = leg.knee.position;
+    assert.ok(Math.abs(tip.distanceTo(knee) - SHIN_LENGTH) < 1e-6, 'the shin keeps its length');
+    if (!leg.stepping && frame > 30) {
+      planted += 1;
+      assert.ok(Math.abs(tip.y - FOOT_HEIGHT) < 1e-6, `a planted stump stands on the floor (frame ${frame}: ${tip.y.toFixed(3)})`);
+    }
+  }
+  assert.ok(stepped && planted > 0, 'the stump steps and plants');
+});
+
+test('a whole side cut away at the knees is reported as unsupported; stumps still hold it up', () => {
+  for (const side of [1, -1]) {
+    const { rig, damage } = setup();
+    const events = [];
+    damage.onBroken = (event) => events.push(event);
+    const sideLegs = rig.legs.filter((leg) => Math.sign(leg.out.x) === side);
+    assert.equal(sideLegs.length, 3);
+    for (const leg of sideLegs) shoot(damage, leg.calfJoint, 5);
+    assert.ok(events.every((event) => event.unsupportedSide === 0), 'three stumps still stand');
+    for (const leg of sideLegs) shoot(damage, leg.knee, 5);
+    assert.deepEqual(events.slice(3).map((event) => event.unsupportedSide), [0, 0, side], 'the last upper knee leaves that side with nothing');
+    assert.equal(unsupportedSide(rig), side);
+  }
 });
 
 test('a leg cut off while the hull is flashing from a hit keeps the hull\'s resting glow, not the flash', () => {

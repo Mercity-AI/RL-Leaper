@@ -109,6 +109,9 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     // missing leg's sideways reach, never more than maxLean.
     leanPerLeg: 0.05,
     maxLean: 0.12,
+    // A leg walking on its stump (cut below the lower knee) is shorter, so its
+    // side sags this share of a missing leg's lean.
+    stumpLean: 0.5,
   }),
 
   // ---- Downed: too many legs lost (COMBAT.legs.maxLost) ----
@@ -126,6 +129,9 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     // rolls this far (radians) toward the side that lost the most legs.
     splay: 0.15,
     roll: 0.12,
+    // With no standing leg left on one side (COMBAT.legs) it tips over onto that
+    // side instead (radians of roll), and never gets up again.
+    toppledRoll: 0.3,
     // Camera shake (0-1) as it hits the floor.
     cameraShake: 0.4,
   }),

@@ -89,6 +89,8 @@ export class LeaperDirector {
     this.pendingStagger = null;
     this.pendingDowned = false;
     this.permanent = false;
+    // One whole side has no standing leg: it has tipped over for good.
+    this.toppled = false;
     // Legs lost so far (from legBroken), so a stump snapping is not counted again.
     this.lostLegs = 0;
     this.transitions = 0;
@@ -132,13 +134,19 @@ export class LeaperDirector {
   // A leg snapped (LeaperLegDamage.onBroken; lost = legs gone now). Losing
   // maxLost legs knocks it down; one more while down (or after getting up)
   // keeps it down for good. Any other break is a big hit: a stagger.
-  legBroken({ lost }) {
+  // unsupportedSide (non-zero): no standing leg is left on one side, so it tips
+  // over that way and can never get up again.
+  legBroken({ lost, unsupportedSide = 0 }) {
     if (this.state === 'dying' || this.state === 'dead') return;
     // A joint snapping on a leg already lost (a stump's thigh or hip) is no new
     // leg: only a stagger, never a fall or "down for good".
     const newLeg = lost > this.lostLegs;
     this.lostLegs = Math.max(this.lostLegs, lost);
-    if (!newLeg) {
+    if (unsupportedSide && !this.toppled) {
+      this.toppled = true;
+      this.permanent = true;
+      if (this.state !== 'downed' || this.phase === 'rising') this.pendingDowned = true;
+    } else if (!newLeg) {
       this.pendingStagger = 'joint break';
     } else if (this.state === 'downed') {
       this.permanent = true;
@@ -181,7 +189,7 @@ export class LeaperDirector {
     } else if (this.pendingDowned && !airborne) {
       // (A leg lost in mid-air brings it down as soon as it lands.)
       this.pendingDowned = false;
-      return this.enter('downed', this.permanent ? 'legs gone' : 'too many legs lost');
+      return this.enter('downed', this.toppled ? 'a whole side lost' : this.permanent ? 'legs gone' : 'too many legs lost');
     } else if (this.pendingStagger) {
       // (A hit that cannot stagger now, mid-air or already down, is not saved for later.)
       const reason = this.pendingStagger;

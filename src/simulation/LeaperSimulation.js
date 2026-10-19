@@ -279,8 +279,8 @@ export class LeaperSimulation {
       ? -Math.abs(Math.sin(state.gaitPhase)) * 0.045 * normalizedSpeed
         + (1 - normalizedSpeed) * Math.sin(this.elapsed * 1.7) * 0.014
       : 0;
-    // A slight sag per lost leg. Lowering the body more splays the surviving legs flat.
-    const damageCrouch = Math.min(0.1, (this.rig.damagedLegCount || 0) * 0.04);
+    // A slight sag per lost leg (half for a stump). Lowering the body more splays the surviving legs flat.
+    const damageCrouch = Math.min(0.1, ((this.rig.damagedLegCount || 0) + (this.rig.stumpLegCount || 0) * 0.5) * 0.04);
     // The behaviour layer's pose (crouch, fall, collapse, recoil) on top.
     const posture = state.posture ?? NO_POSTURE;
     const bodyHeight = (this.world?.floorHeight ?? 0) + STANDING_HEIGHT + state.jumpHeight + bob - state.crouch * 0.5 - damageCrouch
@@ -328,6 +328,8 @@ export class LeaperSimulation {
         leg.stepping = false;
         return;
       }
+      // A stump is shorter: it plants its shin's tip where it can reach.
+      if (leg.stump) this.withinStumpReach(leg, desiredFoot);
       if (state.grounded && posture.planted) {
         // Planted (down, collapsing, a wreck): no new steps. A foot already in
         // the air finishes its step; the others slide along the floor to their spot.
@@ -408,34 +410,47 @@ export class LeaperSimulation {
     leg.replantDelay = -1;
   }
 
-  solveAndPlace(leg) {
+  // The hip joint (end of the coxa) of a leg reaching toward `foot`, in world space.
+  hipToward(leg, foot) {
     const anchor = new THREE.Vector3().copy(leg.anchorLocal);
     this.rig.robot.localToWorld(anchor);
-    const direction = new THREE.Vector3().subVectors(leg.footPosition, anchor);
+    const direction = new THREE.Vector3().subVectors(foot, anchor);
     direction.y *= 0.2;
     if (direction.lengthSq() < 1e-6) direction.set(leg.out.x, 0, leg.out.z);
     direction.normalize();
     const hip = new THREE.Vector3().copy(anchor).addScaledVector(direction, COXA_LENGTH);
-    this.placeSegment(leg.coxa, anchor, hip);
+    return { anchor, hip };
+  }
 
-    const segment = new THREE.Vector3().subVectors(leg.footPosition, hip);
+  // Pulls a stump's foot spot in toward the body until thigh + shin reach it on
+  // the floor (a little short of straight, so the knee still bends).
+  withinStumpReach(leg, foot) {
+    const { hip } = this.hipToward(leg, foot);
+    const reach = (FEMUR_LENGTH + SHIN_LENGTH) * 0.9;
+    const drop = hip.y - foot.y;
+    const across = Math.hypot(foot.x - hip.x, foot.z - hip.z);
+    const allowed = Math.sqrt(Math.max(0, reach ** 2 - drop ** 2));
+    if (across <= allowed || across < 1e-6) return;
+    const keep = allowed / across;
+    foot.x = hip.x + (foot.x - hip.x) * keep;
+    foot.z = hip.z + (foot.z - hip.z) * keep;
+  }
+
+  // Two-bone knee: where the knee sits between hip and foot for an upper bone of
+  // `upper` and a lower reach of `lower`, bending up and out from the body.
+  solveKnee(hip, foot, upper, lower) {
+    const segment = new THREE.Vector3().subVectors(foot, hip);
     const distance = segment.length();
     const clampedDistance = THREE.MathUtils.clamp(
       distance,
-      Math.abs(FEMUR_LENGTH - LOWER_REACH) + 0.05,
-      FEMUR_LENGTH + LOWER_REACH - 0.02,
+      Math.abs(upper - lower) + 0.05,
+      upper + lower - 0.02,
     );
     const axis = segment.multiplyScalar(1 / Math.max(distance, 1e-6));
     const footTarget = new THREE.Vector3().copy(hip).addScaledVector(axis, clampedDistance);
-    const along = (
-      FEMUR_LENGTH ** 2 - LOWER_REACH ** 2 + clampedDistance ** 2
-    ) / (2 * clampedDistance);
-    const height = Math.sqrt(Math.max(1e-4, FEMUR_LENGTH ** 2 - along ** 2));
-    const outward = new THREE.Vector3(
-      leg.footPosition.x - this.state.position.x,
-      0,
-      leg.footPosition.z - this.state.position.z,
-    );
+    const along = (upper ** 2 - lower ** 2 + clampedDistance ** 2) / (2 * clampedDistance);
+    const height = Math.sqrt(Math.max(1e-4, upper ** 2 - along ** 2));
+    const outward = new THREE.Vector3(foot.x - this.state.position.x, 0, foot.z - this.state.position.z);
     if (outward.lengthSq() < 1e-6) outward.set(1, 0, 0);
     outward.normalize();
     const pole = new THREE.Vector3().copy(UP).addScaledVector(outward, 0.42).normalize();
@@ -445,6 +460,22 @@ export class LeaperSimulation {
     const knee = new THREE.Vector3().copy(hip)
       .addScaledVector(axis, along)
       .addScaledVector(bend, height);
+    return { knee, footTarget, outward };
+  }
+
+  solveAndPlace(leg) {
+    const { anchor, hip } = this.hipToward(leg, leg.footPosition);
+    this.placeSegment(leg.coxa, anchor, hip);
+    if (leg.stump) {
+      // Walking on the stump: thigh to the knee, shin straight down to the floor.
+      const { knee, footTarget } = this.solveKnee(hip, leg.footPosition, FEMUR_LENGTH, SHIN_LENGTH);
+      this.placeSegment(leg.femur, hip, knee);
+      this.placeSegment(leg.tibia, knee, footTarget);
+      leg.knee.position.copy(knee);
+      leg.calfJoint.position.copy(footTarget);
+      return;
+    }
+    const { knee, footTarget, outward } = this.solveKnee(hip, leg.footPosition, FEMUR_LENGTH, LOWER_REACH);
 
     const lowerAxis = new THREE.Vector3().subVectors(footTarget, knee).normalize();
     const lowerDistance = footTarget.distanceTo(knee);
