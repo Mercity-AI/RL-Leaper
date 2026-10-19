@@ -37,8 +37,25 @@ export const BUTTON_ACTIONS = Object.freeze({
   weapon2: Object.freeze({ label: 'M416', keys: ['Digit2', 'Numpad2'] }),
   // Escape also lets go of the mouse (the camera handles that part, because
   // browsers use Escape to end pointer lock). Start / the touch PAUSE button
-  // also resume a paused game.
-  pause: Object.freeze({ label: 'Pause', keys: ['Escape'], pad: [PAD.START], touch: 'PAUSE' }),
+  // also resume a paused game. ui: it still counts while a menu has the controls.
+  pause: Object.freeze({ label: 'Pause', keys: ['Escape'], pad: [PAD.START], touch: 'PAUSE', ui: true }),
+  // The controls legend over the game (src/ui/ControlsLegend.js).
+  legend: Object.freeze({ label: 'Show / hide controls', keys: ['KeyH'], pad: [PAD.BACK] }),
+});
+
+// ---- Menus ----
+// While a menu (title, pause, end, settings) has the controls, these are the
+// only actions that count (plus `pause`, for Start and the touch RESUME); every
+// gameplay action is ignored, so nothing fires or jumps behind a menu. The mouse
+// and touch press the menu's buttons directly; Enter on a focused button works
+// as on any page, Space and the gamepad's A confirm too.
+export const MENU_ACTIONS = Object.freeze({
+  menuUp: Object.freeze({ label: 'Previous item', keys: ['ArrowUp'], pad: [PAD.UP] }),
+  menuDown: Object.freeze({ label: 'Next item', keys: ['ArrowDown'], pad: [PAD.DOWN] }),
+  menuLeft: Object.freeze({ label: 'Lower a setting', keys: ['ArrowLeft'], pad: [PAD.LEFT] }),
+  menuRight: Object.freeze({ label: 'Raise a setting', keys: ['ArrowRight'], pad: [PAD.RIGHT] }),
+  menuConfirm: Object.freeze({ label: 'Select', keys: ['Space'], pad: [PAD.A] }),
+  menuBack: Object.freeze({ label: 'Back', keys: ['Escape', 'Backspace'], pad: [PAD.B] }),
 });
 
 // ---- Sticks and key pairs ----

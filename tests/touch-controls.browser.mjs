@@ -3,13 +3,13 @@
 // real (trusted) taps and held touches sent through the browser. The browser
 // runner (tests/run-browser.mjs) calls this with a page opened on that device.
 //
-// It checks that START PLAYER never captures the mouse on touch, that every
-// on-screen control still receives touches afterwards, and that each touch
+// It checks that EXPLORE (title screen) never captures the mouse on touch, that
+// every on-screen control still receives touches afterwards, and that each touch
 // button works: the joystick moves Lola, FIRE held fires, AIM toggles the
 // sights, RELOAD / SWITCH / CROUCH / JUMP do their job, in the TOP view FIRE
 // dims and does nothing while SWITCH still works, the right side turns the
-// camera, PAUSE pauses and RESUME carries on, and while paused a tap on the
-// right side resumes instead of turning the camera.
+// camera, PAUSE pauses and RESUME carries on, and while paused the pause menu
+// takes taps instead of the camera (its RESUME and QUIT TO TITLE work by touch).
 //
 // The page renders in software at a few frames a second, so the checks look at
 // counts and states, never at speeds.
@@ -72,15 +72,16 @@ export default async function touchControls(page, { baseUrl, check }) {
   };
   const tap = (selector) => page.tap(selector);
 
-  // 2. START PLAYER by touch: no pointer lock, no mouse-look, so nothing goes dead.
-  await tap('[data-action=player]');
+  // 2. EXPLORE on the title screen by touch: no pointer lock, no mouse-look, so
+  //    nothing goes dead.
+  await tap('[data-menu-item=explore]');
   let now = await until(page, (s) => s.flow === 'playing');
   check(now.mode === 'explore' && !now.locked && !now.mouseLook && now.touchPlay,
-    'START PLAYER on a phone never captures the mouse (no pointer lock, no mouse-look)');
+    'EXPLORE on a phone never captures the mouse (no pointer lock, no mouse-look)');
   await page.locator('.touch-band').waitFor({ state: 'visible', timeout: 120000 });
   check(true, 'the touch controls are shown once play starts');
   // Every on-screen control is still the thing under its own centre, and takes touches.
-  const controls = ['#joyBase', '#btnSprint', '[data-action=player]', '#cameraToggle',
+  const controls = ['#joyBase', '#btnSprint', '#cameraToggle',
     ...['fire', 'aim', 'reload', 'switchWeapon', 'crouch', 'jump', 'pause'].map(action => `.touch-band [data-action=${action}]`)];
   for (const selector of controls) {
     const at = await centre(selector);
@@ -88,7 +89,7 @@ export default async function touchControls(page, { baseUrl, check }) {
       const element = document.querySelector(selector), top = document.elementFromPoint(x, y);
       return Boolean(top && (top === element || element.contains(top))) && getComputedStyle(element).pointerEvents !== 'none';
     }, { selector, ...at });
-    check(reachable, `${selector} still receives touches after START PLAYER`);
+    check(reachable, `${selector} still receives touches after EXPLORE`);
   }
 
   // 3. The joystick moves Lola.
@@ -161,24 +162,34 @@ export default async function touchControls(page, { baseUrl, check }) {
   await tap('.touch-band [data-action=pause]');
   await until(page, (s) => s.flow === 'playing');
   check(true, 'RESUME carries on');
-  // While paused the look area steps aside, so a tap on the right of the screen
-  // lands on the pause overlay and resumes, instead of turning the camera.
+  // While paused the look area steps aside and the pause menu takes the taps: a
+  // tap on the right of the screen neither turns the camera nor fires, and the
+  // menu's RESUME carries on.
   const lookBox = await page.locator('.touch-look').boundingBox();
   await tap('.touch-band [data-action=pause]');
-  await until(page, (s) => s.flow === 'paused');
+  now = await until(page, (s) => s.flow === 'paused');
   check(!(await page.locator('.touch-look').isVisible()), 'the look area steps aside while paused');
-  await page.touchscreen.tap(lookBox.x + lookBox.width / 2, lookBox.y + lookBox.height / 2);
+  check(await page.locator('[data-menu-item=resume]').isVisible(), 'the pause menu is open above the touch band');
+  await page.touchscreen.tap(lookBox.x + lookBox.width / 2, lookBox.y + lookBox.height * 0.9);
+  await page.waitForTimeout(600);
+  const tapped = await state(page);
+  check(tapped.flow === 'paused' && tapped.yaw === now.yaw && tapped.mag === now.mag,
+    'a tap beside the pause menu does not turn the camera, fire or resume');
+  await tap('[data-menu-item=resume]');
   await until(page, (s) => s.flow === 'playing');
   // (The view redraws on the next game frame, a moment after the resume.)
   await page.locator('.touch-look').waitFor({ state: 'visible', timeout: 120000 });
-  check(true, 'a tap on the right of the paused screen resumes, and the look area is back');
+  check(true, 'RESUME in the pause menu carries on, and the look area is back');
   // Sound needs a finger lift to start on phones; after these taps it is running.
   // (Headless Chromium may allow sound without one, so this is only a smoke check.)
   check(await page.evaluate(() => window.leaperPlaytest.audio.context?.state === 'running'), 'the game sound is unlocked by touch');
 
-  // 10. The toolbar still works: STOP PLAYER.
-  await tap('[data-action=player]');
+  // 10. PAUSE, then QUIT TO TITLE: back on the title screen, the band hidden.
+  await tap('.touch-band [data-action=pause]');
+  await until(page, (s) => s.flow === 'paused');
+  await tap('[data-menu-item=quit]');
   await until(page, (s) => s.flow === 'ready');
-  check(true, 'STOP PLAYER still responds to a tap');
+  check(await page.locator('[data-menu-item=play]').isVisible() && !(await page.locator('.touch-band').isVisible()),
+    'QUIT TO TITLE by touch shows the title again, without the touch band');
   return 'Touch controls';
 }

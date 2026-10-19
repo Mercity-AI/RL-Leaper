@@ -81,7 +81,8 @@ export class JunkyardPlaytest {
 
     // 7. The game state drives mouse capture, the toolbar labels and the pause
     //    overlay; Escape (or a lost mouse lock) pauses, a click on the overlay resumes.
-    this.pauseOverlay = new PauseOverlay({ onResume: () => this.resume(), signal });
+    // (With the game's HUD shell its pause menu takes this job: src/ui/GameScreens.js.)
+    this.pauseOverlay = hud ? null : new PauseOverlay({ onResume: () => this.resume(), signal });
     this.offFlowChange = this.flow.onChange((next, previous) => this.onFlowChange(next, previous));
     cameraController.onPauseRequested = () => this.pause();
     target.setSelected(true);
@@ -150,7 +151,7 @@ export class JunkyardPlaytest {
       this.cameraController.releaseMouse();
     }
     this.panelView.renderFlow(next);
-    this.pauseOverlay.render(next);
+    this.pauseOverlay?.render(next);
   }
 
   // ---- Toolbar actions ----
@@ -336,7 +337,7 @@ export class JunkyardPlaytest {
     }
     // 3. Page-side: HUD panels, overlays, the LEAPER POV reticle and the toolbar.
     this.removePlacement();
-    this.pauseOverlay.dispose();
+    this.pauseOverlay?.dispose();
     this.vitals.dispose();
     this.pov.reticle.remove();
     this.panelView.dispose();
