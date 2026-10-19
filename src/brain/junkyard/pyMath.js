@@ -27,7 +27,8 @@ export function pyFloorDiv(a, b) {
   const mod = a % b;
   let div = (a - mod) / b;
   if (mod !== 0 && (b < 0) !== (mod < 0)) div -= 1;
-  if (div === 0) return b < 0 ? -0 : 0;
+  // A zero quotient takes the sign of a / b (CPython's copysign(0.0, vx / wx)).
+  if (div === 0) return a / b < 0 || Object.is(a / b, -0) ? -0 : 0;
   let floorDiv = Math.floor(div);
   if (div - floorDiv > 0.5) floorDiv += 1;
   return floorDiv;
@@ -105,6 +106,8 @@ export function norm32(x, z) {
 
 // --- CPython math.hypot (vector_norm in Modules/mathmodule.c) ------------------
 // Lossless scaling and squaring, compensated sums, then one correction step.
+const DBL_MIN = 2 ** -1022; // smallest normal double
+
 function frexpExponent(x) {
   bits.setFloat64(0, x);
   const exponent = (bits.getUint32(0) >>> 20) & 0x7ff;
@@ -120,7 +123,11 @@ export function pyHypot(x, y) {
   const max = Math.max(ax, ay);
   if (max === Infinity) return Infinity;
   if (max === 0) return 0;
-  const scale = 2 ** -frexpExponent(max);
+  const exponent = frexpExponent(max);
+  // Subnormal inputs: 2 ** -exponent would overflow, so CPython first scales
+  // both values up by DBL_MIN (exact) and scales the answer back down.
+  if (exponent < -1023) return DBL_MIN * pyHypot(ax / DBL_MIN, ay / DBL_MIN);
+  const scale = 2 ** -exponent;
   let csum = 1, frac1 = 0, frac2 = 0;
   for (const value of [ax, ay]) {
     const v = value * scale;
