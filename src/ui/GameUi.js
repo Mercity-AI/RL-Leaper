@@ -9,6 +9,8 @@ import { weaponSlots } from '../simulation/PlayerWeapon.js';
 import { touchButtons, wantsTouchControls } from '../input/touch.js';
 import { CONTROLS } from '../input/actions.js';
 import { CAMERA } from '../config/camera.js';
+import { NO_TIMER } from '../debug/PhaseTimer.js';
+import { loadDevTools, wantsDevTools } from '../debug/devTools.js';
 
 // The game's front end in one place: the HUD shell (src/ui/Hud.js) and the menu
 // screens (src/ui/GameScreens.js) on top of the game state, wired to the game
@@ -24,14 +26,20 @@ export class GameUi {
   // input: the game's InputController. cameraController: the chase camera (look
   // speed for touch drags, mouse capture). flow: the GameFlow. events: the
   // game's event bus (captions). quality: the graphics preset in use.
-  // settings: the player's settings store (src/ui/settings.js).
-  constructor({ input, cameraController, flow, events = null, quality = 'high', settings = settingsStore }) {
+  // settings: the player's settings store (src/ui/settings.js). engine and
+  // signal: for the developer tools, if this page gets them.
+  constructor({ input, cameraController, flow, events = null, quality = 'high', settings = settingsStore,
+    engine = null, signal = null }) {
     this.inputController = input;
     this.cameraController = cameraController;
     this.flow = flow;
     this.events = events;
     this.quality = quality;
     this.settings = settings;
+    this.engine = engine;
+    this.signal = signal;
+    // Frame-phase timings for the developer perf overlay (a no-op for players).
+    this.profiler = NO_TIMER;
     // 1. The HUD shell, with the touch band (phones and tablets) pressing the
     //    same input actions as the keys, mouse buttons and gamepad.
     const look = CAMERA.look;
@@ -97,6 +105,11 @@ export class GameUi {
       if (next.name !== 'playing') hud.setLegend(false);
     });
     this.screens.sync(flow.state, { result: playtest.encounter.result });
+    // 4. Developer tools, downloaded only with ?dev or on the dev server.
+    if (wantsDevTools()) {
+      this.devTools = loadDevTools({ ui: this, playtest, engine: this.engine, signal: this.signal })
+        .catch((error) => { console.warn('Developer tools failed to load:', error); return null; });
+    }
   }
 
   // Move the page's existing pieces into the HUD: VIEW top right, the TOP view

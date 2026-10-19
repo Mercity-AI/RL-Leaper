@@ -12,7 +12,6 @@ import { LaserAudio } from '../simulation/LaserAudio.js';
 import { createGameBrainProvider } from '../simulation/JunkyardBrain.js';
 import { brainChoice, describeProgress } from '../brain/BrainProvider.js';
 import { GameUi } from '../ui/GameUi.js';
-import '../styles/ui/dev-panel.css';
 import { createLeaperScene, loadStep, removeFromScene, setStatus } from './shared.js';
 
 // The game (default page, also ?map=junkyard): Lola vs. the Leaper in the
@@ -113,7 +112,7 @@ export async function start({ engine, params }) {
   //    weapons and the junkyard panel together and resets the encounter
   //    (Loading -> Ready). The brain owns the provider; the HUD draws Lola's
   //    health and the guns. Then the menus (the title shows in Ready).
-  const ui = new GameUi({ input, cameraController, flow, events, quality: engine.quality.name });
+  const ui = new GameUi({ input, cameraController, flow, events, quality: engine.quality.name, engine, signal });
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal,
     brainProvider, hud: ui.hud });
   ui.attach(playtest);
@@ -139,25 +138,37 @@ export async function start({ engine, params }) {
   assets.done();
 
   // 9. The frame phases. After dispose() they do nothing, so a loop that is still
-  //    running for one more frame can't touch a torn-down session.
+  //    running for one more frame can't touch a torn-down session. Each phase
+  //    reports its time to ui.profiler (the developer perf overlay; a no-op for players).
   let disposed = false;
+  let renderStart = 0;
+  const timed = (name, phase) => (dt) => {
+    if (disposed) return;
+    const start = ui.profiler.begin();
+    phase(dt);
+    ui.profiler.end(name, start);
+  };
   const mode = {
     maxDelta: MAX_DELTA,
     // Read the player's input (the menus' while one is open), run the fight
     // (Encounter order), then presentation.
-    input: (dt) => { if (!disposed) ui.input(dt); },
-    update: (dt) => { if (!disposed) playtest.update(dt); },
-    lateUpdate: (dt) => {
-      if (disposed) return;
+    input: timed('input', (dt) => {
+      ui.profiler.frame();
+      ui.input(dt);
+    }),
+    update: timed('update', (dt) => playtest.update(dt)),
+    lateUpdate: timed('late', (dt) => {
       playtest.lateUpdate(dt);
       // Dust and sparks hold still while the game is paused.
       world.effects.update(flow.paused ? 0 : dt);
       // The HUD and menus redraw from this frame's numbers (only changes reach the page).
       ui.lateUpdate(dt);
-    },
+    }),
     // Render hooks nest: camera -> weapon -> POV before, undone in reverse after.
+    // (The render time runs from the first hook to the last.)
     beforeRender() {
       if (disposed) return;
+      renderStart = ui.profiler.begin();
       cameraController.beforeRender();
       playtest.playerWeapon.beforeRender();
       playtest.pov.beforeRender();
@@ -167,6 +178,7 @@ export async function start({ engine, params }) {
       playtest.pov.afterRender();
       playtest.playerWeapon.afterRender();
       cameraController.afterRender();
+      ui.profiler.end('render', renderStart);
     },
     // Tear the whole session down: listeners, page elements, scene objects and
     // their GPU memory, the sound engine. (InputController and LolaPlayer keep

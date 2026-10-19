@@ -39,9 +39,12 @@ export default defineConfig({
         // entry and the modes; left in the entry file, a mode would import the
         // entry while the entry is still waiting for that mode to start, and
         // the page would hang at boot (a cycle through main.js's top-level await).
+        // Vite's helper for lazy imports goes there too: a mode that loads a
+        // part on demand (the game's developer tools) must not import the entry
+        // for it, for the same reason.
         manualChunks(id) {
           if (/[\\/]node_modules[\\/](\.pnpm[\\/]three@[^\\/]+[\\/]node_modules[\\/])?three[\\/]/.test(id)) return 'three';
-          if (/[\\/]src[\\/]core[\\/]/.test(id)) return 'core';
+          if (/[\\/]src[\\/]core[\\/]/.test(id) || id.includes('vite/preload-helper')) return 'core';
           return undefined;
         },
       },

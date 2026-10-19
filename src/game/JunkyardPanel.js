@@ -68,7 +68,8 @@ export class JunkyardPanel {
       <small>Live trained brain · 7,757,824 steps · vision and memory · inference only · runs in your browser unless the Python server is picked above. Clearance overlay is a conservative design guide, not the brain’s route. <span data-clearance-summary></span></small>
       <p class="clearance-key" hidden>Green: reachable · Amber: disconnected · Red: blocked at this size</p>
       </div>`;
-    document.body.appendChild(this.element);
+    // Not on the page by itself: the developer panel (src/debug/DevPanel.js) shows
+    // it. Players never see it, though the older systems still find their hooks in it.
     this.message = this.element.querySelector('[data-message]');
     this.brainLabel = this.element.querySelector('.brain-state');
     this.options = this.element.querySelector('#junkyardOptions');

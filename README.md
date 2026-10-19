@@ -114,15 +114,25 @@ while it is out of date).
 ## Junkyard trained-brain playtest
 
 The junkyard now runs the saved **7,757,824-step reverse-urgency recurrent
-policy**, not the navigation pathfinder. The small on-screen badge identifies
-its checkpoint and whether pink is visible, hidden in memory, or not yet found.
-Hover over the badge for where the brain runs and the policy-weight SHA256. If
-no brain can load, the run goes on in turret mode with an offline message;
-there is no substitute movement controller.
+policy**, not the navigation pathfinder. If no brain can load, the run goes on
+in turret mode (the title screen says so, and the end screen marks the fight
+TURRET); there is no substitute movement controller.
+
+### Developer tools
+
+The lab and debug tools live in a developer panel that players never see or
+download. Open the game with `?dev` (it is always there with `pnpm dev`;
+`?dev=0` hides it to see the game exactly as a player does), then press the
+**DEV** button in the top-right corner or the **`** key. The panel holds the
+old toolbar and OPTIONS (below), the brain badge with its details (checkpoint,
+where the brain runs, the policy-weight SHA256, whether pink is visible, hidden
+in memory or not yet found), the status line, and a **perf overlay** (frames per
+second, frame time, milliseconds per frame phase and the renderer's draw calls,
+triangles, geometries, textures and shader programs).
 
 The brain runs in the page by default. To use the Python service instead,
 `pnpm play` (see "Play the game") starts it and the game together, then pick it
-under OPTIONS -> Brain (`?brain=http`). To run them by hand, use two terminals: `.venv/bin/python -m rl.junkyard_server`
+under DEV -> OPTIONS -> Brain (`?brain=http`). To run them by hand, use two terminals: `.venv/bin/python -m rl.junkyard_server`
 (Windows: `.venv\Scripts\python.exe -m rl.junkyard_server`) and `pnpm dev`, then
 open `http://127.0.0.1:5173/` (`?map=junkyard` also works). The service listens
 only on 127.0.0.1:8767 and answers pages served from this computer on any port.
@@ -146,9 +156,10 @@ source Blender file.
 - **Double-tap and hold the second tap, then drag** moves a screen control or
   panel. Double-click then drag also works. Placement is remembered locally and
   kept within the window when resizing. Escape releases the game mouse first.
-- Click the scene to capture the mouse for looking; **Escape** releases it.
-  Dragging also works when mouse capture is unavailable. **VIEW** switches
-  between Lola's chase camera and top view; wheel zooms.
+- Starting a fight captures the mouse for looking; **Escape** releases it and
+  opens the pause menu. Dragging also works when mouse capture is unavailable.
+  **VIEW** (top right of the HUD) switches between Lola's chase camera and top
+  view; wheel zooms.
 - In top view, **Shift + click** places Lola on clear ground. A clear spot does
   not guarantee that the Leaper can reach it.
 - **OPTIONS** reveals size, reset, and the clearance overlay. Options start hidden.

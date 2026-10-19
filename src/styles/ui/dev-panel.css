@@ -1,18 +1,36 @@
 /* The developer tools (src/debug/DevPanel.js, loaded only with ?dev or on the
-   dev server): the old toolbar and OPTIONS panel (src/game/JunkyardPanel.js),
-   the brain badge, the perf overlay and the tuning panel. Never shown to players. */
+   dev server): the DEV button, the drawer with the old toolbar and OPTIONS
+   (src/game/JunkyardPanel.js), brain details and the perf overlay. Never shown
+   to players, and only downloaded with the tools. */
 
-/* The old toolbar and OPTIONS panel. */
-#junkyardPanel { position: fixed; top: calc(var(--hud-edge-top) + 56px); left: var(--hud-edge-left); z-index: var(--z-dev); box-sizing: border-box; width: auto; max-width: calc(100vw - 2 * var(--gap-l)); padding: 6px; border: 1px solid #bac3ba; border-radius: 8px; background: rgba(247, 249, 245, 0.95); box-shadow: 0 8px 32px #17231822; color: var(--ink); font: var(--font-s)/1.5 var(--font-mono); }
-#junkyardPanel.expanded { width: min(340px, calc(100vw - 2 * var(--gap-l))); }
+/* ---- The DEV button (top-right corner; VIEW moves over to make room) ---- */
+.dev-toggle { position: fixed; top: var(--hud-edge-top); right: var(--hud-edge-right); z-index: var(--z-dev); min-height: 36px; padding: var(--gap-s) var(--gap-m); border: 1px dashed var(--c-focus); border-radius: 6px; background: #2a2412e6; color: var(--c-focus); font: 700 var(--font-s)/1 var(--font-mono); letter-spacing: 0.15em; cursor: pointer; }
+.dev-toggle.on { background: #5a4a14; }
+body.dev-tools .hud-region[data-region="top-right"] { right: calc(var(--hud-edge-right) + 72px); }
+
+/* ---- The drawer (left side, scrolls inside the window) ---- */
+.dev-drawer { position: fixed; top: calc(var(--hud-edge-top) + 56px); left: var(--hud-edge-left); bottom: var(--hud-edge-bottom); z-index: var(--z-dev); box-sizing: border-box; display: flex; flex-direction: column; gap: var(--gap-m); width: min(380px, calc(100vw - 2 * var(--gap-l))); padding: var(--gap-m); overflow-y: auto; overscroll-behavior: contain; border: 1px solid #bac3ba; border-radius: 8px; background: rgba(247, 249, 245, 0.97); box-shadow: 0 8px 32px #0006; color: var(--ink); font: var(--font-s)/1.5 var(--font-mono); touch-action: pan-y; }
+.dev-drawer[hidden] { display: none; }
+.dev-header { display: flex; align-items: center; justify-content: space-between; letter-spacing: 0.15em; }
+.dev-header button { min-width: 36px; min-height: 32px; border: 1px solid #bac3ba; border-radius: 4px; background: white; font: inherit; font-size: var(--font-m); cursor: pointer; }
+.dev-section h3 { margin: 0 0 var(--gap-xs); color: #8a3a1c; font-size: var(--font-s); letter-spacing: 0.18em; }
+.dev-facts { display: grid; grid-template-columns: auto 1fr; gap: 2px var(--gap-s); margin: 0; }
+.dev-facts dt { color: #657065; }
+.dev-facts dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.dev-check { display: flex; align-items: center; gap: var(--gap-s); }
+
+/* ---- The perf overlay (bottom centre) ---- */
+.dev-perf { position: fixed; left: 50%; bottom: var(--hud-edge-bottom); z-index: var(--z-dev); margin: 0; padding: var(--gap-xs) var(--gap-s); border-radius: 4px; background: #000000c0; color: #b8f7c8; font: var(--font-s)/1.4 var(--font-mono); white-space: pre; pointer-events: none; transform: translateX(-50%); }
+.dev-perf[hidden] { display: none; }
+body.touch-controls-on .dev-perf { bottom: calc(var(--touch-band) + var(--gap-s)); }
+
+/* ---- The old toolbar and OPTIONS, inside the drawer ---- */
+#junkyardPanel { box-sizing: border-box; padding: 6px; border: 1px solid #bac3ba; border-radius: 8px; background: white; color: var(--ink); font: var(--font-s)/1.5 var(--font-mono); }
 #junkyardPanel .junkyard-toolbar { display: flex; flex-wrap: wrap; gap: 6px; }
-#junkyardPanel .brain-state { max-width: 300px; margin: 5px 2px 0; color: #43594d; font-size: var(--font-s); }
+#junkyardPanel .brain-state { margin: 5px 2px 0; color: #43594d; font-size: var(--font-s); }
 #junkyardPanel [data-sight-status] { margin: 3px 2px; color: #253e36; font-size: var(--font-s); }
-/* The status message: two lines while folded, all of it with OPTIONS open. */
-#junkyardPanel [data-message] { display: -webkit-box; max-width: 360px; margin: 3px 2px 0; overflow: hidden; color: #253e36; font-size: var(--font-s); -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
-#junkyardPanel.expanded [data-message] { -webkit-line-clamp: unset; line-clamp: unset; }
-/* OPTIONS scrolls inside the screen. */
-#junkyardOptions { max-height: calc(100dvh - 240px); padding: 12px 4px 4px; overflow-y: auto; touch-action: pan-y; }
+#junkyardPanel [data-message] { margin: 3px 2px 0; color: #253e36; font-size: var(--font-s); }
+#junkyardOptions { padding: 12px 4px 4px; }
 #junkyardOptions[hidden] { display: none; }
 #junkyardPanel strong { letter-spacing: 0.15em; }
 #junkyardPanel label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
