@@ -234,6 +234,21 @@ test('a sync queued while the brain loads is sent once it is ready; dispose reje
   await tick();
 });
 
+test('a sync waiting when the brain goes offline just moves the planted Leaper', async () => {
+  globalThis.document = { hidden: false };
+  const brain = new JunkyardBrain(playtest());
+  let failReset;
+  brain.request = () => new Promise((resolve, reject) => { failReset = reject; });
+  const resetting = brain.reset();
+  const synced = brain.syncPose({ x: 7, z: 1, yaw: 0.5 });
+  failReset(new Error('Failed to fetch'));
+  await resetting;
+  assert.equal(brain.offline, true);
+  const moved = await synced;
+  assert.deepEqual([moved.x, moved.z, moved.yaw], [7, 1, 0.5], 'turret mode: the Leaper stands at the new spot');
+  assert.equal(brain.contactPoses().to.x, 7);
+});
+
 // --- The fight's API for game logic: Encounter.teleportLeaper ------------------------------
 
 function encounterWith(brain) {

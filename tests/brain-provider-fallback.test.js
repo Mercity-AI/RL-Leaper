@@ -158,6 +158,23 @@ test('progress from whichever provider is loading reaches the chain\'s listeners
   assert.equal(describeProgress(events[0]), 'LOADING BRAIN · ONNX · IN BROWSER · 50% · DOWNLOADING JUNKYARD MAP');
   assert.equal(describeProgress({ kind: 'onnx', task: 'world', width: 6, fraction: 0.31, label: 'BUILDING COLLISION MAP' }),
     'PREPARING LEAPER SIZE 6.0 · ONNX · IN BROWSER · 31% · BUILDING COLLISION MAP');
+  // A wait whose length nobody knows (the Python server building a size) shows no percentage.
+  assert.equal(describeProgress({ kind: 'http', task: 'world', width: 6.5, fraction: null, label: 'WAITING FOR THE SERVER' }),
+    'PREPARING LEAPER SIZE 6.5 · PYTHON SERVER · WAITING FOR THE SERVER');
+});
+
+test('the Python server\'s slow first reset at a size is announced, not shown as 100% loaded', async () => {
+  const { HttpBrainProvider } = await import('../src/brain/HttpBrainProvider.js');
+  const replies = { '/': { model_step: 7757824 }, '/reset': { token: 't', x: 0, z: 0, yaw: 0 } };
+  const provider = new HttpBrainProvider({ url: 'http://brain.test', pageEvents: null,
+    fetch: async (url) => ({ ok: true, json: async () => replies[new URL(url).pathname] }) });
+  const events = [];
+  provider.onProgress((event) => events.push(event));
+  await provider.load();
+  await provider.reset({ width: 6.5 });
+  const waiting = events.at(-1);
+  assert.deepEqual([waiting.task, waiting.width, waiting.fraction], ['world', 6.5, null]);
+  assert.match(describeProgress(waiting), /^PREPARING LEAPER SIZE 6\.5 · PYTHON SERVER · WAITING FOR THE PYTHON SERVER/);
 });
 
 // --- What the game shows ----------------------------------------------------------------------------

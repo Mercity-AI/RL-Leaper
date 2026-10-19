@@ -50,6 +50,8 @@ export class HttpBrainProvider extends BrainProviderBase {
     this.health = null;
     // Sessions opened here and not yet closed: told to the server when the page goes away.
     this.tokens = new Set();
+    // Leaper sizes the server has already answered a reset for (fast from then on).
+    this.widths = new Set();
     // 1. Leaving the page (closing the tab, reloading, APPLY SIZE) frees this
     //    page's sessions on the server at once instead of waiting for eviction.
     this.lifetime = new AbortController();
@@ -118,8 +120,17 @@ export class HttpBrainProvider extends BrainProviderBase {
     return result;
   }
 
+  // A new episode. The first reset at a Leaper size this page has not used yet
+  // may make the server map the junkyard (~30 s), and the server cannot report
+  // progress, so the wait is announced with no percentage (fraction null).
   async reset(payload) {
+    const width = Number(payload?.width);
+    if (Number.isFinite(width) && !this.widths.has(width)) {
+      this.emitProgress({ task: 'world', stage: 'server', width, fraction: null,
+        label: 'WAITING FOR THE PYTHON SERVER (A NEW SIZE CAN TAKE ~30 S)' });
+    }
     const frame = await this.post('reset', payload);
+    if (Number.isFinite(width)) this.widths.add(width);
     if (frame?.token) this.tokens.add(frame.token);
     return frame;
   }

@@ -248,8 +248,9 @@ export class JunkyardBrain {
     this.playtest.brainLabel.title = `${BRAIN_PROVIDERS.turret.tooltip}. ${error.message}`;
     // The sight readout comes from the brain too; say so instead of "connecting".
     if (this.playtest.sight?.label) this.playtest.sight.label.textContent = 'SIGHT OFFLINE · NEEDS THE BRAIN';
-    // A pose sync waiting for this session will not be answered.
-    this.settleSync(null, error);
+    // A pose sync waiting for this session will not be sent: in turret mode the
+    // planted Leaper simply stands at the new spot (syncPose already showed it there).
+    this.settleSync(this.frame);
     this.onFailed?.(error);
   }
 

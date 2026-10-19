@@ -265,9 +265,12 @@ export class BrainProviderChain extends BrainProviderBase {
 // --- Progress wording ---------------------------------------------------------------------
 
 // One line for a loading event, e.g. "LOADING BRAIN · ONNX · IN BROWSER · 42% · DOWNLOADING RUNTIME".
+// A wait whose length nobody knows (fraction null, e.g. the Python server
+// building a new size) shows no percentage rather than a misleading 0%.
 export function describeProgress(progress) {
   if (!progress) return '';
-  const percent = `${Math.round(Math.max(0, Math.min(1, progress.fraction ?? 0)) * 100)}%`;
+  const percent = Number.isFinite(progress.fraction)
+    ? `${Math.round(Math.max(0, Math.min(1, progress.fraction)) * 100)}%` : null;
   const who = BRAIN_PROVIDERS[progress.kind]?.badge;
   const what = progress.task === 'world'
     ? `PREPARING LEAPER SIZE ${Number(progress.width).toFixed(1)}`
