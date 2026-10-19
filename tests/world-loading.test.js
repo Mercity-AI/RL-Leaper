@@ -58,7 +58,8 @@ test('sounds come in the best format the browser plays', () => {
   // (The choice is made once per page; the URLs for each format are fixed.)
   assert.match(String(audioUrl('m416-shot', 'ogg')), /assets\/build\/audio\/m416-shot\.ogg$/);
   assert.match(String(audioUrl('m416-shot', 'm4a')), /assets\/build\/audio\/m416-shot\.m4a$/);
-  assert.match(String(audioUrl('m416-shot', 'wav')), /assets\/audio\/m416-shot\.wav$/);
+  // The WAVs are build sources only (never shipped): asking for one gives the AAC copy.
+  assert.match(String(audioUrl('m416-shot', 'wav')), /assets\/build\/audio\/m416-shot\.m4a$/);
 });
 
 test('one texture per picture: copies in other files are swapped for the first and freed', () => {

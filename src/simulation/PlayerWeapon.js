@@ -239,7 +239,7 @@ export class PlayerWeapon {
     const rifle = weapon.tracer === 'rifle';
     this.visuals.shot(shot.origin, shot.end, rifle);
     p.audio.play(weapon.shotSound);
-    if (shot.hit) p.audio.play('leaper');
+    if (shot.hit) p.audio.play('leaper', { at: shot.end });
     // 4. The kick (less while aiming).
     const kick = aiming ? weapon.ads.recoil : 1;
     p.cameraController.addRecoil?.(weapon.recoil.pitch * kick,
@@ -250,7 +250,7 @@ export class PlayerWeapon {
       this.visuals.impact(shot.end, hit.normal, rifle);
       const outcome = hit.target.applyHit(hit, { damage: weapon.damage, direction: shot.direction });
       this.feedback.hit(outcome);
-      if (outcome.brokeJoint) p.audio.playSlot('kneeBreak');
+      if (outcome.brokeJoint) p.audio.playSlot('kneeBreak', { at: shot.end });
     } else {
       this.feedback.miss();
     }

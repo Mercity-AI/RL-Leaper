@@ -1,0 +1,383 @@
+{
+  "about": "Every sound in the game, in one place: what it is, which mix bus it plays on, how loud, its takes (variations), its files, and where each file came from with its licence. src/audio/AudioService.js plays from it, scripts/assets/build-assets.mjs encodes from it, CREDITS.md and the in-game credits are generated from it (node scripts/assets/build-credits.mjs), and tests/audio-licences.test.js checks it. Fields per sound: id, use (when it plays), bus (sfx | weapons | creature | footsteps | ui | ambience), gain (0-1), priority (0-10: who keeps playing when a voice limit is full), maxVoices (copies at once), spatial (placed in 3D around the listener), emitter (where it plays when the caller gives no position: 'leaper' = the Leaper's body, 'leaperEye' = its eye), distance (optional { ref, max, rolloff } in map units), loop, variation (random { pitch, volume } spread per play), variations (the takes: name, files the game loads, source it is built from, credits = keys into sources). An empty variations list is a silent slot: add a take (and its credits) to fill it.",
+  "sounds": [
+    {
+      "id": "laser",
+      "use": "The Leaper fires a laser bolt (from its eye).",
+      "bus": "creature",
+      "gain": 0.65,
+      "priority": 8,
+      "maxVoices": 4,
+      "spatial": true,
+      "emitter": "leaperEye",
+      "distance": { "ref": 10 },
+      "variation": { "pitch": 0.03, "volume": 0.05 },
+      "variations": [
+        {
+          "name": "leaper-laser",
+          "files": { "ogg": "assets/build/audio/leaper-laser.ogg", "m4a": "assets/build/audio/leaper-laser.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-laser.wav",
+            "from": "assets/audio/sources/479353__astounded__laser-effect-contact-mic.wav",
+            "start": 0.25,
+            "duration": 0.8
+          },
+          "credits": ["freesound-479353"]
+        }
+      ]
+    },
+    {
+      "id": "pistol",
+      "use": "Lola fires the basic pistol.",
+      "bus": "weapons",
+      "gain": 0.45,
+      "priority": 6,
+      "maxVoices": 4,
+      "spatial": false,
+      "variation": { "pitch": 0.03, "volume": 0.06 },
+      "variations": [
+        {
+          "name": "pistol-shot",
+          "files": { "ogg": "assets/build/audio/pistol-shot.ogg", "m4a": "assets/build/audio/pistol-shot.m4a" },
+          "source": {
+            "wav": "assets/audio/pistol-shot.wav",
+            "from": "assets/audio/sources/718965__tb0y298__pistol-shot-2.wav",
+            "start": 0,
+            "duration": 0.851451
+          },
+          "credits": ["freesound-718965"]
+        }
+      ]
+    },
+    {
+      "id": "m416",
+      "use": "Lola fires the M416 rifle.",
+      "bus": "weapons",
+      "gain": 0.12,
+      "priority": 6,
+      "maxVoices": 4,
+      "spatial": false,
+      "variation": { "pitch": 0.02, "volume": 0.06 },
+      "variations": [
+        {
+          "name": "m416-shot",
+          "files": { "ogg": "assets/build/audio/m416-shot.ogg", "m4a": "assets/build/audio/m416-shot.m4a" },
+          "source": {
+            "wav": "assets/audio/m416-shot.wav",
+            "from": "assets/audio/sources/766092__luca2399__m4_rifle_fire.wav",
+            "start": 1.395,
+            "duration": 0.65
+          },
+          "credits": ["freesound-766092"]
+        }
+      ]
+    },
+    {
+      "id": "leaper",
+      "use": "A bullet hits the Leaper or any scenery (one shared metal impact, an owner choice).",
+      "bus": "sfx",
+      "gain": 0.7,
+      "priority": 4,
+      "maxVoices": 6,
+      "spatial": true,
+      "distance": { "ref": 12 },
+      "variation": { "pitch": 0.06, "volume": 0.1 },
+      "variations": [
+        {
+          "name": "leaper-hit",
+          "files": { "ogg": "assets/build/audio/leaper-hit.ogg", "m4a": "assets/build/audio/leaper-hit.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-hit.wav",
+            "from": "assets/audio/sources/873903__cb9382__hit-metal-object.m4a",
+            "start": 2.18,
+            "duration": 0.65
+          },
+          "credits": ["freesound-873903"]
+        }
+      ]
+    },
+    {
+      "id": "run",
+      "use": "Loaded for the running footsteps, but not played: sprinting uses the walk recording with faster steps (an owner choice; see assets/audio/FOOTSTEPS.md).",
+      "bus": "footsteps",
+      "gain": 0.35,
+      "priority": 2,
+      "maxVoices": 3,
+      "spatial": false,
+      "variations": [
+        {
+          "name": "lola-run",
+          "files": { "ogg": "assets/build/audio/lola-run.ogg", "m4a": "assets/build/audio/lola-run.m4a" },
+          "source": { "wav": "assets/audio/lola-run.wav", "from": "816019__qubodup__fps-footsteps-loop.wav (supplied by the owner)" },
+          "credits": ["freesound-816019"]
+        }
+      ]
+    },
+    {
+      "id": "walk",
+      "use": "Lola's footsteps (walking, running, sprinting and crouching): single impacts cut from the recording at her animated foot contacts.",
+      "bus": "footsteps",
+      "gain": 1.6,
+      "priority": 3,
+      "maxVoices": 3,
+      "spatial": false,
+      "variation": { "pitch": 0.04, "volume": 0.08 },
+      "variations": [
+        {
+          "name": "lola-walk",
+          "files": { "ogg": "assets/build/audio/lola-walk.ogg", "m4a": "assets/build/audio/lola-walk.m4a" },
+          "source": { "wav": "assets/audio/lola-walk.wav", "from": "856942__artemditkovsky__footsteps.wav (supplied by the owner)" },
+          "build": { "duration": 5.8, "why": "only the ten impacts in the first 5.6 s are played" },
+          "credits": ["freesound-856942"]
+        }
+      ]
+    },
+    {
+      "id": "robot",
+      "use": "The Leaper's mechanical footsteps, at each real foot touchdown.",
+      "bus": "creature",
+      "gain": 0.45,
+      "priority": 5,
+      "maxVoices": 3,
+      "spatial": true,
+      "emitter": "leaper",
+      "variation": { "pitch": 0.05, "volume": 0.08 },
+      "variations": [
+        {
+          "name": "leaper-walk",
+          "files": { "ogg": "assets/build/audio/leaper-walk.ogg", "m4a": "assets/build/audio/leaper-walk.m4a" },
+          "source": {
+            "wav": "assets/audio/leaper-walk.wav",
+            "from": "812326__artninja__spider_robot_designed_walk_andor_inspired_06162025.wav (supplied by the owner)",
+            "notes": "Six impacts at 0.78, 1.51, 4.25, 5.03, 6.47 and 7.21 s, each from 70 ms before its peak, 500 ms long with a 25 ms tail fade, in 550 ms slots (see assets/audio/FOOTSTEPS.md)."
+          },
+          "credits": ["freesound-812326", "freesound-520514"]
+        }
+      ]
+    },
+    {
+      "id": "m416Reload",
+      "use": "The M416 reload, started partway into Lola's reload animation so its clicks land on her hands (weapons config reloadSoundAt).",
+      "bus": "weapons",
+      "gain": 0.35,
+      "priority": 5,
+      "maxVoices": 1,
+      "spatial": false,
+      "variations": [
+        {
+          "name": "m416-reload-reserved",
+          "files": { "ogg": "assets/build/audio/m416-reload-reserved.ogg", "m4a": "assets/build/audio/m416-reload-reserved.m4a" },
+          "source": {
+            "wav": "assets/audio/m416-reload-reserved.wav",
+            "from": "assets/audio/sources/766092__luca2399__m4_rifle_fire.wav",
+            "start": 0,
+            "duration": 1.32
+          },
+          "credits": ["freesound-766092"]
+        }
+      ]
+    },
+    {
+      "id": "pistolReload",
+      "use": "The pistol reload, started partway into Lola's reload animation.",
+      "bus": "weapons",
+      "gain": 0.6,
+      "priority": 5,
+      "maxVoices": 1,
+      "spatial": false,
+      "variations": [
+        {
+          "name": "pistol-reload-reserved",
+          "files": { "ogg": "assets/build/audio/pistol-reload-reserved.ogg", "m4a": "assets/build/audio/pistol-reload-reserved.m4a" },
+          "source": {
+            "wav": "assets/audio/pistol-reload-reserved.wav",
+            "from": "assets/audio/sources/870197__cb9382__gun-reload.flac",
+            "start": 0,
+            "duration": 0.6
+          },
+          "credits": ["freesound-870197"]
+        }
+      ]
+    },
+    {
+      "id": "kneeBreak",
+      "use": "A shot cuts off a piece of a Leaper leg (at the joint).",
+      "bus": "creature",
+      "gain": 0.8,
+      "priority": 7,
+      "maxVoices": 2,
+      "spatial": true,
+      "emitter": "leaper",
+      "variation": { "pitch": 0.05, "volume": 0.05 },
+      "variations": [
+        {
+          "name": "leaper-knee-break-1",
+          "files": { "ogg": "assets/build/audio/leaper-knee-break-1.ogg", "m4a": "assets/build/audio/leaper-knee-break-1.m4a" },
+          "source": { "wav": "assets/audio/leaper-knee-break-1.wav", "from": "Freesound 423117 (supplied by the owner)" },
+          "credits": ["freesound-423117"]
+        }
+      ]
+    },
+    {
+      "id": "gunEmpty",
+      "use": "Pulling the trigger with an empty magazine (both guns).",
+      "bus": "weapons",
+      "gain": 0.7,
+      "priority": 4,
+      "maxVoices": 2,
+      "spatial": false,
+      "variations": [
+        {
+          "name": "gun-empty",
+          "files": { "ogg": "assets/build/audio/gun-empty.ogg", "m4a": "assets/build/audio/gun-empty.m4a" },
+          "source": { "wav": "assets/audio/gun-empty.wav", "from": "Freesound 154934 (supplied by the owner)" },
+          "credits": ["freesound-154934"]
+        }
+      ]
+    },
+    {
+      "id": "lolaHurt",
+      "use": "Lola is hit by a laser bolt (a short pain grunt, one of three takes).",
+      "bus": "sfx",
+      "gain": 0.7,
+      "priority": 9,
+      "maxVoices": 1,
+      "spatial": false,
+      "variation": { "pitch": 0.04, "volume": 0.05 },
+      "variations": []
+    },
+    {
+      "id": "lolaHurtBig",
+      "use": "Lola is hit while at low health (a heavier pain cry).",
+      "bus": "sfx",
+      "gain": 0.6,
+      "priority": 9,
+      "maxVoices": 1,
+      "spatial": false,
+      "variation": { "pitch": 0.03, "volume": 0.05 },
+      "variations": []
+    },
+    {
+      "id": "lolaHitThud",
+      "use": "Under every hit Lola takes, beneath the voice (a body thud).",
+      "bus": "sfx",
+      "gain": 0.5,
+      "priority": 8,
+      "maxVoices": 1,
+      "spatial": false,
+      "variation": { "pitch": 0.06, "volume": 0.08 },
+      "variations": []
+    }
+  ],
+  "unused": [
+    {
+      "name": "scenery-hit",
+      "source": {
+        "wav": "assets/audio/scenery-hit.wav",
+        "from": "assets/audio/sources/407349__forthehorde68__fx_metallic_hit.wav",
+        "start": 0.425,
+        "duration": 1.1
+      },
+      "credits": ["freesound-407349"],
+      "notes": "Disabled at the owner's request and not shipped (scenery shares the Leaper impact). Kept as a source only."
+    }
+  ],
+  "sources": {
+    "freesound-479353": {
+      "title": "Laser Effect Contact Mic",
+      "author": "Astounded (Christopher J Astbury)",
+      "sourceUrl": "https://freesound.org/s/479353/",
+      "licence": "CC0 1.0",
+      "attribution": "\"Laser Effect Contact Mic\" by Astounded (Christopher J Astbury, Switzerland), https://freesound.org/s/479353/ (CC0 1.0)",
+      "notes": "CC0 on Freesound, so no credit is legally required, but the author asks to be credited as \"Astounded Christopher J Astbury Switzerland\" and writes \"ASK FOR COMMERCIAL USE!\". Credited here; email the author before any commercial release."
+    },
+    "freesound-718965": {
+      "title": "Pistol Shot 2",
+      "author": "TB0Y298",
+      "sourceUrl": "https://freesound.org/s/718965/",
+      "licence": "CC BY 4.0",
+      "attribution": "\"Pistol Shot 2\" by TB0Y298, https://freesound.org/s/718965/, licensed under CC BY 4.0 (used as recorded)",
+      "notes": "Credit required."
+    },
+    "freesound-766092": {
+      "title": "M4_Rifle_Fire",
+      "author": "Luca2399",
+      "sourceUrl": "https://freesound.org/s/766092/",
+      "licence": "CC BY-NC 4.0",
+      "attribution": "\"M4_Rifle_Fire\" by Luca2399, https://freesound.org/s/766092/, licensed under CC BY-NC 4.0 (cut into one shot and one reload)",
+      "notes": "NonCommercial: kept by the owner for this non-commercial open-source game. Any paid, ad-supported or promotional use needs a replacement or the author's written permission."
+    },
+    "freesound-873903": {
+      "title": "Hit metal object",
+      "author": "cb9382",
+      "sourceUrl": "https://freesound.org/s/873903/",
+      "licence": "CC0 1.0",
+      "attribution": "\"Hit metal object\" by cb9382, https://freesound.org/s/873903/ (CC0 1.0)",
+      "notes": "Courtesy credit."
+    },
+    "freesound-816019": {
+      "title": "FPS Footsteps Loop",
+      "author": "qubodup",
+      "sourceUrl": "https://freesound.org/s/816019/",
+      "licence": "CC0 1.0",
+      "attribution": "\"FPS Footsteps Loop\" by qubodup, https://freesound.org/s/816019/ (CC0 1.0)",
+      "notes": "Courtesy credit. Itself based on CC0 recordings by Fission9 and jtnewlin13."
+    },
+    "freesound-856942": {
+      "title": "Footsteps",
+      "author": "artemditkovsky",
+      "sourceUrl": "https://freesound.org/s/856942/",
+      "licence": "CC0 1.0",
+      "attribution": "\"Footsteps\" by artemditkovsky, https://freesound.org/s/856942/ (CC0 1.0)",
+      "notes": "Courtesy credit."
+    },
+    "freesound-812326": {
+      "title": "spider_robot_designed_walk_andor_inspired_06162025",
+      "author": "Artninja",
+      "sourceUrl": "https://freesound.org/s/812326/",
+      "licence": "CC BY 4.0",
+      "attribution": "\"spider_robot_designed_walk_andor_inspired_06162025\" by Artninja, https://freesound.org/s/812326/, licensed under CC BY 4.0 (six impacts cut out); it includes \"Small servo (arduino)\" by gpag1",
+      "notes": "Credit required. The author asks: \"credit me and gpag1 when using these sfx\". Built from Artninja's own spider_robot_footstep_andor_inspired_FINAL_06162025 (https://freesound.org/s/812228/, CC BY 4.0) and gpag1's servo (CC0)."
+    },
+    "freesound-520514": {
+      "title": "Small servo (arduino)",
+      "author": "gpag1",
+      "sourceUrl": "https://freesound.org/s/520514/",
+      "licence": "CC0 1.0",
+      "attribution": "\"Small servo (arduino)\" by gpag1, https://freesound.org/s/520514/ (CC0 1.0), part of Artninja's Leaper footsteps",
+      "notes": "Credited because Artninja asks for it."
+    },
+    "freesound-870197": {
+      "title": "Gun Reload",
+      "author": "cb9382",
+      "sourceUrl": "https://freesound.org/s/870197/",
+      "licence": "CC0 1.0",
+      "attribution": "\"Gun Reload\" by cb9382, https://freesound.org/s/870197/ (CC0 1.0)",
+      "notes": "Courtesy credit."
+    },
+    "freesound-423117": {
+      "title": "Guns & Explosions Album - Metal impact 5",
+      "author": "OGsoundFX",
+      "sourceUrl": "https://freesound.org/s/423117/",
+      "licence": "CC BY 4.0",
+      "attribution": "\"Guns & Explosions Album - Metal impact 5\" by OGsoundFX, https://freesound.org/s/423117/, licensed under CC BY 4.0",
+      "notes": "Credit required."
+    },
+    "freesound-154934": {
+      "title": "Empty Gun Shot",
+      "author": "KlawyKogut",
+      "sourceUrl": "https://freesound.org/s/154934/",
+      "licence": "CC0 1.0",
+      "attribution": "\"Empty Gun Shot\" by KlawyKogut, https://freesound.org/s/154934/ (CC0 1.0)",
+      "notes": "Courtesy credit."
+    },
+    "freesound-407349": {
+      "title": "FX_Metallic_hit.wav",
+      "author": "ForTheHorde68",
+      "sourceUrl": "https://freesound.org/s/407349/",
+      "licence": "CC BY-NC 3.0",
+      "attribution": "\"FX_Metallic_hit.wav\" by ForTheHorde68, https://freesound.org/s/407349/, licensed under CC BY-NC 3.0",
+      "notes": "NonCommercial. Not shipped (disabled at the owner's request); its source and cut stay in assets/audio."
+    }
+  }
+}

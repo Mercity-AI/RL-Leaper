@@ -180,15 +180,15 @@
       "source": "assets/audio/lola-walk.wav",
       "sourceBytes": 4528190,
       "sourceSha256": "57b3b0f406e55377b1f6ae0af2cb9805cfbd22dab733c6b4a3318e32db1018f1",
-      "bytes": 171048,
-      "sha256": "93d30b7d1f5f8369986851e14893e314e436f6ae6d2c4e824d8d0d51d8d64f7f"
+      "bytes": 63706,
+      "sha256": "d748652f83c5257983b86501758aa510b8fcf2b91c3f4dc7e12d4e49d50952af"
     },
     "audio/lola-walk.m4a": {
       "source": "assets/audio/lola-walk.wav",
       "sourceBytes": 4528190,
       "sourceSha256": "57b3b0f406e55377b1f6ae0af2cb9805cfbd22dab733c6b4a3318e32db1018f1",
-      "bytes": 256883,
-      "sha256": "f0d6e0fb7baab75393e99beeb57d81fe3eab6e8f25cf71c8cb04525eb9a3fa47"
+      "bytes": 94626,
+      "sha256": "1c65bf6f8853914c2bbfb23e377ad36f545f733a70033bcccfdd62bbcfecce71"
     },
     "audio/leaper-walk.ogg": {
       "source": "assets/audio/leaper-walk.wav",
@@ -231,6 +231,34 @@
       "sourceSha256": "b0dfb6c588611bd097697e4a986610c05e2b75c42fb53e7a8b63bbbf843460e2",
       "bytes": 6159,
       "sha256": "141d13b3f8b67c18215a118e4b3eb9d571558b068d2c9125748837284f11cab4"
+    },
+    "audio/leaper-knee-break-1.ogg": {
+      "source": "assets/audio/leaper-knee-break-1.wav",
+      "sourceBytes": 606616,
+      "sourceSha256": "60c76fe4bde58e99605d4709687320eb3c48efb898d978eb3305cce12af9796b",
+      "bytes": 22005,
+      "sha256": "3da4b2331f510b7163378322d91cd480f545fb32d73564cffe851e84d49d95d5"
+    },
+    "audio/leaper-knee-break-1.m4a": {
+      "source": "assets/audio/leaper-knee-break-1.wav",
+      "sourceBytes": 606616,
+      "sourceSha256": "60c76fe4bde58e99605d4709687320eb3c48efb898d978eb3305cce12af9796b",
+      "bytes": 33388,
+      "sha256": "1ff2c223ff841949beac056f418be5c93da2919e167929137452ef64d619e33c"
+    },
+    "audio/gun-empty.ogg": {
+      "source": "assets/audio/gun-empty.wav",
+      "sourceBytes": 7432,
+      "sourceSha256": "3f4a5ee952155340a9a0f5b24f1d2a24a2b770b43419c394982acda2c4fb18ff",
+      "bytes": 2559,
+      "sha256": "3a0dd47b770d95000acf9d330dd4778ea4b1ec59262037562151789c141d92cb"
+    },
+    "audio/gun-empty.m4a": {
+      "source": "assets/audio/gun-empty.wav",
+      "sourceBytes": 7432,
+      "sourceSha256": "3f4a5ee952155340a9a0f5b24f1d2a24a2b770b43419c394982acda2c4fb18ff",
+      "bytes": 3721,
+      "sha256": "372ea1bd41b14eb6c77a26fca3320cb1e1474895cdf9f5beb7d6639bbbde8c08"
     }
   },
   "textures": {
