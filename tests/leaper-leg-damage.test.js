@@ -5,6 +5,7 @@ import { createHexapod } from '../src/robot/createHexapod.js';
 import { LeaperSimulation } from '../src/simulation/LeaperSimulation.js';
 import { LeaperLegDamage } from '../src/simulation/LeaperLegDamage.js';
 import { bulletHit } from '../src/simulation/PlayerWeapon.js';
+import { COMBAT } from '../src/config/combat.js';
 
 function setup(random = () => 0) {
   const scene = new THREE.Scene(), rig = createHexapod(scene);
@@ -208,4 +209,40 @@ test('a remaining thigh can break after the upper knee has already detached', ()
   shoot(damage,leg.knee,8); shoot(damage,leg.femur.children[0],24);
   assert.equal(damage.debris.length,2); assert.equal(damage.debris[1].mesh.children.length,1);
   assert.equal(leg.coxa.visible,true); damage.update(1/60);
+});
+
+// ---- Leg rules (review fixes 5.7 and 5.19) ----
+
+test('a leg break never snaps the other feet: a foot in mid-step finishes its step', () => {
+  const { rig, sim, damage } = setup();
+  // Walk until some foot is in the air, then break a different leg.
+  let frame = 0;
+  const walk = () => sim.updateExternal({ x: (frame += 1) / 40, z: 0, yaw: Math.PI / 2, collision: false, distance: 2 }, 1 / 60, { checkpoint: { step: 1 } });
+  while (!rig.legs.some((leg) => leg.stepping && leg.stepProgress > 0.2 && leg.stepProgress < 0.6) && frame < 600) walk();
+  const swinging = rig.legs.find((leg) => leg.stepping && leg.stepProgress > 0.2 && leg.stepProgress < 0.6);
+  assert.ok(swinging, 'a foot is mid-step');
+  const height = swinging.footPosition.y, progress = swinging.stepProgress;
+  const victim = rig.legs.find((leg) => leg !== swinging);
+  shoot(damage, victim.knee, 6);
+  assert.equal(victim.disabled, true);
+  assert.equal(swinging.stepping, true, 'the swinging foot is still stepping');
+  assert.equal(swinging.footPosition.y, height, 'and was not dropped to the floor');
+  walk();
+  assert.ok(swinging.stepProgress > progress || !swinging.stepping, 'it carries on with its step');
+});
+
+test('mobility follows COMBAT.legs; every break is reported with where it happened', () => {
+  const { rig, damage } = setup();
+  const breaks = [];
+  damage.onBroken = (event) => breaks.push(event);
+  for (let i = 0; i < 6; i += 1) {
+    shoot(damage, rig.legs[i].knee, 6);
+    assert.equal(rig.damagedLegCount, i + 1);
+    assert.equal(rig.mobility, Math.max(COMBAT.legs.minMobility, 1 - (i + 1) * COMBAT.legs.mobilityPerLeg));
+  }
+  assert.deepEqual(breaks.map((b) => b.lost), [1, 2, 3, 4, 5, 6]);
+  assert.ok(breaks.every((b) => b.joint === 'upper' && b.position.isVector3 && b.leg.disabled));
+  // The break point is the knee that snapped (where the burst of sparks belongs).
+  assert.ok(breaks[0].position.distanceTo(rig.legs[0].hanging.points[1]) < 3, 'near the broken knee');
+  assert.equal(COMBAT.legs.maxLost, 4, 'four lost legs knock the Leaper down (src/config/leaper-behaviour.js)');
 });

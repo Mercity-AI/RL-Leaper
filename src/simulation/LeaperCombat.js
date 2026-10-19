@@ -1,13 +1,18 @@
 import * as THREE from 'three';
 import { LeaperLegDamage } from './LeaperLegDamage.js';
 import { createLaserVisual } from './LaserVisual.js';
-import { COMBAT } from '../config/combat.js';
+import { COMBAT, attackRange } from '../config/combat.js';
+import { RAY_MAX_RANGE, TARGET_RADIUS } from '../brain/junkyard/frozenEnv.js';
 import { AttackController } from './AttackController.js';
 import { CombatGeometry, aimAngles, withinAim, capsuleHit } from './CombatGeometry.js';
 import { LeaperHealthBar } from './LeaperHealthBar.js';
 import { MOVEMENT } from '../config/robot.js';
 import { GAME_EVENTS } from '../core/events.js';
 import { TRAIL_HOLD, TRAIL_DRAIN } from '../game/PlayerVitals.js';
+
+// What the frozen brain can see (read from its JS port, which the parity tests
+// prove identical to the Python recipe): Lola's centre within 28 + 1.4 units.
+export const BRAIN_SIGHT = Object.freeze({ sightRange: RAY_MAX_RANGE, targetRadius: TARGET_RADIUS });
 
 // One Leaper's side of the fight: its health and weak point, its attack behaviour
 // tree, bolts, leg damage, eye glow and its own HUD panel (#leaperHealthHud).
@@ -163,11 +168,15 @@ export class LeaperCombat {
     this.playtest.engine.scene.add(mesh);
     this.effects.push({ mesh, age: 0, muzzle });
   }
+  // How far the eye can shoot: the bolt range, but never beyond the brain's own
+  // sight (review fix 5.31), so it never fires while its brain is SEARCHING.
+  range() {
+    return attackRange(this.playtest.world.scale, BRAIN_SIGHT, this.config);
+  }
   updateProjectiles(dt, points) {
-    const scale = this.playtest.world.scale;
+    const scale = this.playtest.world.scale, range = this.range();
     for (const bolt of [...this.bolts]) {
-      const distance = Math.min(this.config.projectileSpeed * scale * dt,
-        this.config.weaponRange * scale - bolt.travelled);
+      const distance = Math.min(this.config.projectileSpeed * scale * dt, range - bolt.travelled);
       const cover = this.geometry.hit(bolt.mesh.position, bolt.direction, distance);
       const body = capsuleHit(bolt.mesh.position, bolt.direction, points[1], points[2], this.config.bodyRadius * scale);
       const head = capsuleHit(bolt.mesh.position, bolt.direction, points[0], points[0], this.config.headRadius * scale);
@@ -177,7 +186,7 @@ export class LeaperCombat {
       bolt.travelled += distance;
       // Grow out of the muzzle; the tail never extends behind the firing eye.
       bolt.mesh.scale.z = scale * Math.min(1, bolt.travelled / (this.config.laserLength * scale));
-      if (hitDistance <= distance || bolt.travelled >= this.config.weaponRange * scale) {
+      if (hitDistance <= distance || bolt.travelled >= range) {
         // No impact orb: damage is communicated by the health bar until a hit animation is supplied.
         this.playtest.engine.scene.remove(bolt.mesh); this.bolts.splice(this.bolts.indexOf(bolt), 1);
         // Cover wins ties. Never damage Lola through a blocking triangle.
@@ -200,7 +209,7 @@ export class LeaperCombat {
     // service the Leaper stands still but still tracks and fires (turret mode).
     const paused = !p.walking || document.hidden;
     const points = this.pose();
-    const range = c.weaponRange * p.world.scale;
+    const range = this.range();
     const visible = points.map(point => {
       const delta = point.clone().sub(this.origin);
       const yaw = Math.atan2(delta.x, delta.z) - p.simulation.state.yaw;
