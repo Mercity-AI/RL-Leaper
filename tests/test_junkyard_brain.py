@@ -95,6 +95,28 @@ class JunkyardEnvTests(unittest.TestCase):
         self.assertAlmostEqual(env._player_clearance(env.position, 0.0) + player,
             min(np.hypot(np.sin(0.62) * 3.24, 3.5 - np.cos(0.62) * 3.24) - 0.9, np.hypot(np.sin(0.62) * 2.2, 3.5 - np.cos(0.62) * 2.2) - 0.35, 3.5 - 1.3), places=5)
 
+    def test_severed_legs_stop_blocking_lola_contact_v4(self):
+        # Contact rules v4: a shot-off leg keeps only its stump disc (by the hip).
+        self.assertEqual(PLAYER_CONTACT["version"], 4)
+        self.assertEqual(PLAYER_CONTACT["leaperShape"]["severedLegPoints"], 1)
+        angle = PLAYER_CONTACT["leaperShape"]["legAngles"][0]
+        foot = [np.sin(angle) * 3.24, np.cos(angle) * 3.24]
+        env = JunkyardEnv(self.geometry, [0, 0], 0, foot, player_collision=True)
+        self.assertLess(env._player_clearance(env.position, 0.0), 0, "Lola standing on an intact foot is blocked")
+        env.disabled_legs = frozenset({0})
+        self.assertGreaterEqual(env._player_clearance(env.position, 0.0), 0, "the severed leg's foot no longer blocks")
+        # The stump by the hip still does, and the other legs are untouched.
+        env.target = np.array([np.sin(angle) * 1.2, np.cos(angle) * 1.2], dtype=np.float32)
+        self.assertLess(env._player_clearance(env.position, 0.0), 0)
+        env.target = np.array([-foot[0], foot[1]], dtype=np.float32)
+        self.assertLess(env._player_clearance(env.position, 0.0), 0, "leg 1 (the mirror leg) still blocks")
+        # Only Lola's contact changes: the frozen map-collision discs keep all six legs.
+        self.assertEqual(len(list(env._collision_points(env.position, 0.0))), 19)
+        # The constructor takes the severed legs too (a reset with legs already gone).
+        fresh = JunkyardEnv(self.geometry, [0, 0], 0, foot, player_collision=True, disabled_legs=[0, 2])
+        self.assertEqual(fresh.disabled_legs, frozenset({0, 2}))
+        self.assertGreaterEqual(fresh._player_clearance(fresh.position, 0.0), 0)
+
 
 @unittest.skipUnless(BRAIN_READY, SKIP_REASON)
 class CheckpointTests(unittest.TestCase):

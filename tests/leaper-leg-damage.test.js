@@ -5,6 +5,8 @@ import { createHexapod } from '../src/robot/createHexapod.js';
 import { LeaperSimulation } from '../src/simulation/LeaperSimulation.js';
 import { LeaperLegDamage } from '../src/simulation/LeaperLegDamage.js';
 import { createLeaperHitboxes } from '../src/weapons/Hitboxes.js';
+import { COMBAT } from '../src/config/combat.js';
+import { LeaperFeedback } from '../src/actors/leaper/LeaperFeedback.js';
 
 function setup(random = () => 0) {
   const scene = new THREE.Scene(), rig = createHexapod(scene);
@@ -210,4 +212,77 @@ test('a remaining thigh can break after the upper knee has already detached', ()
   shoot(damage,leg.knee,8); shoot(damage,leg.femur.children[0],24);
   assert.equal(damage.debris.length,2); assert.equal(damage.debris[1].mesh.children.length,1);
   assert.equal(leg.coxa.visible,true); damage.update(1/60);
+});
+
+// ---- Leg rules (review fixes 5.7 and 5.19) ----
+
+test('a leg break never snaps the other feet: a foot in mid-step finishes its step', () => {
+  const { rig, sim, damage } = setup();
+  // Walk until some foot is in the air, then break a different leg.
+  let frame = 0;
+  const walk = () => sim.updateExternal({ x: (frame += 1) / 40, z: 0, yaw: Math.PI / 2, collision: false, distance: 2 }, 1 / 60, { checkpoint: { step: 1 } });
+  while (!rig.legs.some((leg) => leg.stepping && leg.stepProgress > 0.2 && leg.stepProgress < 0.6) && frame < 600) walk();
+  const swinging = rig.legs.find((leg) => leg.stepping && leg.stepProgress > 0.2 && leg.stepProgress < 0.6);
+  assert.ok(swinging, 'a foot is mid-step');
+  const height = swinging.footPosition.y, progress = swinging.stepProgress;
+  const victim = rig.legs.find((leg) => leg !== swinging);
+  shoot(damage, victim.knee, 6);
+  assert.equal(victim.disabled, true);
+  assert.equal(swinging.stepping, true, 'the swinging foot is still stepping');
+  assert.equal(swinging.footPosition.y, height, 'and was not dropped to the floor');
+  walk();
+  assert.ok(swinging.stepProgress > progress || !swinging.stepping, 'it carries on with its step');
+});
+
+test('mobility follows COMBAT.legs; every break is reported with where it happened', () => {
+  const { rig, damage } = setup();
+  const breaks = [];
+  damage.onBroken = (event) => breaks.push(event);
+  for (let i = 0; i < 6; i += 1) {
+    shoot(damage, rig.legs[i].knee, 6);
+    assert.equal(rig.damagedLegCount, i + 1);
+    assert.equal(rig.mobility, Math.max(COMBAT.legs.minMobility, 1 - (i + 1) * COMBAT.legs.mobilityPerLeg));
+  }
+  assert.deepEqual(breaks.map((b) => b.lost), [1, 2, 3, 4, 5, 6]);
+  assert.ok(breaks.every((b) => b.joint === 'upper' && b.position.isVector3 && b.leg.disabled));
+  // The break point is the knee that snapped (where the burst of sparks belongs).
+  assert.ok(breaks[0].position.distanceTo(rig.legs[0].hanging.points[1]) < 3, 'near the broken knee');
+  assert.equal(COMBAT.legs.maxLost, 4, 'four lost legs knock the Leaper down (src/config/leaper-behaviour.js)');
+});
+
+test('a leg cut off while the hull is flashing from a hit keeps the hull\'s resting glow, not the flash', () => {
+  // The joint snaps on the bullet after a hit, so the hull is usually still
+  // flashing (LeaperFeedback) at the moment its pieces are cloned off.
+  const { scene, rig, damage } = setup();
+  const feedback = new LeaperFeedback({ scene, rig, world: { scale: 1, floorHeight: 0 } });
+  const resting = new Map(feedback.hull.map((material) => [material, material.emissive.getHex()]));
+  feedback.hit({ strength: 1 });
+  feedback.update(0.01);
+  assert.ok(rig.materials.leg.emissive.r > 0.1, 'the hull is flashing');
+  // The materials the upper knee's pieces wear, in the order they are cut off.
+  const leg = rig.legs[0], worn = [];
+  for (const key of ['knee', 'tibia', 'calfJoint', 'calf']) leg[key].traverse((o) => { if (o.isMesh) worn.push(o.material); });
+  shoot(damage, leg.knee, 6);
+  assert.equal(damage.debris.length, 1);
+  const cut = [];
+  damage.debris[0].mesh.traverse((o) => { if (o.isMesh) cut.push(o.material); });
+  assert.equal(cut.length, worn.length, 'one cut-off copy per piece');
+  let hull = 0;
+  cut.forEach((material, i) => {
+    const colour = material.emissive;
+    assert.ok([colour.r, colour.g, colour.b].every(Number.isFinite), 'a valid colour');
+    if (resting.has(worn[i])) {
+      // A hull piece: back at its resting glow, while the rig itself still flashes.
+      hull += 1;
+      assert.equal(colour.getHex(), resting.get(worn[i]), `resting glow, not the flash (${colour.getHexString()})`);
+    } else {
+      // Its lights (never flashed) keep their own glow.
+      assert.equal(colour.getHex(), worn[i].emissive.getHex());
+    }
+  });
+  assert.ok(hull > 0, 'the cut-off leg has hull pieces');
+  // The flash then fades on the hull alone.
+  feedback.update(1);
+  assert.equal(rig.materials.leg.emissive.getHex(), resting.get(rig.materials.leg));
+  feedback.dispose();
 });

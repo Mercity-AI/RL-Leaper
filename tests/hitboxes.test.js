@@ -26,7 +26,7 @@ function leaper(x = 0, z = 0) {
 function fakeCombat(legs, health = 600) {
   return {
     legs, leaperHealth: health, dealt: [],
-    damageLeaper(amount, debug, major) { this.dealt.push({ amount, major }); this.leaperHealth = Math.max(0, this.leaperHealth - amount); },
+    damageLeaper(amount, debug, major, hit = {}) { this.dealt.push({ amount, major, hit }); this.leaperHealth = Math.max(0, this.leaperHealth - amount); },
   };
 }
 
@@ -177,6 +177,11 @@ test('a Leaper target counts joint hits through its leg damage and scales damage
   const outcome = target.applyHit(core, { damage: 5, direction: new THREE.Vector3(0, 0, -1) });
   assert.ok(outcome.weakPoint);
   assert.equal(combat.dealt.at(-1).amount, 5 * COMBAT.weakPointMultiplier);
+  // The combat hears where the bullet struck (sparks) and that it was the core (stagger).
+  const { hit } = combat.dealt.at(-1);
+  assert.equal(hit.weakPoint, true);
+  assert.ok(hit.point.equals(core.point) && hit.normal.equals(core.normal), 'the hit point and surface direction');
+  assert.equal(combat.dealt[0].hit.weakPoint, false, 'a knee hit is not a weak-point hit');
   combat.leaperHealth = 4;
   assert.ok(target.applyHit(core, { damage: 5, direction: new THREE.Vector3() }).killed, 'the finishing bullet');
 });

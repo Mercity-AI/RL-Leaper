@@ -1,10 +1,13 @@
 import { FOOT_HEIGHT } from '../config/robot.js';
 import { contact, leaperReach, createLeaperBlocker } from '../world/playerContact.js';
 import { GAME_EVENTS } from '../core/events.js';
+import { PlayerKnockback } from '../actors/leaper/PlayerKnockback.js';
 
 // One junkyard fight: Lola against a list of enemies (one Leaper today). It owns
 //   - the gameplay update order each frame,
-//   - enemies[] (each { simulation, brain, combat }: animator, brain client, attacks),
+//   - enemies[] (each { simulation, brain, combat, actor }: animator, brain
+//     client, attacks, and the behaviour layer that decides what the Leaper does
+//     around its brain: src/actors/leaper/LeaperActor.js),
 //   - the start snapshot (where Lola, each Leaper and the camera were when the
 //     fight began), used for a clean RESTART ENCOUNTER,
 //   - the win / lose bookkeeping (who won, practice or not, time and damage).
@@ -24,9 +27,15 @@ export function resultText({ winner, practice = false, turret = false, debugUsed
 export class Encounter {
   // vitals: Lola's PlayerVitals (her health decides a loss). audio: the shared
   // sound engine. input: the InputController (its jump buffer is cleared on restart).
-  constructor({ flow, events, world, player, vitals, audio = null, playerController, playerWeapon, input, cameraController }) {
+  // leaperBehaviour(enemy, encounter): builds each Leaper's behaviour layer (the
+  // game passes createLeaperActor); without it the brain alone moves the Leaper.
+  constructor({ flow, events, world, player, vitals, audio = null, playerController, playerWeapon, input, cameraController,
+    leaperBehaviour = null }) {
     Object.assign(this, { flow, events, world, player, vitals, audio, playerController, playerWeapon, cameraController });
     this.inputController = input;
+    this.leaperBehaviour = leaperBehaviour;
+    // Leaper attacks may shove Lola (a stomp, a landing); she slides along walls.
+    this.knockback = leaperBehaviour ? new PlayerKnockback({ player, events }) : null;
     this.enemies = [];
     this.started = false;
     this.startSnapshot = null;
@@ -54,12 +63,14 @@ export class Encounter {
     return { damageTaken: 0, damageDealt: 0, jointsBroken: 0, assisted: false, debugUsed: false, turret: false };
   }
 
-  // Add a Leaper. Its body and legs block Lola through the world's collision service.
+  // Add a Leaper. Its body and legs block Lola through the world's collision service
+  // (the shape its behaviour layer gives, else its brain's).
   // spawn: where it starts after a plain reset (the map spawn by default).
   addEnemy({ simulation, brain, combat, spawn = this.world.spawn }) {
-    const enemy = { simulation, brain, combat, spawn };
+    const enemy = { simulation, brain, combat, spawn, actor: null };
+    if (this.leaperBehaviour) enemy.actor = this.leaperBehaviour(enemy, this);
     if (this.player.isPlayer && this.world.collision) {
-      enemy.removeBlocker = this.world.collision.addDynamicBlocker(createLeaperBlocker(brain, this.player, this.world));
+      enemy.removeBlocker = this.world.collision.addDynamicBlocker(createLeaperBlocker(enemy.actor ?? brain, this.player, this.world));
     }
     this.enemies.push(enemy);
     return enemy;
@@ -95,12 +106,15 @@ export class Encounter {
     this.playerController.sample(dt, { frozen: this.flow.paused });
   }
 
-  // Gameplay phase, in a fixed order: Lola, each Leaper's brain and animator,
-  // each Leaper's attacks and bolts, Lola's health panel, then Lola's gun.
+  // Gameplay phase, in a fixed order: Lola (and any shove she is getting), each
+  // Leaper's brain, each Leaper's behaviour and animator, each Leaper's attacks
+  // and bolts, Lola's health panel, then Lola's gun.
   update(dt) {
     const gameDt = this.gameDelta(dt);
     this.playerController.update(gameDt);
+    this.knockback?.update(gameDt);
     for (const enemy of this.enemies) enemy.brain.update(gameDt);
+    for (const enemy of this.enemies) enemy.actor?.update(gameDt);
     for (const enemy of this.enemies) enemy.combat.update(gameDt);
     this.vitals.update(gameDt, { over: this.over });
     // The Leaper's walking sound only plays during a live hunt.
@@ -119,10 +133,11 @@ export class Encounter {
     const hunting = next.name === 'playing' && next.mode === 'hunt';
     const wasHunting = previous.name === 'playing' && previous.mode === 'hunt';
     const wasPlaying = previous.name === 'playing';
-    // START RUN (or resume): the fight begins once, then every brain runs.
+    // START RUN (or resume): the fight begins once, then every brain runs (a
+    // Leaper with a behaviour layer starts its brain when its state walks).
     if (hunting && !wasHunting) {
       this.begin();
-      for (const enemy of this.enemies) enemy.brain.start();
+      for (const enemy of this.enemies) if (!enemy.actor) enemy.brain.start();
     }
     // Leaving the hunt (a pause included): brains stop asking for moves until
     // the run continues (their sessions are kept).
@@ -181,9 +196,12 @@ export class Encounter {
   // a RESTART RANDOM spawn pair if given, else this fight's start snapshot (a
   // clean retry), else the map spawn with Lola where she is.
   restart(spawn = null) {
-    // 1. Fresh health for Lola and every Leaper, no bolts, legs back, attack timers cleared.
+    // 1. Fresh health for Lola and every Leaper, no bolts, legs back, attack timers
+    //    cleared, behaviour back to dormant, no shove on Lola.
     this.vitals.reset();
     for (const enemy of this.enemies) enemy.combat.reset();
+    for (const enemy of this.enemies) enemy.actor?.reset();
+    this.knockback?.clear();
     // 2. Ready, then make sure nothing is still firing, walking, flinching or
     //    shaking, and both magazines are full again.
     this.flow.stop();
@@ -224,8 +242,9 @@ export class Encounter {
     }
   }
 
-  // Put a Leaper at a pose, standing, still, with its feet planted around it.
-  placeLeaper({ simulation }, { x, z, yaw }) {
+  // Put a Leaper at a pose, standing, still, with its feet planted around it
+  // (its behaviour layer plays on from there).
+  placeLeaper({ simulation, actor }, { x, z, yaw }) {
     const state = simulation.state;
     state.position.set(x, 0, z);
     state.previousVelocity.set(0, 0, 0);
@@ -240,6 +259,7 @@ export class Encounter {
         z - leg.homeLocal.x * s + leg.homeLocal.z * c);
       leg.stepping = false;
     });
+    actor?.placed({ x, z, yaw });
   }
 
   // Game logic moves a Leaper between brain moves (a leap, a scripted
@@ -292,9 +312,11 @@ export class Encounter {
   dispose() {
     for (const enemy of this.enemies) {
       enemy.removeBlocker?.();
+      enemy.actor?.dispose();
       enemy.brain.stop();
       enemy.brain.dispose?.();
     }
+    this.knockback?.dispose();
     for (const off of this.unsubscribe.splice(0)) off();
   }
 }

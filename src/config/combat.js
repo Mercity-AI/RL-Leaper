@@ -16,4 +16,18 @@ export const COMBAT = Object.freeze({
   healthBar: Object.freeze({ burstShare: 0.02, burstWindow: 2, showTime: 3.5 }),
   // Camera shake strength (0-1) added per event; it fades out over about a second.
   cameraShake: Object.freeze({ bigHit: 0.7, legLanding: 0.5 }),
+  // Leg rules (review fix 5.7). Each lost leg slows the brain's step clock by
+  // mobilityPerLeg, never below minMobility (the limp). Losing maxLost legs
+  // knocks the Leaper down (src/config/leaper-behaviour.js `downed` says for how
+  // long); losing one more while down keeps it down for good.
+  legs: Object.freeze({ maxLost: 4, mobilityPerLeg: 0.18, minMobility: 0.25 }),
 });
+
+// How far the Leaper's eye bolts reach, in world units, at a map scale: never
+// beyond what its brain can see (review fix 5.31). The brain sees Lola while
+// her centre is within sightRange (the trained RAY_MAX_RANGE, 28) plus her
+// targetRadius (1.4), whatever the Leaper size; the bolt range itself grows
+// with the map (weaponRange map units).
+export function attackRange(scale, { sightRange, targetRadius }, config = COMBAT) {
+  return Math.min(config.weaponRange * scale, sightRange + targetRadius);
+}

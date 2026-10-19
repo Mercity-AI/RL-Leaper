@@ -7,7 +7,7 @@ import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
 import { EventBus } from '../core/events.js';
 import { GameFlow } from '../core/GameFlow.js';
 import { disposeObject3D } from '../core/disposeObject3D.js';
-import { LaserAudio } from '../simulation/LaserAudio.js';
+import { GameAudio } from '../audio/GameAudio.js';
 import { createGameBrainProvider } from '../simulation/JunkyardBrain.js';
 import { brainChoice, describeProgress } from '../brain/BrainProvider.js';
 import { GameUi } from '../ui/GameUi.js';
@@ -61,7 +61,7 @@ export async function start({ engine, params }) {
   const events = new EventBus();
   const flow = new GameFlow({ events });
   const assets = new Assets({ title: 'LOADING JUNKYARD' });
-  const audio = new LaserAudio({ signal, fetchFile: (url) => assets.fetch(url) });
+  const audio = new GameAudio({ signal, fetchFile: (url) => assets.fetch(url), quality: engine.quality.name });
   // 3. The Leaper's brain starts loading at once, in its own worker: the saved
   //    network in the browser by default (?brain=http uses the Python service).
   //    Failures are not fatal here: the first reset falls back (finally to turret mode).
@@ -97,6 +97,13 @@ export async function start({ engine, params }) {
   const { rig, input, cameraController, simulation } = createLeaperScene({ engine, world, target, signal });
   cameraController.followSubject = target;
   cameraController.pitch = 0.16;
+  // Sound: distances at the map's scale, the Leaper's sounds placed at its body
+  // and eye (its slots name these emitters in src/audio/sounds.json), and the
+  // yard's quiet ambience bed (it starts with the first click or key).
+  audio.distanceScale = world.scale;
+  audio.setEmitter('leaper', rig.robot);
+  audio.setEmitter('leaperEye', rig.eyePivot);
+  audio.startAmbience();
   // The Leaper's smallest parts skip the sun's shadow on lower quality, and its
   // feet kick up dust where the preset allows it.
   for (const root of [rig.robot, ...rig.legs.flatMap((leg) => [leg.coxa, leg.femur, leg.tibia, leg.calf, leg.knee, leg.calfJoint])]) {
@@ -150,6 +157,8 @@ export async function start({ engine, params }) {
     update: timed('update', (dt) => playtest.update(dt)),
     lateUpdate: timed('late', (dt) => {
       playtest.lateUpdate(dt);
+      // The ears follow the camera (kept near Lola), after it moved this frame.
+      audio.updateListener(engine.camera, target.mesh.position);
       // Dust and sparks hold still while the game is paused.
       world.effects.update(flow.paused ? 0 : dt);
       // The HUD and menus redraw from this frame's numbers (only changes reach the page).

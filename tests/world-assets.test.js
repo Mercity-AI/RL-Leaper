@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import manifest from '../assets/build/manifest.json' with { type: 'json' };
+import sounds from '../src/audio/sounds.json' with { type: 'json' };
 import { glbJson, loadGlb } from './world-helpers.js';
 
 // The compressed web copies in assets/build/ (scripts/assets/build-assets.mjs)
@@ -16,7 +17,12 @@ const models = Object.entries(manifest.outputs).filter(([file]) => file.endsWith
 
 test('every built file exists, is the one recorded, and comes from the current source', () => {
   assert.ok(models.length === 15, 'the map and the 14 Lola files');
-  assert.ok(Object.keys(manifest.outputs).filter(file => /\.(ogg|m4a)$/.test(file)).length === 18, '9 sounds in two formats');
+  // Every take in the sound manifest (src/audio/sounds.json), in two formats.
+  const takes = sounds.sounds.flatMap(sound => sound.variations).filter(take => take.files.ogg && take.files.m4a);
+  assert.ok(takes.length >= 9, 'at least the original 9 recordings');
+  assert.deepEqual(Object.keys(manifest.outputs).filter(file => /\.(ogg|m4a)$/.test(file)).sort(),
+    takes.flatMap(take => [take.files.ogg, take.files.m4a]).map(file => file.replace('assets/build/', '')).sort(),
+    'each take of the sound manifest, in two formats');
   for (const [file, entry] of Object.entries(manifest.outputs)) {
     const built = read(`assets/build/${file}`);
     assert.equal(sha256(built), entry.sha256, `${file} matches the manifest`);

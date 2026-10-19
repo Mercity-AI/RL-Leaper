@@ -22,21 +22,9 @@ export function lolaUrl(name) {
   return new URL(`../../assets/build/lola/lola-${name}.glb`, import.meta.url).href;
 }
 
-// The browser's preferred sound format: Opus in Ogg (most browsers), else AAC
-// in MP4 (older Safari), else the original WAV. Asked once per page.
-let audioFormat = null;
-export function pickAudioFormat(probe = typeof Audio === 'undefined' ? null : new Audio()) {
-  if (audioFormat) return audioFormat;
-  const can = (type) => Boolean(probe?.canPlayType?.(type));
-  audioFormat = can('audio/ogg; codecs="opus"') ? 'ogg' : can('audio/mp4; codecs="mp4a.40.2"') ? 'm4a' : 'wav';
-  return audioFormat;
-}
-
-// A sound by name ('m416-shot', 'lola-walk', ...) in the best format the browser plays.
-export function audioUrl(name, format = pickAudioFormat()) {
-  if (format === 'ogg' || format === 'm4a') return new URL(`../../assets/build/audio/${name}.${format}`, import.meta.url);
-  return new URL(`../../assets/audio/${name}.wav`, import.meta.url);
-}
+// Sounds: the browser's preferred format (Opus in Ogg, else AAC in MP4) and a
+// built sound's URL now live with the audio engine; re-exported for older callers.
+export { audioUrl, pickAudioFormat } from '../audio/formats.js';
 
 // Expected size of a built file (for the progress bar), from the build manifest.
 // A production build adds an 8-character fingerprint to each file name

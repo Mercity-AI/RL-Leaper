@@ -16,6 +16,8 @@ import {
 import { turnToward, wrapAngle } from '../core/angles.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+// The plain walk, for a state built without a behaviour pose.
+const NO_POSTURE = Object.freeze({ lower: 0, pitch: 0, roll: 0, splay: 0, planted: false, slide: 0 });
 
 export class LeaperSimulation {
   constructor({ rig, world, target, input, cameraController, sun, statusElement }) {
@@ -44,6 +46,13 @@ export class LeaperSimulation {
       crouch: 0,
       gaitPhase: 0,
       alert: 0,
+      // Poses the behaviour layer (src/actors/leaper/) lays over the walk:
+      //   lower  how far the body is lowered (units): a crouch, a fall, a collapse
+      //   pitch / roll  extra body tilt (radians): a recoil, a slump
+      //   splay  feet pushed outwards, as a share of their normal reach
+      //   planted  true = no new steps; feet slide to their spots at `slide` per second
+      // All zero / false (the lab modes never set them): the plain walk.
+      posture: { lower: 0, pitch: 0, roll: 0, splay: 0, planted: false, slide: 0 },
     };
     this.v = Array.from({ length: 10 }, () => new THREE.Vector3());
   }
@@ -115,6 +124,8 @@ export class LeaperSimulation {
     state.position.set(frame.x, 0, frame.z);
     // Kept within one turn, like the brain server's own heading (review fix 5.3).
     state.yaw = wrapAngle(frame.yaw);
+    // A landing crouch (see land()) springs back up, as in the keyboard jump.
+    state.crouch += (0 - state.crouch) * Math.min(1, 9 * deltaTime);
     const speed = state.velocity.length();
     this.updateBody(speed, deltaTime);
     this.updateGait(speed, deltaTime);
@@ -132,6 +143,30 @@ export class LeaperSimulation {
     // The last of the body's motion dies away completely (no endless tiny bob).
     if (velocity.lengthSq() < 1e-6) velocity.set(0, 0, 0);
     this.applyExternalFrame({ x: position.x, z: position.z, yaw, collision: false }, deltaTime, null, { alive });
+  }
+
+  // ---- Scripted airborne motion (the Leaper's leap) ----
+
+  // In the air at `height` above the floor, rising (vy > 0) or falling (vy < 0):
+  // the legs tuck in and reach down for the landing (the airborne leg pose).
+  setAirborne(height, verticalVelocity) {
+    const state = this.state;
+    state.grounded = false;
+    state.jumpHeight = Math.max(0, height);
+    state.verticalVelocity = verticalVelocity;
+  }
+
+  // Touch down: the body dips and the feet replant one after another, exactly
+  // like the end of the keyboard jump (updateJump).
+  land() {
+    const state = this.state;
+    state.jumpHeight = 0;
+    state.verticalVelocity = 0;
+    state.grounded = true;
+    state.crouch = 0.34;
+    this.rig.legs.forEach((leg, index) => {
+      leg.replantDelay = 0.02 + index * 0.05;
+    });
   }
 
   updateExternal(frame, deltaTime, replay) {
@@ -246,10 +281,13 @@ export class LeaperSimulation {
       : 0;
     // A slight sag per lost leg. Lowering the body more splays the surviving legs flat.
     const damageCrouch = Math.min(0.1, (this.rig.damagedLegCount || 0) * 0.04);
-    const bodyHeight = (this.world?.floorHeight ?? 0) + STANDING_HEIGHT + state.jumpHeight + bob - state.crouch * 0.5 - damageCrouch;
+    // The behaviour layer's pose (crouch, fall, collapse, recoil) on top.
+    const posture = state.posture ?? NO_POSTURE;
+    const bodyHeight = (this.world?.floorHeight ?? 0) + STANDING_HEIGHT + state.jumpHeight + bob - state.crouch * 0.5 - damageCrouch
+      - posture.lower;
     this.bodyHeight = bodyHeight;
     this.rig.robot.position.set(state.position.x, bodyHeight, state.position.z);
-    this.rig.robot.rotation.set(state.pitchTilt, state.yaw, state.rollTilt);
+    this.rig.robot.rotation.set(state.pitchTilt + posture.pitch, state.yaw, state.rollTilt + posture.roll);
     if (!this.rig.weaponControlled) this.rig.eyePivot.rotation.set(
       -this.cameraController.eyePitch,
       this.cameraController.eyeYaw,
@@ -260,6 +298,9 @@ export class LeaperSimulation {
 
   updateGait(speed, deltaTime) {
     const state = this.state;
+    const posture = state.posture ?? NO_POSTURE;
+    // Feet pushed outwards when the behaviour layer splays the legs (a fall, a collapse).
+    const reach = 1 + posture.splay;
     this.landedFeet = 0;
     const stepCount = [0, 0];
     this.rig.legs.forEach((leg) => {
@@ -269,8 +310,8 @@ export class LeaperSimulation {
     const sine = Math.sin(state.yaw);
 
     this.rig.legs.forEach((leg) => {
-      const offsetX = leg.homeLocal.x * cosine + leg.homeLocal.z * sine;
-      const offsetZ = -leg.homeLocal.x * sine + leg.homeLocal.z * cosine;
+      const offsetX = (leg.homeLocal.x * cosine + leg.homeLocal.z * sine) * reach;
+      const offsetZ = (-leg.homeLocal.x * sine + leg.homeLocal.z * cosine) * reach;
       const desiredFoot = this.v[6].set(
         state.position.x + offsetX,
         FOOT_HEIGHT + (this.world?.floorHeight ?? 0),
@@ -287,7 +328,12 @@ export class LeaperSimulation {
         leg.stepping = false;
         return;
       }
-      if (state.grounded) {
+      if (state.grounded && posture.planted) {
+        // Planted (down, collapsing, a wreck): no new steps. A foot already in
+        // the air finishes its step; the others slide along the floor to their spot.
+        if (leg.stepping) this.updateGroundedLeg(leg, desiredFoot, speed, stepCount, deltaTime);
+        else leg.footPosition.lerp(desiredFoot, Math.min(1, posture.slide * deltaTime));
+      } else if (state.grounded) {
         this.updateGroundedLeg(leg, desiredFoot, speed, stepCount, deltaTime);
       } else {
         const reaching = state.verticalVelocity < -1.5;

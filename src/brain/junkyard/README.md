@@ -139,6 +139,24 @@ and last action are kept: a sync is not a new episode. While a leap animates,
 game logic decides whether the brain keeps stepping (`brain.stop()` /
 `brain.start()`), then syncs at the landing spot.
 
+The Leaper's behaviour layer (`src/actors/leaper/README.md`) does exactly
+that: it pauses the brain outside Search and Chase, syncs the landing pose
+during the leap's crouch (a refusal, or a sync that fails for any reason,
+calls the leap off and the take-off pose is synced back), syncs again on
+landing, and syncs the heading after a turn in place. It also animates the
+rig itself (`JunkyardBrain.drivesAnimator = false`).
+
+**Severed legs (contact rules v4, review fix 5.19).** `/reset`, `/step`,
+`/sense` and `/sync` may carry `disabled_legs`: the indices (0-5, the order of
+`legAngles` in `src/config/player-contact.json`) of the Leaper's shot-off legs.
+Such a leg keeps only its first `severedLegPoints` disc (the stump by the hip)
+in **Lola's contact**, so the brain is no longer blocked by her where the leg
+used to be, and the page lets her walk into that gap (`playerContact.js`). It
+is the junkyard's Lola-contact rule only: the frozen recipe's 19 map-collision
+discs and every input the brain sees are unchanged, and a request without the
+field behaves exactly as v3. `JunkyardBrain` sends the rig's severed legs with
+every request; `scripted-severed-legs-5.5.json` proves both sides agree bit for bit.
+
 **Soft episode restart (review fix 5.12, an experiment, OFF).** See "Soft
 restart experiment" below for what it does and how it measured;
 `ENCOUNTER.brainSoftRestart` in `src/config/encounter.js`, `?softRestart=1 / 0`
