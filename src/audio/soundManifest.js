@@ -60,6 +60,7 @@ export function checkManifest(manifest, { buses = AUDIO_CONFIG.buses } = {}) {
     const label = `sound "${sound.id}"`;
     if (!sound.id || typeof sound.id !== 'string') errors.push('a sound has no id');
     if (ids.has(sound.id)) errors.push(`${label} is listed twice`);
+    if (sound.label !== undefined && !(typeof sound.label === 'string' && sound.label.trim())) errors.push(`${label} has an empty label`);
     ids.add(sound.id);
     if (!buses[sound.bus]) errors.push(`${label} plays on an unknown bus "${sound.bus}"`);
     if (!(sound.gain >= 0 && sound.gain <= 4)) errors.push(`${label} needs a gain between 0 and 4`);
@@ -87,6 +88,7 @@ export function checkManifest(manifest, { buses = AUDIO_CONFIG.buses } = {}) {
     }
   }
   // 3. Each source: every licence field, a licence we know, an attribution where required.
+  const shipped = new Set((manifest.sounds ?? []).flatMap((sound) => (sound.variations ?? []).flatMap((variation) => variation.credits ?? [])));
   for (const [key, source] of Object.entries(manifest.sources ?? {})) {
     for (const field of SOURCE_FIELDS) if (!source[field]) errors.push(`source "${key}" has no ${field}`);
     const terms = licenceTerms(source);
@@ -94,7 +96,11 @@ export function checkManifest(manifest, { buses = AUDIO_CONFIG.buses } = {}) {
     if (terms.attribution && !source.attribution?.includes(source.author.split(' (')[0])) {
       errors.push(`source "${key}" (${source.licence}) needs attribution text naming ${source.author}`);
     }
-    if (terms.nonCommercial) notes.push(`NOTE: "${source.title}" by ${source.author} is ${source.licence} (NonCommercial): fine for this non-commercial game, not for paid or promotional use.`);
+    if (terms.nonCommercial && shipped.has(key)) {
+      notes.push(`NOTE: "${source.title}" by ${source.author} is ${source.licence} (NonCommercial): fine for this non-commercial game, not for paid or promotional use.`);
+    } else if (terms.nonCommercial) {
+      notes.push(`NOTE: "${source.title}" by ${source.author} is ${source.licence} (NonCommercial) and is not shipped.`);
+    }
   }
   return { errors, notes };
 }

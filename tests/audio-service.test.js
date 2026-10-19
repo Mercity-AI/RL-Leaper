@@ -377,7 +377,7 @@ test('the sound manifest is complete, and the checker catches what a designer mi
   // 2. A broken manifest: every mistake is named.
   const broken = {
     sounds: [
-      { id: 'a', bus: 'drums', gain: 9, priority: 11, variations: [{ name: 'x', files: { ogg: 'assets/audio/x.wav' }, credits: ['nope'] }] },
+      { id: 'a', label: ' ', bus: 'drums', gain: 9, priority: 11, variations: [{ name: 'x', files: { ogg: 'assets/audio/x.wav' }, credits: ['nope'] }] },
       { id: 'a', bus: 'sfx', gain: 1, priority: 1, emitter: 'moon', loop: { start: 2, end: 1 }, variations: [{ name: 'x', files: {}, credits: [] }] },
     ],
     sources: { cc: { title: 'T', author: 'Someone', sourceUrl: 'u', licence: 'CC BY 4.0', attribution: 'T by nobody', notes: '-' },
@@ -386,7 +386,7 @@ test('the sound manifest is complete, and the checker catches what a designer mi
   const found = checkManifest(broken).errors.join('\n');
   for (const problem of ['unknown bus "drums"', 'gain between 0 and 4', 'priority from 0 to 10', 'is not a .ogg file',
     'unknown source "nope"', 'is listed twice', 'unknown emitter "moon"', 'has no files', 'credits no source',
-    'needs attribution text naming Someone', 'has no sourceUrl', 'unknown licence "Mine"', 'needs a loop { start, end }']) {
+    'needs attribution text naming Someone', 'has no sourceUrl', 'unknown licence "Mine"', 'needs a loop { start, end }', 'has an empty label']) {
     assert.ok(found.includes(problem), `the checker reports: ${problem}`);
   }
 });

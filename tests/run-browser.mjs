@@ -20,7 +20,7 @@ import { createServer } from 'vite';
 // Every page that reports PASS/FAIL in its title, and every scripted test with
 // the device it runs on. Demos live in demos/ instead.
 const PAGES = ['tests/browser-combat.html', 'tests/camera-player.html', 'tests/brain-onnx.html', 'tests/brain-game.html',
-  'tests/world-browser.html', 'tests/world-render.html', 'tests/world-visual.html'];
+  'tests/world-browser.html', 'tests/world-render.html', 'tests/world-visual.html', 'tests/audio-browser.html'];
 const SCRIPTS = [
   { path: 'tests/game-controls.browser.mjs' },
   { path: 'tests/touch-controls.browser.mjs', device: 'Pixel 7' },
