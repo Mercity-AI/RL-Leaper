@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { STANDING_HEIGHT } from '../config/robot.js';
-import { CAMERA } from '../config/camera.js';
+import { CAMERA } from '../config/tuning/index.js';
 import { CameraOcclusion } from './CameraOcclusion.js';
 
 // The camera for every mode: the chase view behind Lola (and its first-person

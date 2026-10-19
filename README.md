@@ -130,6 +130,17 @@ in memory or not yet found), the status line, and a **perf overlay** (frames per
 second, frame time, milliseconds per frame phase and the renderer's draw calls,
 triangles, geometries, textures and shader programs).
 
+Its **TUNING** section is a live designer panel (Tweakpane, downloaded only with
+the tools). It has a folder per config: camera, guns, shooting feel, hit feedback,
+combat and the Leaper's behaviour. A change applies at once in the running game
+and is remembered in this browser. **COPY JSON** copies the values that differ
+from the config files, ready to carry over into `src/config/` by hand, and
+**RESET** / **RESET ALL** put the files' values back. Rows that the game reads
+only once (for example Lola's health) or that belong to the player's SETTINGS are
+shown read-only with a note. So are the frozen brain contract (`eye-vision.json`,
+`player-contact.json`) and the encounter config. Without the developer tools the
+game reads the config files exactly as written (`src/config/tuning/`).
+
 The brain runs in the page by default. To use the Python service instead,
 `pnpm play` (see "Play the game") starts it and the game together, then pick it
 under DEV -> OPTIONS -> Brain (`?brain=http`). To run them by hand, use two terminals: `.venv/bin/python -m rl.junkyard_server`

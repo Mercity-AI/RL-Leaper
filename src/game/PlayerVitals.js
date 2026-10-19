@@ -1,4 +1,4 @@
-import { COMBAT } from '../config/combat.js';
+import { COMBAT } from '../config/tuning/index.js';
 import { GAME_EVENTS } from '../core/events.js';
 import { VitalsView } from '../ui/VitalsView.js';
 

@@ -46,3 +46,9 @@ body.touch-controls-on .dev-perf { bottom: calc(var(--touch-band) + var(--gap-s)
 #junkyardPanel .size-controls input { flex: 1; min-width: 0; accent-color: #253e36; }
 #junkyardPanel p { margin: 12px 0 6px; }
 #junkyardPanel small { color: #657065; font-size: var(--font-s); }
+
+/* ---- The live tuning panel (src/debug/TuningPanel.js, Tweakpane) ---- */
+/* Tweakpane's own dark theme, full drawer width; each config's note on top. */
+.dev-section[data-dev-section="tuning"] .tp-rotv { width: 100%; }
+.tuning-note { margin: 4px 8px 6px; color: #c8cdc8; font: 11px/1.45 var(--font-mono); white-space: normal; }
+.tuning-json { box-sizing: border-box; width: 100%; margin-top: var(--gap-s); font: var(--font-s)/1.4 var(--font-mono); }

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { LeaperLegDamage } from './LeaperLegDamage.js';
 import { createLaserVisual } from './LaserVisual.js';
-import { COMBAT, attackRange } from '../config/combat.js';
+import { attackRange } from '../config/combat.js';
+import { COMBAT } from '../config/tuning/index.js';
 import { RAY_MAX_RANGE, TARGET_RADIUS } from '../brain/junkyard/frozenEnv.js';
 import { AttackController } from './AttackController.js';
 import { CombatGeometry, aimAngles, withinAim, capsuleHit } from './CombatGeometry.js';
@@ -10,7 +11,7 @@ import { MOVEMENT } from '../config/robot.js';
 import { GAME_EVENTS } from '../core/events.js';
 import { TRAIL_HOLD, TRAIL_DRAIN } from '../game/PlayerVitals.js';
 import { LeaperHudView } from '../ui/LeaperHudView.js';
-import { LEAPER_BEHAVIOUR } from '../config/leaper-behaviour.js';
+import { LEAPER_BEHAVIOUR } from '../config/tuning/index.js';
 
 // What the frozen brain can see (read from its JS port, which the parity tests
 // prove identical to the Python recipe): Lola's centre within 28 + 1.4 units.

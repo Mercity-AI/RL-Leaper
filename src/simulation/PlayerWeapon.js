@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { GunshotEffects } from './GunshotEffects.js';
-import { SHOOTING, WEAPONS, WEAPON_SLOTS, weaponForSlot } from '../config/weapons.js';
-import { CAMERA } from '../config/camera.js';
+import { CAMERA, SHOOTING, WEAPONS, WEAPON_SLOTS, weaponForSlot } from '../config/tuning/index.js';
 import { WeaponState } from '../weapons/WeaponState.js';
 import { resolveShot, sightDepth, traceSight } from '../weapons/resolveShot.js';
 import { TargetRegistry } from '../weapons/TargetRegistry.js';

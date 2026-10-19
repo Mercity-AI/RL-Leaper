@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA } from '../config/camera.js';
+import { CAMERA } from '../config/tuning/index.js';
 import { WEAPONS, slotForKey } from '../config/weapons.js';
 
 // Lola's running and sprinting speeds as handed to LolaPlayer.move (she turns

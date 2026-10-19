@@ -9,7 +9,7 @@ import { registerAudioSettings } from '../audio/audioSettingsSection.js';
 import { weaponSlots } from '../simulation/PlayerWeapon.js';
 import { touchButtons, wantsTouchControls } from '../input/touch.js';
 import { CONTROLS } from '../input/actions.js';
-import { CAMERA } from '../config/camera.js';
+import { CAMERA } from '../config/tuning/index.js';
 import { NO_TIMER } from '../debug/PhaseTimer.js';
 import { HudLayout, MOVABLE_PIECES } from '../controls/MovableHud.js';
 import { loadDevTools, wantsDevTools } from '../debug/devTools.js';
