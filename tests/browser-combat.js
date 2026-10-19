@@ -648,6 +648,40 @@ try {
   p.playerWeapon.reset(); frame(1 / 60);
   check(p.playerWeapon.reticle.dataset.blocked === 'false', 'the OBSTRUCTED reticle clears once the line is open again');
 
+  // ---- A Leaper leg between the chase camera and Lola is never the aim point (review 5.5) ----
+  // Lola stands just outside the standing Leaper's feet, facing away from it, so
+  // the chase camera looks over her past its legs. The old lens trace aimed at
+  // the leg behind her; the sight now starts at her depth and the shot flies on.
+  combat.reset(); p.playerWeapon.reset();
+  damageSim.updateBody(0, 0); damageSim.updateGait(0, 0); engine.scene.updateMatrixWorld(true);
+  let legBehind = null;
+  for (const leg of rig.legs) {
+    const away = leg.footPosition.clone().sub(rig.robot.position).setY(0).normalize();
+    const spot = leg.footPosition.clone().addScaledVector(away, 3.2);
+    if (world.playerBlocked(spot.x, spot.z)) continue;
+    target.mesh.position.set(spot.x, 0, spot.z); target.mesh.rotation.y = Math.atan2(away.x, away.z); animatePlayer(0.05);
+    Object.assign(cameraController, { yaw: Math.atan2(away.x, away.z) + Math.PI, pitch: 0.16, viewPitchOffset: 0 });
+    cameraController.update(p.simulation.state, rig.eyePivot, 1);
+    leaperTarget.update();
+    const ray = p.playerWeapon.cameraRay();
+    const lensHit = p.playerWeapon.targets.raycast(ray.origin, ray.direction, p.playerWeapon.range);
+    // Only spots where the lens ray really meets the Leaper before it reaches Lola.
+    const lolaDepth = cameraController.chaseAnchor(new THREE.Vector3()).sub(ray.origin).dot(ray.direction);
+    if (!lensHit || lensHit.distance >= lolaDepth) continue;
+    const origin = ray.origin.clone(), forward = ray.direction.clone(), health = combat.leaperHealth;
+    p.playerWeapon.reset(); target.cancelShot();
+    if (!p.playerWeapon.fire()) continue;
+    const shot = p.playerWeapon.lastShot;
+    legBehind = { leg: leg.index, dot: +shot.direction.dot(forward).toFixed(3), hitLeaper: combat.leaperHealth !== health,
+      // The crosshair's point lies beyond Lola (not on the leg behind her), so the
+      // bullet goes where she aims rather than only being saved by the backwards guard.
+      aimAhead: shot.aimPoint.clone().sub(origin).dot(forward) > lolaDepth, backwards: shot.backwards };
+    break;
+  }
+  check(legBehind && legBehind.dot > 0 && !legBehind.hitLeaper && legBehind.aimAhead && !legBehind.backwards,
+    `with a Leaper leg between the camera and Lola, the aim point is in front of her and the shot leaves the Leaper alone (${JSON.stringify(legBehind)})`);
+  p.playerWeapon.reset(); combat.reset();
+
   // ---- Back to a real junkyard wall, Lola never fires backwards (review 5.5) ----
   // Search the real map for spots where the chase camera has a wall between it
   // and Lola (the camera fades such walls instead of moving through them).
