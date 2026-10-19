@@ -234,12 +234,31 @@ test('while a menu has the controls only menu actions count: nothing fires or ju
   p.pad.buttons[PAD.START] = { pressed: true, value: 1 };
   input.poll();
   assert.ok(input.pressed('pause'));
-  // The menu closes: gameplay actions count again and menu actions stop.
+  // The menu closes: gameplay actions count again and menu actions stop. A
+  // button held through the change only counts once let go and pressed again
+  // (the A that pressed PLAY never also jumps; the trigger held over the menu
+  // doesn't fire the moment it closes).
   menu = false;
   p.key('keydown', 'KeyR');
   input.poll();
-  assert.ok(input.pressed('reload') && input.held('fire'), 'R reloads; the trigger still held now counts');
+  assert.ok(input.pressed('reload'), 'R, pressed after the menu closed, reloads');
+  assert.ok(!input.held('fire') && !input.pressed('fire') && !input.pressed('jump'), 'RT and A held through the menu do nothing');
   assert.ok(!input.held('menuConfirm') && !input.pressed('menuDown'));
+  p.pad.buttons[PAD.RT] = { pressed: false, value: 0 };
+  input.poll();
+  p.pad.buttons[PAD.RT] = { pressed: true, value: 1 };
+  input.poll();
+  assert.ok(input.pressed('fire') && input.held('fire'), 'let go and pulled again, the trigger fires');
+  // Same the other way: B held when a menu opens is not a BACK press.
+  p.pad.buttons[PAD.B] = { pressed: true, value: 1 };
+  input.poll();
+  menu = true;
+  input.poll();
+  assert.ok(!input.pressed('menuBack'), 'B held as the menu opened does not go back');
+  p.pad.buttons[PAD.B] = { pressed: false, value: 0 };
+  input.poll();
+  menu = false;
+  input.poll();
   // Escape pauses in play and goes back in a menu (the same key, two action maps).
   p.key('keydown', 'Escape');
   input.poll();

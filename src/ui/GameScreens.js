@@ -201,7 +201,7 @@ export class GameScreens {
   onClick(event) {
     const back = event.target.closest('[data-menu-back]');
     if (back) {
-      this.back();
+      this.back('pointer');
       return;
     }
     const item = event.target.closest('[data-menu-item]');
@@ -218,15 +218,19 @@ export class GameScreens {
   }
 
   // BACK: close the sub-screen on top (focus returns to the item that opened
-  // it); at the pause menu, resume the game.
-  back() {
+  // it). At the pause menu the gamepad's B resumes the game; the keyboard's
+  // Escape does not: browsers spend Escape on letting go of the mouse, and a
+  // game resumed by it could not capture the mouse again. (RESUME, focused when
+  // the menu opens, takes Enter.)
+  back(device = 'keyboard') {
     const closing = this.current;
     if (this.stack.back()) {
       this.show();
       this.currentElement()?.querySelector(`[data-menu-item="${closing}"]`)?.focus({ preventScroll: true });
       return;
     }
-    if (this.current === 'pause') this.actions.resume?.();
+    if (this.current === 'pause' && device === 'gamepad') this.actions.resume?.();
+    else this.focusFirst();
   }
 
   // Keyboard: Tab stays inside the open screen. On a slider, list or tick box
@@ -267,7 +271,7 @@ export class GameScreens {
     if (input.pressed('menuLeft')) this.adjust(-1);
     if (input.pressed('menuRight')) this.adjust(1);
     if (input.pressed('menuConfirm')) this.confirm();
-    if (input.pressed('menuBack')) this.back();
+    if (input.pressed('menuBack')) this.back(input.pressedBy?.('menuBack') ?? 'keyboard');
     // The gamepad's left stick (forward = up; the arrow keys are menuUp / menuDown).
     this.stick(input.pad?.axes?.[PAD_AXES.leftY] ?? 0, dt);
   }

@@ -80,6 +80,11 @@ export class InputController {
     // Returns true while a menu has the controls: then only the menu actions (and
     // the actions marked `ui`, like pause) count, so nothing fires behind a menu.
     this.uiCapture = () => false;
+    // Whether a menu had the controls at the last poll, and the buttons still held
+    // from then: they only count again once let go (the A that pressed PLAY must
+    // not also jump, the B that closed a menu must not crouch).
+    this.menuWasOpen = false;
+    this.heldThroughMenu = new Set();
     this.pad = { connected: false, id: '', buttons: [], axes: [0, 0, 0, 0] };
 
     // 4. The per-frame snapshot poll() fills in.
@@ -169,7 +174,15 @@ export class InputController {
     const held = this.heldBefore;
     held.clear();
     const menu = Boolean(this.uiCapture());
-    for (const action of this.actions) if (this.counts(action, menu) && this.rawHeld(action)) held.add(action);
+    if (this.menuWasOpen !== menu) {
+      this.heldThroughMenu.clear();
+      for (const action of this.actions) if (this.rawHeld(action)) this.heldThroughMenu.add(action);
+      this.menuWasOpen = menu;
+    }
+    for (const action of this.heldThroughMenu) if (!this.rawHeld(action)) this.heldThroughMenu.delete(action);
+    for (const action of this.actions) {
+      if (this.counts(action, menu) && !this.heldThroughMenu.has(action) && this.rawHeld(action)) held.add(action);
+    }
     // Presses: everything latched since the last poll, plus actions that became
     // held without an event (gamepad buttons).
     this.pressedNow.clear();

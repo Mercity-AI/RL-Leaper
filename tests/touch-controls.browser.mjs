@@ -74,7 +74,7 @@ export default async function touchControls(page, { baseUrl, check }) {
 
   // 2. EXPLORE on the title screen by touch: no pointer lock, no mouse-look, so
   //    nothing goes dead.
-  await tap('[data-menu-item=explore]');
+  await tap('.screen:not([hidden]) [data-menu-item=explore]');
   let now = await until(page, (s) => s.flow === 'playing');
   check(now.mode === 'explore' && !now.locked && !now.mouseLook && now.touchPlay,
     'EXPLORE on a phone never captures the mouse (no pointer lock, no mouse-look)');
@@ -169,13 +169,13 @@ export default async function touchControls(page, { baseUrl, check }) {
   await tap('.touch-band [data-action=pause]');
   now = await until(page, (s) => s.flow === 'paused');
   check(!(await page.locator('.touch-look').isVisible()), 'the look area steps aside while paused');
-  check(await page.locator('[data-menu-item=resume]').isVisible(), 'the pause menu is open above the touch band');
+  check(await page.locator('.screen:not([hidden]) [data-menu-item=resume]').isVisible(), 'the pause menu is open above the touch band');
   await page.touchscreen.tap(lookBox.x + lookBox.width / 2, lookBox.y + lookBox.height * 0.9);
   await page.waitForTimeout(600);
   const tapped = await state(page);
   check(tapped.flow === 'paused' && tapped.yaw === now.yaw && tapped.mag === now.mag,
     'a tap beside the pause menu does not turn the camera, fire or resume');
-  await tap('[data-menu-item=resume]');
+  await tap('.screen:not([hidden]) [data-menu-item=resume]');
   await until(page, (s) => s.flow === 'playing');
   // (The view redraws on the next game frame, a moment after the resume.)
   await page.locator('.touch-look').waitFor({ state: 'visible', timeout: 120000 });
@@ -187,10 +187,10 @@ export default async function touchControls(page, { baseUrl, check }) {
   // 10. PAUSE, then QUIT TO TITLE: back on the title screen, the band hidden.
   await tap('.touch-band [data-action=pause]');
   await until(page, (s) => s.flow === 'paused');
-  await tap('[data-menu-item=quit]');
+  await tap('.screen:not([hidden]) [data-menu-item=quit]');
   await until(page, (s) => s.flow === 'ready');
   // (The HUD redraws on the next game frame.)
   await page.locator('.touch-band').waitFor({ state: 'hidden', timeout: 120000 });
-  check(await page.locator('[data-menu-item=play]').isVisible(), 'QUIT TO TITLE by touch shows the title again, without the touch band');
+  check(await page.locator('.screen:not([hidden]) [data-menu-item=play]').isVisible(), 'QUIT TO TITLE by touch shows the title again, without the touch band');
   return 'Touch controls';
 }
