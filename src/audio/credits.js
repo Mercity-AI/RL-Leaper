@@ -2,9 +2,9 @@ import SOUNDS from './sounds.json' with { type: 'json' };
 import { licenceTerms } from './soundManifest.js';
 
 // The game's credits, made from the sound manifest (and a short list of the
-// code libraries and art the game is built with). The in-game CreditsView and
-// CREDITS.md (node scripts/assets/build-credits.mjs) both use these, so they
-// can never disagree with the licence records.
+// code libraries and art the game is built with). The CREDITS screen
+// (src/ui/credits.js) and CREDITS.md (node scripts/assets/build-credits.mjs)
+// both use these, so they can never disagree with the licence records.
 
 // ---- Sounds ----
 
