@@ -61,12 +61,13 @@ export class GameUi {
     this.mountPagePieces(playtest);
     // 2. The menu screens, with CONTROLS and CREDITS (SETTINGS registers itself).
     const legend = CONTROLS.find((row) => row.action === 'legend');
+    this.legendKey = wantsTouchControls() ? '' : legend?.keyboard || 'H';
     this.screens = new GameScreens({
       actions: this.menuActions(),
       announce: (text) => hud.announce(text),
       // A menu always has a free mouse.
       onOpenChange: (open) => { if (open) this.cameraController.releaseMouse(); },
-      legendKey: wantsTouchControls() ? 'the PAUSE menu' : legend?.keyboard || 'H',
+      hint: this.legendKey ? `In the fight, ${this.legendKey} shows the controls.` : 'The pause menu shows the controls.',
     });
     this.screens.defineScreen('controls', {
       title: 'CONTROLS',
@@ -87,6 +88,13 @@ export class GameUi {
     this.offFlow = flow.onChange((next) => {
       if (next.name === 'playing') this.lastMode = next.mode;
       this.screens.sync(next, { result: playtest.encounter.result });
+      // The first fight of the session says how to see the controls.
+      if (next.name === 'playing' && !this.hinted && this.legendKey) {
+        this.hinted = true;
+        hud.hint(`${this.legendKey}: show the controls`, 6);
+      }
+      // The legend never stays up over a menu or a new fight.
+      if (next.name !== 'playing') hud.setLegend(false);
     });
     this.screens.sync(flow.state, { result: playtest.encounter.result });
   }
@@ -155,6 +163,8 @@ export class GameUi {
     if (this.screens?.open) playtest.playerController.sample(dt, { frozen: true });
     else playtest.input(dt);
     this.screens?.handleInput(this.inputController, dt);
+    // H (gamepad Back) shows or hides the controls legend over the fight.
+    if (this.inputController.pressed?.('legend')) this.hud.toggleLegend();
   }
 
   // Late phase: the HUD redraws from this frame's numbers and the title its notice

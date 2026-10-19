@@ -29,9 +29,9 @@ export class GameScreens {
   // actions: what the menu items do: { play, explore, resume, restart, quit, title }.
   // announce(text): a line for screen readers (the HUD's live region).
   // onOpenChange(open): a menu started (true) or stopped (false) covering the game.
-  // legendKey: the key that shows the controls in play (for the title's hint).
-  constructor({ parent = document.body, actions = {}, announce = () => {}, onOpenChange = () => {}, legendKey = 'H' } = {}) {
-    Object.assign(this, { actions, announce, onOpenChange, legendKey });
+  // hint: the title's small print (how to see the controls in the fight).
+  constructor({ parent = document.body, actions = {}, announce = () => {}, onOpenChange = () => {}, hint = '' } = {}) {
+    Object.assign(this, { actions, announce, onOpenChange, hint });
     // 1. The root: a veil over the game with one screen shown at a time.
     this.root = document.createElement('div');
     this.root.id = 'screens';
@@ -81,7 +81,7 @@ export class GameScreens {
         '<p class="screen-tagline">Bring down the six-legged machine.</p>');
       screen.body.insertAdjacentHTML('beforeend', '<nav class="menu" aria-label="Main menu"></nav>'
         + '<p class="screen-notice" data-brain-notice hidden></p>'
-        + `<p class="screen-hint">In the fight, ${escape(this.legendKey)} shows the controls.</p>`);
+        + `<p class="screen-hint">${escape(this.hint)}</p>`);
     } else if (name === 'end') {
       screen.body.insertAdjacentHTML('beforeend', '<p class="end-line" data-end-line></p><ul class="end-tags" data-end-tags></ul>'
         + '<dl class="end-stats" data-end-stats></dl><nav class="menu" aria-label="After the fight"></nav><p class="end-notes" data-end-notes></p>');

@@ -106,6 +106,15 @@ body.touch-controls-on.junkyard-mode #btnSprint { display: flex; }
 #leaperReticle { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #ffb6a9; font: 28px var(--font-mono); text-shadow: 0 1px 3px #000; pointer-events: none; }
 #leaperReticle[data-locked="true"] { color: #fff; }
 
+/* ---- Centre: the controls legend over the fight (H) ---- */
+.hud-legend { position: fixed; left: 50%; top: 50%; box-sizing: border-box; width: min(560px, calc(100vw - 2 * var(--gap-l))); max-height: calc(100dvh - 200px); padding: var(--gap-m) var(--gap-l); overflow: hidden; border: 1px solid var(--c-panel-border); border-radius: 10px; background: #15171bd9; transform: translate(-50%, -50%); }
+.hud-legend[hidden] { display: none; }
+.hud-legend h2 { margin: 0 0 var(--gap-s); color: var(--c-accent); font-size: var(--font-s); letter-spacing: 0.2em; }
+
+/* ---- Top centre: a short hint line (e.g. how to see the controls) ---- */
+.hud-hint { padding: var(--gap-xs) var(--gap-m); border-radius: 4px; background: #000000a6; color: var(--c-text); font-size: var(--font-s); letter-spacing: 0.08em; }
+.hud-hint[hidden] { display: none; }
+
 /* ---- World-pinned: the floating Leaper health bar ----
    Placed, shaken and scale-punched each frame by LeaperHealthBar.js. Hot orange
    at full health, deep red when nearly dead. */

@@ -3,6 +3,7 @@ import { ReticleView } from './ReticleView.js';
 import { WeaponHudView } from './WeaponHudView.js';
 import { TouchControls } from './TouchControls.js';
 import { CaptionsView } from './captions.js';
+import { ControlsLegend } from './ControlsLegend.js';
 import { passivePresenter } from '../game/PlayerVitals.js';
 
 // The game's HUD shell (finding ui-audio-dom-scattered-in-gameplay): the one
@@ -21,7 +22,8 @@ import { passivePresenter } from '../game/PlayerVitals.js';
 //   top-right     VIEW and the developer toggle
 //   bottom-left   Lola's health (and the touch joystick on phones)
 //   bottom-right  her guns (and SPRINT on phones)
-//   centre        the crosshair (and the LEAPER POV crosshair)
+//   centre        the crosshair (and the LEAPER POV crosshair), and the controls
+//                 legend the H key shows over the fight
 //   band          the touch controls (a layer of its own: the look area under the
 //                 corners, the button band over them)
 export const HUD_REGIONS = Object.freeze(['top-left', 'top-centre', 'top-right', 'bottom-left', 'bottom-right', 'centre']);
@@ -74,13 +76,19 @@ export class Hud {
       touch: touch ? new TouchControls(this.band, touch) : null,
       captions: new CaptionsView(this.regions.get('top-centre')),
     };
+    // 4. The controls legend over the fight (H), and a short hint line.
+    this.legend = this.panel('hud-legend', 'centre', 'Controls');
+    this.legend.insertAdjacentHTML('beforeend', '<h2>CONTROLS</h2>');
+    new ControlsLegend(this.legend, { devices: touch ? ['touch', 'gamepad'] : ['keyboard', 'gamepad'] });
+    this.hintLine = this.panel('hud-hint', 'top-centre');
+    this.hintLeft = 0;
     // Captions only show when the player asked for them (Settings).
     this.captionsOn = false;
     // Views other code adds (addView), each with the part of the snapshot it reads.
     this.extra = [];
     // Page elements moved in from elsewhere (adopt), to put back on dispose().
     this.adopted = [];
-    // 4. What was last drawn by the shell itself (and a reused touch state).
+    // 5. What was last drawn by the shell itself (and a reused touch state).
     this.last = {};
     this.touchState = {};
   }
@@ -94,6 +102,16 @@ export class Hud {
     element.dataset.edge = kind;
     element.setAttribute('aria-hidden', 'true');
     this.root.append(element);
+    return element;
+  }
+
+  // A hidden panel of the HUD's own in a region.
+  panel(className, region, label = '') {
+    const element = document.createElement('div');
+    element.className = className;
+    element.hidden = true;
+    if (label) element.setAttribute('aria-label', label);
+    this.region(region).append(element);
     return element;
   }
 
@@ -163,8 +181,12 @@ export class Hud {
       if (this.views.touch) this.views.touch.update(Object.assign(this.touchState, weapon.touch, { visible: live }));
       this.strength('reward', live ? weapon.glow ?? 0 : 0);
     }
-    // 4. Captions run on game time (they hold while paused).
+    // 4. Captions and the hint line run on game time (they hold while paused).
     this.views.captions.update(snapshot.dt ?? 0);
+    if (this.hintLeft > 0) {
+      this.hintLeft -= snapshot.dt ?? 0;
+      if (this.hintLeft <= 0) this.hintLine.hidden = true;
+    }
     // 5. Views added by other code.
     for (const { view, select } of this.extra) {
       const part = select(snapshot);
@@ -176,6 +198,22 @@ export class Hud {
   strength(kind, value) {
     const rounded = Math.round((value || 0) * 100) / 100;
     this.change(`edge.${kind}`, rounded, (amount) => this.edges[kind].style.setProperty('--strength', String(amount)));
+  }
+
+  // The controls legend over the fight: toggle, or set on / off.
+  toggleLegend() {
+    this.setLegend(this.legend.hidden);
+  }
+
+  setLegend(on) {
+    this.legend.hidden = !on;
+  }
+
+  // A short line under the top of the screen for `seconds` of play.
+  hint(text, seconds = 5) {
+    this.hintLine.textContent = text;
+    this.hintLine.hidden = false;
+    this.hintLeft = seconds;
   }
 
   // A caption for a sound cue (src/ui/captions.js), when captions are on.
