@@ -1,13 +1,17 @@
 // Browser checks for the audio engine (src/audio/): every sound in the manifest
 // downloads and decodes in this browser's format, 3D sounds really come from
 // the side the listener hears them on (rendered offline and measured per ear),
-// and the credits view lists everyone the licences name. Run with
+// the credits view lists everyone the licences name, and the sound settings
+// view moves the real mixer and is remembered. Run with
 // `pnpm test:browser` (headless Chromium).
 import * as THREE from 'three';
 import { AudioService } from '../src/audio/AudioService.js';
 import { AudioSettings } from '../src/audio/AudioSettings.js';
 import { supportedFormats } from '../src/audio/formats.js';
 import { CreditsView } from '../src/ui/CreditsView.js';
+import { AudioSettingsView } from '../src/ui/AudioSettingsView.js';
+import { GameAudio } from '../src/audio/GameAudio.js';
+import { AUDIO_CONFIG } from '../src/audio/audioConfig.js';
 import SOUNDS from '../src/audio/sounds.json' with { type: 'json' };
 
 const result = document.querySelector('#results');
@@ -143,6 +147,42 @@ try {
   check(credits.element.hidden, 'hide() hides it');
   credits.show();
   check(!credits.element.hidden && document.activeElement === credits.element, 'show() shows it and moves focus to it');
+
+  // 4. The sound settings view on the game's audio: sliders move the mixer's
+  //    buses at once, the switch is the game's mute, and both are remembered.
+  try { localStorage.removeItem('leaper.audio'); } catch { /* Private storage. */ }
+  const mixer = offlineContext();
+  const audio = new GameAudio({ createContext: () => mixer, probe: { canPlayType: () => '' } });
+  audio.unlock();
+  const panel = new AudioSettingsView(views, { audio });
+  const slider = (name) => panel.element.querySelector(`[data-volume=${name}]`);
+  const move = (name, value) => {
+    slider(name).value = String(value);
+    slider(name).dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  // (The mixer glides to a new level over 50 ms, so the engine's target level is read.)
+  const busLevel = (bus) => audio.service.busLevel(bus);
+  check(panel.element.querySelectorAll('input[type=range]').length === 4 && panel.sound.checked, 'four volume sliders and the sound switch, on');
+  check([...panel.element.querySelectorAll('input')].every((input) => input.labels?.length === 1), 'every control has a label');
+  move('sfx', 40);
+  check(audio.settings.get('sfx') === 0.4 && Math.abs(busLevel('weapons') - 0.4) < 1e-6 && Math.abs(busLevel('creature') - 0.4) < 1e-6
+    && busLevel('ui') === AUDIO_CONFIG.buses.ui.level, 'the effects slider turns the weapons and creature buses down, not the interface');
+  check(panel.element.querySelector('[data-volume=sfx] + output').textContent === '40%', 'the slider shows its percentage');
+  move('ambience', 0);
+  check(busLevel('ambience') === 0, 'the music & ambience slider silences the bed');
+  move('master', 50);
+  check(audio.service.masterLevel() === 0.5, 'the master slider moves the whole mix');
+  panel.sound.click();
+  check(!audio.enabled && audio.service.masterLevel() === 0, 'unticking Sound mutes the game');
+  audio.enabled = true;
+  check(panel.sound.checked, 'turning sound back on elsewhere (the toolbar) ticks it again');
+  const saved = JSON.parse(localStorage.getItem('leaper.audio'));
+  check(saved.sfx === 0.4 && saved.ambience === 0 && saved.master === 0.5 && saved.muted === false, 'the choice is remembered in this browser');
+  panel.element.querySelector('.audio-settings-reset').click();
+  check(['master', 'sfx', 'ambience', 'ui'].every((name) => audio.settings.get(name) === 1 && slider(name).value === '100'),
+    'RESET VOLUMES brings every slider back to 100%');
+  // Leave the views on the page for the screenshots.
+  audio.service.stopAll();
 
   result.textContent += `\nALL ${passed} CHECKS PASSED`;
   document.title = `PASS ${passed} · Audio`;
