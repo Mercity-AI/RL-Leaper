@@ -182,7 +182,8 @@ to compare.
   menu switches to the (absent) server, to turret mode and back. Then the game at size 6.5
   (no baked raster): the worker builds it, the loading UI shows its progress,
   and a fresh size prepared through the page's provider streams the build's
-  progress while the page's own timers keep running.
+  progress while the page's own timers keep running. Last, the mode's
+  `dispose()` terminates the brain worker without errors.
 - `tests/brain-provider-live.test.js` (opt-in, needs the Python service):
   `LEAPER_BRAIN_URL=http://127.0.0.1:8767 node --test tests/brain-provider-live.test.js`
   sends the same recorded requests (moves, a pose sync, more moves) to the

@@ -152,7 +152,14 @@ try {
   check(raster.length >= 2 && raster.at(-1).fraction > raster[0].fraction,
     `the page received the build's progress (${raster.length} raster updates, ${Math.round(raster[0]?.fraction * 100)}% -> ${Math.round(raster.at(-1)?.fraction * 100)}%)`);
   check(ticks >= 2, `the page kept running while the worker built it (${ticks} timer ticks meanwhile)`);
-  check(sizedErrors.length === 0, `no errors at the new sizes (${sizedErrors.join(' | ') || 'none'})`);
+
+  // 9. Ending the game session (the mode's dispose) stops the brain's worker.
+  const onnx = sized.provider.active;
+  check(onnx?.worker, 'the brain worker is running before the session ends');
+  frame.contentWindow.leaperJunkyard.dispose();
+  check(onnx.worker === null && sized.provider.created.size === 0, 'the session\'s dispose terminated the brain worker');
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  check(sizedErrors.length === 0, `no errors at the new sizes or after dispose (${sizedErrors.join(' | ') || 'none'})`);
 
   say(`\nALL ${passed} CHECKS PASSED`);
   document.title = `PASS ${passed} · Game with the in-browser brain`;
