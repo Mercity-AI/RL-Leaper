@@ -6,6 +6,7 @@ import { LeaperPov } from '../camera/LeaperPov.js';
 import { EventBus, GAME_EVENTS } from '../core/events.js';
 import { GameFlow } from '../core/GameFlow.js';
 import { Encounter } from '../game/Encounter.js';
+import { createLeaperActor } from '../actors/leaper/LeaperActor.js';
 import { PlayerController } from '../game/PlayerController.js';
 import { PlayerVitals } from '../game/PlayerVitals.js';
 import { PauseOverlay } from '../game/PauseOverlay.js';
@@ -61,9 +62,10 @@ export class JunkyardPlaytest {
     this.playerWeapon = new PlayerWeapon(this);
 
     // 5. The fight: update order, enemies (one Leaper today), start snapshot, results.
+    //    Each Leaper gets its behaviour layer (stomp, leap, stagger, downed, death).
     this.encounter = new Encounter({ flow: this.flow, events: this.events, world, player: target,
       vitals: this.vitals, audio, playerController: this.playerController, playerWeapon: this.playerWeapon,
-      input: simulation.input, cameraController });
+      input: simulation.input, cameraController, leaperBehaviour: createLeaperActor });
     this.encounter.addEnemy({ simulation, brain: this.brain, combat: this.combat });
     // The result banner reads the encounter's verdict (winner, practice, debug).
     this.events.on(GAME_EVENTS.encounterEnded, ({ stats }) => this.vitals.showResult(stats.text));

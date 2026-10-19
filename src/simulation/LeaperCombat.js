@@ -130,11 +130,14 @@ export class LeaperCombat {
   // the hull can spark where it was struck and a weak-point crit can stagger it.
   // While downed (its behaviour's damageScale) bullets do more; the debug button does not.
   damageLeaper(amount, debug = false, major = false, hit = {}) {
+    // (A gun that does not say so may still have hit the core: it reported the
+    // bullet to legs.hit first, which remembers that.)
+    const weakPoint = this.legs.takeWeakPointHit() || Boolean(hit.weakPoint);
     if (this.dead) return;
     amount *= debug ? 1 : this.damageScale ?? 1;
     const before = this.leaperHealth;
     this.leaperHealth = Math.max(0, this.leaperHealth - amount);
-    this.onDamaged?.({ amount: before - this.leaperHealth, major, debug, weakPoint: Boolean(hit.weakPoint),
+    this.onDamaged?.({ amount: before - this.leaperHealth, major, debug, weakPoint,
       point: hit.point ?? null, normal: hit.normal ?? null });
     // Tell the game what happened (results, and later the HUD and sound).
     this.playtest.events?.emit(GAME_EVENTS.leaperDamaged, { amount: before - this.leaperHealth, health: this.leaperHealth, major, debug });

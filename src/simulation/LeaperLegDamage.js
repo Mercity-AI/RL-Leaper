@@ -68,6 +68,10 @@ export class LeaperLegDamage {
   }
 
   hit(object, direction = new THREE.Vector3()) {
+    // Today's gun reports every bullet here before it does the damage: a bullet
+    // on the eye's core is remembered for that damage (a weak-point crit, see
+    // takeWeakPointHit). It is not a joint.
+    if (object.userData.weakPoint) this.weakPointHit = true;
     const tag = object.userData.leaperJoint;
     if (!tag) return false;
     const leg = this.rig.legs[tag.index];
@@ -77,6 +81,14 @@ export class LeaperLegDamage {
     if (joint.hits < joint.threshold) return false;
     this.detach(leg, tag.joint, direction);
     return true;
+  }
+
+  // Was the bullet just reported a hit on the eye's weak point? Asked once per
+  // damage (LeaperCombat.damageLeaper), then forgotten.
+  takeWeakPointHit() {
+    const hit = Boolean(this.weakPointHit);
+    this.weakPointHit = false;
+    return hit;
   }
 
   detach(leg, joint, direction) {

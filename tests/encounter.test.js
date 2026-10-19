@@ -29,7 +29,7 @@ function fakeEnemy(log, name, x = 0, z = 0) {
   };
 }
 
-function setup({ enemies = 1 } = {}) {
+function setup({ enemies = 1, behaviour = null } = {}) {
   const log = [];
   const events = new EventBus();
   const flow = new GameFlow({ events, initial: { name: 'ready' } });
@@ -45,7 +45,7 @@ function setup({ enemies = 1 } = {}) {
   const camera = { yaw: 0.5, pitch: 0.16, target: new THREE.Vector3() };
   const encounter = new Encounter({
     flow, events, world, player, vitals, audio: { stopRobotSteps() {} },
-    playerWeapon: weapon, input: { jumpBuffer: 0.1 }, cameraController: camera,
+    playerWeapon: weapon, input: { jumpBuffer: 0.1 }, cameraController: camera, leaperBehaviour: behaviour,
     playerController: {
       sample: (dt, { frozen }) => log.push(['sample', dt, frozen]),
       update: (dt) => log.push(['player', dt]),
@@ -227,6 +227,43 @@ test('dispose unhooks the encounter from the game state and the event bus, and d
   assert.equal(encounter.stats.damageTaken, 0);
   assert.equal(encounter.stats.jointsBroken, 0);
   encounter.dispose();
+});
+
+// With a behaviour layer (the game's LeaperActor), each Leaper's actor runs
+// between its brain and its attacks, decides when its brain walks, gives Lola's
+// collision its shape, and is reset, placed and disposed with the fight.
+test('each Leaper\'s behaviour layer is built, updated, reset, placed and disposed with the encounter', () => {
+  const made = [];
+  const behaviour = (enemy, encounter) => {
+    const actor = { enemy, encounter, calls: [],
+      update(dt) { this.calls.push('update'); made.log.push([`${enemy.brain.name}.actor`, dt]); },
+      reset() { this.calls.push('reset'); }, placed(pose) { this.calls.push(['placed', pose.x, pose.z]); },
+      dispose() { this.calls.push('dispose'); },
+      contactPoses: () => ({ from: { x: 0, z: 0, yaw: 0 }, to: { x: 0, z: 0, yaw: 0 }, margin: 0, disabledLegs: [0, 1, 2, 3, 4, 5] }) };
+    made.push(actor);
+    return actor;
+  };
+  const { log, flow, encounter, enemies: [leaper], world, player } = setup({ behaviour });
+  made.log = log;
+  leaper.brain.name = 'leaper0';
+  assert.equal(made.length, 1);
+  assert.equal(leaper.actor, made[0]);
+  assert.equal(made[0].encounter, encounter, 'it gets the fight\'s flow, events, world, Lola and vitals');
+  // START RUN: the actor decides when the brain walks, not the encounter.
+  flow.hunt();
+  assert.equal(leaper.brain.running, false);
+  log.length = 0;
+  encounter.update(0.1);
+  assert.deepEqual(log.map(([name]) => name), ['player', 'leaper0.brain', 'leaper0.actor', 'leaper0.combat', 'vitals', 'weapon']);
+  // Lola's collision uses the actor's shape (here only the hull and stumps).
+  player.mesh.position.set(3, 0, 3);
+  assert.equal(world.collision.playerBlocked(Math.sin(0.62) * 3.24, Math.cos(0.62) * 3.24), false, 'the actor\'s shape, not the brain\'s');
+  // A restart resets the behaviour and places it at the start pose.
+  encounter.restart();
+  assert.ok(made[0].calls.includes('reset'));
+  assert.ok(made[0].calls.some((call) => Array.isArray(call) && call[0] === 'placed'));
+  encounter.dispose();
+  assert.equal(made[0].calls.at(-1), 'dispose');
 });
 
 test('toolbar labels follow the game state', () => {

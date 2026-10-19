@@ -113,6 +113,12 @@ export class JunkyardBrain {
     // The last pose the brain itself reported (a pose sync shows the new spot early).
     this.brainFrame = null;
     this.label = 'BRAIN CONNECTING';
+    // Who animates the rig from the brain's poses: this class (lab tools and
+    // tests), or the Leaper's behaviour layer (src/actors/leaper/LeaperActor.js
+    // sets this to false and plays the poses back itself). heldBy: why that
+    // layer has paused the brain during a hunt (shown on the badge), or null.
+    this.drivesAnimator = true;
+    this.heldBy = null;
     // 3. Game logic moving the Leaper between moves, and the soft episode restart.
     this.pendingSync = null;
     this.softRestart = softRestart;
@@ -518,7 +524,9 @@ export class JunkyardBrain {
         }
       });
     }
-    if (encounterOver) {
+    if (!this.drivesAnimator) {
+      // 3. The behaviour layer animates the Leaper (smooth playback, holds, leaps, the collapse).
+    } else if (encounterOver) {
       // 3a. The fight is over: no more moves, but the Leaper's feet finish landing.
       //     A Leaper that won (still has health) keeps idling; a destroyed one goes still.
       sim.settle?.(dt, { alive: (this.playtest.combat?.leaperHealth ?? 0) > 0 });
@@ -554,7 +562,7 @@ export class JunkyardBrain {
     const loading = !this.ready && this.progress ? describeProgress(this.progress) : this.label;
     // While the brain isn't asked for moves, say why: the fight is over, the game
     // is paused (Escape), or the run is simply stopped (Ready or START PLAYER).
-    const idle = this.playtest.paused ? 'PAUSED' : 'STOPPED';
+    const idle = this.playtest.paused ? 'PAUSED' : this.heldBy ? `HELD · ${this.heldBy}` : 'STOPPED';
     const mode = !this.ready ? loading : over ? 'ENCOUNTER OVER' : !this.running ? idle
       : this.failedSteps ? 'BRAIN SLOW · RETRYING'
       : this.frame.target_visible ? 'TARGET VISIBLE'

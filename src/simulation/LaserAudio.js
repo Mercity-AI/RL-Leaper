@@ -19,6 +19,17 @@ const OPTIONAL = {
   lolaHurt: { files: ['lola-hurt-1', 'lola-hurt-2', 'lola-hurt-3'], level: 0.7 },
   lolaHurtBig: { files: ['lola-hurt-big'], level: 0.8 },
   lolaHitThud: { files: ['lola-hit-thud'], level: 0.5 },
+  // The Leaper's behaviour (src/actors/leaper/): telegraphs and big moments.
+  leaperCharge: { files: ['leaper-charge'], level: 0.5 },
+  leaperLock: { files: ['leaper-lock'], level: 0.6 },
+  leaperStompWindup: { files: ['leaper-stomp-windup'], level: 0.7 },
+  leaperStomp: { files: ['leaper-stomp'], level: 0.9 },
+  leaperLeapWindup: { files: ['leaper-leap-windup'], level: 0.7 },
+  leaperLand: { files: ['leaper-land'], level: 0.9 },
+  leaperStagger: { files: ['leaper-stagger'], level: 0.7 },
+  leaperDowned: { files: ['leaper-downed'], level: 0.8 },
+  leaperCollapse: { files: ['leaper-collapse'], level: 0.9 },
+  leaperJointBurst: { files: ['leaper-joint-burst'], level: 0.7 },
 };
 const OPTIONAL_BASE = `${import.meta.env?.BASE_URL ?? '/'}audio/`;
 // Isolated impacts measured in the supplied recordings (seconds). The running
