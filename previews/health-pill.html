@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Health Pill Preview</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d10; overflow: hidden; font: 13px system-ui, sans-serif; color: #dfe6ee; }
+  canvas { display: block; }
+  #panel { position: fixed; top: 12px; left: 12px; background: rgba(15,18,24,.85); border: 1px solid #2a3340; border-radius: 8px; padding: 10px 12px; width: 230px; }
+  #panel h1 { font-size: 14px; margin: 0 0 6px; }
+  #panel p { margin: 0 0 8px; color: #9aa7b5; line-height: 1.35; }
+  label { display: block; margin-top: 6px; }
+  label span { float: right; color: #7fc3ff; }
+  input[type=range] { width: 100%; }
+  .tag { position: fixed; bottom: 18px; transform: translateX(-50%); background: rgba(15,18,24,.85); border: 1px solid #2a3340; border-radius: 6px; padding: 4px 10px; font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>Health pill (+10% health)</h1>
+  <p>Preview only, not in the game. Drag to orbit, scroll to zoom.</p>
+  <label>Glow strength <span id="vGlow"></span><input id="glow" type="range" min="0" max="3" step="0.05" value="1.4"></label>
+  <label>Lean (degrees clockwise) <span id="vLean"></span><input id="lean" type="range" min="0" max="45" step="1" value="25"></label>
+  <label>Spin (seconds per turn) <span id="vSpin"></span><input id="spin" type="range" min="2" max="20" step="0.5" value="8"></label>
+  <label>Bob height <span id="vBob"></span><input id="bob" type="range" min="0" max="0.4" step="0.0001" value="0.0858"></label>
+  <label>Bob speed (seconds per cycle) <span id="vBobT"></span><input id="bobT" type="range" min="1" max="6" step="0.1" value="3"></label>
+</div>
+<div class="tag" id="tagA">A: blue sphere</div>
+<div class="tag" id="tagB">B: red sphere</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+const GLOW_BLUE = new THREE.Color(0x3aa8ff);
+const GLOW_RED = new THREE.Color(0xff3a3a);
+const SPHERE_RADIUS = 0.6;
+const BASE_HEIGHT = SPHERE_RADIUS + 0.2;
+const SPACING = 1.3; // distance of each option from the middle
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0d10);
+scene.fog = new THREE.Fog(0x0b0d10, 6, 16);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 50);
+camera.position.set(-0.7, 1.4, 5.6);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(-0.7, 0.8, 0);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0x9fb4c8, 0x2a2420, 0.55));
+const sun = new THREE.DirectionalLight(0xfff1dd, 0.8);
+sun.position.set(3, 5, 2);
+scene.add(sun);
+
+// Dusty junkyard-ish ground so the glow has something to land on.
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(10, 64),
+  new THREE.MeshStandardMaterial({ color: 0x3b3630, roughness: 0.95 }),
+);
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+
+const poolTex = radialTexture();
+
+// One floating pill: bobs, spins around the vertical axis, leans clockwise.
+// It sits in a glowing sphere (clear in the middle, bright towards its edge,
+// big enough to never cut through the pill) and casts a glowing circle of
+// the same colour on the ground.
+const sphereGeo = new THREE.SphereGeometry(SPHERE_RADIUS, 48, 32);
+function makePickup(x, color, sphereGlow = 1) {
+  const holder = new THREE.Group(); // bobs up and down
+  const spinner = new THREE.Group(); // turns around the vertical axis
+  const tilt = new THREE.Group(); // stands the pill up with its lean
+  spinner.add(tilt);
+  holder.add(spinner);
+  holder.position.x = x;
+  scene.add(holder);
+
+  const sphereMat = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: color }, uStrength: { value: 1.4 } },
+    vertexShader: `
+      varying vec3 vN; varying vec3 vV;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 uColor; uniform float uStrength;
+      varying vec3 vN; varying vec3 vV;
+      void main() {
+        float edge = pow(1.0 - max(dot(normalize(vN), normalize(vV)), 0.0), 2.5);
+        float a = (0.05 + edge * 0.8) * uStrength;
+        gl_FragColor = vec4(uColor * a, a);
+      }`,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  holder.add(new THREE.Mesh(sphereGeo, sphereMat));
+
+  const light = new THREE.PointLight(color, 1.2, 2.2, 2);
+  light.position.x = x;
+  scene.add(light);
+  const pool = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.6, 1.6),
+    new THREE.MeshBasicMaterial({ map: poolTex, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.set(x, 0.005, 0);
+  scene.add(pool);
+  return { holder, spinner, tilt, light, pool, sphereMat, color, sphereGlow };
+}
+
+const A = makePickup(-SPACING, GLOW_BLUE, 0.6); // blue sphere toned down
+const B = makePickup(SPACING, GLOW_RED);
+
+new GLTFLoader().load('./health-pill.glb', (gltf) => {
+  const meshes = [];
+  gltf.scene.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  meshes.forEach((o) => {
+    const map = o.material.map;
+    // No mipmaps: keeps the black around the painted areas of the texture
+    // from bleeding into the pill's colours when it is seen from afar.
+    if (map) { map.generateMipmaps = false; map.minFilter = THREE.LinearFilter; map.needsUpdate = true; }
+    o.material = new THREE.MeshStandardMaterial({ map, roughness: 0.3, metalness: 0.0 });
+  });
+  // Each pill takes a faint tint of its sphere's colour.
+  for (const p of [A, B]) {
+    const copy = gltf.scene.clone(true);
+    const mat = meshes[0].material.clone();
+    mat.emissive = p.color;
+    mat.emissiveIntensity = 0.08;
+    copy.traverse((o) => { if (o.isMesh) o.material = mat; });
+    p.tilt.add(copy);
+  }
+});
+
+const ids = ['glow', 'lean', 'spin', 'bob', 'bobT'];
+const ui = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+function applyUI() {
+  const glow = +ui.glow.value;
+  document.getElementById('vGlow').textContent = glow.toFixed(2);
+  document.getElementById('vLean').textContent = ui.lean.value + '°';
+  document.getElementById('vSpin').textContent = ui.spin.value + ' s';
+  document.getElementById('vBob').textContent = (+ui.bob.value).toFixed(4);
+  document.getElementById('vBobT').textContent = ui.bobT.value + ' s';
+  // The pill's long side runs along x: 90 degrees stands it up, minus the lean.
+  A.tilt.rotation.z = B.tilt.rotation.z = THREE.MathUtils.degToRad(90 - +ui.lean.value);
+  A.light.intensity = B.light.intensity = 0.9 * glow;
+}
+ids.forEach((id) => ui[id].addEventListener('input', applyUI));
+applyUI();
+
+const tagA = document.getElementById('tagA'), tagB = document.getElementById('tagB');
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const t = clock.getElapsedTime();
+  const glow = +ui.glow.value;
+  const breathe = 0.9 + 0.1 * Math.sin(t * 2.1);
+  for (const p of [A, B]) {
+    p.spinner.rotation.y = (t / +ui.spin.value) * Math.PI * 2;
+    p.holder.position.y = BASE_HEIGHT + Math.sin((t / +ui.bobT.value) * Math.PI * 2) * +ui.bob.value;
+    p.light.position.y = p.holder.position.y;
+    p.pool.material.opacity = Math.min(1, 0.5 * glow * (1.3 - p.holder.position.y * 0.6));
+    p.sphereMat.uniforms.uStrength.value = glow * breathe * p.sphereGlow;
+  }
+  controls.update();
+
+  placeTag(tagA, A.holder);
+  placeTag(tagB, B.holder);
+  renderer.render(scene, camera);
+});
+
+function placeTag(el, obj) {
+  const v = new THREE.Vector3().setFromMatrixPosition(obj.matrixWorld).setY(0).project(camera);
+  el.style.left = ((v.x + 1) / 2 * innerWidth) + 'px';
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+function radialTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)');
+  gr.addColorStop(0.35, 'rgba(255,255,255,0.45)');
+  gr.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = gr;
+  x.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+</script>
+</body>
+</html>

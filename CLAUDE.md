@@ -4,6 +4,34 @@ Read `AGENTS.md` first: Part 1 is the game, Part 2 the RL lab. The owner is a
 game designer, not a programmer: explain results in plain language, ask about
 creative intent, and never push, force-push or merge without their say-so.
 
+## Next feature: health pills (approved 2026-10-20, build only when asked)
+
+When the owner asks for "the build" of the health pill, this is it. The look
+is final in `previews/health-pill.html` (open it through `pnpm dev` at
+http://localhost:5173/previews/health-pill.html), with the model in
+`previews/health-pill.glb`. Copy its values exactly.
+
+- **Model:** `C:\Blender\LOWPOLY\Pill_Health_Leaper.blend` and its texture
+  `Pill.png` (owner's files: read and export only, never modify). Export with
+  Blender's glTF exporter (Y-up). Turn texture mipmaps off (LinearFilter) so
+  the texture's black background does not bleed into the colours.
+- **Look:** the **blue** version (option A) is the one the owner chose. The
+  pill stands up leaning 25° clockwise inside a glowing blue sphere: colour
+  0x3aa8ff, a fresnel glow that is clear in the middle and bright at the edge,
+  strength 1.4 x 0.6. There's a matching blue glow circle and point light on
+  the ground below it. The red version and a glow hugging the pill were rejected.
+- **Motion:** spins around the vertical axis once every 8 s; bobs 0.0858 up
+  and down (exactly 34% less than 0.13), one cycle every 3 s.
+- **Size:** the whole pickup is about one third of Lola's height.
+- **Pickup:** Lola passes through it: it vanishes and she gets back 10% of
+  her *total* health.
+- **Spawning:** a new game starts with 3 pills at random spots around the
+  yard. When the player has taken two (one left), new ones start appearing at
+  random spots again. Never more than 3-4 on the arena at once (it is a small
+  arena).
+- **Still to ask at build time:** whether a pill can be taken at full health,
+  how soon new ones appear, and a pickup sound (none yet).
+
 ## Where things stand (2026-10-19)
 
 - **Working branch:** `claude/zen-davinci-ku9f5z` (pushed to
