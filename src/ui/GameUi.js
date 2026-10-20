@@ -212,6 +212,8 @@ export class GameUi {
       play: () => run('hunt'),
       explore: () => run('explore'),
       resume: () => this.playtest.resume(),
+      // Paused while exploring: the real hunt from right here, nothing reset.
+      hunt: () => run('hunt'),
       // A clean retry in the same mode (the one paused, or the one just finished).
       restart: () => {
         const mode = this.flow.playMode ?? this.lastMode;

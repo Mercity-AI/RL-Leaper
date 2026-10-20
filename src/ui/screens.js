@@ -18,6 +18,7 @@ export function baseScreen(state) {
 // ---- Menus ----
 // Each item: id (what the game does, see GameScreens' actions), label, and an
 // optional hint under it. Sub-screens are opened by the items named after them.
+// `pausedFrom` (optional): shown only when the game was paused in that play mode.
 export const MENUS = Object.freeze({
   title: Object.freeze([
     Object.freeze({ id: 'play', label: 'PLAY', hint: 'Hunt the Leaper. It searches, chases and fires back.' }),
@@ -28,6 +29,10 @@ export const MENUS = Object.freeze({
   ]),
   pause: Object.freeze([
     Object.freeze({ id: 'resume', label: 'RESUME' }),
+    // Explore -> the real fight, keeping everything done while exploring (where
+    // everyone stands, broken legs, health), to test the Leaper from that state.
+    Object.freeze({ id: 'hunt', label: 'START THE HUNT FROM HERE', pausedFrom: 'explore',
+      hint: 'The Leaper wakes up as it is now: same spot, same broken legs.' }),
     Object.freeze({ id: 'restart', label: 'RESTART' }),
     Object.freeze({ id: 'settings', label: 'SETTINGS' }),
     Object.freeze({ id: 'controls', label: 'CONTROLS' }),
@@ -40,9 +45,12 @@ export const MENUS = Object.freeze({
 });
 
 // The items a screen shows. `available`: sub-screens that exist on this page
-// (an item opening a missing one is left out).
-export function menuItems(screen, available = SUB_SCREENS) {
-  return (MENUS[screen] ?? []).filter((item) => !SUB_SCREENS.includes(item.id) || available.includes(item.id));
+// (an item opening a missing one is left out). `state`: the GameFlow state, for
+// items that only make sense after pausing a given play mode.
+export function menuItems(screen, available = SUB_SCREENS, state = null) {
+  const pausedFrom = state?.name === 'paused' ? state.resumeTo?.mode : null;
+  return (MENUS[screen] ?? []).filter((item) => (!SUB_SCREENS.includes(item.id) || available.includes(item.id))
+    && (!item.pausedFrom || item.pausedFrom === pausedFrom));
 }
 
 // ---- The screen stack ----

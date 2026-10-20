@@ -1,7 +1,7 @@
 import { createJunkyardWorld } from '../world/createJunkyardWorld.js';
 import { attachWorldCollision } from '../world/WorldCollision.js';
 import { LolaPlayer } from '../robot/LolaPlayer.js';
-import { Assets, loadLolaFiles } from '../core/Assets.js';
+import { Assets, HEALTH_PILL_URL, loadLolaFiles } from '../core/Assets.js';
 import { limitShadowCasters, warmUp } from '../core/Quality.js';
 import { JunkyardPlaytest } from '../simulation/JunkyardPlaytest.js';
 import { EventBus } from '../core/events.js';
@@ -75,12 +75,14 @@ export async function start({ engine, params }) {
   //    (baked raster at the default size, built in its worker otherwise).
   const tag = (label, promise) => promise.catch((error) => { throw new Error(`${label}: ${error.message}`); });
   const mapForBrain = (map) => { brainProvider.prepare?.(map.width)?.catch(() => {}); return map; };
-  let world, target;
+  let world, target, healthPill;
   try {
     let lola;
-    [world, lola] = await loading.run('LOADING JUNKYARD…', 'LOAD FAILED', () => Promise.all([
+    [world, lola, healthPill] = await loading.run('LOADING JUNKYARD…', 'LOAD FAILED', () => Promise.all([
       tag('map', createJunkyardWorld(engine.scene, { assets, quality: engine.quality }).then(mapForBrain)),
       tag('Lola', loadLolaFiles(assets)),
+      // The health pills are a bonus: if their model fails, the game goes on without them.
+      assets.model(HEALTH_PILL_URL).catch(() => null),
     ]));
     attachWorldCollision(world);
     target = await loading.run('BUILDING LOLA…', 'CHARACTER LOAD FAILED', async () => new LolaPlayer(
@@ -116,7 +118,7 @@ export async function start({ engine, params }) {
   //    health and the guns. Then the menus (the title shows in Ready).
   const ui = new GameUi({ input, cameraController, flow, events, quality: engine.quality.name, engine, signal });
   const playtest = new JunkyardPlaytest({ engine, world, simulation, target, cameraController, audio, flow, events, signal,
-    brainProvider, hud: ui.hud });
+    brainProvider, hud: ui.hud, healthPill });
   ui.attach(playtest);
   // 7. The OPTIONS brain menu switches where the brain runs. The page address
   //    keeps the choice (so a reload or APPLY SIZE remembers it); the run restarts.

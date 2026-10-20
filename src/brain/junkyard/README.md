@@ -242,8 +242,7 @@ different CPUs would drift the same way.
 **The idea.** The brain was trained on episodes that always end (at a catch,
 after 60 moves without moving, or at 1,000 moves). In the game its episode
 never ends, so after a while its memory is in a state training never
-produced. `ENCOUNTER.brainSoftRestart` in `src/config/encounter.js` (OFF by
-default) starts a fresh brain episode exactly where the Leaper stands, after
+produced. `ENCOUNTER.brainSoftRestart` in `src/config/encounter.js` starts a fresh brain episode exactly where the Leaper stands, after
 900 moves, after a catch, or after 60 moves in a row without moving.
 `?softRestart=1` or `?softRestart=0` in the page address overrides the switch
 for a playtest. The brain itself is unchanged.
@@ -280,7 +279,12 @@ fresh episode stopped and started much more (standing still 32-56% of the
 time against 9-11% with it off); in one of them (seed 11) the "60 still
 moves" trigger fired 11 times.
 
-**Decision: it stays OFF.** The rule was fixed before the second set
+**Update (2026-10-20): ON, without the "still" trigger.** The owner chose
+to switch it on with only the 900-move and catch triggers
+(`afterStillSteps: null`), the variant suggested below. The measurement on
+`junkyard_v2` follows at the end of this section.
+
+**Decision at the time (2026-10-19): it stays OFF.** The rule was fixed before the second set
 finished: switch it on by default only if, over all pairs, it re-acquires
 at least 10 points more often (it did, +10.6), wins clearly seed by seed
 (paired sign test p < 0.05; it was p = 0.30) and does not stand still more
@@ -290,6 +294,28 @@ moved too often to be caught), so the after-catch trigger is unmeasured.
 Worth trying next: longer fights (10 minutes, as the review suggests) with
 more seeds, and the same rule without the "still" trigger
 (`afterStillSteps: null`).
+
+**Measured on `junkyard_v2` (2026-10-20), soft restart ON (900 moves and
+catch, no "still" trigger) vs OFF.** Headless Chromium with drawing off
+(about 9 brain moves per second), Lola kept alive and moved every 20 s to an
+open spot at least 12 units away behind the Leaper; seeds 11-13 for 5 minutes
+and 14-15 for 4 minutes, each played both ways (10 fights, 46 minutes).
+
+| | OFF | ON |
+|---|---|---|
+| Brain freezes of 10 s or more | 0 | 0 |
+| Longest run of still brain moves | 0.1-2.6 s | 0.2-0.8 s |
+| Brain moves standing still (per fight) | 0.8-21.5% | 0.3-4.4% |
+| Hidden moves re-acquired | 22 / 61 | 19 / 62 |
+| Fresh episodes started | - | 10 at 900 moves, 0 after a catch |
+
+On this map the brain did not freeze in either mode. ON kept it from
+hesitating in one fight (seed 14: 21.5% still moves OFF, 4.4% ON) and
+re-acquired Lola about as often. Much of the time the visible Leaper stands
+still is the Engage hold (stop, turn and shoot, up to 6 s; measured in the
+4-minute fights): about half of all
+standing-still time and 4-16% of each fight, by design
+(`LEAPER_BEHAVIOUR.engage`).
 
 ## Performance (measured here)
 

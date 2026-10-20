@@ -4,8 +4,8 @@
  "policy_sha256": "883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594",
  "contact_version": 4,
  "sight_version": "eye-vision-v1",
- "collision_sha256": "17a979d3f6634bcaa87a44a4420017529ee35fab965e98129756f05ae276a5d9",
- "glb_sha256": "836f2f7388a7d09d217c6645583e58ee96e4d230e99861ca0b67c8e060c25eb9",
+ "collision_sha256": "5b8ecb5f0f829dfd0c6ff7762436ef1e6bc831a6cc2fc7aa1352666a160a8f9c",
+ "glb_sha256": "8a8edae6fce3e0bc00023ba10ae6d589d2be15f5c30b3f3848b7c50647853567",
  "worlds": {
   "2.9": {
    "width": 2.9,
@@ -14,8 +14,8 @@
     780,
     731
    ],
-   "raster_sha256": "4a6251105204384922d0c66dd76bf49dd5ddf3dc7a83c2ae755dadbaa397d8f3",
-   "raster_solid": 66530,
+   "raster_sha256": "3dee416aa13890b62ebfb4c0b963c0cb47d645b7715b6925587798af2173f6c6",
+   "raster_solid": 69774,
    "cell": 0.2751724137931035,
    "minimum": [
     -107.23270841379312,
@@ -33,8 +33,8 @@
     780,
     731
    ],
-   "raster_sha256": "ead955a09000ab1f13ad1c78cb9a02c4ec9160d44e7a1e4ee041bb6000e4e3fe",
-   "raster_solid": 73504,
+   "raster_sha256": "ed0e8404b1ddd79c45211a2e28c184ab5e907411988f5fc370264594271e3444",
+   "raster_solid": 77207,
    "cell": 0.1450909090909091,
    "minimum": [
     -56.54088261818182,
@@ -52,8 +52,8 @@
     780,
     731
    ],
-   "raster_sha256": "ccb0890203edd4358cfdb098ff1dfd4c09597c8a9a04537767d438b4779023ea",
-   "raster_solid": 74176,
+   "raster_sha256": "48e015a6f98b0239945d7c96020ff2a46a6d429d848b9aed47cb1a14ebb8ad5d",
+   "raster_solid": 77376,
    "cell": 0.1,
    "minimum": [
     -38.96928,
@@ -73,18 +73,18 @@
    "summary": {
     "steps": 420,
     "hidden_before_seen": 4,
-    "visible": 332,
-    "hidden_with_memory": 84,
+    "visible": 334,
+    "hidden_with_memory": 82,
     "collisions": {
      "player": 48,
      "leg-3": 5
     },
-    "reverse": 121,
+    "reverse": 124,
     "caught": 11,
-    "partial_eye": 1,
-    "moved": 22.92
+    "partial_eye": 0,
+    "moved": 22.02
    },
-   "bytes": 1050145
+   "bytes": 1050539
   },
   "legacy-5.5-hide-seek": {
    "file": "legacy-5.5-hide-seek.json",
@@ -93,18 +93,18 @@
    "summary": {
     "steps": 360,
     "hidden_before_seen": 4,
-    "visible": 257,
-    "hidden_with_memory": 99,
+    "visible": 258,
+    "hidden_with_memory": 98,
     "collisions": {
-     "leg-3": 14,
+     "leg-3": 12,
      "leg-2": 1
     },
-    "reverse": 74,
+    "reverse": 75,
     "caught": 121,
     "partial_eye": 0,
-    "moved": 25.91
+    "moved": 25.15
    },
-   "bytes": 778580
+   "bytes": 778794
   },
   "eye-7.98-chase": {
    "file": "eye-7.98-chase.json",
@@ -113,18 +113,18 @@
    "summary": {
     "steps": 300,
     "hidden_before_seen": 79,
-    "visible": 87,
-    "hidden_with_memory": 134,
+    "visible": 106,
+    "hidden_with_memory": 115,
     "collisions": {
-     "player": 48,
-     "leg-3": 87
+     "player": 47,
+     "leg-3": 45
     },
-    "reverse": 86,
-    "caught": 15,
-    "partial_eye": 1,
-    "moved": 17.39
+    "reverse": 106,
+    "caught": 14,
+    "partial_eye": 2,
+    "moved": 16.0
    },
-   "bytes": 772174
+   "bytes": 767546
   },
   "eye-2.9-search": {
    "file": "eye-2.9-search.json",
@@ -152,17 +152,17 @@
    "summary": {
     "steps": 220,
     "hidden_before_seen": 0,
-    "visible": 188,
-    "hidden_with_memory": 32,
+    "visible": 207,
+    "hidden_with_memory": 13,
     "collisions": {
-     "player": 34
+     "player": 37
     },
-    "reverse": 67,
+    "reverse": 63,
     "caught": 0,
     "partial_eye": 0,
-    "moved": 6.16
+    "moved": 9.8
    },
-   "bytes": 521796
+   "bytes": 521639
   },
   "scripted-collide-reverse-5.5": {
    "file": "scripted-collide-reverse-5.5.json",
@@ -182,7 +182,7 @@
     "partial_eye": 0,
     "moved": 26.46
    },
-   "bytes": 419462
+   "bytes": 419687
   },
   "scripted-player-contact-5.5": {
    "file": "scripted-player-contact-5.5.json",
@@ -228,11 +228,11 @@
   "file": "sight-lines-5.5.json",
   "width": 5.5,
   "count": 1200,
-  "hits": 820,
-  "bytes": 122029
+  "hits": 827,
+  "bytes": 122022
  },
  "glb_triangles": {
   "count": 147208,
-  "sha256": "8ec20d17c2d519923b38a251d15728f743cbdb848a35dbe6eeb2fd36e9fad1a0"
+  "sha256": "e71b7b8e18bda6e2291b6fadb907928cdd7b5d11f1add9d3eb00a0023bf92745"
  }
 }

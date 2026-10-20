@@ -128,8 +128,8 @@ Without the developer tools the game reads the config files exactly as
 written.
 
 **Other page options.** `?quality=low|medium|high` (otherwise chosen
-automatically for the device), `?softRestart=1` (an experiment, off by
-default), and the lab pages `?arena`, `?training` and `?free`.
+automatically for the device), `?softRestart=0` (switches off the brain's
+soft restart, on by default), and the lab pages `?arena`, `?training` and `?free`.
 
 **Art pipeline.** The map's Blender source is
 `assets/blockmesh/junkyard/junkyard_v2.blend` (the owner's
@@ -137,6 +137,9 @@ default), and the lab pages `?arena`, `?training` and `?free`.
 rust, wear and colour variation are procedural shader nodes, which the browser
 cannot show, so they are baked into one texture first. After editing the map:
 
+0. `blender -b assets/blockmesh/junkyard/junkyard_v2.blend --python scripts/ground_junkyard_props.py -- report.json --save`,
+   repeated until it reports 0 props moved: puts the floor at height 0 and
+   every prop on it (not floating, not sunk).
 1. `blender -b assets/blockmesh/junkyard/junkyard_v2.blend --python scripts/bake_junkyard_textures.py`
    (about 10 minutes on the GPU; writes `junkyard_v2_baked.blend`).
 2. `blender -b assets/blockmesh/junkyard/junkyard_v2_baked.blend --python scripts/export_junkyard.py`

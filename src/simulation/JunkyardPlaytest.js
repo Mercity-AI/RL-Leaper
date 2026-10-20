@@ -9,6 +9,7 @@ import { Encounter } from '../game/Encounter.js';
 import { createLeaperActor } from '../actors/leaper/LeaperActor.js';
 import { PlayerController } from '../game/PlayerController.js';
 import { PlayerVitals } from '../game/PlayerVitals.js';
+import { HealthPills } from '../game/HealthPills.js';
 import { PauseOverlay } from '../game/PauseOverlay.js';
 import { captureRunState, restoredPlayerSpot, saveRunState, takeRunState } from '../game/runState.js';
 import { disposeObject3D } from '../core/disposeObject3D.js';
@@ -33,8 +34,9 @@ export class JunkyardPlaytest {
   // brainProvider: where the brain runs (see src/brain/BrainProvider.js); the brain owns it.
   // hud: the game's HUD shell (src/ui/Hud.js), if any: Lola's health and the guns
   //   then only keep their numbers and the shell draws them.
+  // healthPill: the health pill's loaded model (glTF); without it the yard has no pills.
   constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null, signal = null,
-    brainProvider = null, hud = null }) {
+    brainProvider = null, hud = null, healthPill = null }) {
     Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal, hud });
     // 1. Game state and the event bus every system reports to.
     this.events = events ?? new EventBus();
@@ -65,9 +67,13 @@ export class JunkyardPlaytest {
 
     // 5. The fight: update order, enemies (one Leaper today), start snapshot, results.
     //    Each Leaper gets its behaviour layer (stomp, leap, stagger, downed, death).
+    //    Health pills float around the yard (scattered afresh by every reset).
+    this.healthPills = healthPill && target.isPlayer
+      ? new HealthPills({ scene: engine.scene, world, player: target, vitals: this.vitals, model: healthPill.scene })
+      : null;
     this.encounter = new Encounter({ flow: this.flow, events: this.events, world, player: target,
       vitals: this.vitals, audio, playerController: this.playerController, playerWeapon: this.playerWeapon,
-      input: simulation.input, cameraController, leaperBehaviour: createLeaperActor });
+      input: simulation.input, cameraController, leaperBehaviour: createLeaperActor, pickups: this.healthPills });
     this.encounter.addEnemy({ simulation, brain: this.brain, combat: this.combat });
     // The result banner reads the encounter's verdict (winner, practice, debug).
     this.events.on(GAME_EVENTS.encounterEnded, ({ stats }) => this.vitals.showResult(stats.text));

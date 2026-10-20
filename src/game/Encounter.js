@@ -29,9 +29,11 @@ export class Encounter {
   // sound engine. input: the InputController (its jump buffer is cleared on restart).
   // leaperBehaviour(enemy, encounter): builds each Leaper's behaviour layer (the
   // game passes createLeaperActor); without it the brain alone moves the Leaper.
+  // pickups: the health pills (src/game/HealthPills.js), scattered afresh by
+  // every restart; none on test pages.
   constructor({ flow, events, world, player, vitals, audio = null, playerController, playerWeapon, input, cameraController,
-    leaperBehaviour = null }) {
-    Object.assign(this, { flow, events, world, player, vitals, audio, playerController, playerWeapon, cameraController });
+    leaperBehaviour = null, pickups = null }) {
+    Object.assign(this, { flow, events, world, player, vitals, audio, playerController, playerWeapon, cameraController, pickups });
     this.inputController = input;
     this.leaperBehaviour = leaperBehaviour;
     // Leaper attacks may shove Lola (a stomp, a landing); she slides along walls.
@@ -108,7 +110,7 @@ export class Encounter {
 
   // Gameplay phase, in a fixed order: Lola (and any shove she is getting), each
   // Leaper's brain, each Leaper's behaviour and animator, each Leaper's attacks
-  // and bolts, Lola's health panel, then Lola's gun.
+  // and bolts, the health pills she walks through, Lola's health panel, then Lola's gun.
   update(dt) {
     const gameDt = this.gameDelta(dt);
     this.playerController.update(gameDt);
@@ -116,6 +118,7 @@ export class Encounter {
     for (const enemy of this.enemies) enemy.brain.update(gameDt);
     for (const enemy of this.enemies) enemy.actor?.update(gameDt);
     for (const enemy of this.enemies) enemy.combat.update(gameDt);
+    this.pickups?.update(gameDt);
     this.vitals.update(gameDt, { over: this.over });
     // The Leaper's walking sound only plays during a live hunt.
     if (!this.flow.hunting || this.over) this.quietRobots();
@@ -223,6 +226,8 @@ export class Encounter {
       this.placeLeaper(enemy, pose);
     });
     this.keepPlayerClear();
+    // A new game: fresh health pills, scattered away from where Lola now stands.
+    this.pickups?.reset();
     this.player.resetJump?.();
     this.inputController.jumpBuffer = 0;
     this.cameraController.target.copy(this.player.mesh.position);
@@ -320,6 +325,7 @@ export class Encounter {
       enemy.brain.dispose?.();
     }
     this.knockback?.dispose();
+    this.pickups?.dispose();
     for (const off of this.unsubscribe.splice(0)) off();
   }
 }

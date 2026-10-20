@@ -3,10 +3,10 @@
   "outputs": {
     "maps/junkyard.glb": {
       "source": "assets/maps/junkyard/junkyard.glb",
-      "sourceBytes": 10345600,
-      "sourceSha256": "836f2f7388a7d09d217c6645583e58ee96e4d230e99861ca0b67c8e060c25eb9",
-      "bytes": 4471960,
-      "sha256": "51cf6d2ee1c817b0f2084cb0baedea72c513bcd046ab9779be6c00240a33189f"
+      "sourceBytes": 10345788,
+      "sourceSha256": "8a8edae6fce3e0bc00023ba10ae6d589d2be15f5c30b3f3848b7c50647853567",
+      "bytes": 4472148,
+      "sha256": "271bc79195378e984d16d0774dcfbd6bcd500fc44c2445b98a6a738c323b3dee"
     },
     "lola/lola-m416.glb": {
       "source": "assets/characters/lola/lola-m416.glb",
@@ -39,16 +39,16 @@
     "lola/lola-reload-m416.glb": {
       "source": "assets/characters/lola/lola-reload-m416.glb",
       "sourceBytes": 175124,
-      "sourceSha256": "bec8732a1b00a3360796543e778bcd00dd1f7903b16345c3f89d07a2a5467759",
-      "bytes": 68400,
-      "sha256": "9dcfdf4191188f18f67a29bdad5d9da8a46ff13044280829ff2035a6ace1c1fb"
+      "sourceSha256": "84f58f37ded474d0b60aaab0cf51f5840a55455c56a0844b3c1516cc198f71e3",
+      "bytes": 69020,
+      "sha256": "a4e7f28abde3d30078277ba8e4fd6ab03bc6f532d01463fc52b4c39b7cde6a19"
     },
     "lola/lola-reload-basic.glb": {
       "source": "assets/characters/lola/lola-reload-basic.glb",
       "sourceBytes": 174180,
-      "sourceSha256": "db9af5bc009cf34bdde92fb1d3dceb33bc03a1d4cb793e39d3d2ec9f31460f5e",
-      "bytes": 78212,
-      "sha256": "6f0954971c1300d6534fc9f2ff158222c9a5714ef3b432a5a28db12257dd64a9"
+      "sourceSha256": "114d9449b6d12fa0752278e02f9ae81227d8376ae7b9d4fbb1a186e62dceaba2",
+      "bytes": 78516,
+      "sha256": "e5b86e7e55f7fbe387a81fa4dc593d76587f6183f20173077bed3b42098cf825"
     },
     "lola/lola-runjumprl-m416.glb": {
       "source": "assets/characters/lola/lola-runjumprl-m416.glb",

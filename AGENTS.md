@@ -98,7 +98,7 @@ pnpm play                # optional: Python brain server on 127.0.0.1:8767 plus 
 ```
 
 Page options: `?dev` / `?dev=0`, `?brain=onnx|http|turret`,
-`?quality=low|medium|high`, `?softRestart=1`; lab pages `?arena`,
+`?quality=low|medium|high`, `?softRestart=0`; lab pages `?arena`,
 `?training`, `?free`. The Python server needs Python 3.12 and
 `requirements-brain.txt` (see README).
 

@@ -246,11 +246,14 @@ function softRestartBrain(rule, moves) {
   return { driver, log, closed, run };
 }
 
-test('soft restart is off by default: a catch or a long episode never resets the brain', async () => {
+test('soft restart is on by default (900 steps and catches, no still trigger); switched off, nothing resets the brain', async () => {
   const { ENCOUNTER } = await import('../src/config/encounter.js');
   const { softRestartRule } = await import('../src/simulation/JunkyardBrain.js');
-  assert.equal(ENCOUNTER.brainSoftRestart.enabled, false);
-  assert.equal(softRestartRule({ search: '' }).enabled, false);
+  assert.equal(ENCOUNTER.brainSoftRestart.enabled, true);
+  assert.equal(ENCOUNTER.brainSoftRestart.afterSteps, 900);
+  assert.equal(ENCOUNTER.brainSoftRestart.afterCatch, true);
+  assert.equal(ENCOUNTER.brainSoftRestart.afterStillSteps, null);
+  assert.equal(softRestartRule({ search: '' }).enabled, true);
   assert.equal(softRestartRule({ search: '?softRestart=1' }).enabled, true, 'playtests can switch it on');
   assert.equal(softRestartRule({ search: '?softRestart=0' }).enabled, false);
   const { driver, log, run } = softRestartBrain({ enabled: false, afterCatch: true, afterSteps: 3 },

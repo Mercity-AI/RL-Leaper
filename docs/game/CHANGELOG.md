@@ -3,6 +3,20 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-10-20: everything on the ground, hunt from explore, soft restart
+
+### For players
+
+- **Nothing floats.** The yard's floor was 7.7 cm below the height the props
+  were placed at, so nearly every prop hovered a little. The floor is now at
+  0, 13 sunk props were raised and 9 floating ones lowered onto what is under
+  them (`scripts/ground_junkyard_props.py`; collision, the brain's raster and
+  its recordings were rebuilt).
+- **START THE HUNT FROM HERE.** Paused while exploring, the pause menu starts
+  the real hunt from that moment: same spots, same broken legs.
+- **The Leaper's brain gets a fresh start** every 900 moves and after a catch
+  (soft restart, now on), which ended the long freezes in testing.
+
 ## 2026-10-19 (evening): the owner's junkyard, tougher legs, plain crosshair
 
 Branch `claude/zen-davinci-ku9f5z`, on top of the overhaul below.

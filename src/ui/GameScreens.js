@@ -26,7 +26,7 @@ const escape = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;',
 const editable = (element) => /^(INPUT|SELECT|TEXTAREA)$/.test(element?.tagName ?? '');
 
 export class GameScreens {
-  // actions: what the menu items do: { play, explore, resume, restart, quit, title }.
+  // actions: what the menu items do: { play, explore, resume, hunt, restart, quit, title }.
   // announce(text): a line for screen readers (the HUD's live region).
   // onOpenChange(open): a menu started (true) or stopped (false) covering the game.
   // hint: the title's small print (how to see the controls in the fight).
@@ -96,7 +96,7 @@ export class GameScreens {
   // Fill a base screen's menu with its items (sub-screens only if defined).
   renderMenu(name) {
     const nav = this.screens.get(name).body.querySelector('.menu');
-    const items = menuItems(name, [...this.definitions.keys()]);
+    const items = menuItems(name, [...this.definitions.keys()], this.state);
     nav.innerHTML = items.map((item, index) => `<button type="button" class="menu-item${index === 0 ? ' menu-primary' : ''}" data-menu-item="${escape(item.id)}">`
       + `<span>${escape(item.label)}</span>${item.hint ? `<small>${escape(item.hint)}</small>` : ''}</button>`).join('');
   }
@@ -155,6 +155,8 @@ export class GameScreens {
   // Follow the game state. result: the encounter's result (for the end screen).
   sync(state, { result = null } = {}) {
     if (state?.name === 'ended') this.result = result;
+    // (The pause menu's items depend on the mode that was paused.)
+    this.state = state;
     const wasOpen = this.open;
     if (!this.stack.sync(state)) return;
     this.show();

@@ -5,6 +5,7 @@
 //   encounterStarted { snapshot }            a fresh fight began (START RUN after a reset)
 //   encounterEnded   { winner, practice, stats }   winner: 'lola' | 'leaper'
 //   lolaDamaged      { amount, health }       a Leaper bolt hit Lola
+//   lolaHealed       { amount, health }       Lola took a health pill
 //   leaperDamaged    { amount, health, major }  a bullet (or the debug button) hurt the Leaper
 //   jointBroken      { health }               a shot snapped one of the Leaper's knees
 //   pauseChanged     { paused, state }        the game entered or left Paused
@@ -13,6 +14,7 @@ export const GAME_EVENTS = Object.freeze({
   encounterStarted: 'encounterStarted',
   encounterEnded: 'encounterEnded',
   lolaDamaged: 'lolaDamaged',
+  lolaHealed: 'lolaHealed',
   leaperDamaged: 'leaperDamaged',
   jointBroken: 'jointBroken',
   pauseChanged: 'pauseChanged',

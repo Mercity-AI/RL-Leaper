@@ -122,6 +122,18 @@ export class PlayerVitals {
     return taken;
   }
 
+  // Health back (a health pill), never above the maximum and never once she is
+  // down. Returns the health actually gained.
+  heal(amount) {
+    if (this.dead || amount <= 0) return 0;
+    const before = this.health;
+    this.health = Math.min(this.max, this.health + amount);
+    const gained = this.health - before;
+    if (gained > 0) this.events?.emit(GAME_EVENTS.lolaHealed, { amount: gained, health: this.health });
+    this.updateHud();
+    return gained;
+  }
+
   // Every frame, with gameplay time (0 while paused, so the flash and trail hold).
   // over: the fight has ended, which hides the HIT highlight.
   update(dt, { over = false } = {}) {

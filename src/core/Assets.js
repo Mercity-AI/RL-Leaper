@@ -17,6 +17,10 @@ import manifest from '../../assets/build/manifest.json' with { type: 'json' };
 // The junkyard map's compressed copy (same geometry and names as the source).
 export const MAP_URL = new URL('../../assets/build/maps/junkyard.glb', import.meta.url).href;
 
+// The health pill pickup (the owner's Pill_Health_Leaper.blend, exported with
+// its texture; small enough to load as it is, without a compressed copy).
+export const HEALTH_PILL_URL = new URL('../../assets/props/health-pill.glb', import.meta.url).href;
+
 // One of Lola's 14 compressed files by its short name ('m416', 'jump-basic', ...).
 export function lolaUrl(name) {
   return new URL(`../../assets/build/lola/lola-${name}.glb`, import.meta.url).href;

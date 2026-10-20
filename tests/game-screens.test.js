@@ -36,6 +36,11 @@ test('the menus offer what a player expects, in order', () => {
   // An item that opens a sub-screen the page does not have is left out.
   assert.deepEqual(menuItems('title', ['controls']).map((item) => item.id), ['play', 'explore', 'controls']);
   assert.deepEqual(menuItems('nothing'), []);
+  // Paused while exploring, the pause menu also offers the hunt from right there.
+  const paused = (mode) => ({ name: 'paused', resumeTo: { name: 'playing', mode } });
+  assert.deepEqual(menuItems('pause', SUB_SCREENS, paused('explore')).map((item) => item.id),
+    ['resume', 'hunt', 'restart', 'settings', 'controls', 'quit']);
+  assert.deepEqual(menuItems('pause', SUB_SCREENS, paused('hunt')).map((item) => item.id), ids('pause'));
   // Labels are upper case and every item has an id the game can act on.
   for (const items of Object.values(MENUS)) {
     for (const item of items) assert.equal(item.label, item.label.toUpperCase());
