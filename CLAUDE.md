@@ -4,42 +4,90 @@ Read `AGENTS.md` first: Part 1 is the game, Part 2 the RL lab. The owner is a
 game designer, not a programmer: explain results in plain language, ask about
 creative intent, and never push, force-push or merge without their say-so.
 
-## Next feature: health pills (approved 2026-10-20, build only when asked)
+## Pickups: health pills and ammo bullets (built 2026-10-20/21)
 
-When the owner asks for "the build" of the health pill, this is it. The look
-is final in `previews/health-pill.html` (open it through `pnpm dev` at
-http://localhost:5173/previews/health-pill.html), with the model in
-`previews/health-pill.glb`. Copy its values exactly.
+Glowing pickups float around the yard; Lola takes one by walking into it. One
+system serves both kinds: `src/game/FloatingPickups.js` (scatter, refill, look,
+motion), with `HealthPills.js` and `AmmoBullets.js` saying what a pickup does;
+every number is in `src/config/pickups.js`. The design preview with sliders is
+`previews/health-pill.html` (through `pnpm dev`: /previews/health-pill.html);
+it shows the pill and the bullet in yellow and in blue.
 
-- **Model:** `C:\Blender\LOWPOLY\Pill_Health_Leaper.blend` and its texture
-  `Pill.png` (owner's files: read and export only, never modify). Export with
-  Blender's glTF exporter (Y-up). Turn texture mipmaps off (LinearFilter) so
-  the texture's black background does not bleed into the colours.
-- **Look:** the **blue** version (option A) is the one the owner chose. The
-  pill stands up leaning 25° clockwise inside a glowing blue sphere: colour
-  0x3aa8ff, a fresnel glow that is clear in the middle and bright at the edge,
-  strength 1.4 x 0.6. There's a matching blue glow circle and point light on
-  the ground below it. The red version and a glow hugging the pill were rejected.
-- **Motion:** spins around the vertical axis once every 8 s; bobs 0.0858 up
-  and down (exactly 34% less than 0.13), one cycle every 3 s.
-- **Size:** the whole pickup is about one third of Lola's height.
-- **Pickup:** Lola passes through it: it vanishes and she gets back 10% of
-  her *total* health.
-- **Spawning:** a new game starts with 3 pills at random spots around the
-  yard. When the player has taken two (one left), new ones start appearing at
-  random spots again. Never more than 3-4 on the arena at once (it is a small
-  arena).
-- **Still to ask at build time:** whether a pill can be taken at full health,
-  how soon new ones appear, and a pickup sound (none yet).
+- **Models:** the owner's `C:\Blender\LOWPOLY\Pill_Health_Leaper.blend` +
+  `Pill.png` and `Bullet.blend` + `Bullet.png` (read and export only, never
+  modify), exported with Blender's glTF exporter (Y-up) to
+  `assets/props/health-pill.glb` and `assets/props/ammo-bullet.glb` (loaded as
+  they are, no compressed copy). Texture mipmaps are off (LinearFilter) so the
+  textures' black backgrounds do not bleed into the colours.
+- **Look (owner's choices):** the object leans 25° clockwise inside a sphere
+  that glows only at its edge (no haze over the object): **blue** (0x3aa8ff)
+  for the pill, **yellow** (0xffc23a) for the bullet, glow strength 2.2 x 0.6,
+  with a matching glow circle on the ground (no real light, to keep the map
+  fast). The pill is 80% as thick as modelled; both have a little shine
+  (roughness 0.515) and no tint. Rejected: red, and a glow hugging the pill.
+- **Motion:** spins once every 8 s; bobs 0.0467 up and down every 3 s; floats at
+  1.155 (sphere centre, preview units: 0.95, then 1.05, then +10%). Float
+  height and bob distance are separate settings.
+- **Size:** the whole pickup is a third of Lola's height plus 10%.
+- **Taking one:** the moment she touches the sphere the object vanishes and its
+  glow fades in 0.12 s, with a sound (`healthPickup`, `ammoPickup` in
+  `src/audio/sounds.json`, synthesised by `scripts/assets/make-sounds.mjs`).
+  A pill gives back 10% of her *total* health; at full health (or down) she
+  leaves it alone.
+- **Spawning (each kind):** a new game scatters 3 at random open spots, away
+  from Lola and from every other pickup; when only one is left, new ones appear
+  6 s apart until there are 3 again; never more than 4.
 
-## Where things stand (2026-10-19)
+## Ammo bullets (owner's choices, 2026-10-21)
+
+- **Model:** `C:\Blender\LOWPOLY\Bullet.blend` + `Bullet.png` (with a heart),
+  exported to `assets/props/ammo-bullet.glb` with the texture brightened x1.875
+  (preview "lightness" 0.35). Same look and motion as the pill, **yellow** glow
+  (0xffc23a), scaled to the pill's length.
+- **Pickup sound (2026-10-21):** the first ammo sound (clicks and a metal
+  ring) was rejected; now a soft tick and two rising notes (E5, B5), recipe in
+  `scripts/assets/make-sounds.mjs`. The pill's sound is approved.
+- **Ammo rules:** only the M416's spares run out: it starts each fight with 80
+  spare rounds (4 magazines) and carries at most 160 (8). The basic gun stays
+  unlimited. One bullet gives +40 (2 magazines); full spares leave it be.
+- **Spawning:** same rules as the pills (3 at start, refill when one is left,
+  never more than 4); pills and bullets keep clear of each other.
+- **HUD:** a row of bullet icons above the gun circles, one per magazine the
+  M416 can carry: lit yellow as far as its spares go, new ones pop in.
+
+## Climbing (owner's choice, 2026-10-21)
+
+- Lola climbs onto the open, toppled yellow container ("03 - southern fallen
+  freight") by pressing jump beside it while facing it (option A; no climb
+  animation yet, she rises during the jump clip: an authored climb clip from
+  the owner would replace that). Walking off an edge drops her. Up there she is
+  safe from stomps and leaps, not from the laser. Roofs: `src/world/climbableRoofs.js`;
+  reach and landing inset: `LOLA_CLIMB` in `src/actors/lola/lolaTuning.js`.
+- Low props (owner, 2026-10-21: "at least above the tires", heights my call):
+  she walks up onto anything up to 0.35 map units and jumps onto anything up
+  to 1.25 (barrels, tire stacks and mounds, spill piles); cars (1.4+), big
+  heaps and skips stay walls. `LOLA_FOOTING` in `src/actors/lola/lolaTuning.js`;
+  the height under her comes from the collision triangles' tops
+  (`JunkyardNavigation.surface`). Standing on them does not protect her from
+  the Leaper; only the container roof does.
+- That container is a duller yellow with its grey inside wall yellow
+  (`JUNKYARD_PROP_COLOURS` in `src/world/junkyardSurfaces.js`, applied over the
+  baked texture, so it survives a re-bake as long as the part names stay).
+
+## Where things stand (2026-10-21)
 
 - **Working branch:** `claude/zen-davinci-ku9f5z` (pushed to
-  `Mercity-AI/RL-Leaper`). It holds the code-review overhaul and the owner's
-  evening requests; `main` does not have them yet. What changed for players:
+  `Mercity-AI/RL-Leaper` up to `fbacdcf`, which has the first health pills).
+  Everything since (ammo bullets and their HUD, the pickup sounds and tuning,
+  faster Lola, stamina, climbing, hanging legs, the yard's floor and walls) is
+  in the working tree, **not committed**: commit and push only when the owner
+  says. `main` has none of the overhaul. What changed for players:
   `docs/game/CHANGELOG.md`.
 - **The game** runs with `pnpm dev` at http://localhost:5173/ (title screen:
-  PLAY, EXPLORE, SETTINGS, CONTROLS, CREDITS). The Leaper's frozen brain
+  PLAY, EXPLORE, SETTINGS, CONTROLS, CREDITS). The owner's test link is
+  http://localhost:5173/?explore=1: straight into EXPLORE (Lola moves, the
+  Leaper stands still); Esc, then START THE HUNT FROM HERE starts the real
+  fight with every broken leg kept. The Leaper's frozen brain
   (7,757,824 steps) runs in the browser (ONNX); it must never be retrained or
   edited in place (`AGENTS.md`, "Non-negotiables").
 - **The map** is the owner's own yard, `junkyard_v2` (about 78 x 73 map units).
@@ -50,9 +98,29 @@ http://localhost:5173/previews/health-pill.html), with the model in
 - **Owner choices to keep** (from the owner, 2026-10-19): the plain "+"
   crosshair (spread ticks, hit-marker X and OBSTRUCTED look stay off in
   `src/styles/ui/reticle.css`); leg pieces take 11-13 (knees) and 32-34 (long
-  pieces) bullets; a leg cut below its lower knee walks on its stump; no
-  standing leg on one side means the Leaper tips over for good. Save every
-  setting the owner picks as a real default, never only in a URL.
+  pieces) bullets; any cut leg curls up and hangs (2026-10-21: the walking
+  stump looked like a whole leg, so `walkOnStump` is off in
+  `src/config/combat.js`), its broken end near eye height, bobbing gently while
+  the Leaper walks (`src/simulation/HangingLeg.js`); no standing leg on one
+  side means the Leaper tips over for good. Lola can sprint 10 s in one go,
+  then is winded (normal run) for 4 s (`LOLA_STAMINA`, 2026-10-21). Lola runs and
+  sprints 15% faster again (2026-10-21: `LOLA_PACE` run 2.3 -> 2.645, sprint
+  3.1 -> 3.565, in `src/actors/lola/lolaTuning.js`). The yard is closed on
+  all four sides (2026-10-21): the south wall was added to the repo's
+  `junkyard_v2.blend` and `junkyard_v2_baked.blend` only, so add it again if
+  the owner sends a new yard without one. The floor (dirty brown earth, mud
+  patches, oil stains, pebbles) and darker rusty walls are approved
+  (2026-10-21); their colours and dirt live in `src/world/junkyardSurfaces.js`.
+  With the camera close behind her Lola fades to no less than 92% (was 80%:
+  too see-through; `CameraController.beforeRender`). Save every setting the
+  owner picks as a real default, never only in a URL.
+- **The owner's laptop** (HP OMEN): two GPUs (AMD Radeon built in, NVIDIA RTX
+  3050). If the game lags, first check `chrome://gpu` (GL_RENDERER) and set
+  Chrome to "High performance" in Windows Settings > Display > Graphics (a
+  system setting the owner changes, not us). It also has HP's ViGEmBus virtual
+  controller driver: a pad whose stick rests off-centre walked Lola right, so
+  each pad's first reading is now its centre (`PAD_TUNING.maxRest`,
+  `InputController.padRestAxes`).
 
 ## Open items
 
@@ -63,10 +131,14 @@ http://localhost:5173/previews/health-pill.html), with the model in
   when it arrives rather than stretching the old one.
 - **Leg damage vs health:** the owner floated making lost legs cost more of the
   Leaper's health. Not done; ask before changing balance.
-- **Tests:** `pnpm test` (466) is green. Three in-browser pages still stage
-  scenes on the old map layout and fail: the weak-point shot in
-  `tests/browser-combat.js`, a shot in `tests/leaper-behaviour.js`, and the
-  loading-progress check in `tests/brain-game.html`.
+- **Tests:** `pnpm test` (497 on 2026-10-21) has one failure, not from the
+  pickups: the brain free-run lockstep check in `tests/brain-parity.test.js`
+  (eye-7.98-chase stays in lockstep 74 steps, below its floor; it came with the
+  rebuilt map and fixtures). If the README controls check fails on line
+  endings, `node scripts/print-controls.mjs --write` fixes it. Three in-browser pages still stage scenes on the old map layout and
+  fail: the weak-point shot in `tests/browser-combat.js`, a shot in
+  `tests/leaper-behaviour.js`, and the loading-progress check in
+  `tests/brain-game.html`.
 - **History:** `docs/How-the-Leaper-Works.pdf` was pushed by mistake and then
   removed; it is still in the branch history. The owner keeps it locally and
   does not want it in the repository.

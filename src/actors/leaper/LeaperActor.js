@@ -483,7 +483,8 @@ export class LeaperActor {
     const lola = this.player.mesh.position;
     let dx = lola.x - at.x, dz = lola.z - at.z;
     const distance = Math.hypot(dx, dz);
-    if (distance > radius || this.vitals?.dead) return false;
+    // Up on a roof (or climbing) she is above the blast (owner, 2026-10-21).
+    if (distance > radius || this.vitals?.dead || this.player.offGround) return false;
     // Standing dead centre: shoved the way the Leaper faces.
     if (distance < 1e-3) { dx = Math.sin(this.pose.yaw); dz = Math.cos(this.pose.yaw); }
     const direction = new THREE.Vector3(dx, 0, dz).normalize();

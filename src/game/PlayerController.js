@@ -1,10 +1,38 @@
 import * as THREE from 'three';
 import { CAMERA } from '../config/tuning/index.js';
 import { WEAPONS, slotForKey } from '../config/weapons.js';
+import { LOLA_STAMINA } from '../actors/lola/lolaTuning.js';
 
 // Lola's running and sprinting speeds as handed to LolaPlayer.move (she turns
 // any speed above 5 into her sprint pace).
 export const PLAYER_SPEED = Object.freeze({ run: 4.5, sprint: 8 });
+
+// How long Lola can keep sprinting (LOLA_STAMINA). energy runs from 1 (rested)
+// to 0; at 0 she is winded and cannot sprint until it is full again.
+export class SprintStamina {
+  constructor(rules = LOLA_STAMINA) {
+    this.rules = rules;
+    this.reset();
+  }
+
+  reset() {
+    this.energy = 1;
+    this.winded = false;
+  }
+
+  // wants: the player is holding sprint while moving. Returns whether she sprints.
+  update(wants, dt) {
+    const sprinting = wants && !this.winded;
+    if (sprinting) {
+      this.energy = Math.max(0, this.energy - dt / this.rules.sprintSeconds);
+      if (this.energy === 0) this.winded = true;
+    } else {
+      this.energy = Math.min(1, this.energy + dt / this.rules.restSeconds);
+      if (this.energy === 1) this.winded = false;
+    }
+    return sprinting;
+  }
+}
 
 // Turns the input actions (keyboard, gamepad, touch) into what Lola does: move,
 // sprint, jump, crouch, switch guns, and pause / resume. This used to live
@@ -24,6 +52,7 @@ export class PlayerController {
     this.forward = new THREE.Vector3();
     this.right = new THREE.Vector3();
     this.intent = null;
+    this.stamina = new SprintStamina();
     // weaponIndex slot each gun key equips (1 = the pistol, 2 = the M416).
     this.keySlots = { weapon1: slotForKey('1'), weapon2: slotForKey('2') };
   }
@@ -81,17 +110,24 @@ export class PlayerController {
     return null;
   }
 
+  // A new fight: Lola starts rested.
+  reset() {
+    this.stamina.reset();
+  }
+
   // Gameplay phase: crouch and gun changes, then the jump, then movement
-  // relative to the camera's heading.
+  // relative to the camera's heading (sprinting while she has the breath).
   update(dt) {
     const intent = this.intent;
     if (!intent) return;
+    const moving = Math.hypot(intent.forward, intent.side) > 0.1;
+    const sprint = this.stamina.update(intent.sprint && moving, dt);
     if (intent.crouch) this.player.toggleCrouch?.();
     if (intent.weapon !== null && intent.weapon >= 0 && intent.weapon !== this.player.weaponIndex) this.player.switchWeapon?.();
     if (intent.jump) this.player.jump();
     this.forward.set(Math.sin(intent.heading), 0, Math.cos(intent.heading));
     this.right.set(-this.forward.z, 0, this.forward.x);
     this.player.move(intent.forward, intent.side, this.forward, this.right,
-      intent.sprint ? PLAYER_SPEED.sprint : PLAYER_SPEED.run, dt);
+      sprint ? PLAYER_SPEED.sprint : PLAYER_SPEED.run, dt);
   }
 }

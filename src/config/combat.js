@@ -20,11 +20,13 @@ export const COMBAT = Object.freeze({
   // mobilityPerLeg, never below minMobility (the limp). Losing maxLost legs
   // knocks the Leaper down (src/config/leaper-behaviour.js `downed` says for how
   // long); losing one more while down keeps it down for good.
-  // A leg cut below its lower knee keeps walking on its stump (thigh + shin):
-  // it counts stumpCost of a lost leg toward the limp, and never toward maxLost.
-  // With no standing leg left on one side (all three cut at the upper knee or
-  // higher) nothing holds that side up: the Leaper tips over for good.
-  legs: Object.freeze({ maxLost: 4, mobilityPerLeg: 0.18, minMobility: 0.25, stumpCost: 0.5 }),
+  // walkOnStump: a leg cut below its lower knee keeps walking on its stump
+  // (thigh + shin), counting stumpCost of a lost leg toward the limp and never
+  // toward maxLost. Off since 2026-10-21 (owner: a stump reaching the floor
+  // looked like a whole leg): any cut leg now curls up and hangs, a lost leg.
+  // With no standing leg left on one side nothing holds that side up: the
+  // Leaper tips over for good.
+  legs: Object.freeze({ maxLost: 4, mobilityPerLeg: 0.18, minMobility: 0.25, walkOnStump: false, stumpCost: 0.5 }),
 });
 
 // How far the Leaper's eye bolts reach, in world units, at a map scale: never

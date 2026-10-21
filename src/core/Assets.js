@@ -20,6 +20,9 @@ export const MAP_URL = new URL('../../assets/build/maps/junkyard.glb', import.me
 // The health pill pickup (the owner's Pill_Health_Leaper.blend, exported with
 // its texture; small enough to load as it is, without a compressed copy).
 export const HEALTH_PILL_URL = new URL('../../assets/props/health-pill.glb', import.meta.url).href;
+// The ammo bullet pickup (the owner's Bullet.blend; its Bullet.png brightened
+// x1.875, the preview's "lightness" 0.35, at export).
+export const AMMO_BULLET_URL = new URL('../../assets/props/ammo-bullet.glb', import.meta.url).href;
 
 // One of Lola's 14 compressed files by its short name ('m416', 'jump-basic', ...).
 export function lolaUrl(name) {

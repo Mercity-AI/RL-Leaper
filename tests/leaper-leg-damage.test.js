@@ -9,13 +9,13 @@ import { createLeaperHitboxes } from '../src/weapons/Hitboxes.js';
 import { COMBAT } from '../src/config/combat.js';
 import { LeaperFeedback } from '../src/actors/leaper/LeaperFeedback.js';
 
-function setup(random = () => 0) {
+function setup(random = () => 0, rules = COMBAT.legs) {
   const scene = new THREE.Scene(), rig = createHexapod(scene);
   const cameraController = { eyePitch: 0, eyeYaw: 0, update() {} };
   const sim = new LeaperSimulation({ rig, cameraController, sun: { position: new THREE.Vector3(), target: { position: new THREE.Vector3() } }, statusElement: {} });
   sim.updateBody(0, 0); sim.updateGait(0, 0); scene.updateMatrixWorld(true);
   const geometry = { hit: () => null };
-  const damage = new LeaperLegDamage(scene, rig, geometry, random);
+  const damage = new LeaperLegDamage(scene, rig, geometry, random, rules);
   // Explicit fixture values; production threshold ranges are verified separately below.
   for (const leg of rig.legs) {
     leg.damage.upper.threshold = leg.damage.lower.threshold = random() < 0.5 ? 5 : 6;
@@ -106,16 +106,17 @@ for (const indices of [[1], [0, 1]]) test(`movement survives broken legs ${indic
   assert.equal(stepped, true); assert.equal(sim.state.position.x, 2);
   for (const i of indices) assert.equal(rig.legs[i].knee.visible, false);
 });
-// (A lower-knee break leaves a stump that walks on; see the stump tests below.)
-for (const joint of ['upper']) test(`${joint} break curls up, swings with its anchor, and settles`, () => {
+// (With walkOnStump a lower-knee break leaves a stump that walks on; see below.)
+for (const joint of ['upper', 'lower']) test(`${joint} break curls up, swings with its anchor, and settles`, () => {
   const { rig, sim, damage } = setup(); const leg = rig.legs[0];
   shoot(damage, joint === 'upper' ? leg.knee : leg.calfJoint, 5);
   const hanging = leg.hanging;
   for (let i = 0; i < 180; i++) damage.update(1/60);
-  // Curled like an injured spider leg: the thigh lifts (35° minus the 15° sag) and
-  // any remaining shin folds back down toward the body, never sticking straight out.
+  // Curled like an injured spider leg: the thigh dips a little (7° minus the 15° sag),
+  // its broken end near the eye's height, and any remaining shin folds back down
+  // toward the body, never sticking straight out.
   const thigh = hanging.points[1].clone().sub(hanging.points[0]).normalize();
-  assert.ok(Math.abs(THREE.MathUtils.radToDeg(Math.asin(thigh.y)) - 20) < 1, `thigh rests raised about 20° (${THREE.MathUtils.radToDeg(Math.asin(thigh.y)).toFixed(1)})`);
+  assert.ok(Math.abs(THREE.MathUtils.radToDeg(Math.asin(thigh.y)) + 8) < 1, `thigh rests dipped about 8° (${THREE.MathUtils.radToDeg(Math.asin(thigh.y)).toFixed(1)})`);
   if (hanging.points[2]) {
     const shin = hanging.points[2].clone().sub(hanging.points[1]).normalize();
     const out = new THREE.Vector3(thigh.x, 0, thigh.z).normalize();
@@ -146,6 +147,24 @@ for (const joint of ['upper']) test(`${joint} break curls up, swings with its an
   damage.reset(); assert.equal(leg.hanging, null);
   sim.updateBody(0,0); sim.updateGait(0,0);
   assert.equal(leg.disabled, false);
+});
+
+test('a hanging leg bobs up and down while the Leaper walks, and settles when it stops', () => {
+  const { rig, damage } = setup(); const leg = rig.legs[0];
+  shoot(damage, leg.knee, 5);
+  const tipHeight = () => leg.hanging.points.at(-1).y - rig.robot.position.y;
+  for (let i = 0; i < 120; i++) damage.update(1 / 60);
+  let low = Infinity, high = -Infinity;
+  for (let i = 0; i < 180; i++) {
+    rig.robot.position.x += 2 / 60; rig.robot.updateMatrixWorld(true);
+    damage.update(1 / 60);
+    if (i > 60) { low = Math.min(low, tipHeight()); high = Math.max(high, tipHeight()); }
+  }
+  assert.ok(high - low > 0.3 && high - low < 0.8, `a gentle bob while walking (${(high - low).toFixed(2)})`);
+  for (let i = 0; i < 240; i++) damage.update(1 / 60);
+  const still = tipHeight();
+  for (let i = 0; i < 60; i++) damage.update(1 / 60);
+  assert.ok(Math.abs(tipHeight() - still) < 0.02, 'still once the Leaper stands');
 });
 
 test('hanging motion remains finite at low frame rate and on a long frame', () => {
@@ -254,8 +273,19 @@ test('mobility follows COMBAT.legs; every break is reported with where it happen
 
 // ---- Stumps and support (owner request 2026-10-19: no walking on air) ----
 
-test('a leg cut below its lower knee walks on its stump, shin tip on the floor', () => {
-  const { rig, sim, damage } = setup();
+const STUMPS = Object.freeze({ ...COMBAT.legs, walkOnStump: true });
+
+test('by default a leg cut below its lower knee hangs like any other (no walking stump)', () => {
+  const { rig, damage } = setup();
+  const leg = rig.legs[1];
+  shoot(damage, leg.calfJoint, 5);
+  assert.equal(COMBAT.legs.walkOnStump, false);
+  assert.equal(leg.stump, false); assert.equal(leg.disabled, true); assert.ok(leg.hanging);
+  assert.equal(rig.damagedLegCount, 1);
+});
+
+test('with walkOnStump a leg cut below its lower knee walks on its stump, shin tip on the floor', () => {
+  const { rig, sim, damage } = setup(() => 0, STUMPS);
   const leg = rig.legs[1];
   const breaks = [];
   damage.onBroken = (event) => breaks.push(event);
@@ -280,7 +310,7 @@ test('a leg cut below its lower knee walks on its stump, shin tip on the floor',
 
 test('a whole side cut away at the knees is reported as unsupported; stumps still hold it up', () => {
   for (const side of [1, -1]) {
-    const { rig, damage } = setup();
+    const { rig, damage } = setup(() => 0, STUMPS);
     const events = [];
     damage.onBroken = (event) => events.push(event);
     const sideLegs = rig.legs.filter((leg) => Math.sign(leg.out.x) === side);

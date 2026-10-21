@@ -24,6 +24,7 @@ export const JUMP_BUFFER = 0.16;
 const TOUCH_MOUSE_WINDOW = 800;
 
 // Typing into a form control (the size slider, a select) is not playing.
+const clampAxis = (value) => Math.max(-1, Math.min(1, value));
 const editable = (target) => Boolean(target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName ?? '') || target.isContentEditable));
 // Mouse buttons only count when pressed on the 3D view, never on the toolbar,
 // the HUD or the pause overlay (so the click that resumes can't fire).
@@ -86,6 +87,10 @@ export class InputController {
     this.menuWasOpen = false;
     this.heldThroughMenu = new Set();
     this.pad = { connected: false, id: '', buttons: [], axes: [0, 0, 0, 0] };
+    // Each pad's resting stick position (by pad id), taken the first time it is
+    // read, so a stick that rests off-centre (a worn stick, or a virtual pad
+    // from a laptop's controller software) never walks Lola on its own.
+    this.padRest = new Map();
 
     // 4. The per-frame snapshot poll() fills in.
     this.frame = 0;
@@ -247,7 +252,7 @@ export class InputController {
     for (let index = 0; index < buttons.length; index += 1) {
       this.pad.buttons.push(padButtonDown(buttons[index], PAD_TUNING.triggers.includes(index)));
     }
-    const axes = pad?.axes ?? [];
+    const axes = this.padRestAxes(pad);
     const stick = (x, y) => {
       const length = Math.hypot(x, y);
       if (length <= PAD_TUNING.deadZone) return [0, 0];
@@ -262,6 +267,20 @@ export class InputController {
     this.pad.axes[PAD_AXES.leftY] = 0 - ly;
     this.pad.axes[PAD_AXES.rightX] = rx;
     this.pad.axes[PAD_AXES.rightY] = 0 - ry;
+  }
+
+  // The pad's sticks measured from where they rest. The first reading of a pad
+  // is its rest; a first reading over PAD_TUNING.maxRest is a real push (the
+  // stick was held as it connected), so that axis rests at 0 instead.
+  padRestAxes(pad) {
+    const axes = pad?.axes ?? [];
+    if (!pad) return axes;
+    let rest = this.padRest.get(pad.id);
+    if (!rest) {
+      rest = Array.from(axes, (value) => (Math.abs(value) <= PAD_TUNING.maxRest ? value : 0));
+      this.padRest.set(pad.id, rest);
+    }
+    return Array.from(axes, (value, i) => clampAxis(value - (rest[i] ?? 0)));
   }
 
   // ---- What the older systems call ----

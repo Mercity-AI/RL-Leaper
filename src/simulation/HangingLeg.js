@@ -5,11 +5,20 @@ const UP = new THREE.Vector3(0, 1, 0);
 const DROOP = THREE.MathUtils.degToRad(15);
 const MAX_DROOP = THREE.MathUtils.degToRad(22);
 // The stump curls up like an injured spider's leg instead of sticking out stiffly:
-// the thigh lifts this far above horizontal and the shin folds back down toward
-// the body. (The leg is too long to hang straight down without hitting the floor.)
-const CURL_THIGH = THREE.MathUtils.degToRad(35);
+// the thigh lifts this far above horizontal (before the DROOP sag) and the shin
+// folds back down toward the body. (The leg is too long to hang straight down
+// without hitting the floor.) Lowered from 35 deg on 2026-10-21 (owner: broken
+// legs stuck up too high): after the sag the thigh dips about 8 deg, so its
+// broken end hangs near the eye's height.
+const CURL_THIGH = THREE.MathUtils.degToRad(7);
 const CURL_SHIN_IN = 0.5; // how far the folded shin points back toward the body
 const CURL_TIME = 0.35; // seconds to curl up after the break
+// While the Leaper walks, the hanging leg bobs up and down like a keychain on a
+// bag (owner, 2026-10-21): this far each way (radians) at full walking speed,
+// this many bobs a second. Standing still, it settles.
+const BOUNCE = 0.11;
+const BOUNCE_RATE = 2 * Math.PI * 1.6;
+const BOUNCE_SPEED = 1.5; // world units / s at which the bob is full size
 
 // A restrained hip hinge with a small gravity sag, around the curled pose.
 export class HangingLeg {
@@ -44,6 +53,10 @@ export class HangingLeg {
     this.previousVelocity = new THREE.Vector3();
     this.acceleration = new THREE.Vector3();
     this.points = [leg.femur.position.clone(), ...this.meshes.map(() => new THREE.Vector3())];
+    // The walking bob: its phase (offset per leg, so they do not swing in step)
+    // and its size, 0 standing still to 1 walking.
+    this.bouncePhase = previous?.bouncePhase ?? leg.index * 1.3;
+    this.walking = previous?.walking ?? 0;
     this.update(0);
   }
 
@@ -71,10 +84,14 @@ export class HangingLeg {
         this.angle = bounded;
       }
       this.previousVelocity.copy(velocity);
+      const pace = Math.min(1, Math.hypot(velocity.x, velocity.z) / BOUNCE_SPEED);
+      this.walking += (pace - this.walking) * (1 - Math.exp(-4 * elapsed));
+      this.bouncePhase += elapsed * BOUNCE_RATE;
     }
     this.previousHip.copy(hip);
     this.points[0].copy(hip);
-    const sag = new THREE.Quaternion().setFromAxisAngle(this.axis, this.angle);
+    const bob = BOUNCE * this.walking * Math.sin(this.bouncePhase);
+    const sag = new THREE.Quaternion().setFromAxisAngle(this.axis, this.angle + bob);
     this.meshes.forEach((mesh, i) => {
       const direction = this.restDirections[i].clone().applyQuaternion(sag).applyQuaternion(rotation);
       this.points[i + 1].copy(this.points[i]).addScaledVector(direction, this.lengths[i]);

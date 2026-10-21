@@ -56,6 +56,8 @@ warnings) even though their callers give no position.
 | `leaperJointBurst` | A leg joint bursts (with the knee-break sound) | Kenney glitches: electrical crackle |
 | `leaperBoltImpact` | A bolt hits cover (not called yet: `playSlot('leaperBoltImpact', { at })`) | Kenney sci-fi metal impact |
 | `uiClick` | A toolbar, menu or overlay button is pressed | Kenney interface select |
+| `healthPickup` | Lola takes a health pill | Three rising bell notes, synthesised by `make-sounds.mjs` (project original) |
+| `ammoPickup` | Lola takes an ammo bullet | Clicks, a thunk and a metal ring, synthesised by `make-sounds.mjs` (project original) |
 | `yardAmbience` | The whole session, very quietly | Kenney low engine hum + wind made by `scripts/assets/make-sounds.mjs` |
 
 The made sounds come from `node scripts/assets/make-sounds.mjs`, which cuts and

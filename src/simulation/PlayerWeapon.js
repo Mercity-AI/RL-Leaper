@@ -77,7 +77,7 @@ export class PlayerWeapon {
     this.ownsViews = !views;
     this.reticleView = views?.reticle ?? new ReticleView(document.body);
     this.weaponHud = views?.weapons ?? new WeaponHudView(document.body, { slots: weaponSlots() });
-    this.hudGuns = WEAPON_SLOTS.map(id => ({ id, active: false, reloading: false, empty: false, fraction: 1 }));
+    this.hudGuns = WEAPON_SLOTS.map(id => ({ id, active: false, reloading: false, empty: false, fraction: 1, spare: null, spareMax: null }));
     this.touch = views ? views.touch : wantsTouchControls() ? new TouchControls(document.body, {
       buttons: touchButtons(),
       onDown: action => this.input.virtualDown?.(action),
@@ -135,6 +135,18 @@ export class PlayerWeapon {
   get ammoState() { return this.state; }
   // Every gun's state ({ mag, reserve, ... }), by weaponIndex.
   get ammo() { return this.states; }
+
+  // Ammo pickups: how many spare rounds a gun (by id) could still take, and
+  // giving it more. addAmmo returns the rounds actually added.
+  spareRoom(id) {
+    return this.states[WEAPON_SLOTS.indexOf(id)]?.spareRoom ?? 0;
+  }
+
+  addAmmo(id, rounds) {
+    const added = this.states[WEAPON_SLOTS.indexOf(id)]?.addReserve(rounds) ?? 0;
+    if (added > 0) this.renderHud();
+    return added;
+  }
   // Seconds until the equipped gun may fire again (0 = ready).
   get remaining() { return Math.max(0, this.state.cooldown); }
   set remaining(seconds) { this.state.cooldown = seconds; }
@@ -409,6 +421,10 @@ export class PlayerWeapon {
       gun.reloading = gun.active && gunState.reloading;
       gun.empty = !gun.reloading && gunState.mag <= 0;
       gun.fraction = gun.reloading ? gunState.reloadProgress : gunState.mag / gunState.weapon.magazine;
+      // Spare magazines, for the bullet icons (only guns whose spares run out).
+      const { magazine, reserveMax } = gunState.weapon;
+      gun.spare = gunState.reserve === Infinity ? null : gunState.reserve / magazine;
+      gun.spareMax = gunState.reserve === Infinity ? null : Math.ceil((reserveMax ?? gunState.reserve) / magazine);
     });
     weapons.visible = available;
     weapons.reloading = state.reloading;

@@ -5,8 +5,9 @@
 // OpenGameArt downloads, all CC0; see src/audio/sounds.json for every source).
 // Each recipe below cuts, layers, pitches and fades them into one short mono
 // WAV in assets/audio/, which the asset build then turns into Opus and AAC.
-// The yard ambience also mixes in wind made here from seeded noise, so the same
-// recipe always writes the same file.
+// The yard ambience also mixes in wind made here from seeded noise, and the
+// pickup sounds are synthesised here outright (tones and noise clicks), so the
+// same recipe always writes the same file.
 //
 // Needs ffmpeg (/usr/bin/ffmpeg or FFMPEG=...) to decode the originals.
 import fs from 'node:fs';
@@ -28,6 +29,10 @@ const FFMPEG = process.env.FFMPEG || '/usr/bin/ffmpeg';
 //            it), at (where it starts in the mix), gain, speed (below 1 = slower
 //            and lower), lowpass (Hz), fadeIn / fadeOut (per layer)
 //   fadeIn / fadeOut  on the whole mix; peak: loudest sample after mixing, in dBFS
+//   tones    a synthesised layer of notes: { at, hz, decay (seconds to fade to
+//            ~37%), gain, partials: [[multiple of hz, gain], ...] }
+//   clicks   a synthesised layer of short noise bursts: { at, decay, gain, hz }
+//            (hz: the band the noise is filtered around)
 //   loop     crossfade (seconds) that makes the file loop without a seam
 //   pad      seconds of the loop repeated before and after it, so the codec's
 //            start and end (priming, padding) fall outside the part the game
@@ -102,6 +107,26 @@ const RECIPES = [
     fadeOut: 0.15, peak: -3 },
   // Menu and button clicks.
   { name: 'ui-click', layers: [{ file: 'kenney/interface-sounds/select_001.ogg' }], fadeOut: 0.01, peak: -6 },
+  // Taking a health pill: three bright, bell-like notes rising (G5, C6, G6) with
+  // a soft high shimmer: a "healed" sparkle. Synthesised, no original.
+  { name: 'pickup-health', length: 0.8, layers: [{ tones: [
+    { at: 0, hz: 784, decay: 0.22, gain: 0.7, partials: [[1, 1], [2, 0.25], [3, 0.08]] },
+    { at: 0.075, hz: 1047, decay: 0.24, gain: 0.7, partials: [[1, 1], [2, 0.25], [3, 0.08]] },
+    { at: 0.15, hz: 1568, decay: 0.32, gain: 0.75, partials: [[1, 1], [2, 0.2], [3, 0.06]] },
+    { at: 0.15, hz: 3136, decay: 0.4, gain: 0.12, partials: [[1, 1], [1.005, 0.8]] },
+  ] }], fadeOut: 0.12, peak: -4 },
+  // Taking an ammo bullet: a soft brass tick, then two quick warm notes rising
+  // a fifth (E5, B5), lower and shorter than the pill's sparkle so the two are
+  // told apart. Replaced the clicks-and-metal-ring take on 2026-10-21 (owner: it
+  // sounded weird). Synthesised, no original.
+  { name: 'pickup-ammo', length: 0.6, layers: [
+    { clicks: [{ at: 0, decay: 0.004, gain: 0.4, hz: 3200 }] },
+    { tones: [
+      { at: 0, hz: 220, decay: 0.06, gain: 0.45, partials: [[1, 1], [2, 0.2]] },
+      { at: 0, hz: 659, decay: 0.1, gain: 0.6, partials: [[1, 1], [2, 0.4], [3, 0.15]] },
+      { at: 0.09, hz: 988, decay: 0.22, gain: 0.7, partials: [[1, 1], [2, 0.35], [3, 0.12]] },
+    ] },
+  ], fadeOut: 0.12, peak: -4 },
   // The yard's background: a dark machine hum under gusts of wind, looping.
   { name: 'yard-ambience', rate: 24000, length: 10, loop: 1.5, pad: 0.25, layers: [
     { file: 'kenney/sci-fi-sounds/spaceEngineLow_001.ogg', gain: 0.35, lowpass: 260, tile: 0.8 },
@@ -211,6 +236,43 @@ function wind(length, rate, seed) {
   return out;
 }
 
+// Synthesised notes: each a quick 3 ms attack into an exponential decay, made of
+// sine partials (multiples of its pitch, each with its own gain).
+function tones(notes, length, rate) {
+  const out = new Float32Array(length);
+  for (const { at = 0, hz, decay, gain = 1, partials = [[1, 1]] } of notes) {
+    const start = Math.round(at * rate);
+    for (let i = 0; start + i < length; i += 1) {
+      const t = i / rate;
+      const envelope = (1 - Math.exp(-t / 0.003)) * Math.exp(-t / decay);
+      if (envelope < 1e-5 && t > decay) break;
+      let value = 0;
+      for (const [multiple, share] of partials) value += Math.sin(2 * Math.PI * hz * multiple * t) * share;
+      out[start + i] += value * envelope * gain;
+    }
+  }
+  return out;
+}
+
+// Synthesised clicks: seeded noise bursts with a sharp decay, filtered to a
+// band around `hz` (a low-pass above it minus a low-pass well below it).
+function clicks(list, length, rate, seed = 3) {
+  const next = random(seed);
+  const out = new Float32Array(length);
+  for (const { at = 0, decay, gain = 1, hz = 2500 } of list) {
+    const start = Math.round(at * rate);
+    const above = 1 - Math.exp(-2 * Math.PI * hz * 1.6 / rate), below = 1 - Math.exp(-2 * Math.PI * hz * 0.4 / rate);
+    let low = 0, lower = 0;
+    for (let i = 0; start + i < length && i < rate * decay * 8; i += 1) {
+      const noise = (next() * 2 - 1) * Math.exp(-i / rate / decay);
+      low += above * (noise - low);
+      lower += below * (low - lower);
+      out[start + i] += (low - lower) * gain * 3;
+    }
+  }
+  return out;
+}
+
 // Make a file of `length` samples loop seamlessly: the extra `blend` samples
 // after the end are crossfaded into its start.
 function seamless(samples, length, blend) {
@@ -241,6 +303,8 @@ function make(recipe) {
   const layers = recipe.layers.map((layer) => {
     let samples;
     if (layer.wind) samples = wind(Math.round((recipe.length ?? 1) * rate) + blend, rate, layer.wind.seed);
+    else if (layer.tones) samples = tones(layer.tones, Math.round((recipe.length ?? 1) * rate), rate);
+    else if (layer.clicks) samples = clicks(layer.clicks, Math.round((recipe.length ?? 1) * rate), rate);
     else {
       samples = decode(layer.file, rate).subarray(Math.round((layer.from ?? 0) * rate));
       samples = changeSpeed(samples, layer.speed ?? 1);

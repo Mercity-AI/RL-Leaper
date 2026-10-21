@@ -8,6 +8,8 @@ import { disposeObject3D } from '../core/disposeObject3D.js';
 import { accelerateStaticMeshes, releaseStaticMeshes } from './raycastAcceleration.js';
 import { batchStaticMeshes } from './staticBatching.js';
 import { applyAtmosphere } from './junkyardAtmosphere.js';
+import { colourJunkyardProps, dressJunkyardSurfaces } from './junkyardSurfaces.js';
+import { findClimbableRoofs } from './climbableRoofs.js';
 import { WorldEffects } from './WorldEffects.js';
 import { limitShadowCasters, QUALITY_PRESETS } from '../core/Quality.js';
 
@@ -48,6 +50,8 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   const spawn = navigation.point(spawnIndex);
   const { floorHeight, floor } = prepareJunkyardMap(gltf.scene, scale);
   scene.add(gltf.scene);
+  // Roofs Lola can climb onto (measured before the map is batched).
+  const roofs = findClimbableRoofs(gltf.scene);
   // Shadows only from props big enough to show one at this quality (the floor
   // and perimeter walls always cast), then one draw per material and yard patch
   // for the map (see staticBatching.js).
@@ -82,12 +86,21 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
     // slider's maximum), baked by scripts/assets/bake-junkyard-metrics.mjs.
     maxWidth: metrics.maxWorkableWidth ?? WIDTH_LIMITS.max,
     floorHeight,
+    roofs,
     spawn: { x: spawn.x * scale, z: spawn.z * scale },
     initialTarget: { x: goal.x * scale, z: goal.z * scale },
     positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),
     playerBlocked: (x, z) => playerNavigation.blocked(x / scale, z / scale),
-    // Lola's wall contact (outward normal) so she slides along angled walls.
-    playerContact: (x, z) => playerNavigation.contact(x / scale, z / scale),
+    // Lola's wall contact (outward normal) so she slides along angled walls;
+    // above: only what reaches higher than this (above the floor) is a wall.
+    playerContact: (x, z, above) => playerNavigation.contact(x / scale, z / scale, undefined,
+      above === undefined ? undefined : (above + floorHeight) / scale),
+    // What Lola would stand on at (x, z): its height above the floor (0 on the
+    // floor), or null when something there reaches above maxTop (above the floor).
+    playerSurface: (x, z, maxTop) => {
+      const top = playerNavigation.surface(x / scale, z / scale, (maxTop + floorHeight) / scale);
+      return top === null ? null : Math.max(0, top * scale - floorHeight);
+    },
   };
 }
 
@@ -147,6 +160,11 @@ export function prepareJunkyardMap(map, scale, { accelerate = true } = {}) {
     object.material.roughness = 0.95;
     object.material.metalness = 0;
   });
+  // junkyard_v2's own floor and wall materials get their colours and dirt
+  // (see junkyardSurfaces.js).
+  if (floor && !floor.isMesh) dressJunkyardSurfaces(floorParts, scale);
+  // Props the owner recoloured over the baked texture (see junkyardSurfaces.js).
+  colourJunkyardProps(map);
   // 3. Fast rays: one bounding-volume hierarchy per map mesh (same hits, far fewer tests).
   if (accelerate) accelerateStaticMeshes(map);
   return { floorHeight: Number.isFinite(floorHeight) ? floorHeight : 0, floor };

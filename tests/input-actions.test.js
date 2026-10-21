@@ -283,3 +283,19 @@ test('menu bindings cover keyboard and gamepad, each key or button meaning one m
   assert.ok(BUTTON_ACTIONS.pause.ui, 'pause is the one gameplay action that also works in menus');
   assert.equal(Object.values(BUTTON_ACTIONS).filter((binding) => binding.ui).length, 1);
 });
+
+test('a pad whose stick rests off-centre (stick drift, a virtual pad) never walks Lola', () => {
+  const p = page(), input = new InputController();
+  p.plug();
+  // Resting well past the dead zone, to the right.
+  p.pad.axes = [0.35, 0.02, -0.25, 0];
+  input.poll();
+  assert.deepEqual(input.getMovement(), { forward: 0, side: 0 }, 'its resting position is its centre');
+  assert.equal(input.axis('look').x, 0, 'the right stick rests too');
+  for (let i = 0; i < 30; i += 1) input.poll();
+  assert.deepEqual(input.getMovement(), { forward: 0, side: 0 }, 'still standing still later');
+  // Pushed right for real: it still moves her.
+  p.pad.axes = [1, 0.02, -0.25, 0];
+  input.poll();
+  assert.ok(input.getMovement().side > 0.5, 'a real push still counts');
+});

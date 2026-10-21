@@ -591,7 +591,9 @@ export class CameraController {
     if (!this.followSubject || this.spectator?.active || this.mode !== 'CHASE' || this.aiming) return;
     this.occlusion?.beforeRender();
     const distance = this.camera.position.distanceTo(this.tempA);
-    const opacity = 0.8 + 0.2 * THREE.MathUtils.smoothstep(distance / this.followSubject.height, 0.8, 1.5);
+    // Close to the lens Lola fades a little so she doesn't block the view; the
+    // owner found 80% too see-through (2026-10-21), so she keeps at least 92%.
+    const opacity = 0.92 + 0.08 * THREE.MathUtils.smoothstep(distance / this.followSubject.height, 0.8, 1.5);
     if (opacity >= 1) return;
     this.fadedMaterials = new Map();
     this.followSubject.mesh.traverse(object => {

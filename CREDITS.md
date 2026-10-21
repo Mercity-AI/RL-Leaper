@@ -26,6 +26,7 @@ projects whose work it uses. The same list is shown in the game's credits.
 - "Empty Gun Shot" by KlawyKogut, https://freesound.org/s/154934/ (CC0 1.0). Used for: empty gun click. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "FPS Footsteps Loop" by qubodup, https://freesound.org/s/816019/ (CC0 1.0). Used for: running footsteps. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - Wind generated for this project from seeded noise (scripts/assets/make-sounds.mjs). Used for: junkyard ambience.
+- Health and ammo pickup sounds synthesised for this project (scripts/assets/make-sounds.mjs). Used for: health pill pickup, ammo bullet pickup.
 
 ## Licence notes
 

@@ -75,7 +75,7 @@ test('with tuning on, every config is a deep, unfrozen copy with the same values
     }
   }
   assert.equal(configs.CAMERA, registry.values('camera'));
-  assert.equal(configs.WEAPONS.m416.reserve, Infinity, 'Infinity survives the copy');
+  assert.equal(configs.WEAPONS.pistol.reserve, Infinity, 'Infinity survives the copy');
   assert.deepEqual(registry.overrides(), {});
   assert.equal(registry.changesJson(), '{}');
 });
@@ -138,7 +138,7 @@ test('set refuses unknown paths, wrong kinds, fixed values and anything not show
   assert.throws(() => registry.set('camera', 'look', 1), /Unknown tunable/, 'a whole group');
   assert.throws(() => registry.set('camera', 'look.constructor', 1), /Unknown tunable/);
   assert.throws(() => registry.set('guns', 'm416.label', 'X'), /Unknown tunable/, 'text is not tunable');
-  assert.throws(() => registry.set('guns', 'm416.reserve', 30), /Unknown tunable/, 'Infinity is not tunable');
+  assert.throws(() => registry.set('guns', 'pistol.reserve', 30), /Unknown tunable/, 'Infinity is not tunable');
   assert.throws(() => registry.set('guns', 'm416.damage', 'lots'), /needs a number/);
   assert.throws(() => registry.set('guns', 'm416.damage', Infinity), /needs a number/);
   assert.throws(() => registry.set('camera', 'look.invertY', true), /not tunable live/, 'a player setting');

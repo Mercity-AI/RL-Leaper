@@ -61,7 +61,7 @@ try {
   const original = [material.opacity, material.transparent, material.depthWrite];
   engine.camera.position.copy(controller.tempA).add(new THREE.Vector3(0, 0, player.height * 0.3));
   controller.beforeRender();
-  check(material.opacity >= original[0] * 0.8 && material.opacity < original[0], 'Lola stays at least 80% opaque');
+  check(material.opacity >= original[0] * 0.92 && material.opacity < original[0], 'Lola stays at least 92% opaque');
   controller.afterRender();
   check(JSON.stringify([material.opacity, material.transparent, material.depthWrite]) === JSON.stringify(original), 'render restores original character materials');
   let steps = 0;

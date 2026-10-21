@@ -22,7 +22,11 @@ export class WorldCollision {
 
   // The map first (cheap and most common), then every moving blocker.
   playerBlocked(x, z) {
-    if (this.mapBlocked(x, z)) return true;
+    return this.mapBlocked(x, z) || this.dynamicBlocked(x, z);
+  }
+
+  // Only the moving blockers (Lola's footing asks the map itself, see LolaPlayer).
+  dynamicBlocked(x, z) {
     for (const blocker of this.blockers) if (blocker(x, z)) return true;
     return false;
   }

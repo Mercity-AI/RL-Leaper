@@ -31,11 +31,19 @@ the game to GitHub Pages once Pages is switched on (see
 searches, chases and fires back), **EXPLORE** (practice: Lola roams and the
 Leaper stands still), **SETTINGS**, **CONTROLS** and **CREDITS**. The Leaper
 has 600 health. Shooting its knees breaks legs: each lost leg slows it, and
-after four it falls for about 6 seconds and takes 1.5x damage meanwhile. A leg
-cut below its lower knee keeps walking on its stump; with no standing leg left
+after four it falls for about 6 seconds and takes 1.5x damage meanwhile. A cut leg
+curls up and hangs; with no standing leg left
 on one side, it tips over onto that side for good. Its eye core is a weak point. Watch for the red ring on the ground: that is a stomp or a leap
-about to land. **Escape** (gamepad Start, touch PAUSE) pauses. The end screen
-shows the time, damage dealt and taken, and knees broken. Settings (quality,
+about to land. **Escape** (gamepad Start, touch PAUSE) pauses; paused in
+EXPLORE, **START THE HUNT FROM HERE** begins the real fight from that moment.
+The end screen shows the time, damage dealt and taken, and knees broken.
+
+**Pickups.** Glowing pickups float around the yard; walk into one to take it.
+A blue-glowing pill gives back 10% of Lola's health; a yellow-glowing bullet
+gives the M416 two spare magazines (40 rounds). The M416 starts each fight with
+four spare magazines and holds at most eight, shown as bullet icons above the
+gun circles; the basic gun never runs out. Each game starts with three of each
+at random spots, and new ones appear once only one is left. Settings (quality,
 look sensitivity, invert look, field of view, sound volumes, large text,
 captions, HUD layout) are remembered in this browser.
 
@@ -129,7 +137,9 @@ written.
 
 **Other page options.** `?quality=low|medium|high` (otherwise chosen
 automatically for the device), `?softRestart=0` (switches off the brain's
-soft restart, on by default), and the lab pages `?arena`, `?training` and `?free`.
+soft restart, on by default), `?explore=1` (opens straight into EXPLORE, click
+once to take the mouse) or `?run=1` (straight into the hunt), and the lab pages
+`?arena`, `?training` and `?free`.
 
 **Art pipeline.** The map's Blender source is
 `assets/blockmesh/junkyard/junkyard_v2.blend` (the owner's

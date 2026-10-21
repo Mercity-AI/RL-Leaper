@@ -29,10 +29,10 @@ export class Encounter {
   // sound engine. input: the InputController (its jump buffer is cleared on restart).
   // leaperBehaviour(enemy, encounter): builds each Leaper's behaviour layer (the
   // game passes createLeaperActor); without it the brain alone moves the Leaper.
-  // pickups: the health pills (src/game/HealthPills.js), scattered afresh by
-  // every restart; none on test pages.
+  // pickups: the floating pickups (health pills, ammo bullets: see
+  // src/game/FloatingPickups.js), scattered afresh by every restart; none on test pages.
   constructor({ flow, events, world, player, vitals, audio = null, playerController, playerWeapon, input, cameraController,
-    leaperBehaviour = null, pickups = null }) {
+    leaperBehaviour = null, pickups = [] }) {
     Object.assign(this, { flow, events, world, player, vitals, audio, playerController, playerWeapon, cameraController, pickups });
     this.inputController = input;
     this.leaperBehaviour = leaperBehaviour;
@@ -110,7 +110,7 @@ export class Encounter {
 
   // Gameplay phase, in a fixed order: Lola (and any shove she is getting), each
   // Leaper's brain, each Leaper's behaviour and animator, each Leaper's attacks
-  // and bolts, the health pills she walks through, Lola's health panel, then Lola's gun.
+  // and bolts, the pickups she walks through, Lola's health panel, then Lola's gun.
   update(dt) {
     const gameDt = this.gameDelta(dt);
     this.playerController.update(gameDt);
@@ -118,7 +118,7 @@ export class Encounter {
     for (const enemy of this.enemies) enemy.brain.update(gameDt);
     for (const enemy of this.enemies) enemy.actor?.update(gameDt);
     for (const enemy of this.enemies) enemy.combat.update(gameDt);
-    this.pickups?.update(gameDt);
+    for (const pickup of this.pickups) pickup.update(gameDt);
     this.vitals.update(gameDt, { over: this.over });
     // The Leaper's walking sound only plays during a live hunt.
     if (!this.flow.hunting || this.over) this.quietRobots();
@@ -226,8 +226,8 @@ export class Encounter {
       this.placeLeaper(enemy, pose);
     });
     this.keepPlayerClear();
-    // A new game: fresh health pills, scattered away from where Lola now stands.
-    this.pickups?.reset();
+    // A new game: fresh pickups, scattered away from where Lola now stands.
+    for (const pickup of this.pickups) pickup.reset();
     this.player.resetJump?.();
     this.inputController.jumpBuffer = 0;
     this.cameraController.target.copy(this.player.mesh.position);
@@ -325,7 +325,7 @@ export class Encounter {
       enemy.brain.dispose?.();
     }
     this.knockback?.dispose();
-    this.pickups?.dispose();
+    for (const pickup of this.pickups) pickup.dispose();
     for (const off of this.unsubscribe.splice(0)) off();
   }
 }

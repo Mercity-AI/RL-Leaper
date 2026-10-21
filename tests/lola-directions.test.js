@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { LolaPlayer } from '../src/robot/LolaPlayer.js';
+import { LolaPlayer, LOLA_PACE } from '../src/robot/LolaPlayer.js';
 import { LolaLocomotion } from '../src/actors/lola/LolaLocomotion.js';
 import { undoWarp } from '../src/actors/lola/LolaAnimator.js';
 
@@ -117,8 +117,10 @@ function feet(player) {
 }
 
 test('changing or reversing direction never flicks her hips round in a frame', async () => {
-  // A steady run moves a foot about 4.6 cm per 60 fps frame. An unlimited hip
-  // twist used to swing the feet 9 cm (A to D) and 12 cm (W+D to S+D) in one.
+  // A steady run moves a foot about 4.6 cm per 60 fps frame at the original
+  // run pace (2.3); faster paces move it proportionally further, so the limit
+  // scales with the pace. An unlimited hip twist used to swing the feet 9 cm
+  // (A to D) and 12 cm (W+D to S+D) in one.
   for (const [label, from, to] of [['A to D', [0, -1], [0, 1]], ['W+D to S+D', [1, 1], [-1, 1]],
     ['W to D', [1, 0], [0, 1]], ['W+A to W+D', [1, -1], [1, 1]], ['D to W+D', [0, 1], [1, 1]]]) {
     const player = await makePlayer();
@@ -130,7 +132,7 @@ test('changing or reversing direction never flicks her hips round in a frame', a
       worst = Math.max(worst, ...now.map((point, k) => point.distanceTo(last[k])));
       last = now;
     }
-    assert.ok(worst < 0.07, `${label}: feet jumped ${(worst * 100).toFixed(1)} cm in one frame`);
+    assert.ok(worst < 0.07 * LOLA_PACE.run / 2.3, `${label}: feet jumped ${(worst * 100).toFixed(1)} cm in one frame`);
   }
 });
 

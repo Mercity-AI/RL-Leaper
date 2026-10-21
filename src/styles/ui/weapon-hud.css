@@ -18,3 +18,14 @@ body > .weapon-hud { position: fixed; right: 18px; bottom: 20px; z-index: 12; }
 /* The key that selects the gun (1 = pistol, 2 = M416). */
 .weapon-hud .gun-tag { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); color: #fff; font-size: var(--font-s, 12px); opacity: .9; }
 @keyframes weapon-hud-empty { from { box-shadow: 0 0 0 0 #ff4b3e00; } to { box-shadow: 0 0 14px 3px #ff4b3e; } }
+/* Spare magazines of a gun whose ammo runs out (the M416): one bullet per
+   magazine it can carry, lit yellow (the ammo pickups' colour) as far as the
+   spares go, part-lit for a part-used one, dark for missing ones. Dimmed while
+   another gun is out; red outline when none are left; new ones pop in. */
+.weapon-hud .spare-rows { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.weapon-hud .spare-row { display: flex; gap: 4px; padding: 4px 6px; border-radius: 8px; background: #15171bcc; opacity: .55; transition: opacity .2s; }
+.weapon-hud .spare-row[data-active=true] { opacity: 1; }
+.weapon-hud .spare-row[data-out=true] { box-shadow: inset 0 0 0 1px #ff4b3e; }
+.weapon-hud .spare { --fill: 1; display: block; width: 8px; height: 22px; clip-path: polygon(50% 0, 88% 22%, 100% 32%, 100% 100%, 0 100%, 0 32%, 12% 22%); background: linear-gradient(to top, #ffc23a calc(var(--fill) * 100%), #ffffff26 calc(var(--fill) * 100%)); filter: drop-shadow(0 1px 1px #000c); }
+.weapon-hud .spare.gained { animation: spare-gained .5s ease-out; }
+@keyframes spare-gained { 0% { transform: scale(1.8); filter: drop-shadow(0 0 6px #ffc23a); } 100% { transform: scale(1); } }

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PlayerController, PLAYER_SPEED } from '../src/game/PlayerController.js';
+import { LOLA_STAMINA } from '../src/actors/lola/lolaTuning.js';
 import { InputController } from '../src/controls/InputController.js';
 import { LolaPlayer } from '../src/robot/LolaPlayer.js';
 
@@ -48,6 +49,39 @@ test('WASD plus the old IJKL keys move Lola along the camera heading, Shift spri
   controller.sample(0.1);
   controller.update(0.1);
   assert.equal(player.moves[1].speed, PLAYER_SPEED.sprint);
+});
+
+test('Lola sprints for 10 s, is winded for 4 s at her normal run, then sprints again (owner, 2026-10-21)', () => {
+  const { input, key } = realInput();
+  const player = fakePlayer();
+  const controller = new PlayerController({ player, input, cameraController: camera(0) });
+  assert.deepEqual({ ...LOLA_STAMINA }, { sprintSeconds: 10, restSeconds: 4 });
+  const frame = () => { controller.sample(0.1); controller.update(0.1); return player.moves.at(-1).speed; };
+  key('keydown', 'KeyW'); key('keydown', 'ShiftLeft');
+  const speeds = Array.from({ length: 150 }, frame); // 15 s holding Shift
+  const sprinted = speeds.findIndex((speed) => speed !== PLAYER_SPEED.sprint);
+  assert.ok(sprinted >= 99 && sprinted <= 101, `about 10 s of sprint (${sprinted / 10} s)`);
+  const winded = speeds.slice(sprinted).findIndex((speed) => speed === PLAYER_SPEED.sprint);
+  assert.ok(winded >= 39 && winded <= 41, `then about 4 s at the run (${winded / 10} s)`);
+  // Holding Shift while standing still costs nothing.
+  controller.reset();
+  key('keyup', 'KeyW');
+  for (let i = 0; i < 50; i++) frame();
+  assert.equal(controller.stamina.energy, 1);
+});
+
+test('letting go of Shift early refills the breath (a full refill takes 4 s)', () => {
+  const { input, key } = realInput();
+  const player = fakePlayer();
+  const controller = new PlayerController({ player, input, cameraController: camera(0) });
+  const frame = () => { controller.sample(0.1); controller.update(0.1); };
+  key('keydown', 'KeyW'); key('keydown', 'ShiftLeft');
+  for (let i = 0; i < 50; i++) frame(); // 5 s of sprint: half the breath
+  assert.ok(Math.abs(controller.stamina.energy - 0.5) < 1e-9);
+  key('keyup', 'ShiftLeft');
+  for (let i = 0; i < 20; i++) frame(); // 2 s of running
+  assert.ok(Math.abs(controller.stamina.energy - 1) < 1e-9, 'full again');
+  assert.equal(controller.stamina.winded, false);
 });
 
 test('a jump pressed while Lola cannot jump yet is kept until she can (review fix 5.36)', () => {

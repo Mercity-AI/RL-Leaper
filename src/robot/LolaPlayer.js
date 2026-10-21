@@ -7,7 +7,7 @@ import { LolaAnimator, undoFlinch } from '../actors/lola/LolaAnimator.js';
 import { LolaActionState } from '../actors/lola/LolaActionState.js';
 import { CharacterMover } from '../actors/lola/CharacterMover.js';
 import {
-  JUMP_FADE_IN, JUMP_FADE_OUT, JUMP_LANDING, JUMP_LIFTOFF, JUMP_RUN_START, JUMP_STANDING_SPEED, LOLA_BLEND_RATE,
+  JUMP_FADE_IN, JUMP_FADE_OUT, JUMP_LANDING, JUMP_LIFTOFF, JUMP_RUN_START, JUMP_STANDING_SPEED, LOLA_BLEND_RATE, LOLA_CLIMB, LOLA_FOOTING,
   LOLA_GRAVITY, LOLA_HOP_HEIGHT, LOLA_INPUT_RESPONSE, LOLA_PACE, LOLA_SHOT_LEG_RATE, LOLA_SPRINT_SPEED, LOLA_STALL_END,
   LOLA_STALL_START, LOLA_SUBSTEP_RATE, LOLA_TURN_RATE, LOLA_WARP_FADE, LOLA_WARP_HIPS, LOLA_WARP_MAX, LOLA_WARP_RATE,
   LOLA_WARP_SPEED,
@@ -57,6 +57,24 @@ export class LolaPlayer {
     this.shot = null;
     this.jumpState = null;
     this.reloadState = null;
+    // The roof she stands on (src/world/climbableRoofs.js) or null on the
+    // ground, the climb onto one while it plays, and how high what she stands
+    // on is above the yard's floor (her root rests there: 0 on the floor).
+    this.roof = null;
+    this.climb = null;
+    this.standHeight = 0;
+    // Collision while on a roof: nothing up there blocks her (its edges drop her).
+    this.roofWorld = { scale: world.scale, playerBlocked: () => false };
+    // Collision on the ground, where the map tells what she stands on
+    // (world.playerSurface): only props reaching above reachTop (what she can
+    // step or, mid-jump, jump onto) block her, plus the moving blockers.
+    this.reachTop = 0;
+    this.groundWorld = {
+      scale: world.scale,
+      playerBlocked: (x, z) => world.playerSurface(x, z, this.reachTop) === null
+        || Boolean(world.collision?.dynamicBlocked(x, z)),
+      playerContact: (x, z) => world.playerContact?.(x, z, this.reachTop) ?? null,
+    };
     // World-space travel direction of the current sub-step.
     this.direction = new THREE.Vector3();
 
@@ -110,6 +128,13 @@ export class LolaPlayer {
 
   // Can a jump start right now? The jump key's buffer should wait for this.
   get canJump() { return this.actionState.can('jump'); }
+
+  // Up on a roof, climbing onto one or dropping from one: off the yard's floor,
+  // out of reach of what happens on it (the Leaper's stomps and leaps, pickups).
+  // (Standing on a barrel or tire stack is not off the ground: that is in reach.)
+  get offGround() {
+    return Boolean(this.roof || this.climb) || this.mesh.position.y > (LOLA_FOOTING.jumpUp + 0.1) * this.world.scale;
+  }
 
   // Seconds the authored reload takes, or null without reload clips.
   get reloadDuration() { return this.equipped.reload?.duration ?? null; }
@@ -283,13 +308,15 @@ export class LolaPlayer {
   // ---- Jumping ----------------------------------------------------------------
 
   jump() {
+    const climb = this.findClimb();
     if (!this.actionState.begin('jump', this.enders)) return false;
     if (this.outfits.every(outfit => outfit.jump)) {
       // The authored clip carries the crouch, lift and landing itself, so Lola
       // stays on the ground physically and keeps her run momentum underneath.
+      // A climb always uses the plain jump from its crouch (a quick take-off).
       const moving = Math.hypot(this.inputForward, this.inputSide) > 0.1;
-      const start = moving ? JUMP_RUN_START : 0;
-      this.jumpState = this.runningJump() ?? { kind: 'jump', rate: JUMP_STANDING_SPEED, start, elapsed: start,
+      const start = moving || climb ? JUMP_RUN_START : 0;
+      this.jumpState = (climb ? null : this.runningJump()) ?? { kind: 'jump', rate: JUMP_STANDING_SPEED, start, elapsed: start,
         liftoff: JUMP_LIFTOFF, landing: JUMP_LANDING, end: this.outfits[0].jump.action.getClip().duration };
       // Both guns' views keep the jump's clock, so switching guns mid-air
       // carries on; showWeapon shows the equipped one's jump gun.
@@ -299,12 +326,106 @@ export class LolaPlayer {
         clip.action.reset().setEffectiveTimeScale(this.jumpState.rate).setEffectiveWeight(0).play();
         clip.action.time = this.jumpState.start;
       }
-    } else {
+    } else if (!climb) {
       this.grounded = false;
       this.verticalVelocity = Math.sqrt(2 * LOLA_GRAVITY * LOLA_HOP_HEIGHT) * this.world.scale;
     }
+    if (climb) this.climb = climb;
     this.showWeapon();
     return true;
+  }
+
+  // ---- Climbing onto roofs ---------------------------------------------------
+
+  // The climb a jump right now would start, or null: on the floor, beside a
+  // roof's edge (LOLA_CLIMB.reach) and facing it, not underneath it.
+  findClimb() {
+    const roofs = this.world.roofs;
+    if (!roofs?.length || this.roof || this.climb || !this.grounded || this.crouching || this.defeated) return null;
+    const p = this.mesh.position, scale = this.world.scale;
+    const facingX = Math.sin(this.mesh.rotation.y), facingZ = Math.cos(this.mesh.rotation.y);
+    for (const roof of roofs) {
+      if (roof.contains(p.x, p.z)) continue;
+      const edge = roof.nearest(p.x, p.z);
+      const dx = edge.x - p.x, dz = edge.z - p.z, distance = Math.hypot(dx, dz);
+      if (distance > LOLA_CLIMB.reach * scale || (dx * facingX + dz * facingZ) < LOLA_CLIMB.facing * distance) continue;
+      // Clip times (standing jump) at which she starts rising and is up: from
+      // just before the feet leave the floor to just before they touch down.
+      return { roof, from: { x: p.x, y: p.y, z: p.z }, to: roof.nearest(p.x, p.z, LOLA_CLIMB.inset * scale),
+        height: roof.top - (this.world.floorHeight ?? 0), elapsed: JUMP_RUN_START,
+        rise: JUMP_LIFTOFF - 2 / 30, up: JUMP_LANDING - 3 / 30 };
+    }
+    return null;
+  }
+
+  // One sub-step of a climb: up fast then easing onto the roof, and across the
+  // edge once she is mostly above it (so her legs clear the wall).
+  updateClimb(deltaTime) {
+    const climb = this.climb;
+    climb.elapsed += deltaTime * JUMP_STANDING_SPEED;
+    const t = THREE.MathUtils.clamp((climb.elapsed - climb.rise) / (climb.up - climb.rise), 0, 1);
+    const across = THREE.MathUtils.smoothstep(t, 0.35, 1);
+    this.mesh.position.x = climb.from.x + (climb.to.x - climb.from.x) * across;
+    this.mesh.position.z = climb.from.z + (climb.to.z - climb.from.z) * across;
+    this.mesh.position.y = climb.from.y + (climb.height - climb.from.y) * Math.sin(t * Math.PI / 2);
+    if (t < 1) return;
+    this.climb = null;
+    this.roof = climb.roof;
+    this.standHeight = climb.height;
+  }
+
+  // She walked off the roof's edge: out past the prop's own wall (onto
+  // anything lower than the roof), then down.
+  dropOff() {
+    const roof = this.roof, p = this.mesh.position, step = 0.05 * this.world.scale;
+    const out = roof.outward(p.x, p.z);
+    this.roof = null;
+    this.reachTop = p.y;
+    const ground = this.groundFor();
+    for (let i = 0; i < 40 && ground.playerBlocked(p.x, p.z); i += 1) {
+      p.x += out.x * step;
+      p.z += out.z * step;
+    }
+    this.standHeight = this.world.playerSurface?.(p.x, p.z, p.y) ?? 0;
+    this.grounded = false;
+    this.verticalVelocity = 0;
+  }
+
+  // ---- Standing on low props ---------------------------------------------------
+
+  // What her movement collides with: a roof, the ground with what she can
+  // stand on (when the world knows), or the world's plain walls.
+  groundFor() {
+    if (this.roof) return this.roofWorld;
+    return this.world.playerSurface ? this.groundWorld : this.world;
+  }
+
+  // The highest top she may move onto this sub-step (above the floor): a step
+  // up from what she stands on, a jump's worth while an authored jump is in the
+  // air, and while falling only what is not above her feet (plus a step).
+  footingReach() {
+    const scale = this.world.scale;
+    if (!this.grounded) return this.mesh.position.y + LOLA_FOOTING.stepUp * scale;
+    const jump = this.jumpState;
+    const airborne = jump && jump.elapsed >= jump.liftoff - 2 / 30 && jump.elapsed <= jump.landing;
+    return this.standHeight + (airborne ? LOLA_FOOTING.jumpUp : LOLA_FOOTING.stepUp) * scale;
+  }
+
+  // After moving: stand on what is under her. Up a step or onto what she jumped
+  // at, quickly; down a step the same way; off anything higher, she falls.
+  followFooting(deltaTime) {
+    const p = this.mesh.position, scale = this.world.scale;
+    const surface = this.world.playerSurface(p.x, p.z, this.reachTop);
+    if (surface === null) return;
+    this.standHeight = surface;
+    if (!this.grounded) return;
+    const rise = LOLA_FOOTING.rise * scale * deltaTime;
+    if (p.y < surface) p.y = Math.min(surface, p.y + rise);
+    else if (p.y - surface <= LOLA_FOOTING.stepUp * scale) p.y = Math.max(surface, p.y - rise);
+    else {
+      this.grounded = false;
+      this.verticalVelocity = 0;
+    }
   }
 
   // Running forward or backward: the running jump whose take-off matches the
@@ -375,11 +496,20 @@ export class LolaPlayer {
     this.updateGuns();
   }
 
-  resetJump() {
+  // Feet down where she stands (the floor, or the roof she is on).
+  land() {
     this.endJump();
     this.grounded = true;
     this.verticalVelocity = 0;
-    this.mesh.position.y = 0;
+    this.mesh.position.y = this.standHeight;
+  }
+
+  // Back on the floor (a new fight, a move by the game): off any roof.
+  resetJump() {
+    this.roof = null;
+    this.climb = null;
+    this.standHeight = 0;
+    this.land();
   }
 
   // ---- Per-frame update -------------------------------------------------------
@@ -415,8 +545,9 @@ export class LolaPlayer {
       const gravity = LOLA_GRAVITY * this.world.scale;
       this.mesh.position.y += this.verticalVelocity * deltaTime - 0.5 * gravity * deltaTime ** 2;
       this.verticalVelocity -= gravity * deltaTime;
-      if (this.mesh.position.y <= 0) this.resetJump();
+      if (this.mesh.position.y <= this.standHeight) this.land();
     }
+    if (this.climb) this.updateClimb(deltaTime);
 
     // Where the input points in the world, and how hard.
     this.direction.copy(forward).multiplyScalar(forwardAmount).addScaledVector(right, sideAmount);
@@ -450,14 +581,21 @@ export class LolaPlayer {
     }
     if (!this.grounded) distance = this.locomotion.airborneDistance(this.equipped, sideAmount, forwardAmount, inputStrength, deltaTime);
     distance *= this.world.scale * this.jumpTravel();
+    // A climb carries her itself.
+    if (this.climb) distance = 0;
 
     // Collision slides her along walls; whatever part of the move a wall still
-    // stops slows the clips to match, so the feet do not skate.
+    // stops slows the clips to match, so the feet do not skate. On a roof
+    // nothing blocks her, and stepping past its edge drops her off.
     const startX = this.mesh.position.x, startZ = this.mesh.position.z;
-    const { moved } = this.mover.move(this.world, this.mesh.position, this.direction, distance);
+    this.reachTop = this.footingReach();
+    const ground = this.groundFor();
+    const { moved } = this.mover.move(ground, this.mesh.position, this.direction, distance);
+    if (this.roof && !this.roof.contains(this.mesh.position.x, this.mesh.position.z)) this.dropOff();
+    else if (ground === this.groundWorld && !this.climb) this.followFooting(deltaTime);
     this.updateWarp(this.mesh.position.x - startX, this.mesh.position.z - startZ, moved, forwardAmount, jumpWeight, deltaTime);
     const progress = distance > 1e-8 ? Math.min(1, moved / distance)
-      : inputStrength && this.mover.blockedAhead(this.world, this.mesh.position, this.direction) ? 0 : 1;
+      : inputStrength && this.mover.blockedAhead(ground, this.mesh.position, this.direction) ? 0 : 1;
     // Pushing into a wall eases her legs toward standing instead of freezing them.
     const stall = 1 - THREE.MathUtils.smoothstep(progress, LOLA_STALL_START, LOLA_STALL_END);
     this.stall += (stall - this.stall) * (1 - Math.exp(-LOLA_BLEND_RATE * deltaTime));

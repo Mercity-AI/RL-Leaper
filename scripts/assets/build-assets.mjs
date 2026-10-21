@@ -73,6 +73,11 @@ const textureNames = new Map();
 function toWebp(image, name) {
   const size = TEXTURE_SIZES[name];
   const key = `${sha256(image)}:${size ?? 'full'}`;
+  // Already WebP at full size (the junkyard atlas, exported lossy from
+  // Blender): kept as is, since a lossless re-encode only makes it bigger.
+  const header = Buffer.from(image.buffer, image.byteOffset, 12).toString('latin1');
+  const isWebp = header.startsWith('RIFF') && header.endsWith('WEBP');
+  if (isWebp && !size) return image;
   if (!webpCache.has(key)) {
     const scale = size ? ['-vf', `scale=${size}:${size}:flags=area`] : [];
     webpCache.set(key, ffmpeg(['-f', 'image2pipe', '-i', 'pipe:0', ...scale,

@@ -211,11 +211,32 @@ export class JunkyardNavigation {
     return false;
   }
 
+  // The height a disc at (x, z) would stand at: the top of the highest solid
+  // triangle it overlaps (0 on the open floor), or null when one of them reaches
+  // above maxTop (too tall to step or jump onto) or the disc leaves the map.
+  surface(x, z, maxTop, radius = this.radius) {
+    const b = this.bounds;
+    if (x - radius < b.minX || x + radius > b.maxX || z - radius < b.minZ || z + radius > b.maxZ) return null;
+    const r2 = radius * radius;
+    let top = 0, tooTall = false;
+    this.nearby(x, z, radius, (t) => {
+      if (x + radius < Math.min(t[0], t[2], t[4]) || x - radius > Math.max(t[0], t[2], t[4])
+        || z + radius < Math.min(t[1], t[3], t[5]) || z - radius > Math.max(t[1], t[3], t[5])) return false;
+      if (triangleDistanceSquared(x, z, t) >= r2) return false;
+      if (t[7] > maxTop) { tooTall = true; return true; }
+      top = Math.max(top, t[7]);
+      return false;
+    });
+    return tooTall ? null : top;
+  }
+
   // The deepest place a disc at (x, z) overlaps the map (a solid triangle or
   // the map's outer edge): { nx, nz } is the unit normal pointing out of the
   // solid and `depth` how far the disc overlaps it; null when the disc is
   // clear. Lola's movement slides along this normal instead of stopping dead.
-  contact(x, z, radius = this.radius) {
+  // above: only triangles reaching higher than this count (what she can step
+  // or jump onto is no wall).
+  contact(x, z, radius = this.radius, above = 0.12) {
     let deepest = null;
     const consider = (hit) => { if (hit && hit.depth > 0 && (!deepest || hit.depth > deepest.depth)) deepest = hit; };
     // The map's outer edges are walls facing inward.
@@ -225,6 +246,7 @@ export class JunkyardNavigation {
     consider({ nx: 0, nz: 1, depth: b.minZ - (z - radius) });
     consider({ nx: 0, nz: -1, depth: z + radius - b.maxZ });
     this.nearby(x, z, radius, (t) => {
+      if (t[7] <= above) return false;
       // Skip triangles whose bounding box the disc cannot reach (most of a bucket).
       if (x + radius < Math.min(t[0], t[2], t[4]) || x - radius > Math.max(t[0], t[2], t[4])
         || z + radius < Math.min(t[1], t[3], t[5]) || z - radius > Math.max(t[1], t[3], t[5])) return false;

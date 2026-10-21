@@ -10,6 +10,7 @@ import { createLeaperActor } from '../actors/leaper/LeaperActor.js';
 import { PlayerController } from '../game/PlayerController.js';
 import { PlayerVitals } from '../game/PlayerVitals.js';
 import { HealthPills } from '../game/HealthPills.js';
+import { AmmoBullets } from '../game/AmmoBullets.js';
 import { PauseOverlay } from '../game/PauseOverlay.js';
 import { captureRunState, restoredPlayerSpot, saveRunState, takeRunState } from '../game/runState.js';
 import { disposeObject3D } from '../core/disposeObject3D.js';
@@ -34,9 +35,10 @@ export class JunkyardPlaytest {
   // brainProvider: where the brain runs (see src/brain/BrainProvider.js); the brain owns it.
   // hud: the game's HUD shell (src/ui/Hud.js), if any: Lola's health and the guns
   //   then only keep their numbers and the shell draws them.
-  // healthPill: the health pill's loaded model (glTF); without it the yard has no pills.
+  // healthPill, ammoBullet: the pickups' loaded models (glTF); without one the
+  // yard has none of that kind.
   constructor({ engine, world, simulation, target, cameraController, audio, flow = null, events = null, signal = null,
-    brainProvider = null, hud = null, healthPill = null }) {
+    brainProvider = null, hud = null, healthPill = null, ammoBullet = null }) {
     Object.assign(this, { engine, world, simulation, target, cameraController, audio, signal, hud });
     // 1. Game state and the event bus every system reports to.
     this.events = events ?? new EventBus();
@@ -67,13 +69,21 @@ export class JunkyardPlaytest {
 
     // 5. The fight: update order, enemies (one Leaper today), start snapshot, results.
     //    Each Leaper gets its behaviour layer (stomp, leap, stagger, downed, death).
-    //    Health pills float around the yard (scattered afresh by every reset).
+    //    Health pills and ammo bullets float around the yard (scattered afresh
+    //    by every reset), each kind keeping clear of the other.
+    const pickupBase = { scene: engine.scene, world, player: target, audio };
     this.healthPills = healthPill && target.isPlayer
-      ? new HealthPills({ scene: engine.scene, world, player: target, vitals: this.vitals, model: healthPill.scene })
+      ? new HealthPills({ ...pickupBase, vitals: this.vitals, model: healthPill.scene,
+        others: () => this.ammoBullets?.items ?? [] })
+      : null;
+    this.ammoBullets = ammoBullet && target.isPlayer
+      ? new AmmoBullets({ ...pickupBase, weapon: this.playerWeapon, defeated: () => this.vitals.dead,
+        model: ammoBullet.scene, others: () => this.healthPills?.items ?? [] })
       : null;
     this.encounter = new Encounter({ flow: this.flow, events: this.events, world, player: target,
       vitals: this.vitals, audio, playerController: this.playerController, playerWeapon: this.playerWeapon,
-      input: simulation.input, cameraController, leaperBehaviour: createLeaperActor, pickups: this.healthPills });
+      input: simulation.input, cameraController, leaperBehaviour: createLeaperActor,
+      pickups: [this.healthPills, this.ammoBullets].filter(Boolean) });
     this.encounter.addEnemy({ simulation, brain: this.brain, combat: this.combat });
     // The result banner reads the encounter's verdict (winner, practice, debug).
     this.events.on(GAME_EVENTS.encounterEnded, ({ stats }) => this.vitals.showResult(stats.text));
@@ -125,13 +135,15 @@ export class JunkyardPlaytest {
 
     // 11. First reset (Loading -> Ready). After APPLY SIZE the session picks up
     //     where it was (Lola's spot, camera, gun, sound and the mode, paused);
-    //     an old ?run=1 link still starts a run.
+    //     an old ?run=1 link still starts a run, and ?explore=1 opens straight
+    //     into EXPLORE (START PLAYER: Lola moves, the Leaper stands still).
     if (!target.isPlayer) this.topView();
     const resume = takeRunState();
     if (resume) this.restoreRunState(resume);
     this.reset();
     if (resume?.mode) this.resumeAfterResize(resume.mode);
     else if (new URLSearchParams(location.search).get('run') === '1') this.start();
+    else if (new URLSearchParams(location.search).get('explore') === '1') this.startPlayer();
   }
 
   // ---- Flags derived from the game state (older systems and test tools read these) ----
@@ -230,6 +242,7 @@ export class JunkyardPlaytest {
     this.sight?.clear();
     this.message.textContent = HELP_MESSAGE;
     this.encounter.restart(spawn);
+    this.playerController.reset();
     this.rebuildOverlay(spawn?.position ?? this.simulation.state.position);
   }
 

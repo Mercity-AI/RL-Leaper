@@ -3,10 +3,10 @@
   "outputs": {
     "maps/junkyard.glb": {
       "source": "assets/maps/junkyard/junkyard.glb",
-      "sourceBytes": 10345788,
-      "sourceSha256": "8a8edae6fce3e0bc00023ba10ae6d589d2be15f5c30b3f3848b7c50647853567",
-      "bytes": 4472148,
-      "sha256": "271bc79195378e984d16d0774dcfbd6bcd500fc44c2445b98a6a738c323b3dee"
+      "sourceBytes": 10346208,
+      "sourceSha256": "16dcb5e9cade47faa7aaa0414d77bdb5f6937c48aac88124653c74e8889aafd6",
+      "bytes": 4472344,
+      "sha256": "fee027d7be19611b0de2c19dc749deba28e895dad2437d02183a145ffbc3a758"
     },
     "lola/lola-m416.glb": {
       "source": "assets/characters/lola/lola-m416.glb",
@@ -497,6 +497,34 @@
       "sourceSha256": "5cca6c0e105f91d18b91acee598003dea8e3eaefa69ee80f7f7c52f15790c497",
       "bytes": 85868,
       "sha256": "316820c8bba39ec47b844b89ccf091690b08a8c46968daf6da0493a06a138778"
+    },
+    "audio/pickup-health.ogg": {
+      "source": "assets/audio/pickup-health.wav",
+      "sourceBytes": 70604,
+      "sourceSha256": "80bf94a681cbda0700163e91fbbdf3e4d2b716750bcb3b06e9f5cc0f18eb799e",
+      "bytes": 6006,
+      "sha256": "6dfa3119dafc9b76150eb612596b536d3b57c09c7b7393a1702c457681815829"
+    },
+    "audio/pickup-health.m4a": {
+      "source": "assets/audio/pickup-health.wav",
+      "sourceBytes": 70604,
+      "sourceSha256": "80bf94a681cbda0700163e91fbbdf3e4d2b716750bcb3b06e9f5cc0f18eb799e",
+      "bytes": 7733,
+      "sha256": "a739778e3b8740992fdb80852fc8e100794139df1cf572d4e5cd80f660952cce"
+    },
+    "audio/pickup-ammo.ogg": {
+      "source": "assets/audio/pickup-ammo.wav",
+      "sourceBytes": 52964,
+      "sourceSha256": "1ce43534905f8478f8396ad06d4dcfceadf5f4475a6b19d40cbf5786c8cb1af2",
+      "bytes": 3832,
+      "sha256": "a79ccf439605f52449ec5d9a9990a62a16c55016fa104ec4dec089778ce4c197"
+    },
+    "audio/pickup-ammo.m4a": {
+      "source": "assets/audio/pickup-ammo.wav",
+      "sourceBytes": 52964,
+      "sourceSha256": "1ce43534905f8478f8396ad06d4dcfceadf5f4475a6b19d40cbf5786c8cb1af2",
+      "bytes": 6052,
+      "sha256": "1363dda8c3890d755b26795f30b744d08771307e77e350f3163397d1daa36d23"
     }
   },
   "textures": {
@@ -506,8 +534,8 @@
     "Legs_BaseColor": "d1e85ed5bc22956a2d8b677a464b0b7c26902249106044ccd4a1b62c22d1066b",
     "Lola_Gun_BaseColor": "58e8ae6e41268756ec93512e763c2c1c0a5a40e3b5d79a18de242908e4e78620",
     "Neck_BaseColor": "f3fcaa1fc712544f0346db3861db96fc9f606b84b66b396fecc978eba324c4fd",
-    "Pants_BaseColor": "d67b8968277140aa5849c1d21ddfa08f3636045720d0c42a35009efcd6188fe0",
-    "Top_BaseColor": "ef3396089d83ebb328ea0ae45c3b84d42a6b56ed456b7dfa225b3a45baefda53",
+    "Pants_BaseColor": "567d6a1b891c50dbf9b991c72ea594d40dca71d6d6efa45d5304bf05598219df",
+    "Top_BaseColor": "65695eaf3048439422c70b7b62dbf8066878fb72c3379fc7cff07aebdd820823",
     "junkyard_atlas": "2f23323b44645a44d536eb5482fbe365b6eec6bd1fd55dfa073708c0f0f4bd92",
     "m416_base_color": "dfdfdd0893317c7a53b9a35cdd208fb1da1912015990c48bcfa0e90cc9f52f17"
   }

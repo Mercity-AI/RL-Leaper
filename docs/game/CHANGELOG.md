@@ -3,6 +3,72 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-10-21: broken legs look broken, Lola gets tired, pickups
+
+### For players
+
+- **Health pills and ammo bullets float around the yard.** Walk into one to
+  take it. A blue-glowing pill (the owner's own model) gives back 10% of
+  Lola's total health; at full health she leaves it be. A yellow-glowing
+  bullet (the owner's model, colours brightened, with its heart) gives the
+  M416 two spare magazines. Both lean, spin slowly and bob inside a sphere
+  that glows at its edge, with a glow on the ground, and are a third of Lola's
+  height plus 10%. Each game starts with three of each at random spots; new
+  ones appear 6 s apart once only one is left (never more than four). A pickup
+  vanishes the moment she touches it, with a sound (the pill's bright rising
+  chime is made for the game).
+- **The M416's spare ammo runs out.** It starts each fight with four spare
+  magazines (80 rounds) and holds at most eight; ammo bullets refill it. A row
+  of bullet icons above the gun circles shows the spares, lit yellow, and new
+  ones pop in. The basic gun never runs out.
+- **Lola is 15% faster** running and sprinting. Her legs blend smoothly when
+  she reverses from W+D into S+D (a sidestep clip used to snap her feet).
+- **Lola is less see-through** when the camera is close behind her (at least
+  92% solid, was 80%).
+- **No more drifting.** A gamepad, or a laptop's virtual controller, whose
+  stick rests off-centre no longer walks Lola on its own.
+- **`?explore=1`** opens straight into EXPLORE (http://localhost:5173/?explore=1
+  with `pnpm dev`).
+
+- **A shot-off leg is gone at once.** A leg cut below its lower knee used to
+  walk on its shin, which reached the floor and looked like a whole leg. Now
+  any cut leg curls up and hangs (and counts as a lost leg). The old rule is one
+  switch away: `walkOnStump` in `src/config/combat.js`.
+- **Hanging legs sit lower and bob.** Their broken ends hang around the eye's
+  height instead of sticking up, and bob gently up and down while the Leaper
+  walks, like a keychain on a bag.
+- **Sprinting tires Lola.** Shift lasts 10 seconds in one go; run it empty and
+  she runs at her normal pace for 4 seconds before she can sprint again
+  (`LOLA_STAMINA` in `src/actors/lola/lolaTuning.js`).
+- **New ammo pickup sound:** a soft tick and two quick rising notes.
+- **Climb the open yellow container.** Face it from close by and press jump:
+  Lola climbs onto its top, walks and shoots from up there, and drops back
+  down when she walks off an edge. Up there the Leaper's stomps and leaps
+  cannot hurt her (its laser still can) and pickups below are out of reach.
+  More props can be made climbable in `src/world/climbableRoofs.js`.
+- **That container is a duller yellow,** and its grey inside wall is yellow too.
+- **Lola stands on low props.** She walks straight up onto anything low
+  (fallen poles, a flat tire, the torn container side) and jumps onto anything
+  up to about three quarters of her height: barrels, tire stacks and mounds,
+  spill piles. Walking off drops her back down. Cars, big scrap heaps and
+  skips are still too tall. Up there the Leaper can still reach her.
+  (`LOLA_FOOTING` in `src/actors/lola/lolaTuning.js`.)
+
+### For developers
+
+- Pickups: `src/game/FloatingPickups.js` (`HealthPills`, `AmmoBullets`),
+  `src/config/pickups.js`, models in `assets/props/`, wired through
+  `Encounter({ pickups })`. `PlayerVitals.heal()` and the `lolaHealed` event;
+  `WeaponState.addReserve()` / `spareRoom` and `PlayerWeapon.addAmmo()`;
+  M416 `reserve: 80, reserveMax: 160` in `src/config/weapons.js`.
+- `scripts/assets/make-sounds.mjs` can synthesise (`tones`, `clicks` layers);
+  the pickup sounds are project originals (`project-pickup-sounds`).
+- `LOLA_PHASE_CATCHUP` (`src/actors/lola/lolaTuning.js`): a visible follower
+  clip eases onto the shared stride phase instead of snapping. The Lola
+  movement pins were re-recorded at the new pace (every distance x1.15).
+- `PAD_TUNING.maxRest` and `InputController.padRestAxes()`: each pad's first
+  reading is its centre.
+
 ## 2026-10-20: everything on the ground, hunt from explore, soft restart
 
 ### For players

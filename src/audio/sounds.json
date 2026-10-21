@@ -654,6 +654,52 @@
           "credits": ["kenney-sci-fi-sounds", "project-generated"]
         }
       ]
+    },
+    {
+      "id": "healthPickup",
+      "label": "health pill pickup",
+      "use": "Lola walks through a health pill and gets 10% of her health back: three bright notes rising.",
+      "bus": "sfx",
+      "gain": 0.45,
+      "priority": 7,
+      "maxVoices": 2,
+      "spatial": false,
+      "variation": { "pitch": 0.02, "volume": 0.04 },
+      "variations": [
+        {
+          "name": "pickup-health",
+          "files": { "ogg": "assets/build/audio/pickup-health.ogg", "m4a": "assets/build/audio/pickup-health.m4a" },
+          "source": {
+            "wav": "assets/audio/pickup-health.wav",
+            "from": "synthesised (tones and noise clicks)",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["project-pickup-sounds"]
+        }
+      ]
+    },
+    {
+      "id": "ammoPickup",
+      "label": "ammo bullet pickup",
+      "use": "Lola walks through an ammo bullet and her M416 gets two spare magazines: a soft tick and two quick rising notes.",
+      "bus": "sfx",
+      "gain": 0.5,
+      "priority": 7,
+      "maxVoices": 2,
+      "spatial": false,
+      "variation": { "pitch": 0.03, "volume": 0.05 },
+      "variations": [
+        {
+          "name": "pickup-ammo",
+          "files": { "ogg": "assets/build/audio/pickup-ammo.ogg", "m4a": "assets/build/audio/pickup-ammo.m4a" },
+          "source": {
+            "wav": "assets/audio/pickup-ammo.wav",
+            "from": "synthesised (tones and noise clicks)",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["project-pickup-sounds"]
+        }
+      ]
     }
   ],
   "unused": [
@@ -789,6 +835,14 @@
       "licence": "CC0 1.0",
       "attribution": "\"Interface Sounds\" by Kenney (www.kenney.nl), https://kenney.nl/assets/interface-sounds (CC0 1.0)",
       "notes": "Courtesy credit. The pack's License.txt is kept beside the used file."
+    },
+    "project-pickup-sounds": {
+      "title": "Pickup sounds",
+      "author": "the Leaper project",
+      "sourceUrl": "scripts/assets/make-sounds.mjs",
+      "licence": "Project original",
+      "attribution": "Health and ammo pickup sounds synthesised for this project (scripts/assets/make-sounds.mjs)",
+      "notes": "Made by the project itself, so it carries the project's own terms (the owner has not chosen them yet; CC0 would suit)."
     },
     "project-generated": {
       "title": "Junkyard wind",

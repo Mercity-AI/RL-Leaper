@@ -15,8 +15,11 @@ import { CALF_LENGTH, COXA_LENGTH, FEMUR_LENGTH, SHIN_LENGTH } from './robot.js'
 //                  rate while the trigger is held, at any frame rate (review fix 5.34)
 //   automatic      true: holding fire keeps shooting; false: one shot per press
 //   magazine       rounds in a full magazine
-//   reserve        spare rounds carried (Infinity = unlimited spares, but every
-//                  magazine still has to be reloaded, automatically when empty or with R)
+//   reserve        spare rounds carried at the start of a fight (Infinity = unlimited
+//                  spares, but every magazine still has to be reloaded, automatically
+//                  when empty or with R). The M416's run out; ammo bullets in the yard
+//                  give more (src/config/pickups.js), the basic gun's never do
+//   reserveMax     the most spare rounds it can carry (limited guns only)
 //   reloadTime     seconds a reload takes when Lola has no reload animation (with one,
 //                  the magazine refills exactly when her animation ends, ~1.43 s)
 //   reloadSound    recording played during the reload, reloadSoundAt seconds in,
@@ -50,7 +53,7 @@ import { CALF_LENGTH, COXA_LENGTH, FEMUR_LENGTH, SHIN_LENGTH } from './robot.js'
 export const WEAPONS = Object.freeze({
   m416: Object.freeze({
     id: 'm416', label: 'M416', key: '2', icon: 'rifle', tracer: 'rifle',
-    damage: 2, interval: 1 / 7, automatic: true, magazine: 20, reserve: Infinity,
+    damage: 2, interval: 1 / 7, automatic: true, magazine: 20, reserve: 80, reserveMax: 160,
     reloadTime: 43 / 30, reloadSound: 'm416Reload', reloadSoundAt: 0.14, shotSound: 'm416',
     range: 60,
     spread: Object.freeze({ base: 0.006, moving: 1.8, bloomPerShot: 0.003, bloomMax: 0.02,

@@ -109,7 +109,7 @@ test('a reload plays its sound on cue and refills the magazine when it ends', ()
   assert.ok(sound >= WEAPONS.m416.reloadSoundAt && sound < WEAPONS.m416.reloadSoundAt + 0.02, `sound at ${sound}`);
   assert.ok(Math.abs(done - 43 / 30) < 0.02, `refilled at ${done}`);
   assert.equal(state.mag, WEAPONS.m416.magazine);
-  assert.equal(state.reserve, Infinity, 'spares stay unlimited');
+  assert.equal(state.reserve, WEAPONS.m416.reserve - (WEAPONS.m416.magazine - 4), 'the missing rounds came out of the spares');
   assert.ok(!state.startReload(), 'a full magazine has nothing to reload');
 });
 
@@ -188,4 +188,25 @@ test('Leaper hit volumes use known zones; the eye core is the weak point', () =>
     assert.ok(entry.shape === 'sphere' ? entry.at : entry.from && entry.to);
   }
   assert.equal(HIT_ZONES.core.multiplier, COMBAT.weakPointMultiplier);
+});
+
+test('M416 spares run out; ammo pickups add to them up to the most it can carry', () => {
+  const rifle = new WeaponState(WEAPONS.m416);
+  assert.equal(rifle.reserve, 80, 'starts with four spare magazines');
+  assert.equal(rifle.spareRoom, 80);
+  assert.equal(rifle.addReserve(40), 40);
+  assert.equal(rifle.addReserve(60), 40, 'never above reserveMax');
+  assert.equal(rifle.reserve, WEAPONS.m416.reserveMax);
+  assert.equal(rifle.spareRoom, 0);
+  // Empty spares: nothing to reload.
+  rifle.reserve = 0;
+  rifle.mag = 0;
+  assert.equal(rifle.canReload, false);
+  rifle.addReserve(40);
+  assert.equal(rifle.canReload, true, 'a pickup makes a reload possible again');
+  // The basic gun never runs out and never needs a pickup.
+  const pistol = new WeaponState(WEAPONS.pistol);
+  assert.equal(pistol.reserve, Infinity);
+  assert.equal(pistol.spareRoom, 0);
+  assert.equal(pistol.addReserve(40), 0);
 });

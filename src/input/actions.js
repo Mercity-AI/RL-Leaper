@@ -20,7 +20,9 @@ export const PAD_AXES = Object.freeze({ leftX: 0, leftY: 1, rightX: 2, rightY: 3
 // and how far a trigger must be pulled to count as pressed. triggers: the analog
 // triggers that use triggerPress (browsers already call a trigger "pressed" at a
 // light touch of about 10%, so a resting finger would fire or aim).
-export const PAD_TUNING = Object.freeze({ deadZone: 0.18, triggerPress: 0.5, triggers: Object.freeze([PAD.LT, PAD.RT]) });
+// maxRest: the most a stick may sit off-centre and still count as resting
+// (InputController takes each pad's first reading as its centre).
+export const PAD_TUNING = Object.freeze({ deadZone: 0.18, maxRest: 0.5, triggerPress: 0.5, triggers: Object.freeze([PAD.LT, PAD.RT]) });
 
 // ---- Buttons ----
 // label: the name in the controls list. hold: "hold" in the list (the action

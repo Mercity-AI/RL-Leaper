@@ -37,8 +37,16 @@ in `docs/game/CHANGELOG.md`.
 Later on 2026-10-19 the owner asked for, and got (same branch, see the
 changelog's evening entry): their own bigger junkyard (`junkyard_v2`, with its
 procedural look baked into one texture), about 30% tougher legs, Leapers that
-walk on leg stumps and tip over for good when one side has no standing leg,
+tip over for good when one side has no standing leg,
 the original plain crosshair, and no pain grunt until a female voice is found.
+
+On 2026-10-20/21 (changelog, 2026-10-21): floating pickups (blue health pills,
+yellow ammo bullets, from the owner's Blender models), limited M416 spare ammo
+with a bullet-icon HUD, synthesised pickup sounds, Lola 15% faster with a
+sprint stamina limit, climbing onto the toppled yellow container and low
+props, hanging cut legs, the reworked yard floor and walls, `?explore=1`, and
+a fix for gamepads whose stick rests off-centre. `CLAUDE.md` lists what is
+committed and the owner's chosen values.
 
 ## Repo map
 
@@ -47,12 +55,13 @@ the original plain crosshair, and no pain grunt until a female voice is found.
 | Game start-up | `index.html`, `src/main.js`, `src/modes/` (`junkyard.js` is the game; `arena.js`, `training.js`, `sandbox.js` are lab pages) |
 | Frame loop, game state | `src/core/` (`GameLoop`, `GameFlow`, `events`, `Quality`, `Assets`, `sunShadow`) |
 | The fight | `src/game/` (`Encounter`, `PlayerController`, `PlayerVitals`, `PauseOverlay`, `JunkyardPanel`), `src/simulation/JunkyardPlaytest.js` (wires one fight) |
+| Pickups | `src/game/FloatingPickups.js` (scatter, refill, glowing sphere, motion) with `HealthPills.js` and `AmmoBullets.js`; numbers in `src/config/pickups.js`; models in `assets/props/`; design preview `previews/health-pill.html` |
 | Lola | `src/robot/LolaPlayer.js` (facade) over `src/actors/lola/` |
 | The Leaper | `src/actors/leaper/` (director, actor, playout, leap planner, feedback), `src/simulation/` (rig animation `LeaperSimulation`, `LeaperCombat`, `AttackController`, leg damage) |
 | Brain client and providers | `src/simulation/JunkyardBrain.js`, `src/brain/BrainProvider.js`, `src/brain/HttpBrainProvider.js`, `src/brain/junkyard/` (ONNX worker and the JS port of the frozen env) |
 | Weapons | `src/config/weapons.js` (data), `src/weapons/` (shot rules, hit volumes, target registry), `src/simulation/PlayerWeapon.js`, `src/simulation/GunshotEffects.js` |
 | Input, UI, audio | `src/input/`, `src/ui/`, `src/styles/`, `src/audio/` (`sounds.json` manifest) |
-| Designer numbers | `src/config/` (`camera`, `combat`, `encounter`, `leaper-behaviour`, `weapons`); `src/config/tuning/` is the live registry |
+| Designer numbers | `src/config/` (`camera`, `combat`, `encounter`, `leaper-behaviour`, `pickups`, `weapons`); `src/config/tuning/` is the live registry |
 | Developer tools | `src/debug/` (DEV drawer, TUNING panel, perf timer), only with `?dev` or `pnpm dev` |
 | World | `src/world/` (map, collision, collision worker, navigation, BVH raycasts), `assets/maps/junkyard/` (export, metrics, passages); map source `assets/blockmesh/junkyard/junkyard_v2.blend`, baked `junkyard_v2_baked.blend` (README "Art pipeline") |
 | Art | `assets/` (sources and `assets/build/` compressed copies), `public/` |
@@ -145,6 +154,18 @@ shows the new gun too. Tests to extend: `tests/resolve-shot.test.js`,
 licence to `src/audio/sounds.json`, put the WAV in `assets/audio/` and run
 `pnpm assets`, then `node scripts/assets/build-credits.mjs`. Play it with
 `audio.play(id, { at })` or a named slot with `audio.playSlot(slot)`.
+
+**A pickup.** Add a kind to `src/config/pickups.js` (spread `SHARED` for the
+approved look and spawning; give it a `name`, glow `colour`, `sound` id and how
+its model lies: `modelAxis` 'x' like the pill or 'y' like the bullet), export
+its model to `assets/props/` (Blender glTF, Y-up; never edit the owner's
+files) and add its URL in `src/core/Assets.js`. Subclass `FloatingPickups`
+with `canTake()` (when it would do something) and `take()` (what it does),
+like `src/game/HealthPills.js` and `src/game/AmmoBullets.js`, then build it in
+`src/simulation/JunkyardPlaytest.js` (pass `others` so kinds keep apart), load
+the model in `src/modes/junkyard.js`, and give its sound a take in
+`src/audio/sounds.json`. Tests to extend: `tests/health-pills.test.js`,
+`tests/ammo-bullets.test.js`.
 
 **An enemy.** The fight already holds a list: `Encounter.addEnemy({ simulation,
 brain, combat })` in `src/game/Encounter.js`, and each enemy registers its hit

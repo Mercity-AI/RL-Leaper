@@ -165,7 +165,8 @@ try {
     check(/downed/.test(win.document.querySelector('#leaperDebugHud')?.textContent ?? ''), 'and the debug HUD shows the raw state');
   }
 
-  // ---- 3b. Stumps and a whole side lost (owner request 2026-10-19: no walking on air) ----
+  // ---- 3b. A whole side lost (owner requests 2026-10-19: no walking on air;
+  //      2026-10-21: a leg cut at its lower knee hangs too, no walking stump) ----
   {
     fight(null);
     await until(() => director.state !== 'dormant', 30, 'the hunt');
@@ -175,19 +176,10 @@ try {
       const piece = joint === 'upper' ? leg.knee : leg.calfJoint;
       for (let n = 0; n < leg.damage[joint].threshold; n += 1) p.combat.legs.hit(piece, direction);
     };
-    // Cut below the lower knees: three stumps that still carry that side.
+    // Cut below the lower knees: three hanging legs, nothing holds the left side up.
     for (const leg of left) shoot(leg, 'lower');
-    check(left.every((leg) => leg.stump && !leg.disabled), 'three lower knees cut: three stumps, none hanging');
-    await until(() => !['stagger'].includes(director.state), 10, 'the stagger to pass');
-    const travelled = { x: state.position.x, z: state.position.z };
-    let planted = 0;
-    await until(() => {
-      for (const leg of left) if (!leg.stepping && Math.abs(leg.calfJoint.position.y - floor - 0.075) < 0.02) planted += 1;
-      return Math.hypot(state.position.x - travelled.x, state.position.z - travelled.z) > 1 && planted > 30;
-    }, 30, 'it to walk on its stumps');
-    check(director.state !== 'downed', `it walks on, its stumps on the floor (${planted} planted stump frames)`);
-    // Now the upper knees too: nothing holds the left side up.
-    for (const leg of left) shoot(leg, 'upper');
+    check(left.every((leg) => !leg.stump && leg.disabled && leg.hanging), 'three lower knees cut: three hanging legs, no stumps');
+    check(left.every((leg) => !leg.calf.visible && !leg.calfJoint.visible), 'the cut pieces leave the Leaper at once');
     await until(() => director.state === 'downed' && director.phase === 'down', 10, 'it to tip over');
     check(director.toppled && director.permanent, 'a whole side gone: it tips over for good');
     check(actor.posture.roll > B.downed.toppledRoll * 0.8, `rolled onto its empty side (${actor.posture.roll.toFixed(2)} rad)`);

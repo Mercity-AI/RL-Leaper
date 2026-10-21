@@ -48,6 +48,20 @@ export class WeaponState {
     return !this.reloading && this.mag < this.weapon.magazine && this.reserve > 0;
   }
 
+  // Spare rounds it could still take (0 when full; Infinity never needs more).
+  get spareRoom() {
+    if (this.reserve === Infinity) return 0;
+    return Math.max(0, (this.weapon.reserveMax ?? Infinity) - this.reserve);
+  }
+
+  // More spare rounds (an ammo pickup), never above reserveMax. Returns how
+  // many were actually added.
+  addReserve(rounds) {
+    const added = Math.min(Math.max(0, rounds), this.spareRoom);
+    this.reserve += added;
+    return added;
+  }
+
   // Current cone half-angle in radians. aiming: aiming down the sights; moving: Lola walks.
   spread({ aiming = false, moving = false } = {}) {
     const { spread, ads } = this.weapon;

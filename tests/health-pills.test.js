@@ -52,12 +52,12 @@ test('a new game scatters three pills, apart from each other and from Lola', () 
   for (const [p, q] of [[a, b], [a, c], [b, c]]) assert.ok(Math.hypot(p.x - q.x, p.z - q.z) >= player.height * HEALTH_PILLS.spacing);
 });
 
-test('the pickup is a third of Lola\'s height', () => {
+test('the pickup is its configured share of Lola\'s height (a third, +10%)', () => {
   const { pills, player } = setup();
   pills.reset();
   const box = new THREE.Box3().setFromObject(pills.pills[0].holder);
   const size = box.getSize(new THREE.Vector3());
-  assert.ok(Math.abs(size.y - player.height / 3) < 0.01, `pickup is ${size.y.toFixed(3)} tall`);
+  assert.ok(Math.abs(size.y - player.height * HEALTH_PILLS.size) < 0.01, `pickup is ${size.y.toFixed(3)} tall`);
 });
 
 test('walking through a pill gives back 10% of total health and the pill vanishes', () => {

@@ -149,9 +149,11 @@ export class LeaperLegDamage {
     for (const [name, key] of Object.entries(ROOT)) {
       if (leg[key].userData.detached) leg.damage[name].broken = true;
     }
-    // Cut below the lower knee, the thigh and shin still reach the floor: the
-    // leg walks on as a stump. Cut any higher, it curls up and hangs.
-    const stands = !['femur', 'knee', 'tibia'].some((key) => leg[key].userData.detached);
+    // Cut below the lower knee, the thigh and shin still reach the floor: with
+    // rules.walkOnStump the leg walks on as a stump. Otherwise (and cut any
+    // higher) it curls up and hangs.
+    const stands = Boolean(this.rules.walkOnStump)
+      && !['femur', 'knee', 'tibia'].some((key) => leg[key].userData.detached);
     if (stands) {
       leg.stump = true;
     } else {

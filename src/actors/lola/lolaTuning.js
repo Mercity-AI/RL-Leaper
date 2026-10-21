@@ -11,10 +11,23 @@ export const LOLA_INPUT_STOP = 0.02;
 export const LOLA_SUBSTEP_RATE = 120;
 
 // How fast Lola's run, sprint and crouch-walk play (and so how fast she travels),
-// as multiples of each clip's authored speed. Run and sprint raised 15% on request.
-export const LOLA_PACE = Object.freeze({ run: 2.3, sprint: 3.1, crouch: 2 });
+// as multiples of each clip's authored speed. Run and sprint raised 15% on request,
+// then another 15% (owner, 2026-10-21: was run 2.3, sprint 3.1). The clips play
+// faster with it, so her feet stay planted; the sprint stays ~35% above the run.
+export const LOLA_PACE = Object.freeze({ run: 2.3 * 1.15, sprint: 3.1 * 1.15, crouch: 2 });
+// When the shared stride phase jumps (reversing W+D into S+D re-measures it
+// from the run's backward cycle), a clip that is visibly blended in catches up
+// at most this many stride cycles per second on top of its own playback, so
+// its pose eases over a few frames instead of snapping the feet. Clips with
+// no weight still snap straight to the shared phase.
+export const LOLA_PHASE_CATCHUP = 4;
 // The move() speed argument above this means "sprint" (callers pass 4.5 or 8).
 export const LOLA_SPRINT_SPEED = 5;
+// Lola tires (owner, 2026-10-21): she can sprint for sprintSeconds in one go;
+// sprinting till empty leaves her winded, running at her normal pace, for
+// restSeconds before Shift works again. Letting go early refills at the same
+// rate (a full refill takes restSeconds), standing or running.
+export const LOLA_STAMINA = Object.freeze({ sprintSeconds: 10, restSeconds: 4 });
 // How fast Lola turns to face the camera's heading, in radians per second.
 export const LOLA_TURN_RATE = 9;
 // How fast locomotion clips cross-fade, in units of 1/second (12 = ~0.25 s).
@@ -51,6 +64,22 @@ export const LOLA_WARP_SPINE = Object.freeze([
   ['DEF-spine.003', 0.3],
   ['DEF-spine.004', 0.3],
 ]);
+
+// Climbing onto a prop's roof (owner, 2026-10-21: the open yellow container;
+// which props: src/world/climbableRoofs.js). Jump with the roof's edge within
+// `reach` (map units, from where she stands) while facing it (cosine of the
+// angle off: 0.5 = within 60 degrees) and she climbs up, landing `inset` map
+// units in from the edge. Walking off an edge drops her to the ground.
+export const LOLA_CLIMB = Object.freeze({ reach: 0.9, facing: 0.5, inset: 0.5 });
+
+// Standing on low props (owner, 2026-10-21: "jump at least above the tires"),
+// in map units (Lola is about 1.7 tall). She walks up onto anything up to
+// stepUp without jumping (fallen poles, a flat tire, the torn container side)
+// and jumps onto anything up to jumpUp (barrels ~0.9, tire stacks and mounds
+// 1.0-1.2, spill piles). Taller props (cars ~1.4+, big heaps, skips) stay
+// walls. rise: how fast she moves up onto a step, map units per second.
+// Walking off something higher than stepUp drops her.
+export const LOLA_FOOTING = Object.freeze({ stepUp: 0.35, jumpUp: 1.25, rise: 8 });
 
 // The physics hop used only when the authored jump clips are missing.
 export const LOLA_GRAVITY = 14;

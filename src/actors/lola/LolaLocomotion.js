@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ENCOUNTER } from '../../config/encounter.js';
 import { footLift } from '../../robot/footstepContacts.js';
-import { LOLA_BLEND_RATE, LOLA_INPUT_STOP, LOLA_PACE, LOLA_STRAFE_BLEND } from './lolaTuning.js';
+import { LOLA_BLEND_RATE, LOLA_INPUT_STOP, LOLA_PACE, LOLA_PHASE_CATCHUP, LOLA_STRAFE_BLEND } from './lolaTuning.js';
 
 // Pose-speed factor that makes a clip's planted boot move back exactly as fast
 // as Lola travels (the stride profile's average speed). Some clips sweep the
@@ -198,8 +198,19 @@ export class LolaLocomotion {
     const deltas = {};
     for (const clip of clips) {
       const start = LolaLocomotion.alignment(outfit, clip.name, clip.sign);
-      clip.action.time = clip.duration * wrap(start + clip.sign * phase);
+      const target = wrap(start + clip.sign * phase);
       deltas[clip.name] = clip.sign * frequency * clip.duration * deltaTime;
+      // The leader, and clips not showing, sit exactly on the shared phase.
+      if (clip === leader || clip.weight <= 0.02) {
+        clip.action.time = clip.duration * target;
+        continue;
+      }
+      // A visible follower plays on and closes any gap to the shared phase at
+      // a limited rate, so a phase jump eases in instead of snapping its pose.
+      const natural = clip.action.time / clip.duration + clip.sign * frequency * deltaTime;
+      const gap = wrap(target - natural + 0.5) - 0.5;
+      const most = LOLA_PHASE_CATCHUP * deltaTime;
+      clip.action.time = clip.duration * wrap(natural + THREE.MathUtils.clamp(gap, -most, most));
     }
     return deltas;
   }
