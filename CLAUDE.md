@@ -76,12 +76,12 @@ it shows the pill and the bullet in yellow and in blue.
 
 ## Where things stand (2026-10-21)
 
-- **Working branch:** `claude/zen-davinci-ku9f5z` (pushed to
-  `Mercity-AI/RL-Leaper` up to `fbacdcf`, which has the first health pills).
-  Everything since (ammo bullets and their HUD, the pickup sounds and tuning,
-  faster Lola, stamina, climbing, hanging legs, the yard's floor and walls) is
-  in the working tree, **not committed**: commit and push only when the owner
-  says. `main` has none of the overhaul. What changed for players:
+- **Working branch:** `claude/zen-davinci-ku9f5z`, pushed to
+  `Mercity-AI/RL-Leaper` with everything above (ammo bullets and their HUD,
+  the pickup sounds and tuning, faster Lola, stamina, climbing, hanging legs,
+  the yard's floor and walls; commit `ae36dbd`, 2026-10-21). Commit and push
+  only when the owner says, and never photos, videos or `previews/`. `main`
+  has none of the overhaul. What changed for players:
   `docs/game/CHANGELOG.md`.
 - **The game** runs with `pnpm dev` at http://localhost:5173/ (title screen:
   PLAY, EXPLORE, SETTINGS, CONTROLS, CREDITS). The owner's test link is
