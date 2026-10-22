@@ -15,7 +15,7 @@ const state = (page) => page.evaluate(() => {
   return {
     flow: p.flow.state.name, mode: p.flow.playMode, screen: document.getElementById('screens')?.dataset.screen ?? '',
     focus: document.activeElement?.dataset?.menuItem ?? document.activeElement?.tagName ?? '',
-    locked: Boolean(document.pointerLockElement), lolaHealth: p.vitals.health, leaperHealth: p.combat.leaperHealth,
+    locked: Boolean(document.pointerLockElement), lolaHealth: p.vitals.health, lolaMax: p.vitals.max, leaperHealth: p.combat.leaperHealth,
   };
 });
 
@@ -161,7 +161,7 @@ export default async function gameFlow(page, { baseUrl, check }) {
   await until(page, (s) => s.flow === 'paused');
   await page.click('.screen:not([hidden]) [data-menu-item=restart]');
   now = await until(page, (s) => s.flow === 'playing');
-  check(now.mode === 'hunt' && now.lolaHealth === 100, 'RESTART in the pause menu starts the hunt again at full health');
+  check(now.mode === 'hunt' && now.lolaHealth === now.lolaMax, 'RESTART in the pause menu starts the hunt again at full health');
   // The gamepad: Start pauses, B in the pause menu resumes.
   await settle(page);
   await padPress(page, 9);

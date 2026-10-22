@@ -18,9 +18,10 @@ import { JunkyardPanel, HELP_MESSAGE } from '../game/JunkyardPanel.js';
 import { ClearanceOverlay } from '../game/ClearanceOverlay.js';
 import { JunkyardPresentation } from '../game/JunkyardPresentation.js';
 import { enableTopViewPlacement } from '../game/topViewPlacement.js';
-import { randomJunkyardStart } from '../world/randomJunkyardStart.js';
+import { randomGameStart, randomJunkyardStart } from '../world/randomJunkyardStart.js';
 import { attachWorldCollision } from '../world/WorldCollision.js';
 import { SAVED_WIDTH_KEY } from '../world/createJunkyardWorld.js';
+import { wantsDevTools } from '../debug/devTools.js';
 
 const ENDED_MESSAGE = 'Encounter over. Press RESTART ENCOUNTER to play again.';
 
@@ -136,14 +137,16 @@ export class JunkyardPlaytest {
     // 11. First reset (Loading -> Ready). After APPLY SIZE the session picks up
     //     where it was (Lola's spot, camera, gun, sound and the mode, paused);
     //     an old ?run=1 link still starts a run, and ?explore=1 opens straight
-    //     into EXPLORE (START PLAYER: Lola moves, the Leaper stands still).
+    //     into EXPLORE (START PLAYER: Lola moves, the Leaper stands still) with
+    //     the developer tools (players have no EXPLORE).
     if (!target.isPlayer) this.topView();
     const resume = takeRunState();
     if (resume) this.restoreRunState(resume);
-    this.reset();
+    // (After APPLY SIZE Lola stays where she was: no random start.)
+    this.reset(null, { random: target.isPlayer && !resume });
     if (resume?.mode) this.resumeAfterResize(resume.mode);
     else if (new URLSearchParams(location.search).get('run') === '1') this.start();
-    else if (new URLSearchParams(location.search).get('explore') === '1') this.startPlayer();
+    else if (new URLSearchParams(location.search).get('explore') === '1' && wantsDevTools()) this.startPlayer();
   }
 
   // ---- Flags derived from the game state (older systems and test tools read these) ----
@@ -237,8 +240,12 @@ export class JunkyardPlaytest {
     if (this.flow.resume()) this.message.textContent = 'Resumed. Esc pauses again.';
   }
 
-  // RESET / RESTART ENCOUNTER (and a vision-mode change): a clean retry.
-  reset(spawn = null) {
+  // RESET / RESTART ENCOUNTER (and a vision-mode change): a new game. In the
+  // game (Lola playing) the Leaper and Lola start at fresh random spots, a fair
+  // distance apart (owner, 2026-10-22; randomGameStart); `random: false` keeps
+  // the old clean retry from the fight's start snapshot.
+  reset(spawn = null, { random = this.target.isPlayer } = {}) {
+    if (!spawn && random) spawn = randomGameStart(this.world);
     this.sight?.clear();
     this.message.textContent = HELP_MESSAGE;
     this.encounter.restart(spawn);

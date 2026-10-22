@@ -392,11 +392,18 @@ export class AudioService {
     return this.play(id, options);
   }
 
-  // A random decoded take (or the named one).
+  // A random decoded take (or the named one), never the one this sound played
+  // last when it has others (Lola's grunts must not repeat back to back).
   pickTake(sound, name) {
     if (name) return this.buffers.get(name) ?? null;
     const decoded = sound.variations.map((variation) => this.buffers.get(variation.name)).filter(Boolean);
-    return decoded.length ? decoded[Math.floor(this.random() * decoded.length) % decoded.length] : null;
+    if (!decoded.length) return null;
+    this.lastTakes ??= new Map();
+    const last = this.lastTakes.get(sound.id);
+    const choices = decoded.length > 1 ? decoded.filter((buffer) => buffer !== last) : decoded;
+    const take = choices[Math.floor(this.random() * choices.length) % choices.length];
+    this.lastTakes.set(sound.id, take);
+    return take;
   }
 
   // Replace lower-priority voices until the sound fits its own, its bus's and the

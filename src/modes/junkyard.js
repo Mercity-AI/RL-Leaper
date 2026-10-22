@@ -1,5 +1,6 @@
 import { createJunkyardWorld } from '../world/createJunkyardWorld.js';
 import { attachWorldCollision } from '../world/WorldCollision.js';
+import { bakeJunkyardSurfaces } from '../world/junkyardSurfaces.js';
 import { LolaPlayer } from '../robot/LolaPlayer.js';
 import { AMMO_BULLET_URL, Assets, HEALTH_PILL_URL, loadLolaFiles } from '../core/Assets.js';
 import { limitShadowCasters, warmUp } from '../core/Quality.js';
@@ -60,7 +61,7 @@ export async function start({ engine, params }) {
   //    game starts fetching its recordings through it straight away.
   const events = new EventBus();
   const flow = new GameFlow({ events });
-  const assets = new Assets({ title: 'LOADING JUNKYARD' });
+  const assets = new Assets({ title: 'LOADING' });
   const audio = new GameAudio({ signal, fetchFile: (url) => assets.fetch(url), quality: engine.quality.name });
   // 3. The Leaper's brain starts loading at once, in its own worker: the saved
   //    network in the browser by default (?brain=http uses the Python service).
@@ -78,7 +79,7 @@ export async function start({ engine, params }) {
   let world, target, healthPill, ammoBullet;
   try {
     let lola;
-    [world, lola, healthPill, ammoBullet] = await loading.run('LOADING JUNKYARD…', 'LOAD FAILED', () => Promise.all([
+    [world, lola, healthPill, ammoBullet] = await loading.run('LOADING…', 'LOAD FAILED', () => Promise.all([
       tag('map', createJunkyardWorld(engine.scene, { assets, quality: engine.quality }).then(mapForBrain)),
       tag('Lola', loadLolaFiles(assets)),
       // The pickups are a bonus: if a model fails, the game goes on without that kind.
@@ -86,6 +87,9 @@ export async function start({ engine, params }) {
       assets.model(AMMO_BULLET_URL).catch(() => null),
     ]));
     attachWorldCollision(world);
+    // The floor's and walls' slow dirt drawn once into pictures, so the
+    // graphics card looks it up instead of working it out every frame.
+    bakeJunkyardSurfaces(engine.renderer, [world.map, world.batches]);
     target = await loading.run('BUILDING LOLA…', 'CHARACTER LOAD FAILED', async () => new LolaPlayer(
       engine.scene, world, document.getElementById('cuboidToggle'), lola.models, lola.jumps, lola.reloads, lola.runJumps));
   } catch (error) {
@@ -137,6 +141,11 @@ export async function start({ engine, params }) {
   //    soon as they are in).
   warmUp(engine.renderer, engine.scene, engine.camera, { render: engine.render });
   assets.done();
+  // The title music should start as the loading screen goes (owner, 2026-10-22),
+  // not on the first click: try to start sound now. Where the browser allows
+  // sound without a gesture this starts it; where it refuses, the first key,
+  // click or touch still starts it (AudioService's page listeners).
+  audio.unlock();
 
   // 9. The frame phases. After dispose() they do nothing, so a loop that is still
   //    running for one more frame can't touch a torn-down session. Each phase

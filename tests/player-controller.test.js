@@ -146,25 +146,25 @@ test('C crouches and 1 / 2 pick guns as input actions, and a pause freezes them 
   const controller = new PlayerController({ player, input, cameraController: camera(0) });
   // Pressed during a pause: nothing happens, then or afterwards.
   key('keydown', 'KeyC'); key('keyup', 'KeyC');
-  key('keydown', 'Digit1'); key('keyup', 'Digit1');
+  key('keydown', 'Digit2'); key('keyup', 'Digit2');
   frame(controller, { frozen: true });
   frame(controller);
-  assert.deepEqual([player.crouches, player.switches], [0, 0], 'a pause froze C and 1');
+  assert.deepEqual([player.crouches, player.switches], [0, 0], 'a pause froze C and 2');
   // While playing: one press, one change.
   key('keydown', 'KeyC');
   frame(controller);
   key('keydown', 'KeyC', true);
   frame(controller);
   assert.equal(player.crouches, 1, 'held C (key repeat) toggles once');
-  key('keydown', 'Digit1');
-  frame(controller);
-  assert.equal(player.weaponIndex, 1, '1 = the pistol');
-  key('keyup', 'Digit1'); key('keydown', 'Digit1');
-  frame(controller);
-  assert.equal(player.weaponIndex, 1, 'the equipped gun\'s key keeps it');
   key('keydown', 'Digit2');
   frame(controller);
-  assert.equal(player.weaponIndex, 0, '2 = the M416');
+  assert.equal(player.weaponIndex, 1, '2 = the pistol');
+  key('keyup', 'Digit2'); key('keydown', 'Digit2');
+  frame(controller);
+  assert.equal(player.weaponIndex, 1, 'the equipped gun\'s key keeps it');
+  key('keydown', 'Digit1');
+  frame(controller);
+  assert.equal(player.weaponIndex, 0, '1 = the M416');
 });
 
 test('the gamepad and touch buttons: move, look, switch guns, pause and resume', () => {

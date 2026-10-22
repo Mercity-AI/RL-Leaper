@@ -4,6 +4,9 @@ import { PlayerVitals, TRAIL_HOLD } from '../src/game/PlayerVitals.js';
 import { EventBus, GAME_EVENTS } from '../src/core/events.js';
 import { COMBAT } from '../src/config/combat.js';
 
+// Lola's full health (src/config/combat.js).
+const FULL = COMBAT.lolaHealth;
+
 // Lola's health rules with a recording stand-in for the page panel.
 function setup() {
   const drawn = [];
@@ -30,8 +33,8 @@ test('a bolt takes 8 health, tells the game, flinches Lola and plays the hurt so
   assert.equal(player.defeated, false, 'a fresh fight frees Lola');
   const direction = { x: 0, y: 0, z: 1 };
   assert.equal(vitals.damage(COMBAT.boltDamage, direction), 8);
-  assert.equal(vitals.health, 92);
-  assert.deepEqual(damaged, [{ amount: 8, health: 92, direction }]);
+  assert.equal(vitals.health, FULL - 8);
+  assert.deepEqual(damaged, [{ amount: 8, health: FULL - 8, direction }]);
   assert.deepEqual(player.flinches, [direction]);
   assert.deepEqual(sounds, ['lolaHitThud', 'lolaHurt']);
   const view = drawn.at(-1);
@@ -42,7 +45,7 @@ test('a bolt takes 8 health, tells the game, flinches Lola and plays the hurt so
 
 test('the lost chunk holds, then drains; the flash ends; nothing moves while paused', () => {
   const { vitals, drawn } = setup();
-  vitals.damage(50);
+  vitals.damage(FULL / 2);
   vitals.update(0);
   assert.equal(drawn.at(-1).trail, 1, 'paused (dt = 0): the trail holds');
   vitals.update(TRAIL_HOLD);
@@ -56,7 +59,7 @@ test('the lost chunk holds, then drains; the flash ends; nothing moves while pau
 
 test('critical health tints the screen edges; zero health defeats Lola once', () => {
   const { vitals, player, sounds, damaged, drawn } = setup();
-  vitals.damage(80);
+  vitals.damage(FULL - 20);
   assert.equal(drawn.at(-1).level, 'low');
   assert.ok(drawn.at(-1).edgeTint > 0);
   assert.equal(sounds.at(-1), 'lolaHurtBig', 'the heavier voice when nearly down');
@@ -72,13 +75,25 @@ test('critical health tints the screen edges; zero health defeats Lola once', ()
 
 test('reset restores health, frees Lola, clears her flinch and hides the result banner', () => {
   const { vitals, player, hud } = setup();
-  vitals.damage(100);
+  vitals.damage(FULL);
   vitals.showResult('LOLA DEFEATED');
   assert.equal(hud.shown, 'LOLA DEFEATED');
   const cleared = player.cleared;
   vitals.reset();
-  assert.equal(vitals.health, 100);
+  assert.equal(vitals.health, FULL);
   assert.equal(player.defeated, false);
   assert.equal(player.cleared, cleared + 1);
   assert.equal(hud.shown, null);
+});
+
+test('the player sees her health out of 100, however tough she really is', () => {
+  const { vitals, drawn } = setup();
+  vitals.update(0);
+  assert.equal(drawn.at(-1).shown, COMBAT.lolaHealthShown, 'full health reads 100');
+  assert.equal(drawn.at(-1).shownMax, COMBAT.lolaHealthShown);
+  vitals.damage(COMBAT.boltDamage);
+  vitals.update(0);
+  const shown = drawn.at(-1).shown;
+  assert.ok(Math.abs(shown - (FULL - 8) * COMBAT.lolaHealthShown / FULL) < 1e-9, `one bolt leaves ${shown}`);
+  assert.ok(COMBAT.lolaHealthShown - shown < COMBAT.boltDamage, 'a bolt costs less of the 100 than before');
 });

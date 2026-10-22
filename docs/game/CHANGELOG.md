@@ -3,6 +3,68 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-10-22: the crosshair decides, a clean screen, Lola's voice
+
+### For players
+
+- **Lola is 20% tougher.** Her health still reads 100, but every hit takes
+  less of it (a laser bolt about 7 instead of 8), so she lasts 15 bolts
+  instead of 13. The red low-health warning still starts at a fifth of her
+  health, and a health pill still gives back a tenth.
+- **A big ending.** When the fight is decided, won or lost, one big impact
+  booms; a moment later the end screen comes up with the title music.
+- **The M416 has a spray pattern, like CS2's.** Hold the trigger and the
+  bullets climb for about 8 shots, hook left, then swing right: the same way
+  every time, so it can be learned. The view climbs with it, so the crosshair
+  always shows where the next bullet goes; pull down and against the drift to
+  keep a spray on target. Tapping or short
+  bursts stay on the crosshair. Random bloom is smaller to make room for it.
+- **The guns kick and shake harder:** more climb per shot, and the view now
+  tilts and jolts back a little with each shot (without moving the aim).
+- **Shots go where the crosshair is.** A bullet hits whatever is under the
+  crosshair, even when low cover sits in front of Lola's gun (before, a
+  container in front of the barrel could swallow a shot aimed over it). The
+  tracer still leaves the gun.
+- **A clean screen.** The title offers PLAY, SETTINGS and CREDITS; no key hints
+  appear in the fight. Every key, gamepad button and touch control is under
+  SETTINGS > CONTROLS > KEYS AND BUTTONS.
+- **Long leg pieces break sooner:** about 20 hits each (19-21, was 32-34);
+  knees still take 11-13. Hits always add up over the whole fight.
+- **No hiding places.** Lola can no longer walk into the two fallen containers
+  the Leaper could not see into (the central one, rust inside, and the
+  north-east one); the containers it can see into stay open as shelters.
+- **Lola grunts when hit**, in the owner's own voice: four grunts, never the
+  same one twice in a row.
+- **The Leaper stars on the title screen**: Lola is hidden and the camera
+  watches the Leaper, lit a little brighter, turn on the spot a couple of
+  steps clockwise and back anticlockwise. The loading screen just says LOADING. The title
+  buttons are shorter with bigger words, and PLAY has no line under it.
+- **Every new game starts somewhere new**: the Leaper and Lola are dropped at
+  random spots, 22-42 map units apart, where the Leaper can reach her.
+- **The M416 is gun 1** (left, and what Lola starts with); the basic gun is 2.
+- **The Leaper's health bar** flashes white only where it is still full when
+  hit, and its eye has no box around it.
+- **Ammo bullets are 10% bigger.**
+- **About three times faster drawing** on laptop graphics: the yard's floor
+  and wall dirt is worked out once while loading instead of every frame, and
+  edges are smoothed with a much cheaper method (FXAA). Full screen on the
+  owner's laptop went from about 17-20 fps to about 60.
+- **FPS on screen** (top right; SETTINGS > GRAPHICS > Show FPS), and **Keep
+  60 FPS**: when the graphics card falls behind, the game draws slightly
+  fewer pixels (never under 60%) instead of dropping frames.
+- **Title music**: a dark electronic loop ("Loading screen loop" by Brandon
+  Morris, CC0) plays on the title screen and fades out when the game starts.
+  It loops every 15.5 s with no audible jump.
+- **Lola's grunts are louder** (gain 0.42 -> 0.65; the low-health cry 0.52 -> 0.7).
+
+### For developers
+
+- EXPLORE, `?explore=1`, START THE HUNT FROM HERE, the VIEW button, the H
+  legend and the gun keys need the developer tools (dev server or `?dev`).
+- On a page that starts play without a click (`?explore=1`) the browser
+  refuses the mouse grab and the view stopped turning at the screen's edge; a
+  click on the view now grabs the mouse properly.
+
 ## 2026-10-21: broken legs look broken, Lola gets tired, pickups
 
 ### For players

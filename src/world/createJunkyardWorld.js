@@ -10,6 +10,7 @@ import { batchStaticMeshes } from './staticBatching.js';
 import { applyAtmosphere } from './junkyardAtmosphere.js';
 import { colourJunkyardProps, dressJunkyardSurfaces } from './junkyardSurfaces.js';
 import { findClimbableRoofs } from './climbableRoofs.js';
+import { findPlayerBlockers, withPlayerBlockers } from './playerBlockers.js';
 import { WorldEffects } from './WorldEffects.js';
 import { limitShadowCasters, QUALITY_PRESETS } from '../core/Quality.js';
 
@@ -41,7 +42,7 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   const scale = junkyardScale(width);
   // The compressed map and, in a worker at the same time, the Leaper's grid (with
   // its connected regions and safe spawn cells) and Lola's.
-  const [gltf, { navigation, playerNavigation, builtBy }] = await Promise.all([
+  const [gltf, { navigation, playerNavigation: playerGrid, builtBy }] = await Promise.all([
     assets.model(MAP_URL),
     assets.task('collision', (report) => loadJunkyardCollision(COLLISION_URL, width, report), COLLISION_LOAD_WEIGHT),
   ]);
@@ -52,6 +53,8 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   scene.add(gltf.scene);
   // Roofs Lola can climb onto (measured before the map is batched).
   const roofs = findClimbableRoofs(gltf.scene);
+  // Props Lola may not walk into (her grid only; the Leaper's stays as trained).
+  const playerNavigation = withPlayerBlockers(playerGrid, findPlayerBlockers(gltf.scene, scale));
   // Shadows only from props big enough to show one at this quality (the floor
   // and perimeter walls always cast), then one draw per material and yard patch
   // for the map (see staticBatching.js).
@@ -91,6 +94,8 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
     initialTarget: { x: goal.x * scale, z: goal.z * scale },
     positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),
     playerBlocked: (x, z) => playerNavigation.blocked(x / scale, z / scale),
+    // The same without the props Lola may not enter (playerBlockers.js), for tools.
+    playerGridBlocked: (x, z) => playerGrid.blocked(x / scale, z / scale),
     // Lola's wall contact (outward normal) so she slides along angled walls;
     // above: only what reaches higher than this (above the floor) is a wall.
     playerContact: (x, z, above) => playerNavigation.contact(x / scale, z / scale, undefined,

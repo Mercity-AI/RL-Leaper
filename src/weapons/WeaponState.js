@@ -1,5 +1,7 @@
 import { SHOOTING } from '../config/tuning/index.js';
 
+const DEGREE = Math.PI / 180;
+
 // One gun's rules with no page, scene or character attached, so they can be
 // tested in Node: its ammunition, when it may fire next, its reload timer and how
 // far its shots currently spread. The PlayerWeapon coordinator owns one of these
@@ -24,6 +26,7 @@ export class WeaponState {
     this.reloadSoundPlayed = false;
     this.bloom = 0;
     this.sinceShot = Infinity;
+    this.sprayShot = 0;
   }
 
   // Let go of everything in progress: the gun may fire at once again and its
@@ -32,6 +35,7 @@ export class WeaponState {
     this.cooldown = 0;
     this.bloom = 0;
     this.sinceShot = Infinity;
+    this.sprayShot = 0;
   }
 
   // ---- Questions the coordinator asks ----
@@ -69,6 +73,19 @@ export class WeaponState {
     return cone * (aiming ? ads.spread : 1);
   }
 
+  // Where the spray pattern puts the next bullet, in radians { right, up } from
+  // where Lola aims (0, 0 for a gun without a pattern, or the first shot of a spray).
+  // at: a spray position in shots (the current one by default; fractions blend).
+  sprayOffset(at = this.sprayShot) {
+    const pattern = this.weapon.spray?.pattern;
+    if (!pattern?.length) return { right: 0, up: 0 };
+    const last = pattern.length - 1;
+    const shot = Math.min(Math.max(0, at), last);
+    const from = Math.floor(shot), to = Math.min(last, from + 1), blend = shot - from;
+    const degrees = i => pattern[from][i] + (pattern[to][i] - pattern[from][i]) * blend;
+    return { right: degrees(0) * DEGREE, up: degrees(1) * DEGREE };
+  }
+
   // ---- Time ----
 
   // Advance one frame. The fire-rate clock keeps up to one shot's worth of
@@ -83,6 +100,11 @@ export class WeaponState {
     this.sinceShot += dt;
     if (this.sinceShot > this.weapon.spread.bloomDelay) {
       this.bloom = Math.max(0, this.bloom - this.weapon.spread.bloomRecovery * dt);
+    }
+    // The spray pattern winds back once the trigger has rested.
+    const spray = this.weapon.spray;
+    if (spray && this.sprayShot > 0 && this.sinceShot > spray.resetDelay) {
+      this.sprayShot = Math.max(0, this.sprayShot - spray.recovery * dt);
     }
     // The reload's sound lands on the animation's hand work; the magazine refills at the end.
     if (this.reloading) {
@@ -162,7 +184,8 @@ export class WeaponState {
     return result;
   }
 
-  // One bullet: spend a round, start the next shot's wait, bloom the spread.
+  // One bullet: spend a round, start the next shot's wait, bloom the spread and
+  // step along the spray pattern.
   // A fresh press waits a whole interval; held fire keeps the overshoot.
   fireOne(shoot, fresh) {
     if (!shoot()) return false;
@@ -170,6 +193,7 @@ export class WeaponState {
     this.cooldown = (fresh ? Math.max(this.cooldown, 0) : this.cooldown) + this.weapon.interval;
     this.bloom = Math.min(this.weapon.spread.bloomMax, this.bloom + this.weapon.spread.bloomPerShot);
     this.sinceShot = 0;
+    if (this.weapon.spray) this.sprayShot = Math.min(this.weapon.spray.pattern.length - 1, this.sprayShot + 1);
     return true;
   }
 }

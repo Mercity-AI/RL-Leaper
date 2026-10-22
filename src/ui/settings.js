@@ -19,6 +19,8 @@ export const SETTINGS_KEY = 'leaper.settings.v1';
 //   textSize     'normal' | 'large' (every HUD and menu text 25% bigger)
 //   captions     short captions for sound cues ("[Leaper's eye charges]")
 //   sound        the whole game's sound on or off
+//   showFps      the frame rate in the top right corner (owner, 2026-10-22: on)
+//   keep60       draw fewer pixels when needed to stay at 60 fps (AdaptiveResolution)
 export const SETTING_DEFAULTS = Object.freeze({
   sensitivity: CAMERA.look.sensitivity,
   invertY: CAMERA.look.invertY,
@@ -26,6 +28,8 @@ export const SETTING_DEFAULTS = Object.freeze({
   textSize: 'normal',
   captions: false,
   sound: true,
+  showFps: true,
+  keep60: true,
 });
 
 // Slider limits.
@@ -47,7 +51,7 @@ export function normalizeSettings(raw = {}) {
   };
   number('sensitivity');
   number('fov');
-  for (const key of ['invertY', 'captions', 'sound']) if (typeof raw?.[key] === 'boolean') value[key] = raw[key];
+  for (const key of ['invertY', 'captions', 'sound', 'showFps', 'keep60']) if (typeof raw?.[key] === 'boolean') value[key] = raw[key];
   if (TEXT_SIZES.includes(raw?.textSize)) value.textSize = raw.textSize;
   return value;
 }

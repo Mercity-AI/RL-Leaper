@@ -44,6 +44,9 @@ body.touch-controls-on .screens-root[data-base="pause"] { bottom: var(--touch-ba
 .menu-primary:hover,
 .menu-primary:focus-visible { background: #f05a33; }
 .menu-back { align-items: center; text-align: center; }
+/* The title's menu: short buttons with big words (owner, 2026-10-22). */
+.screen[data-screen="title"] .menu { width: min(260px, 100%); }
+.screen[data-screen="title"] .menu-item { min-height: 52px; padding: var(--gap-s) var(--gap-l); font-size: var(--font-xl); letter-spacing: 0.16em; }
 
 /* ---- The end screen ---- */
 .screen[data-screen="end"] .screen-heading { font-size: calc(var(--font-xl) * 1.5); }

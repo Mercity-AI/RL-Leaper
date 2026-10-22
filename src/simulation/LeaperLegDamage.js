@@ -11,7 +11,8 @@ const ROOT = { upper: 'knee', lower: 'calfJoint', coxa: 'coxa', femur: 'femur', 
 // [min, max] range picked per piece each encounter. Knees are the smart target;
 // the long leg pieces (shafts) take about 3x as many. Raised about 30% on
 // 2026-10-19 (owner: legs came off too easily), from knee [8, 10], shaft [24, 26].
-export const LEG_HITS = Object.freeze({ knee: [11, 13], shaft: [32, 34] });
+// Shafts lowered to about 20 on 2026-10-22 (owner: "20ish hits for the long pieces").
+export const LEG_HITS = Object.freeze({ knee: [11, 13], shaft: [19, 21] });
 const DOWN = new THREE.Vector3(0, -1, 0);
 const UP = new THREE.Vector3(0, 1, 0);
 

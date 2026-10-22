@@ -1,8 +1,11 @@
 // Distances/speeds are in source-map units and scale with the junkyard.
+// lolaHealth: Lola's real health (120 since 2026-10-22: 20% tougher). The player
+// always sees it on a scale of lolaHealthShown (owner: "we are upping the value
+// of 100, not the number"), so full health reads 100 and one bolt about 7.
 export const COMBAT = Object.freeze({
-  lolaHealth: 100, leaperHealth: 600, boltDamage: 8,
+  lolaHealth: 120, lolaHealthShown: 100, leaperHealth: 600, boltDamage: 8,
   projectileSpeed: 80, weaponRange: 22,
-  laserLength: 2.2, laserRadius: 0.012, lowHealthThreshold: 20,
+  laserLength: 2.2, laserRadius: 0.012, lowHealthThreshold: 24,
   // A shot every shotInterval + warning seconds while Lola stays in view
   // (1.73 s = 1.5x as often as the original 2.6 s; the 0.6 s warning glow is kept).
   warning: 0.6, aimLock: 0.2, shotInterval: 1.13, recovery: 0.35,

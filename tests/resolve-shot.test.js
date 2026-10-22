@@ -121,6 +121,17 @@ test('OBSTRUCTED: low cover blocks the barrel though the crosshair sees over it'
   assert.equal(atTarget.obstructed, false);
 });
 
+test('the crosshair decides: low cover in front of the barrel does not eat a shot the crosshair sees through', () => {
+  const enemy = targets([0, 0.9, -10], 0.6);
+  // A low wall under the camera's sight line but in front of the gun (the owner's container case).
+  const lowWall = world({ size: [6, 1.6, 0.1], at: [0, 0.8, -2] });
+  const near = sightDepth(camera, anchor);
+  const shot = resolveShot({ cameraRay: camera, muzzle: new THREE.Vector3(0.15, 1.2, -0.3), near, world: lowWall,
+    targets: enemy.registry, range: 60 });
+  assert.equal(shot.hit?.kind, 'target', 'the enemy under the crosshair is hit');
+  assert.ok(shot.origin.distanceTo(new THREE.Vector3(0.15, 1.2, -0.3)) < 1e-9, 'the tracer still leaves the barrel');
+});
+
 test('spread keeps each bullet inside its cone, and random = 0 goes dead centre', () => {
   const axis = new THREE.Vector3(0.3, 0.2, -1).normalize();
   assert.ok(spreadDirection(axis, 0.05, () => 0).distanceTo(axis) < 1e-12);

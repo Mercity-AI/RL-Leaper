@@ -249,21 +249,90 @@
     {
       "id": "lolaHurt",
       "label": "Lola's pain grunts",
-      "use": "Lola is hit by a laser bolt (a short pain grunt). Silent for now: the owner removed the old grunts (they did not suit Lola) and wants a female voice here.",
+      "use": "Lola is hit by a laser bolt (a short pain grunt). The owner's own voice (2026-10-22): four grunts, one picked at random per hit.",
       "bus": "sfx",
-      "gain": 0.42,
+      "gain": 0.65,
       "priority": 9,
       "maxVoices": 1,
       "spatial": false,
       "variation": { "pitch": 0.04, "volume": 0.05 },
-      "variations": []
+      "variations": [
+        {
+          "name": "lola-hurt-1",
+          "files": {
+            "ogg": "assets/build/audio/lola-hurt-1.ogg",
+            "m4a": "assets/build/audio/lola-hurt-1.m4a"
+          },
+          "source": {
+            "wav": "assets/audio/lola-hurt-1.wav",
+            "from": "assets/audio/sources/owner/lola-grunts-2026-10-22.ogg",
+            "start": 0.86,
+            "duration": 0.2,
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": [
+            "owner-voice"
+          ]
+        },
+        {
+          "name": "lola-hurt-2",
+          "files": {
+            "ogg": "assets/build/audio/lola-hurt-2.ogg",
+            "m4a": "assets/build/audio/lola-hurt-2.m4a"
+          },
+          "source": {
+            "wav": "assets/audio/lola-hurt-2.wav",
+            "from": "assets/audio/sources/owner/lola-grunts-2026-10-22.ogg",
+            "start": 2.27,
+            "duration": 0.22,
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": [
+            "owner-voice"
+          ]
+        },
+        {
+          "name": "lola-hurt-3",
+          "files": {
+            "ogg": "assets/build/audio/lola-hurt-3.ogg",
+            "m4a": "assets/build/audio/lola-hurt-3.m4a"
+          },
+          "source": {
+            "wav": "assets/audio/lola-hurt-3.wav",
+            "from": "assets/audio/sources/owner/lola-grunts-2026-10-22.ogg",
+            "start": 4.05,
+            "duration": 0.11,
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": [
+            "owner-voice"
+          ]
+        },
+        {
+          "name": "lola-hurt-4",
+          "files": {
+            "ogg": "assets/build/audio/lola-hurt-4.ogg",
+            "m4a": "assets/build/audio/lola-hurt-4.m4a"
+          },
+          "source": {
+            "wav": "assets/audio/lola-hurt-4.wav",
+            "from": "assets/audio/sources/owner/lola-grunts-2026-10-22.ogg",
+            "start": 6.51,
+            "duration": 0.17,
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": [
+            "owner-voice"
+          ]
+        }
+      ]
     },
     {
       "id": "lolaHurtBig",
       "label": "Lola's low-health cry",
       "use": "Lola is hit while at low health (a heavier pain cry).",
       "bus": "sfx",
-      "gain": 0.52,
+      "gain": 0.7,
       "priority": 9,
       "maxVoices": 1,
       "spatial": false,
@@ -656,6 +725,47 @@
       ]
     },
     {
+      "id": "titleMusic",
+      "label": "title music",
+      "use": "Music behind the title screen and the end screen (owner, 2026-10-22), looping while either (or a screen opened from it) is up, fading out when a game starts. The owner picked D, Brandon Morris's dark electronic loop (previews/title-music.html has the others). Raised from gain 0.6 to 1 (owner: louder).",
+      "bus": "ambience",
+      "gain": 1,
+      "priority": 10,
+      "maxVoices": 1,
+      "spatial": false,
+      "loop": { "start": 0, "end": 15.48 },
+      "variations": [
+        {
+          "name": "title-music",
+          "files": { "ogg": "assets/build/audio/title-music.ogg", "m4a": "assets/build/audio/title-music.m4a" },
+          "source": { "wav": "assets/audio/title-music.wav", "from": "assets/audio/sources/opengameart/b423b42-loading-screen-loop.wav (opengameart.org/content/loading-screen-loop, the owner's pick D, 2026-10-22)", "start": 3.105, "end": 18.588, "made": "six bars (15.48 s; the music repeats every 2.58 s) cut where the sound matches best, its last 0.5 s cross-faded into the 0.5 s before the start so the loop has no seam (owner: no abrupt jump)" },
+          "credits": ["oga-loading-screen-loop"]
+        }
+      ]
+    },
+    {
+      "id": "gameEnd",
+      "label": "fight decided",
+      "use": "The fight is over, won or lost (owner, 2026-10-22): one big impact the moment it is decided, before the end screen and its music.",
+      "bus": "sfx",
+      "gain": 0.9,
+      "priority": 10,
+      "maxVoices": 1,
+      "spatial": false,
+      "variations": [
+        {
+          "name": "game-end-impact",
+          "files": { "ogg": "assets/build/audio/game-end-impact.ogg", "m4a": "assets/build/audio/game-end-impact.m4a" },
+          "source": {
+            "wav": "assets/audio/game-end-impact.wav",
+            "from": "assets/audio/sources/kenney/impact-sounds/impactMetal_heavy_001.ogg + sci-fi-sounds/lowFrequency_explosion_000.ogg + lowFrequency_explosion_001.ogg + explosionCrunch_004.ogg + a synthesised sub-bass thump",
+            "made": "scripts/assets/make-sounds.mjs"
+          },
+          "credits": ["kenney-impact-sounds", "kenney-sci-fi-sounds"]
+        }
+      ]
+    },
+    {
       "id": "healthPickup",
       "label": "health pill pickup",
       "use": "Lola walks through a health pill and gets 10% of her health back: three bright notes rising.",
@@ -716,6 +826,14 @@
     }
   ],
   "sources": {
+    "oga-loading-screen-loop": {
+      "title": "Loading screen loop",
+      "author": "Brandon Morris",
+      "sourceUrl": "https://opengameart.org/content/loading-screen-loop",
+      "licence": "CC0 1.0",
+      "attribution": "\"Loading screen loop\" by Brandon Morris, https://opengameart.org/content/loading-screen-loop (CC0 1.0)",
+      "notes": "Courtesy credit (CC0). The file b423b42.wav, used as published (one of the page's two mixes)."
+    },
     "freesound-479353": {
       "title": "Laser Effect Contact Mic",
       "author": "Astounded (Christopher J Astbury)",
@@ -835,6 +953,14 @@
       "licence": "CC0 1.0",
       "attribution": "\"Interface Sounds\" by Kenney (www.kenney.nl), https://kenney.nl/assets/interface-sounds (CC0 1.0)",
       "notes": "Courtesy credit. The pack's License.txt is kept beside the used file."
+    },
+    "owner-voice": {
+      "title": "Lola's pain grunts",
+      "author": "the Leaper project (the owner's own voice)",
+      "sourceUrl": "assets/audio/sources/owner/lola-grunts-2026-10-22.ogg",
+      "licence": "Project original",
+      "attribution": "Lola's pain grunts, recorded by the game's owner for this project",
+      "notes": "The owner's own voice, recorded 2026-10-22 and cut into four grunts (scripts/assets/make-sounds.mjs) with the breaths left out. It carries the project's own terms."
     },
     "project-pickup-sounds": {
       "title": "Pickup sounds",

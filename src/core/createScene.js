@@ -36,7 +36,10 @@ export function createScene(container, { quality = pickQuality().name, glow: all
     renderer.forceContextLoss();
     renderer = makeRenderer(preset.antialias);
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatio));
+  // The preset's sharpness; resolution.scale (0-1, AdaptiveResolution) draws
+  // fewer pixels than that when the frame rate needs it.
+  const basePixelRatio = Math.min(window.devicePixelRatio || 1, preset.pixelRatio);
+  renderer.setPixelRatio(basePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = preset.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
@@ -106,6 +109,15 @@ export function createScene(container, { quality = pickQuality().name, glow: all
     }
   };
   window.addEventListener('resize', onResize);
+  // Draw at a share of the preset's sharpness (1 = full); the glow buffers follow.
+  const resolution = {
+    scale: 1,
+    set(scale) {
+      this.scale = Math.min(1, Math.max(0.1, scale));
+      renderer.setPixelRatio(basePixelRatio * this.scale);
+      onResize();
+    },
+  };
 
   // 6. Let go of the window listener and the GPU resources.
   const dispose = () => {
@@ -113,5 +125,5 @@ export function createScene(container, { quality = pickQuality().name, glow: all
     glow?.dispose();
     renderer.dispose();
   };
-  return { renderer, scene, camera, sun, quality: { name, ...preset }, glow, frame, render, dispose };
+  return { renderer, scene, camera, sun, quality: { name, ...preset }, glow, frame, render, resolution, dispose };
 }

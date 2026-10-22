@@ -47,7 +47,10 @@ export class Encounter {
     // Damage bookkeeping comes from the event bus, whoever caused it. Every
     // subscription is kept so dispose() can unhook it again.
     this.unsubscribe = [
-      events.on(GAME_EVENTS.lolaDamaged, ({ amount = 0 } = {}) => { this.stats.damageTaken += amount; }),
+      // Damage taken counts on the scale the player sees (out of 100).
+      events.on(GAME_EVENTS.lolaDamaged, ({ amount = 0 } = {}) => {
+        this.stats.damageTaken += amount * (this.vitals.shownScale ?? 1);
+      }),
       events.on(GAME_EVENTS.leaperDamaged, ({ amount = 0, debug = false } = {}) => {
         this.stats.damageDealt += amount;
         // Damage from the OPTIONS debug button, or dealt while the Leaper could not

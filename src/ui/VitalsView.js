@@ -23,10 +23,12 @@ export class VitalsView {
     this.last = {};
   }
 
-  // view: { health, max, hit, level, share, trail } (PlayerVitals.view()).
-  update({ health, max, hit, level, share, trail }) {
+  // view: { health, max, shown, shownMax, hit, level, share, trail } (PlayerVitals.view()).
+  // The number and the bar use the shown scale (100) when it is given.
+  update({ health: real, max: realMax, shown, shownMax, hit, level, share, trail }) {
+    const health = shown ?? real, max = shownMax ?? realMax;
     // 1. The number and the screen-reader bar move in whole points.
-    const points = Math.ceil(health);
+    const points = Math.ceil(health - 1e-9);
     this.change('max', max, (value) => { this.bar.max = value; });
     this.change('points', points, (value) => {
       this.bar.value = health;

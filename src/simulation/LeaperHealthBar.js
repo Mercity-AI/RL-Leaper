@@ -9,20 +9,17 @@ const ANCHOR = new THREE.Vector3(0, 0.95, 0);
 const FADE_SPEED = 2.5; // opacity per second when fading out
 // The chase camera's normal field of view in degrees (CameraController).
 const CHASE_FOV = 55;
-// Hit reaction: a white flash for ~2 frames, a small sideways shake, and a scale
+// Hit reaction: the filled part flashes white for ~2 frames, a small sideways shake, and a scale
 // punch that eases back. Pixels / seconds / scale.
 const HIT = Object.freeze({ flashTime: 0.03, shakeTime: 0.15, shakePixels: 3, punchScale: 1.15, punchTime: 0.25 });
 
-// The Leaper's eye as a badge at the bar's left end (the owner's sketch): a
-// slanted square, i.e. a diamond, of dark metal with a copper rim whose right
-// corner the bar grows out of, a dark socket, an iris glowing in the bar's
-// colour and the red weak-point core in the middle.
-const EYE_BADGE = `<svg class="bar-eye" viewBox="0 0 40 40" aria-hidden="true">
+// The Leaper's eye as a badge at the bar's left end: a dark socket, an iris
+// glowing in the bar's colour and the red weak-point core in the middle (no
+// box around it: owner, 2026-10-22, the old diamond frame is gone).
+const EYE_BADGE = `<svg class="bar-eye" viewBox="8.5 8.5 23 23" aria-hidden="true">
   <defs>
-    <linearGradient id="barEyeMetal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4f57"/><stop offset=".55" stop-color="#1c1f24"/><stop offset="1" stop-color="#0b0c0f"/></linearGradient>
     <radialGradient id="barEyeIris"><stop offset="0" style="stop-color: var(--hp-colour, #ff7a30)"/><stop offset=".7" style="stop-color: var(--hp-colour, #ff7a30); stop-opacity: .55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
   </defs>
-  <path class="bar-eye-shield" d="M20 1.5 L38.5 20 L20 38.5 L1.5 20 Z" fill="url(#barEyeMetal)"/>
   <circle class="bar-eye-socket" cx="20" cy="20" r="9.5" fill="#08090b"/>
   <circle class="bar-eye-iris" cx="20" cy="20" r="8" fill="url(#barEyeIris)"/>
   <circle class="bar-eye-core" cx="20" cy="20" r="3.2"/>

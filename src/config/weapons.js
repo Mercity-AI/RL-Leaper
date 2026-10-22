@@ -35,8 +35,22 @@ import { CALF_LENGTH, COXA_LENGTH, FEMUR_LENGTH, SHIN_LENGTH } from './robot.js'
 //                    bloomDelay    seconds after a shot before the bloom shrinks again
 //                    bloomRecovery how fast it then shrinks (radians per second)
 //   recoil         camera kick per shot: pitch (radians up), yawJitter (up to this
-//                  many radians left or right, at random) and recovery (how quickly
-//                  the view settles back, per second; higher = snappier)
+//                  many radians left or right, at random), roll (up to this many
+//                  radians of screen tilt, at random), push (map units the view jolts
+//                  back) and recovery (how quickly the view settles back, per second;
+//                  higher = snappier). Roll and push shake the view without moving
+//                  the crosshair's aim
+//   spray          (automatic guns) a fixed, learnable spray pattern, like CS2's:
+//                    pattern       where each bullet of a held spray goes, in degrees
+//                                  [right, up] from where Lola aims (shot 1 first;
+//                                  past the end the last point repeats)
+//                    viewFollow    share of the pattern the view climbs with (CS2
+//                                  shows about 0.45); the rest lands above or beside
+//                                  the crosshair, so pulling the mouse down and
+//                                  against the drift keeps a spray on target
+//                    resetDelay    seconds off the trigger before the pattern winds back
+//                    recovery      then how many shots of pattern it winds back per
+//                                  second (tapping keeps every shot at shot 1)
 //   ads            aiming-down-sights multipliers: zoom (lens magnification), spread
 //                  and recoil (both multiplied while aiming)
 //   tracer         which tracer and muzzle-flash style the effects draw ('rifle' | 'pistol')
@@ -52,23 +66,33 @@ import { CALF_LENGTH, COXA_LENGTH, FEMUR_LENGTH, SHIN_LENGTH } from './robot.js'
 // Both stay inside the intended 60-90 s fight (TRAINING.md, "600 HP targets 60-90 s").
 export const WEAPONS = Object.freeze({
   m416: Object.freeze({
-    id: 'm416', label: 'M416', key: '2', icon: 'rifle', tracer: 'rifle',
+    id: 'm416', label: 'M416', key: '1', icon: 'rifle', tracer: 'rifle',
     damage: 2, interval: 1 / 7, automatic: true, magazine: 20, reserve: 80, reserveMax: 160,
     reloadTime: 43 / 30, reloadSound: 'm416Reload', reloadSoundAt: 0.14, shotSound: 'm416',
     range: 60,
-    spread: Object.freeze({ base: 0.006, moving: 1.8, bloomPerShot: 0.003, bloomMax: 0.02,
+    spread: Object.freeze({ base: 0.006, moving: 1.8, bloomPerShot: 0.002, bloomMax: 0.012,
       bloomDelay: 0.18, bloomRecovery: 0.08 }),
-    recoil: Object.freeze({ pitch: 0.006, yawJitter: 0.002, recovery: 9 }),
+    recoil: Object.freeze({ pitch: 0.011, yawJitter: 0.004, roll: 0.012, push: 0.075, recovery: 9 }),
+    // Up for the first 8 shots, a hook left, across to the right, then a small
+    // wobble back (in the spirit of CS2's M4A4).
+    spray: Object.freeze({
+      pattern: Object.freeze([
+        [0, 0], [0, 0.4], [0.05, 0.9], [-0.05, 1.5], [0.1, 2.15], [0, 2.8], [-0.1, 3.4], [0.05, 3.9],
+        [-0.35, 4.25], [-0.8, 4.5], [-1.25, 4.65], [-1.5, 4.75], [-1.35, 4.85], [-0.85, 4.9],
+        [-0.2, 4.95], [0.45, 5], [0.9, 5.05], [0.7, 5.1], [0.2, 5.15], [-0.3, 5.2],
+      ].map(point => Object.freeze(point))),
+      viewFollow: 1, resetDelay: 0.2, recovery: 25,
+    }),
     ads: Object.freeze({ zoom: 1.35, spread: 0.4, recoil: 0.6 }),
   }),
   pistol: Object.freeze({
-    id: 'pistol', label: 'BASIC GUN', key: '1', icon: 'pistol', tracer: 'pistol',
+    id: 'pistol', label: 'BASIC GUN', key: '2', icon: 'pistol', tracer: 'pistol',
     damage: 5, interval: 0.5, automatic: false, magazine: 15, reserve: Infinity,
     reloadTime: 43 / 30, reloadSound: 'pistolReload', reloadSoundAt: 0.52, shotSound: 'pistol',
     range: 60,
     spread: Object.freeze({ base: 0.002, moving: 1.5, bloomPerShot: 0.004, bloomMax: 0.008,
       bloomDelay: 0.15, bloomRecovery: 0.05 }),
-    recoil: Object.freeze({ pitch: 0.02, yawJitter: 0.002, recovery: 10 }),
+    recoil: Object.freeze({ pitch: 0.03, yawJitter: 0.004, roll: 0.021, push: 0.12, recovery: 10 }),
     ads: Object.freeze({ zoom: 1.35, spread: 0.25, recoil: 0.7 }),
   }),
 });
@@ -82,7 +106,8 @@ export function weaponForSlot(index) {
   return WEAPONS[WEAPON_SLOTS[index]];
 }
 
-// The weaponIndex slot of the gun a key equips ('1' -> pistol's slot), or -1.
+// The weaponIndex slot of the gun a key equips ('1' -> the M416's slot, the
+// default gun, shown left; '2' -> the pistol: owner, 2026-10-22), or -1.
 export function slotForKey(key) {
   return WEAPON_SLOTS.findIndex(id => WEAPONS[id].key === key);
 }
@@ -122,7 +147,7 @@ export const HIT_FEEDBACK = Object.freeze({
 //   body   the shell and the eye housing
 //   core   the glowing red core in the eye
 //   knee   a leg joint (upper knee or lower calf joint); 8-10 bullets snap it
-//   shaft  a long leg piece; 24-26 bullets snap it (LEG_HITS in LeaperLegDamage.js)
+//   shaft  a long leg piece; 19-21 bullets snap it (LEG_HITS in LeaperLegDamage.js)
 export const HIT_ZONES = Object.freeze({
   body: Object.freeze({ multiplier: 1 }),
   core: Object.freeze({ multiplier: COMBAT.weakPointMultiplier }),

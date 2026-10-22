@@ -49,13 +49,45 @@ export function markGlow(target, on = true) {
 
 // Final step: the picture plus the blurred glow, straight to the screen. Both
 // already hold display colours, so nothing is converted on the way.
+// Edges are smoothed here too, with FXAA (one cheap pass that softens high-
+// contrast edges in the finished picture). It replaced 4x multisampling of the
+// off-screen picture, which on the owner's laptop graphics (AMD Radeon, full
+// screen 2400 x 1350) cost half of every frame: 58 ms a frame with it, 28 ms
+// without (measured 2026-10-22).
 const COMPOSITE_SHADER = {
-  defines: { BLOOM: 1 },
-  uniforms: { tScene: { value: null }, tBloom: { value: null } },
+  defines: { BLOOM: 1, FXAA: 1 },
+  uniforms: { tScene: { value: null }, tBloom: { value: null }, texel: { value: new THREE.Vector2(1, 1) } },
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D tScene; uniform sampler2D tBloom; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tScene; uniform sampler2D tBloom; uniform vec2 texel; varying vec2 vUv;
+    #if FXAA
+    // FXAA (after Timothy Lottes' public-domain FXAA, the short "console" form):
+    // find the edge direction from the four corner neighbours' brightness and
+    // blend along it, unless that would bring in a colour from across the edge.
+    vec3 smoothEdges(vec2 uv) {
+      const vec3 luma = vec3(0.299, 0.587, 0.114);
+      vec3 nw = texture2D(tScene, uv + vec2(-1.0, -1.0) * texel).rgb;
+      vec3 ne = texture2D(tScene, uv + vec2(1.0, -1.0) * texel).rgb;
+      vec3 sw = texture2D(tScene, uv + vec2(-1.0, 1.0) * texel).rgb;
+      vec3 se = texture2D(tScene, uv + vec2(1.0, 1.0) * texel).rgb;
+      vec3 m = texture2D(tScene, uv).rgb;
+      float lNW = dot(nw, luma), lNE = dot(ne, luma), lSW = dot(sw, luma), lSE = dot(se, luma), lM = dot(m, luma);
+      float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));
+      float lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));
+      vec2 dir = vec2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));
+      float reduce = max((lNW + lNE + lSW + lSE) * 0.03125, 1.0 / 128.0);
+      float scale = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);
+      dir = clamp(dir * scale, vec2(-8.0), vec2(8.0)) * texel;
+      vec3 a = 0.5 * (texture2D(tScene, uv + dir * (1.0 / 3.0 - 0.5)).rgb + texture2D(tScene, uv + dir * (2.0 / 3.0 - 0.5)).rgb);
+      vec3 b = a * 0.5 + 0.25 * (texture2D(tScene, uv - dir * 0.5).rgb + texture2D(tScene, uv + dir * 0.5).rgb);
+      float lB = dot(b, luma);
+      return (lB < lMin || lB > lMax) ? a : b;
+    }
+    #endif
     void main() {
       vec4 base = texture2D(tScene, vUv);
+      #if FXAA
+        base.rgb = smoothEdges(vUv);
+      #endif
       #if BLOOM
         base.rgb += texture2D(tBloom, vUv).rgb;
       #endif
@@ -72,22 +104,20 @@ export class GlowRenderer {
   // settings: { strength, radius, resolution } from the quality preset.
   constructor(renderer, scene, camera, settings, { antialias = true } = {}) {
     Object.assign(this, { renderer, scene, camera, settings });
-    // 1. Off-screen picture (multisampled when antialiasing is on), holding
-    //    display (sRGB) colours exactly like the screen would. With a stencil
-    //    buffer, three.js r128 gives a target the same 24-bit depth as the
-    //    screen (its default 16 bits made car windows flicker through the body).
+    // 1. Off-screen picture, holding display (sRGB) colours exactly like the
+    //    screen would (antialiasing: FXAA in the final blend, see above). With
+    //    a stencil buffer, three.js r128 gives a target the same 24-bit depth as
+    //    the screen (its default 16 bits made car windows flicker through the body).
     const size = renderer.getDrawingBufferSize(new THREE.Vector2());
     const options = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
       encoding: THREE.sRGBEncoding, stencilBuffer: true };
-    this.sceneTarget = antialias
-      ? new THREE.WebGLMultisampleRenderTarget(size.x, size.y, options)
-      : new THREE.WebGLRenderTarget(size.x, size.y, options);
+    this.sceneTarget = new THREE.WebGLRenderTarget(size.x, size.y, options);
     // 2. The glow buffer (same size, so the depth copies across) and the bloom
     //    that blurs it (threshold 0: the buffer is black except for what glows).
     this.glowTarget = new THREE.WebGLRenderTarget(size.x, size.y, options);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), settings.strength, settings.radius, 0);
     // 3. The final blend to the screen.
-    this.composite = new THREE.ShaderMaterial({ ...COMPOSITE_SHADER, defines: { ...COMPOSITE_SHADER.defines },
+    this.composite = new THREE.ShaderMaterial({ ...COMPOSITE_SHADER, defines: { ...COMPOSITE_SHADER.defines, FXAA: antialias ? 1 : 0 },
       uniforms: THREE.UniformsUtils.clone(COMPOSITE_SHADER.uniforms),
       depthTest: false, depthWrite: false });
     this.quad = new FullScreenQuad(this.composite);
@@ -103,6 +133,7 @@ export class GlowRenderer {
   setSize(width, height) {
     this.sceneTarget.setSize(width, height);
     this.glowTarget.setSize(width, height);
+    this.composite?.uniforms.texel.value.set(1 / width, 1 / height);
     const share = this.settings.resolution ?? 0.5;
     this.bloom.setSize(Math.max(2, Math.round(width * share * 2)), Math.max(2, Math.round(height * share * 2)));
   }
@@ -131,8 +162,7 @@ export class GlowRenderer {
     return glowing;
   }
 
-  // Copy the picture's depth into the glow buffer (WebGL2 blit; from the
-  // multisampled buffers when the picture is antialiased).
+  // Copy the picture's depth into the glow buffer (WebGL2 blit).
   copyDepth() {
     const { renderer } = this;
     const gl = renderer.getContext();

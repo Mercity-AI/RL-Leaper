@@ -114,11 +114,13 @@ export function settingsScreen(store, api = {}) {
 
 // quality: the preset in use now ('low' | 'medium' | 'high'). reload(): reloads
 // the page (the quality only changes at load). playing(): a fight is under way
-// (so the reload warns that it ends it).
-export function registerGameSections(store, { quality, reload = () => location.reload(), playing = () => false } = {}) {
+// (so the reload warns that it ends it). showControls(): opens the list of every
+// key and button (the only place the game names them for players).
+export function registerGameSections(store, { quality, reload = () => location.reload(), playing = () => false,
+  showControls = null } = {}) {
   const pct = (value) => `${Math.round(value * 100)}%`;
   // 1. Graphics: the quality preset (world track's presets), applied at the next load.
-  store.registerSection({ id: 'graphics', title: 'GRAPHICS', order: 10, build(container, { controls: c }) {
+  store.registerSection({ id: 'graphics', title: 'GRAPHICS', order: 10, build(container, { controls: c, settings: s }) {
     const picked = pickQuality();
     c.select(container, {
       label: 'Graphics quality',
@@ -135,9 +137,14 @@ export function registerGameSections(store, { quality, reload = () => location.r
       hint: 'Reloads the game with the chosen quality.',
       onClick: () => { if (!playing() || globalThis.confirm?.('Reload now? This ends the current fight.') !== false) reload(); },
     });
+    // The frame rate on screen, and holding 60 fps by drawing fewer pixels (owner, 2026-10-22).
+    c.toggle(container, { label: 'Show FPS', checked: s.get('showFps'), onChange: (on) => s.set('showFps', on) });
+    c.toggle(container, { label: 'Keep 60 FPS (lower the resolution when needed)', checked: s.get('keep60'),
+      onChange: (on) => s.set('keep60', on) });
   } });
-  // 2. Controls: look speed, invert up/down, field of view.
+  // 2. Controls: the key list, look speed, invert up/down, field of view.
   store.registerSection({ id: 'controls', title: 'CONTROLS', order: 20, build(container, { controls: c, settings: s }) {
+    if (showControls) c.button(container, { label: 'KEYS AND BUTTONS', hint: 'Every key, gamepad button and touch control.', onClick: showControls });
     c.range(container, { label: 'Look sensitivity', ...SETTING_LIMITS.sensitivity, value: s.get('sensitivity'), format: pct,
       onInput: (value) => s.set('sensitivity', value) });
     c.toggle(container, { label: 'Invert look up / down', checked: s.get('invertY'), onChange: (on) => s.set('invertY', on) });

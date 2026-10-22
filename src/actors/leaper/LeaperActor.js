@@ -55,6 +55,8 @@ export class LeaperActor {
     // 2. The visible pose and how it moves.
     this.playout = new SnapshotPlayout(config.motion);
     this.pose = { x: 0, z: 0, yaw: 0 };
+    // A shown-only offset { x, z, yaw } from the pose (the title screen's turn), or null.
+    this.shownOffset = null;
     this.posture = { ...STANDING };
     // The body's pose when the current state began (a fall starts from there).
     this.entryPosture = { ...STANDING };
@@ -231,7 +233,10 @@ export class LeaperActor {
     this.applyPosture(dt);
     // 4. The animator walks the legs to it (no idle sway once destroyed).
     const alive = director.state !== 'dying' && director.state !== 'dead';
-    this.simulation.applyExternalFrame({ ...this.pose, collision: locomotion === 'rl' && Boolean(frame?.collision) },
+    // The title screen's turn (src/game/TitleShowcase.js) is shown, never played.
+    const offset = this.shownOffset;
+    const shown = offset ? { x: this.pose.x + offset.x, z: this.pose.z + offset.z, yaw: this.pose.yaw + offset.yaw } : this.pose;
+    this.simulation.applyExternalFrame({ ...shown, collision: locomotion === 'rl' && Boolean(frame?.collision) },
       dt, null, { alive });
   }
 

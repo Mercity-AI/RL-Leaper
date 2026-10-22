@@ -81,18 +81,33 @@ const NOISE = /* glsl */ `
 `;
 
 // Floor: mud patches, dry dust, oil stains, grit.
+// The large, slow parts of the floor (mud patches, dust, oil, colour shifts)
+// as four numbers for a point on the floor (x, z in map units).
+const FLOOR_FIELDS = /* glsl */ `
+  vec4 grimeFloorFields(vec2 xz) {
+    // Warp the floor's coordinates by a slow noise first, so patch edges wander
+    // instead of forming rounded blobs.
+    vec2 warp = vec2(grimeFbm(vec3(xz * 0.05, 3.1)), grimeFbm(vec3(xz * 0.05 + 7.7, 6.4))) - 0.5;
+    vec2 q = xz + warp * grimePatchSize * 0.5;
+    float patches = smoothstep(0.38, 0.72, grimeFbm(vec3(q / grimePatchSize, 1.7)));
+    float dust = smoothstep(0.5, 0.78, grimeFbm(vec3(q / (grimePatchSize * 0.55), 9.3)));
+    float oil = smoothstep(1.0 - grimeOilCoverage, 1.0 - grimeOilCoverage + 0.05,
+      grimeFbm(vec3(q / grimeOilSize, 4.1)) * 0.8 + grimeNoise(vec3(q * 0.9, 2.0)) * 0.2);
+    // Slow warm / cool shifts in the earth itself (not just lighter and darker).
+    float tint = grimeFbm(vec3(q * 0.09, 12.5));
+    return vec4(patches, dust, oil, tint);
+  }
+`;
+
 const FLOOR_SHADE = /* glsl */ `
   vec3 p = vGrimePosition;
-  // Warp the floor's coordinates by a slow noise first, so patch edges wander
-  // instead of forming rounded blobs.
-  vec2 warp = vec2(grimeFbm(vec3(p.xz * 0.05, 3.1)), grimeFbm(vec3(p.xz * 0.05 + 7.7, 6.4))) - 0.5;
-  vec2 q = p.xz + warp * grimePatchSize * 0.5;
-  float patches = smoothstep(0.38, 0.72, grimeFbm(vec3(q / grimePatchSize, 1.7)));
-  float dust = smoothstep(0.5, 0.78, grimeFbm(vec3(q / (grimePatchSize * 0.55), 9.3)));
-  float oil = smoothstep(1.0 - grimeOilCoverage, 1.0 - grimeOilCoverage + 0.05,
-    grimeFbm(vec3(q / grimeOilSize, 4.1)) * 0.8 + grimeNoise(vec3(q * 0.9, 2.0)) * 0.2);
-  // Slow warm / cool shifts in the earth itself (not just lighter and darker).
-  float tint = grimeFbm(vec3(q * 0.09, 12.5));
+  // Baked once at load (bakeJunkyardSurfaces) and looked up, or worked out here.
+  #ifdef GRIME_BAKED
+    vec4 fields = texture2D(grimeField, (p.xz - grimeFieldMin) / grimeFieldSize);
+  #else
+    vec4 fields = grimeFloorFields(p.xz);
+  #endif
+  float patches = fields.r, dust = fields.g, oil = fields.b, tint = fields.a;
   vec3 surface = diffuseColor.rgb * mix(vec3(0.86, 0.93, 1.02), vec3(1.14, 1.0, 0.84), tint);
   surface = mix(surface, grimeDust, dust * grimeDustAmount);
   surface = mix(surface, grimeDirt, patches * grimePatchAmount);
@@ -100,29 +115,46 @@ const FLOOR_SHADE = /* glsl */ `
   // Grit: two fine, unaligned layers, faded out with distance so it never
   // shimmers far away.
   float near = 1.0 - smoothstep(6.0, 30.0, length(vViewPosition) / grimeScale);
-  // (Unwarped: warping fine detail smears it into streaks.)
-  float grit = grimeFbm(vec3(p.xz * 2.3, 3.0)) * 0.6 + grimeNoise(vec3(p.xz * 7.9, 0.5)) * 0.4;
-  surface *= 1.0 + grimeGrit * near * (grit - 0.5) * 2.2;
-  // Pebbles and chips: small, soft-edged dark and light specks, scattered at random.
-  float pebble = smoothstep(0.76, 0.86, grimeNoise(vec3(p.xz * 9.0, 21.0)));
-  float chip = smoothstep(0.8, 0.9, grimeNoise(vec3(p.xz * 11.0, 37.0)));
-  surface *= 1.0 - 0.22 * pebble * near;
-  surface = mix(surface, grimeDust * 1.15, 0.3 * chip * near);
+  // Past the fade there is nothing to draw, so the noise isn't worked out there.
+  if (near > 0.0) {
+    // (Unwarped: warping fine detail smears it into streaks.)
+    float grit = grimeFbm(vec3(p.xz * 2.3, 3.0)) * 0.6 + grimeNoise(vec3(p.xz * 7.9, 0.5)) * 0.4;
+    surface *= 1.0 + grimeGrit * near * (grit - 0.5) * 2.2;
+    // Pebbles and chips: small, soft-edged dark and light specks, scattered at random.
+    float pebble = smoothstep(0.76, 0.86, grimeNoise(vec3(p.xz * 9.0, 21.0)));
+    float chip = smoothstep(0.8, 0.9, grimeNoise(vec3(p.xz * 11.0, 37.0)));
+    surface *= 1.0 - 0.22 * pebble * near;
+    surface = mix(surface, grimeDust * 1.15, 0.3 * chip * near);
+  }
   diffuseColor.rgb = surface;
   float grimeGloss = oil;
 `;
 
 // Walls: rust and dark streaks running down, mud along the bottom, grit. The
-// tops of the walls get the streak colour only.
+// tops of the walls get the streak colour only. Their streaks, rust and the
+// wobble of the mud line, for a point `along` the wall at height y (map units):
+const WALL_FIELDS = /* glsl */ `
+  vec3 grimeWallFields(float along, float y) {
+    float drip = smoothstep(0.45, 0.85, grimeFbm(vec3(along * 0.9, y * 0.06, 5.0)))
+      * mix(0.4, 1.0, smoothstep(0.0, 9.0, y));
+    float rust = smoothstep(0.5, 0.8, grimeFbm(vec3(along * 0.35, y * 0.12, 11.0)))
+      * mix(0.55, 1.0, grimeNoise(vec3(along * 3.0, y * 0.4, 6.0)));
+    float wobble = grimeNoise(vec3(along * 1.5, 0.0, 8.0));
+    return vec3(drip, rust, wobble);
+  }
+`;
+
 const WALL_SHADE = /* glsl */ `
   vec3 p = vGrimePosition;
   float along = abs(vGrimeNormal.x) > abs(vGrimeNormal.z) ? p.z : p.x;
   float upright = 1.0 - abs(vGrimeNormal.y);
-  float drip = smoothstep(0.45, 0.85, grimeFbm(vec3(along * 0.9, p.y * 0.06, 5.0)))
-    * mix(0.4, 1.0, smoothstep(0.0, 9.0, p.y));
-  float rust = smoothstep(0.5, 0.8, grimeFbm(vec3(along * 0.35, p.y * 0.12, 11.0)))
-    * mix(0.55, 1.0, grimeNoise(vec3(along * 3.0, p.y * 0.4, 6.0)));
-  float splash = (1.0 - smoothstep(0.0, grimeHeight, p.y + (grimeNoise(vec3(along * 1.5, 0.0, 8.0)) - 0.5) * grimeHeight * 0.6));
+  #ifdef GRIME_BAKED
+    vec3 fields = texture2D(grimeField, (vec2(along, p.y) - grimeFieldMin) / grimeFieldSize).rgb;
+  #else
+    vec3 fields = grimeWallFields(along, p.y);
+  #endif
+  float drip = fields.r, rust = fields.g;
+  float splash = (1.0 - smoothstep(0.0, grimeHeight, p.y + (fields.b - 0.5) * grimeHeight * 0.6));
   vec3 surface = mix(diffuseColor.rgb, grimeRust, rust * grimeRustAmount * upright);
   surface = mix(surface, grimeStreak, drip * grimeStreakAmount);
   surface = mix(surface, grimeMud, splash * upright * 0.9);
@@ -136,8 +168,9 @@ function linear(hex) {
 }
 
 // Dress one of the yard's materials as floor or wall. scale: the map's scale,
-// so the dirt keeps its size in map units at every Leaper size.
-function dress(material, kind, scale) {
+// so the dirt keeps its size in map units at every Leaper size. bounds: the
+// yard's extent in map units ({ min, max }), what a baked picture covers.
+function dress(material, kind, scale, bounds) {
   const look = JUNKYARD_SURFACES[kind];
   material.color.copy(linear(look.colour));
   material.roughness = look.roughness;
@@ -153,8 +186,13 @@ function dress(material, kind, scale) {
   };
   uniforms.grimeGrit = { value: look.grit };
   uniforms.grimeScale = { value: scale };
+  // The baked fields (bakeJunkyardSurfaces): the picture, and the map-unit
+  // rectangle it covers (floor: x and z; walls: along the wall, and height).
+  const field = { grimeField: { value: null }, grimeFieldMin: { value: new THREE.Vector2() },
+    grimeFieldSize: { value: new THREE.Vector2(1, 1) } };
+  BAKES.set(material, { kind, uniforms, field, bounds });
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
+    Object.assign(shader.uniforms, uniforms, field);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float grimeScale;\nvarying vec3 vGrimePosition;\nvarying vec3 vGrimeNormal;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -163,24 +201,35 @@ function dress(material, kind, scale) {
     const declarations = Object.entries(uniforms)
       .map(([name, { value }]) => `uniform ${value.isColor ? 'vec3' : 'float'} ${name};`).join('\n');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${declarations}\nvarying vec3 vGrimePosition;\nvarying vec3 vGrimeNormal;\n${NOISE}`)
+      .replace('#include <common>', `#include <common>\n${declarations}\n${FIELD_DECLARATIONS}\nvarying vec3 vGrimePosition;\nvarying vec3 vGrimeNormal;\n${NOISE}\n`
+        + (kind === 'floor' ? FLOOR_FIELDS : WALL_FIELDS))
       .replace('#include <color_fragment>', `#include <color_fragment>\n${kind === 'floor' ? FLOOR_SHADE : WALL_SHADE}`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.35, grimeGloss);');
   };
-  material.customProgramCacheKey = () => `junkyard-${kind}`;
+  material.customProgramCacheKey = () => `junkyard-${kind}-${material.defines?.GRIME_BAKED === undefined ? 'live' : 'baked'}`;
   material.needsUpdate = true;
 }
+
+// Each dressed material's bake job (what it needs to be baked, and its picture
+// once it is). Kept off the material so a clone (a camera fade) never shares it.
+const BAKES = new WeakMap();
+
+const FIELD_DECLARATIONS ='uniform sampler2D grimeField;\nuniform vec2 grimeFieldMin;\nuniform vec2 grimeFieldSize;';
 
 // Dress the yard's own floor and wall materials (junkyard_v2's Cube: a
 // "... walls" and a "... ground" material). Other maps are left alone.
 export function dressJunkyardSurfaces(floorParts, scale) {
   const done = new Set();
+  // The yard's extent in map units (what the baked pictures cover).
+  const box = new THREE.Box3();
+  for (const mesh of floorParts) box.expandByObject(mesh);
+  const bounds = { min: box.min.clone().divideScalar(scale), max: box.max.clone().divideScalar(scale) };
   for (const mesh of floorParts) {
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       if (done.has(material) || !material.isMeshStandardMaterial) continue;
       const kind = /wall/i.test(material.name) ? 'walls' : /ground|floor/i.test(material.name) ? 'floor' : null;
       if (!kind) continue;
-      dress(material, kind, scale);
+      dress(material, kind, scale, bounds);
       done.add(material);
     }
   }
@@ -210,4 +259,77 @@ export function colourJunkyardProps(map, looks = JUNKYARD_PROP_COLOURS) {
     count += 1;
   });
   return count;
+}
+
+// ---- Baking the slow parts once (owner, 2026-10-22: "fix the fps") ----
+// Worked out live, the floor's dirt took 39 layers of noise per pixel every
+// frame and the walls' 18. On the owner's laptop graphics that alone held the
+// game near 20 fps whenever the camera looked across the yard. The large,
+// slow parts (mud patches, dust, oil, colour shifts; wall streaks and rust)
+// never change, so they are drawn once into a picture at load and only looked
+// up after that. The fine grit and pebbles stay live (small, and they fade
+// with distance). Picture sizes in pixels: the floor's covers the whole yard
+// (about 26 pixels per map unit), the walls' runs the yard's length.
+export const BAKE = Object.freeze({
+  floor: Object.freeze({ width: 2048, height: 2048 }),
+  walls: Object.freeze({ width: 4096, height: 256 }),
+});
+
+const BAKE_VERTEX = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+
+// Draw each dressed floor / wall material's fields into its picture and
+// switch it to looking them up. roots: what holds the yard's materials (the
+// map, its batched copy). Returns how many materials were baked.
+export function bakeJunkyardSurfaces(renderer, roots) {
+  const materials = new Set();
+  for (const root of [roots].flat()) {
+    root?.traverse((object) => [object.material].flat().forEach((material) => {
+      if (BAKES.has(material) && !BAKES.get(material).target) materials.add(material);
+    }));
+  }
+  if (!materials.size) return 0;
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+  quad.frustumCulled = false;
+  const scene = new THREE.Scene();
+  scene.add(quad);
+  const previous = renderer.getRenderTarget();
+  for (const material of materials) {
+    const bake = BAKES.get(material);
+    const { min, max } = bake.bounds;
+    const floor = bake.kind === 'floor';
+    // The rectangle in map units: floor x / z, or walls along / height.
+    const lo = floor ? new THREE.Vector2(min.x, min.z) : new THREE.Vector2(Math.min(min.x, min.z), min.y);
+    const hi = floor ? new THREE.Vector2(max.x, max.z) : new THREE.Vector2(Math.max(max.x, max.z), max.y);
+    const span = hi.clone().sub(lo);
+    const { width, height } = floor ? BAKE.floor : BAKE.walls;
+    const target = new THREE.WebGLRenderTarget(width, height, { minFilter: THREE.LinearMipmapLinearFilter,
+      magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false });
+    target.texture.generateMipmaps = true;
+    const declarations = Object.entries(bake.uniforms)
+      .map(([name, { value }]) => `uniform ${value.isColor ? 'vec3' : 'float'} ${name};`).join('\n');
+    quad.material = new THREE.ShaderMaterial({
+      uniforms: { ...bake.uniforms, lo: { value: lo }, span: { value: span } },
+      vertexShader: BAKE_VERTEX,
+      fragmentShader: `${declarations}\nuniform vec2 lo;\nuniform vec2 span;\nvarying vec2 vUv;\n${NOISE}\n${floor ? FLOOR_FIELDS : WALL_FIELDS}
+        void main() {
+          vec2 at = lo + vUv * span;
+          gl_FragColor = ${floor ? 'grimeFloorFields(at)' : 'vec4(grimeWallFields(at.x, at.y), 1.0)'};
+        }`,
+      depthTest: false, depthWrite: false, toneMapped: false,
+    });
+    renderer.setRenderTarget(target);
+    renderer.render(scene, camera);
+    quad.material.dispose();
+    bake.target = target;
+    material.addEventListener('dispose', () => target.dispose());
+    bake.field.grimeField.value = target.texture;
+    bake.field.grimeFieldMin.value.copy(lo);
+    bake.field.grimeFieldSize.value.copy(span);
+    material.defines = { ...material.defines, GRIME_BAKED: '' };
+    material.needsUpdate = true;
+  }
+  renderer.setRenderTarget(previous);
+  quad.geometry.dispose();
+  return materials.size;
 }

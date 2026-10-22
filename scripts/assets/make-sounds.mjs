@@ -2,7 +2,8 @@
 // (node scripts/assets/make-sounds.mjs, then `pnpm assets` to encode them).
 //
 // The originals stay untouched in assets/audio/sources/ (Kenney packs and
-// OpenGameArt downloads, all CC0; see src/audio/sounds.json for every source).
+// OpenGameArt downloads, all CC0, and the owner's own recordings; see
+// src/audio/sounds.json for every source).
 // Each recipe below cuts, layers, pitches and fades them into one short mono
 // WAV in assets/audio/, which the asset build then turns into Opus and AAC.
 // The yard ambience also mixes in wind made here from seeded noise, and the
@@ -38,8 +39,17 @@ const FFMPEG = process.env.FFMPEG || '/usr/bin/ffmpeg';
 //            start and end (priming, padding) fall outside the part the game
 //            loops (sounds.json loop { start: pad, end: pad + length })
 const RECIPES = [
-  // (Lola's short pain grunts were removed on 2026-10-19 at the owner's request;
-  // the lolaHurt slot waits for a female voice.)
+  // Lola's pain grunts: the owner's own voice (2026-10-22), four grunts cut out
+  // of one recording, tight around each so no breath or inhale comes along.
+  // The game picks one at random per hit.
+  { name: 'lola-hurt-1', length: 0.2, layers: [{ file: 'owner/lola-grunts-2026-10-22.ogg', from: 0.86 }],
+    fadeIn: 0.008, fadeOut: 0.06, peak: -3 },
+  { name: 'lola-hurt-2', length: 0.22, layers: [{ file: 'owner/lola-grunts-2026-10-22.ogg', from: 2.27 }],
+    fadeIn: 0.008, fadeOut: 0.06, peak: -3 },
+  { name: 'lola-hurt-3', length: 0.11, layers: [{ file: 'owner/lola-grunts-2026-10-22.ogg', from: 4.05 }],
+    fadeIn: 0.005, fadeOut: 0.04, peak: -3 },
+  { name: 'lola-hurt-4', length: 0.17, layers: [{ file: 'owner/lola-grunts-2026-10-22.ogg', from: 6.51 }],
+    fadeIn: 0.008, fadeOut: 0.05, peak: -3 },
   // Lola nearly down: the start of a short scream, cut before it becomes a shriek.
   { name: 'lola-hurt-big', length: 0.55, layers: [{ file: 'opengameart/261419__archeos__womanscream.ogg' }],
     fadeOut: 0.22, peak: -3 },
@@ -86,6 +96,19 @@ const RECIPES = [
     { file: 'kenney/impact-sounds/impactMetal_heavy_001.ogg', gain: 0.8, speed: 0.6, at: 0.05 },
     { file: 'kenney/sci-fi-sounds/lowFrequency_explosion_000.ogg', gain: 0.7, speed: 0.8, at: 0.25 },
   ], fadeOut: 0.6, peak: -1 },
+  // The fight is decided (won or lost, owner 2026-10-22): one big cinematic
+  // impact before the end screen. A heavy metal slam slowed right down, two deep
+  // explosions and a synthesised sub-bass thump, ringing out for about 3 s.
+  { name: 'game-end-impact', length: 3.2, layers: [
+    { file: 'kenney/impact-sounds/impactMetal_heavy_001.ogg', gain: 0.9, speed: 0.5 },
+    { file: 'kenney/sci-fi-sounds/lowFrequency_explosion_000.ogg', gain: 1, speed: 0.7 },
+    { file: 'kenney/sci-fi-sounds/lowFrequency_explosion_001.ogg', gain: 0.7, speed: 0.6, at: 0.03 },
+    { file: 'kenney/sci-fi-sounds/explosionCrunch_004.ogg', gain: 0.45, speed: 0.75, lowpass: 2500 },
+    { tones: [
+      { at: 0, hz: 42, decay: 0.7, gain: 0.9, partials: [[1, 1], [2, 0.3]] },
+      { at: 0, hz: 84, decay: 0.25, gain: 0.35 },
+    ] },
+  ], fadeOut: 1.2, peak: -1 },
   // A leg joint bursting (with its sparks): a quick electrical crackle.
   { name: 'leaper-joint-burst', length: 0.3, layers: [
     { file: 'kenney/interface-sounds/glitch_001.ogg', gain: 0.9 },

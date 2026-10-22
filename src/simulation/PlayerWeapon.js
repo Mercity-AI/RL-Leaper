@@ -22,7 +22,7 @@ export function weaponSlots() {
 // Lola's guns, as a thin coordinator. The pieces it connects:
 //   src/config/weapons.js      every gun's numbers (damage, rate, spread, recoil...)
 //   weapons/WeaponState        one per gun: ammo, fire-rate clock, reload, spread bloom
-//   weapons/resolveShot        where a bullet goes (sight ray from Lola's depth + muzzle ray)
+//   weapons/resolveShot        where a bullet goes (the crosshair's line decides; tracer from the muzzle)
 //   weapons/TargetRegistry     what bullets can hit (each enemy's hit volumes)
 //   weapons/HitFeedback        hit markers, the crosshair kick, the big-hit glow
 //   GunshotEffects             pooled tracers, flashes and sparks
@@ -66,7 +66,7 @@ export class PlayerWeapon {
     this.muzzle = new MuzzleTracker();
     this.obstruction = { blocked: false, offset: { x: 0, y: 0 } };
     this.scratch = { origin: new THREE.Vector3(), direction: new THREE.Vector3(), muzzle: new THREE.Vector3(),
-      anchor: new THREE.Vector3(), screen: new THREE.Vector3() };
+      anchor: new THREE.Vector3(), screen: new THREE.Vector3(), sprayRight: new THREE.Vector3(), sprayUp: new THREE.Vector3() };
 
     // 5. The HUD: crosshair, gun icons and, on touch screens, the touch controls
     //    (their buttons press the same input actions as the keyboard and gamepad).
@@ -252,12 +252,14 @@ export class PlayerWeapon {
     if (!this.available) return false;
     // 1. Lola raises the gun (her action rules may refuse: mid-jump, mid-reload).
     if (!p.target.startShot(Math.max(SHOOTING.minShotPose, weapon.interval), SHOOTING.aimHold)) return false;
-    // 2. Where it goes: the sight ray from Lola's depth, then the muzzle ray.
+    // 2. Where it goes: along the crosshair's line from Lola's depth (the muzzle is where the tracer starts).
     const ray = this.cameraRay();
+    const aiming = p.cameraController.aiming;
+    const kick = aiming ? weapon.ads.recoil : 1;
+    this.followSpray(ray, kick);
     this.targets.update();
     const muzzle = p.target.muzzlePosition();
     this.muzzle.remember(p.target, muzzle);
-    const aiming = p.cameraController.aiming;
     const shot = resolveShot({
       cameraRay: ray, muzzle, near: this.sightNear(ray), world: p.combat.geometry, targets: this.targets,
       range: this.range, spread: state.spread({ aiming, moving: this.moving }), random: this.random,
@@ -269,10 +271,11 @@ export class PlayerWeapon {
     this.visuals.shot(shot.origin, shot.end, rifle);
     p.audio.play(weapon.shotSound);
     if (shot.hit) p.audio.play('leaper', { at: shot.end });
-    // 4. The kick (less while aiming).
-    const kick = aiming ? weapon.ads.recoil : 1;
-    p.cameraController.addRecoil?.(weapon.recoil.pitch * kick,
-      (this.random() * 2 - 1) * weapon.recoil.yawJitter * kick, weapon.recoil.recovery);
+    // 4. The kick and the shake (less while aiming).
+    const { recoil } = weapon;
+    p.cameraController.addRecoil?.(recoil.pitch * kick,
+      (this.random() * 2 - 1) * recoil.yawJitter * kick, recoil.recovery,
+      { roll: (this.random() * 2 - 1) * (recoil.roll ?? 0) * kick, push: (recoil.push ?? 0) * kick });
     // 5. An enemy hit: sparks, the damage through its hit zone, and the feedback.
     if (shot.hit?.kind === 'target') {
       const hit = shot.hit.hit;
@@ -284,6 +287,32 @@ export class PlayerWeapon {
       this.feedback.miss();
     }
     return true;
+  }
+
+  // The spray pattern (CS2-style): the bullet goes where the pattern says from
+  // where Lola aims. The view already shows part of the climb (viewFollow), so
+  // only the rest bends the crosshair's ray. kick: less while aiming.
+  followSpray(ray, kick) {
+    const offset = this.state.sprayOffset();
+    const shown = this.p.cameraController.spray ?? { pitch: 0, yaw: 0 };
+    const right = offset.right * kick - shown.yaw, up = offset.up * kick - shown.pitch;
+    if (!right && !up) return;
+    const axes = this.p.engine.camera.matrixWorld;
+    const side = this.scratch.sprayRight.setFromMatrixColumn(axes, 0).normalize();
+    const lift = this.scratch.sprayUp.setFromMatrixColumn(axes, 1).normalize();
+    ray.direction.addScaledVector(side, Math.tan(right)).addScaledVector(lift, Math.tan(up)).normalize();
+  }
+
+  // How far the equipped gun's spray has carried the view this frame (none while
+  // the gun can't be used).
+  updateSprayView() {
+    const cc = this.p.cameraController;
+    if (!cc.setSprayView) return;
+    const spray = this.available ? this.weapon.spray : null;
+    if (!spray) { cc.setSprayView(0, 0); return; }
+    const kick = (cc.aiming ? this.weapon.ads.recoil : 1) * spray.viewFollow;
+    const offset = this.state.sprayOffset();
+    cc.setSprayView(offset.up * kick, offset.right * kick);
   }
 
   // ---- Reloading ----
@@ -334,6 +363,7 @@ export class PlayerWeapon {
       this.wasAvailable = false;
       this.triggerHeld = false;
       this.firstPerson.set(false);
+      this.updateSprayView();
       this.visuals.update(dt);
       this.renderHud();
       return;
@@ -359,6 +389,7 @@ export class PlayerWeapon {
     // 8. R / X / RELOAD reloads early; the trigger fires (and empties reload by themselves).
     if (pressed('reload')) this.reload();
     this.pullTrigger({ pressed: pressed('fire'), held: this.triggerHeld });
+    this.updateSprayView();
     // 9. Would a shot now hit cover before the crosshair's point? (OBSTRUCTED reticle)
     this.checkObstruction();
     // 10. Effects and the HUD.

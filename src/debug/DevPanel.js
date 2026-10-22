@@ -4,7 +4,8 @@ import { NO_TIMER, PhaseTimer, perfText, rendererCounts } from './PhaseTimer.js'
 // The developer panel (review fix 5.24 step 5, finding
 // ui-audio-debug-tools-in-player-hud): every lab and debug tool, out of the
 // player's HUD. Loaded by src/debug/devTools.js only with ?dev or on the dev
-// server. A DEV button in the top-right corner (or the ` key) opens a drawer with
+// server. The ` key opens a drawer with (no on-screen DEV button since
+// 2026-10-22: it covered the FPS counter, owner: "remove that dev icon")
 //   GAME      the old toolbar and OPTIONS (src/game/JunkyardPanel.js): START RUN,
 //             START PLAYER, RESTART RANDOM, sound, LEAPER POV, vision mode, sight
 //             lines, brain provider, Leaper size, reset, clearance overlay and
@@ -43,7 +44,7 @@ export class DevPanel {
     this.state = loadState();
     document.body.classList.add('dev-tools');
 
-    // 1. The DEV button, always reachable in the top-right corner (menus too).
+    // 1. The DEV button (kept off the screen: the ` key opens the drawer).
     this.toggle = document.createElement('button');
     this.toggle.type = 'button';
     this.toggle.className = 'dev-toggle';
@@ -86,7 +87,7 @@ export class DevPanel {
     this.perf.className = 'dev-perf';
     this.perf.setAttribute('aria-label', 'Performance');
     this.perf.hidden = true;
-    document.body.append(this.toggle, this.drawer, this.perf);
+    document.body.append(this.drawer, this.perf);
 
     // 4. Time the game's frame phases (the game uses a no-op timer otherwise).
     this.timer = new PhaseTimer();

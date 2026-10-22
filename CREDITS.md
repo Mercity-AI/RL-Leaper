@@ -17,16 +17,18 @@ projects whose work it uses. The same list is shown in the game's credits.
 - "WomanScream.wav" by Archeos, https://freesound.org/s/261419/ (CC0 1.0). Used for: Lola's low-health cry. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Footsteps" by artemditkovsky, https://freesound.org/s/856942/ (CC0 1.0). Used for: Lola's footsteps. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Laser Effect Contact Mic" by Astounded (Christopher J Astbury, Switzerland), https://freesound.org/s/479353/ (CC0 1.0). Used for: Leaper laser. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+- "Loading screen loop" by Brandon Morris, https://opengameart.org/content/loading-screen-loop (CC0 1.0). Used for: title music. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Gun Reload" by cb9382, https://freesound.org/s/870197/ (CC0 1.0). Used for: pistol reload. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Hit metal object" by cb9382, https://freesound.org/s/873903/ (CC0 1.0). Used for: bullet impacts. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Small servo (arduino)" by gpag1, https://freesound.org/s/520514/ (CC0 1.0), part of Artninja's Leaper footsteps. Used for: Leaper's footsteps. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
-- "Impact Sounds" by Kenney (www.kenney.nl), https://kenney.nl/assets/impact-sounds (CC0 1.0). Used for: hit thud, leap take-off, leap landing, stagger, Leaper crashing down, death collapse. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+- "Impact Sounds" by Kenney (www.kenney.nl), https://kenney.nl/assets/impact-sounds (CC0 1.0). Used for: hit thud, leap take-off, leap landing, stagger, Leaper crashing down, death collapse, fight decided. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Interface Sounds" by Kenney (www.kenney.nl), https://kenney.nl/assets/interface-sounds (CC0 1.0). Used for: aim lock click, joint burst crackle, button clicks. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
-- "Sci-fi Sounds" by Kenney (www.kenney.nl), https://kenney.nl/assets/sci-fi-sounds (CC0 1.0). Used for: bolt charge warning, stomp wind-up, stomp, leap wind-up, leap take-off, leap landing, stagger, Leaper crashing down, death collapse, joint burst crackle, bolt hitting cover, junkyard ambience. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+- "Sci-fi Sounds" by Kenney (www.kenney.nl), https://kenney.nl/assets/sci-fi-sounds (CC0 1.0). Used for: bolt charge warning, stomp wind-up, stomp, leap wind-up, leap take-off, leap landing, stagger, Leaper crashing down, death collapse, joint burst crackle, bolt hitting cover, junkyard ambience, fight decided. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "Empty Gun Shot" by KlawyKogut, https://freesound.org/s/154934/ (CC0 1.0). Used for: empty gun click. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - "FPS Footsteps Loop" by qubodup, https://freesound.org/s/816019/ (CC0 1.0). Used for: running footsteps. Licence: [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - Wind generated for this project from seeded noise (scripts/assets/make-sounds.mjs). Used for: junkyard ambience.
 - Health and ammo pickup sounds synthesised for this project (scripts/assets/make-sounds.mjs). Used for: health pill pickup, ammo bullet pickup.
+- Lola's pain grunts, recorded by the game's owner for this project. Used for: Lola's pain grunts.
 
 ## Licence notes
 

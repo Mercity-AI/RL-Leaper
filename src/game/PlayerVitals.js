@@ -146,6 +146,11 @@ export class PlayerVitals {
     this.updateHud({ over });
   }
 
+  // Real health points to the points the player sees (COMBAT.lolaHealthShown).
+  get shownScale() {
+    return (this.config.lolaHealthShown ?? this.max) / this.max;
+  }
+
   // What the panel should show right now, as plain numbers.
   view({ over = false } = {}) {
     const share = this.health / this.max;
@@ -153,6 +158,9 @@ export class PlayerVitals {
     return {
       health: this.health,
       max: this.max,
+      // What the player reads: her health on the lolaHealthShown scale.
+      shown: this.health * this.shownScale,
+      shownMax: this.max * this.shownScale,
       // Ordinary hits briefly highlight the readout (not once the fight is over).
       hit: this.hitFlash > 0 && !this.dead && !over,
       level: low ? 'low' : share <= 0.5 ? 'mid' : 'full',

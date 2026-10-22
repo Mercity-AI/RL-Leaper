@@ -248,6 +248,7 @@ test('recoil kicks the view up and settles back', () => {
   controller.update(null, null, 1 / 60);
   camera.updateMatrixWorld(true);
   const rest = camera.getWorldDirection(new THREE.Vector3());
+  const restUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
   controller.addRecoil(0.02, 0, 10);
   controller.update(null, null, 0);
   camera.updateMatrixWorld(true);
@@ -256,10 +257,26 @@ test('recoil kicks the view up and settles back', () => {
   for (let i = 0; i < 90; i += 1) controller.update(null, null, 1 / 60);
   camera.updateMatrixWorld(true);
   assert.ok(camera.getWorldDirection(new THREE.Vector3()).angleTo(rest) < 1e-4, 'and returns to the aimed point');
+  // The roll and the jolt back shake the view without moving the crosshair.
+  controller.addRecoil(0, 0, 10, { roll: 0.02, push: 0.1 });
+  controller.update(null, null, 0);
+  camera.updateMatrixWorld(true);
+  assert.ok(camera.getWorldDirection(new THREE.Vector3()).angleTo(rest) < 1e-6, 'the shake keeps the aim');
+  assert.ok(new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).angleTo(restUp) > 0.015, 'and tilts the screen');
+  // A held spray carries the view up with it, and back down after.
+  controller.setSprayView(0.03, 0);
+  for (let i = 0; i < 30; i += 1) controller.update(null, null, 1 / 60);
+  camera.updateMatrixWorld(true);
+  assert.ok(camera.getWorldDirection(new THREE.Vector3()).y > rest.y + 0.025, 'the spray lifts the view');
+  controller.setSprayView(0, 0);
+  for (let i = 0; i < 60; i += 1) controller.update(null, null, 1 / 60);
+  camera.updateMatrixWorld(true);
+  assert.ok(camera.getWorldDirection(new THREE.Vector3()).angleTo(rest) < 1e-4, 'and settles back');
   controller.addRecoil(1, 1, 10);
   assert.ok(controller.recoil.pitch <= CAMERA.recoilMax);
   controller.resetEffects();
   assert.equal(controller.recoil.pitch, 0);
+  assert.equal(controller.spray.pitch, 0);
 });
 
 test('a finger or pen never captures the mouse; touch controls stay usable (review 5.9)', () => {

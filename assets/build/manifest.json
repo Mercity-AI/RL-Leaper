@@ -525,6 +525,90 @@
       "sourceSha256": "1ce43534905f8478f8396ad06d4dcfceadf5f4475a6b19d40cbf5786c8cb1af2",
       "bytes": 6052,
       "sha256": "1363dda8c3890d755b26795f30b744d08771307e77e350f3163397d1daa36d23"
+    },
+    "audio/lola-hurt-1.ogg": {
+      "source": "assets/audio/lola-hurt-1.wav",
+      "sourceBytes": 17684,
+      "sourceSha256": "59ef46683d6153a7c1e0dfd96e877c1aa8dc3a62358ab3e8d5d1d86561b88768",
+      "bytes": 1483,
+      "sha256": "e84036b6f872fdb8fa976e29f3f9f05757a33eb33708965c92db4fac937d4a37"
+    },
+    "audio/lola-hurt-1.m4a": {
+      "source": "assets/audio/lola-hurt-1.wav",
+      "sourceBytes": 17684,
+      "sourceSha256": "59ef46683d6153a7c1e0dfd96e877c1aa8dc3a62358ab3e8d5d1d86561b88768",
+      "bytes": 2826,
+      "sha256": "5884de0cc64478091e95194b5c4ae78431803e2aca321c9a450946aa415687ed"
+    },
+    "audio/lola-hurt-2.ogg": {
+      "source": "assets/audio/lola-hurt-2.wav",
+      "sourceBytes": 19448,
+      "sourceSha256": "95a18c2c2cd08cd8fcbe70faad863c6371a24c490ed673ffcc00451dc465ae6b",
+      "bytes": 1604,
+      "sha256": "9f6b1e87321cf9f3c9d4ea8d30dbac7a15959d47cd1caa6f038a7b3df3ee2ade"
+    },
+    "audio/lola-hurt-2.m4a": {
+      "source": "assets/audio/lola-hurt-2.wav",
+      "sourceBytes": 19448,
+      "sourceSha256": "95a18c2c2cd08cd8fcbe70faad863c6371a24c490ed673ffcc00451dc465ae6b",
+      "bytes": 2968,
+      "sha256": "4828d0324de01f15083e735e0e43eb6fe4c2bd71d13726a8d536567e79306171"
+    },
+    "audio/lola-hurt-3.ogg": {
+      "source": "assets/audio/lola-hurt-3.wav",
+      "sourceBytes": 9746,
+      "sourceSha256": "d41bde23addc7f00dbd19a8ecdaed907865fc9800654143d30c1feabb49f8e96",
+      "bytes": 896,
+      "sha256": "96df68134032c8d53a042ed406f0af17318ee3f5f2b9b10699d171af22ecc4ce"
+    },
+    "audio/lola-hurt-3.m4a": {
+      "source": "assets/audio/lola-hurt-3.wav",
+      "sourceBytes": 9746,
+      "sourceSha256": "d41bde23addc7f00dbd19a8ecdaed907865fc9800654143d30c1feabb49f8e96",
+      "bytes": 1992,
+      "sha256": "d26fe0d7e28f681cccd6fdb69fdf7cd99907cbf301b9cb9a9ed3b6513df6b094"
+    },
+    "audio/lola-hurt-4.ogg": {
+      "source": "assets/audio/lola-hurt-4.wav",
+      "sourceBytes": 15038,
+      "sourceSha256": "330eb014a270e970f084720ee2239f9516ae285c0bab5afe4c76bac89044205e",
+      "bytes": 1279,
+      "sha256": "416f352a3b99b1e53171184d46618c7371d6d8a84ad55df2f830fa83f7bef44f"
+    },
+    "audio/lola-hurt-4.m4a": {
+      "source": "assets/audio/lola-hurt-4.wav",
+      "sourceBytes": 15038,
+      "sourceSha256": "330eb014a270e970f084720ee2239f9516ae285c0bab5afe4c76bac89044205e",
+      "bytes": 2540,
+      "sha256": "d267b6a1052419a9857d510cb797f8a22bd68700a82761b690d6491d5567526a"
+    },
+    "audio/title-music.ogg": {
+      "source": "assets/audio/title-music.wav",
+      "sourceBytes": 2972760,
+      "sourceSha256": "a1b887b588c8dcef5d389b475593e186c7817ee238ae528c150020e4c6a90934",
+      "bytes": 191423,
+      "sha256": "8642ef24dcf2f59679a5121ad00a83a45344f7db2eddc276beed46f8b7c71641"
+    },
+    "audio/title-music.m4a": {
+      "source": "assets/audio/title-music.wav",
+      "sourceBytes": 2972760,
+      "sourceSha256": "a1b887b588c8dcef5d389b475593e186c7817ee238ae528c150020e4c6a90934",
+      "bytes": 255333,
+      "sha256": "30b89275925bb2046b9a9951fdad873840b39515e5bd04777524122d3595c650"
+    },
+    "audio/game-end-impact.ogg": {
+      "source": "assets/audio/game-end-impact.wav",
+      "sourceBytes": 282284,
+      "sourceSha256": "ca16b0a89294cb85e8c00556f7caff9812a78505f74f55bcf563857eeb265360",
+      "bytes": 15638,
+      "sha256": "f2ecb34b01170a296e0c409febd2bbf04f61226bc90634181b4c2ba713d7f0b5"
+    },
+    "audio/game-end-impact.m4a": {
+      "source": "assets/audio/game-end-impact.wav",
+      "sourceBytes": 282284,
+      "sourceSha256": "ca16b0a89294cb85e8c00556f7caff9812a78505f74f55bcf563857eeb265360",
+      "bytes": 27674,
+      "sha256": "753ceb2146493369bbb3fcd45bc2a1d8b3d45b365617a9e2f8b6863c4603ceb5"
     }
   },
   "textures": {

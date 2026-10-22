@@ -17,6 +17,8 @@ body > .weapon-hud { position: fixed; right: 18px; bottom: 20px; z-index: 12; }
 .weapon-hud .gun-icon { position: absolute; inset: 14%; width: 72%; height: 72%; fill: #fff; filter: drop-shadow(0 1px 1px #000c); }
 /* The key that selects the gun (1 = pistol, 2 = M416). */
 .weapon-hud .gun-tag { position: absolute; left: 50%; top: 4%; transform: translateX(-50%); color: #fff; font-size: var(--font-s, 12px); opacity: .9; }
+/* The gun's key (1, 2) is a developer label: players find the keys in SETTINGS > CONTROLS. */
+body:not(.dev-tools) .weapon-hud .gun-tag { display: none; }
 @keyframes weapon-hud-empty { from { box-shadow: 0 0 0 0 #ff4b3e00; } to { box-shadow: 0 0 14px 3px #ff4b3e; } }
 /* Spare magazines of a gun whose ammo runs out (the M416): one bullet per
    magazine it can carry, lit yellow (the ammo pickups' colour) as far as the

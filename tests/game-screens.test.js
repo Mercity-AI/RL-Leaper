@@ -29,18 +29,22 @@ test('every game state maps to its screen: title in Ready, pause menu, end scree
 });
 
 test('the menus offer what a player expects, in order', () => {
-  const ids = (screen) => menuItems(screen).map((item) => item.id);
-  assert.deepEqual(ids('title'), ['play', 'explore', 'settings', 'controls', 'credits']);
-  assert.deepEqual(ids('pause'), ['resume', 'restart', 'settings', 'controls', 'quit']);
+  const ids = (screen, options) => menuItems(screen, SUB_SCREENS, null, options).map((item) => item.id);
+  // Players: no testing items, and no CONTROLS (the key list lives in SETTINGS).
+  assert.deepEqual(ids('title'), ['play', 'settings', 'credits']);
+  assert.deepEqual(ids('pause'), ['resume', 'restart', 'settings', 'quit']);
   assert.deepEqual(ids('end'), ['restart', 'title']);
+  // With the developer tools, EXPLORE is back on the title.
+  assert.deepEqual(ids('title', { dev: true }), ['play', 'explore', 'settings', 'credits']);
   // An item that opens a sub-screen the page does not have is left out.
-  assert.deepEqual(menuItems('title', ['controls']).map((item) => item.id), ['play', 'explore', 'controls']);
+  assert.deepEqual(menuItems('title', ['credits']).map((item) => item.id), ['play', 'credits']);
   assert.deepEqual(menuItems('nothing'), []);
-  // Paused while exploring, the pause menu also offers the hunt from right there.
+  // Paused while exploring (developers), the pause menu also offers the hunt from right there.
   const paused = (mode) => ({ name: 'paused', resumeTo: { name: 'playing', mode } });
-  assert.deepEqual(menuItems('pause', SUB_SCREENS, paused('explore')).map((item) => item.id),
-    ['resume', 'hunt', 'restart', 'settings', 'controls', 'quit']);
-  assert.deepEqual(menuItems('pause', SUB_SCREENS, paused('hunt')).map((item) => item.id), ids('pause'));
+  assert.deepEqual(menuItems('pause', SUB_SCREENS, paused('explore'), { dev: true }).map((item) => item.id),
+    ['resume', 'hunt', 'restart', 'settings', 'quit']);
+  assert.deepEqual(menuItems('pause', SUB_SCREENS, paused('explore')).map((item) => item.id), ids('pause'));
+  assert.deepEqual(menuItems('pause', SUB_SCREENS, paused('hunt'), { dev: true }).map((item) => item.id), ids('pause'));
   // Labels are upper case and every item has an id the game can act on.
   for (const items of Object.values(MENUS)) {
     for (const item of items) assert.equal(item.label, item.label.toUpperCase());

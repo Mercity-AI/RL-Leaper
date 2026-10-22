@@ -4,8 +4,10 @@ import * as THREE from 'three';
 // can be tested in Node. Two rays, as in most third-person shooters:
 //   1. the sight ray, through the screen-centre crosshair, finds the point the
 //      player is aiming at;
-//   2. the muzzle ray, from the gun's barrel to that point, decides what the
-//      bullet really hits (so nearby cover wins over the crosshair's target).
+//   2. the muzzle ray, from the gun's barrel to that point, is where the tracer
+//      is drawn. What the bullet hits is decided along the sight ray (owner,
+//      2026-10-22: "what matters is where the crosshair is"), so a low wall in
+//      front of the barrel never eats a shot whose crosshair sees the target.
 // The sight ray starts at Lola's depth along the camera ray, not at the lens:
 // anything between the chase camera and Lola (a wall at her back, a Leaper leg
 // behind her) can never become the aim point, so she never fires backwards
@@ -79,9 +81,10 @@ export function spreadDirection(axis, angle, random = Math.random) {
 // Returns:
 //   aimPoint    the point under the crosshair
 //   origin      where the bullet starts (the muzzle)
-//   direction   where it flies (spread applied)
+//   direction   where it flies (along the crosshair's line, spread applied)
 //   hit         nearestHit() result for the bullet, or null (a miss to full range)
-//   end         where the bullet stops (the hit point, or the end of its range)
+//   end         where the bullet stops (the hit point, or the end of its range);
+//               the tracer is drawn from the muzzle to here
 //   backwards   the aim point was not in front of the muzzle, so the bullet flew
 //               straight along the camera's forward direction instead
 //   obstructed  cover would stop the bullet clearly short of the aim point
@@ -98,13 +101,15 @@ export function resolveShot({
   const ahead = toAim.dot(cameraRay.direction);
   const backwards = !(ahead > 1e-6) || toAim.lengthSq() < 1e-12;
   const intended = backwards ? cameraRay.direction.clone() : toAim.normalize();
-  const direction = spreadDirection(intended, spread, random);
-  // 3. What the bullet hits.
-  const hit = nearestHit(world, targets, muzzle, direction, range);
-  const end = hit ? hit.point.clone() : muzzle.clone().addScaledVector(direction, range);
+  // 3. What the bullet hits: traced along the crosshair's line from Lola's depth
+  //    (spread applied around it), so the crosshair decides, not the barrel.
+  const direction = spreadDirection(cameraRay.direction, spread, random);
+  const hit = nearestHit(world, targets, sight.start, direction, range);
+  const end = hit ? hit.point.clone() : sight.start.clone().addScaledVector(direction, range);
   // 4. Obstruction: does cover stop the straight (unspread) muzzle ray before the
-  //    aim point? (Another part of a target in the way is not "cover".)
-  const straight = spread > 0 ? nearestHit(world, targets, muzzle, intended, range) : hit;
+  //    aim point? (Another part of a target in the way is not "cover".) Only the
+  //    OBSTRUCTED reticle uses this, and the owner keeps that look off.
+  const straight = nearestHit(world, targets, muzzle, intended, range);
   const reach = backwards ? 0 : muzzle.distanceTo(sight.point);
   const obstructed = !backwards && straight?.kind === 'world' && straight.distance < reach - tolerance;
   return {

@@ -202,8 +202,8 @@ test('fragments rest on a map floor below zero', () => {
   for(let i=0;i<300;i++)damage.update(1/60);
   assert.ok(Math.abs(lowestVertex(damage.debris[0].mesh) - (-0.218)) < 0.0001);
 });
-test('production knees choose 11, 12 or 13 hits and shafts choose 32, 33 or 34', () => {
-  for (const [rng, kneeHits, shaftHits] of [[0,11,32],[0.5,12,33],[0.99,13,34]]) {
+test('production knees choose 11, 12 or 13 hits and shafts choose 19, 20 or 21', () => {
+  for (const [rng, kneeHits, shaftHits] of [[0,11,19],[0.5,12,20],[0.99,13,21]]) {
     const { rig, damage } = setup(() => rng); damage.reset();
     for(const leg of rig.legs) {
       assert.equal(leg.damage.upper.threshold,kneeHits); assert.equal(leg.damage.lower.threshold,kneeHits);

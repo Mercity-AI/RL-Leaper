@@ -26,7 +26,7 @@ class FakeProvider extends BrainProviderBase {
 
   async load() {
     this.log.push('load');
-    this.emitProgress({ task: 'load', stage: 'map', label: 'DOWNLOADING JUNKYARD MAP', fraction: 0.5 });
+    this.emitProgress({ task: 'load', stage: 'map', label: 'DOWNLOADING MAP', fraction: 0.5 });
     if (this.loads !== true) throw this.loads;
     return {};
   }
@@ -202,7 +202,7 @@ test('progress from whichever provider is loading reaches the chain\'s listeners
   off();
   await chain.prepare(6);
   assert.deepEqual(events.map((e) => [e.kind, e.task, e.fraction]), [['onnx', 'load', 0.5]]);
-  assert.equal(describeProgress(events[0]), 'LOADING BRAIN · ONNX · IN BROWSER · 50% · DOWNLOADING JUNKYARD MAP');
+  assert.equal(describeProgress(events[0]), 'LOADING BRAIN · ONNX · IN BROWSER · 50% · DOWNLOADING MAP');
   assert.equal(describeProgress({ kind: 'onnx', task: 'world', width: 6, fraction: 0.31, label: 'BUILDING COLLISION MAP' }),
     'PREPARING LEAPER SIZE 6.0 · ONNX · IN BROWSER · 31% · BUILDING COLLISION MAP');
   // A wait whose length nobody knows (the Python server building a size) shows no percentage.
@@ -268,7 +268,7 @@ test('while it loads, the badge shows the provider\'s progress', async () => {
   const brain = new JunkyardBrain(playtest(), { provider: chainOf(onnx) });
   const resetting = brain.reset();
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(brain.describe().label, 'LOADING BRAIN · ONNX · IN BROWSER · 50% · DOWNLOADING JUNKYARD MAP');
+  assert.equal(brain.describe().label, 'LOADING BRAIN · ONNX · IN BROWSER · 50% · DOWNLOADING MAP');
   assert.match(brain.describe().status, /LOADING BRAIN · ONNX · IN BROWSER · 50%/);
   finish({ x: 0, z: 0, yaw: 0, step: 0, model_step: 7757824, policy_sha256: 'sha', token: 'a' });
   await resetting;
@@ -300,7 +300,7 @@ test('picking another brain from turret mode shows that brain loading, not "offl
   brain.useProvider(chainOf(onnx));
   const resetting = brain.reset();
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(brain.describe().label, 'LOADING BRAIN · ONNX · IN BROWSER · 50% · DOWNLOADING JUNKYARD MAP');
+  assert.equal(brain.describe().label, 'LOADING BRAIN · ONNX · IN BROWSER · 50% · DOWNLOADING MAP');
   finish({ x: 0, z: 0, yaw: 0, step: 0, model_step: 7757824, policy_sha256: 'sha', token: 'a' });
   await resetting;
   assert.equal(brain.offline, false);

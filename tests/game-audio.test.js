@@ -90,8 +90,8 @@ test('every slot the game and the Leaper\'s behaviour call has a take; the Leape
     'leaperStompWindup', 'leaperStomp', 'leaperLeapWindup', 'leaperLand', 'leaperStagger', 'leaperDowned', 'leaperCollapse',
     'leaperJointBurst', 'uiClick', 'yardAmbience'];
   for (const id of called) assert.ok(byId.get(id)?.variations.length > 0, `${id} has a recording`);
-  // The owner removed the old grunts (2026-10-19): the slot is silent until a female voice is chosen.
-  assert.equal(byId.get('lolaHurt').variations.length, 0, 'the pain grunt slot is empty for now');
+  // Lola's pain grunts: the owner's own voice, four takes so a hit never sounds the same twice in a row (2026-10-22).
+  assert.equal(byId.get('lolaHurt').variations.length, 4, 'four pain grunts to pick from');
   for (const sound of SOUNDS.sounds.filter((entry) => /^leaper[A-Z]/.test(entry.id) && entry.id !== 'leaperBoltImpact')) {
     assert.ok(sound.spatial && ['leaper', 'leaperEye'].includes(sound.emitter), `${sound.id} plays at the Leaper`);
   }

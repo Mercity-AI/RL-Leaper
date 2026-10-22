@@ -150,7 +150,7 @@ export class LolaPlayer {
 
   showWeapon() {
     this.updateGuns();
-    this.toggleButton.textContent = `${this.weaponIndex === 0 ? '2: M416' : '1: BASIC GUN'} · C: ${this.crouching ? 'CROUCHED' : 'STANDING'}`;
+    this.toggleButton.textContent = `${this.weaponIndex === 0 ? '1: M416' : '2: BASIC GUN'} · C: ${this.crouching ? 'CROUCHED' : 'STANDING'}`;
     this.toggleButton.classList.add('on');
     // A newly equipped gun's clips may not have posed the body yet.
     this.ensurePosed();

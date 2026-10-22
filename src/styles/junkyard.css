@@ -119,8 +119,7 @@ body.touch-controls-on.junkyard-mode #btnSprint { display: flex; }
    Placed, shaken and scale-punched each frame by LeaperHealthBar.js. Hot orange
    at full health, deep red when nearly dead. */
 #leaperWorldBar { position: fixed; left: 0; top: 0; z-index: var(--z-world-ui); display: flex; align-items: center; opacity: 0; pointer-events: none; transform-origin: 50% 100%; will-change: transform, opacity; }
-#leaperWorldBar .bar-eye { position: relative; z-index: 1; flex: none; width: 34px; height: 34px; margin-right: -6px; overflow: visible; filter: drop-shadow(0 2px 3px #000a); }
-#leaperWorldBar .bar-eye-shield { stroke: #c8743a; stroke-width: 1.6; stroke-linejoin: round; }
+#leaperWorldBar .bar-eye { position: relative; z-index: 1; flex: none; width: 22px; height: 22px; margin-right: 4px; overflow: visible; filter: drop-shadow(0 2px 3px #000a); }
 #leaperWorldBar .bar-eye-socket { stroke: #2b1d16; stroke-width: 1.2; }
 #leaperWorldBar .bar-eye-core { fill: #ff2414; filter: drop-shadow(0 0 2.5px #ff3b1a); transform-origin: 20px 20px; animation: bar-eye-pulse 1.6s ease-in-out infinite; }
 #leaperWorldBar .bar-frame { position: relative; width: 120px; height: 11px; overflow: hidden; border: 1.5px solid #000c; border-radius: 6px; background: #111317d9; box-shadow: 0 0 0 1px #ffffff26, 0 2px 6px #0009; transform-origin: 50% 50%; }
@@ -135,11 +134,9 @@ body.touch-controls-on.junkyard-mode #btnSprint { display: flex; }
 #leaperWorldBar[data-level="low"] .bar-eye-iris,
 #leaperWorldBar[data-level="low"] .bar-fill { animation: bar-throb .7s ease-in-out infinite alternate; }
 #leaperWorldBar[data-level="low"] .bar-frame { animation: bar-danger .7s ease-in-out infinite alternate; }
-/* Hit flash: the whole bar goes white for about two frames. */
-#leaperWorldBar[data-flash="true"] .bar-eye-shield { fill: #fff; stroke: #fff; }
-#leaperWorldBar[data-flash="true"] .bar-eye-core { fill: #fff; transform: scale(.6); animation: none; }
-#leaperWorldBar[data-flash="true"] .bar-frame { border-color: #fff; background: #fff; }
-#leaperWorldBar[data-flash="true"] .bar-frame i { background: #fff; box-shadow: none; animation: none; transition: none; }
+/* Hit flash: only the filled part (the health left) goes white for about two
+   frames; the empty part, the frame and the eye stay as they are (owner, 2026-10-22). */
+#leaperWorldBar[data-flash="true"] .bar-fill { background: #fff; box-shadow: none; animation: none; transition: none; }
 #leaperWorldBar[data-flash="true"] .bar-shine::after { display: none; }
 @keyframes bar-eye-pulse { 0%, 100% { transform: scale(.85); } 50% { transform: scale(1.15); } }
 @keyframes bar-shine { 0% { left: -40%; } 60%, 100% { left: 110%; } }

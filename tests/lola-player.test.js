@@ -141,9 +141,9 @@ test('C toggles crouch once per press and A/D select authored crossovers for bot
     assert.equal(player.outfits[weapon].current, 'CrouchWalk');
     press('KeyC');
     assert.equal(player.crouching, false);
-    press(weapon === 0 ? 'Digit1' : 'Digit2');
-    assert.equal(player.weaponIndex, 1 - weapon, '1 / 2 select the pistol / M416');
-    press(weapon === 0 ? 'Digit1' : 'Digit2');
+    press(weapon === 0 ? 'Digit2' : 'Digit1');
+    assert.equal(player.weaponIndex, 1 - weapon, '1 / 2 select the M416 / pistol');
+    press(weapon === 0 ? 'Digit2' : 'Digit1');
     assert.equal(player.weaponIndex, 1 - weapon, 'pressing the equipped gun key keeps it');
   }
   for (const gltf of models) {

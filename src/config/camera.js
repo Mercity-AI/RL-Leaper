@@ -59,6 +59,10 @@ export const CAMERA = Object.freeze({
   // The most kick the view can build up from sustained fire (each gun sets its own
   // kick and recovery in src/config/weapons.js).
   recoilMax: 0.12,
+  // The most the per-shot jolt can push the view back (map units), and how fast
+  // the view follows a spray pattern's climb (per second; higher = tighter).
+  recoilPushMax: 0.25,
+  sprayEase: 30,
 
   // ---- First-person aim ----
   // While aiming the camera sits inside Lola's head, so only these of her parts

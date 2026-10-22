@@ -29,9 +29,9 @@ export class GameScreens {
   // actions: what the menu items do: { play, explore, resume, hunt, restart, quit, title }.
   // announce(text): a line for screen readers (the HUD's live region).
   // onOpenChange(open): a menu started (true) or stopped (false) covering the game.
-  // hint: the title's small print (how to see the controls in the fight).
-  constructor({ parent = document.body, actions = {}, announce = () => {}, onOpenChange = () => {}, hint = '' } = {}) {
-    Object.assign(this, { actions, announce, onOpenChange, hint });
+  // hint: the title's small print (none for players). dev: show the testing items.
+  constructor({ parent = document.body, actions = {}, announce = () => {}, onOpenChange = () => {}, hint = '', dev = false } = {}) {
+    Object.assign(this, { actions, announce, onOpenChange, hint, dev });
     // 1. The root: a veil over the game with one screen shown at a time.
     this.root = document.createElement('div');
     this.root.id = 'screens';
@@ -83,7 +83,7 @@ export class GameScreens {
         '<p class="screen-tagline">Bring down the six-legged machine.</p>');
       screen.body.insertAdjacentHTML('beforeend', '<nav class="menu" aria-label="Main menu"></nav>'
         + '<p class="screen-notice" data-brain-notice hidden></p>'
-        + `<p class="screen-hint">${escape(this.hint)}</p>`);
+        + (this.hint ? `<p class="screen-hint">${escape(this.hint)}</p>` : ''));
     } else if (name === 'end') {
       screen.body.insertAdjacentHTML('beforeend', '<p class="end-line" data-end-line></p><ul class="end-tags" data-end-tags></ul>'
         + '<dl class="end-stats" data-end-stats></dl><nav class="menu" aria-label="After the fight"></nav><p class="end-notes" data-end-notes></p>');
@@ -96,7 +96,7 @@ export class GameScreens {
   // Fill a base screen's menu with its items (sub-screens only if defined).
   renderMenu(name) {
     const nav = this.screens.get(name).body.querySelector('.menu');
-    const items = menuItems(name, [...this.definitions.keys()], this.state);
+    const items = menuItems(name, [...this.definitions.keys()], this.state, { dev: this.dev });
     nav.innerHTML = items.map((item, index) => `<button type="button" class="menu-item${index === 0 ? ' menu-primary' : ''}" data-menu-item="${escape(item.id)}">`
       + `<span>${escape(item.label)}</span>${item.hint ? `<small>${escape(item.hint)}</small>` : ''}</button>`).join('');
   }

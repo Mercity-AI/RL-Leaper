@@ -138,7 +138,7 @@ export function createBrainHost({ ort, glbUrl, collisionUrl, wasmUrl = null, pos
     const progress = progressTracker(report, 'load', {
       manifest: { weight: 1, label: 'BRAIN.JSON' },
       ...(wasmUrl ? { runtime: { weight: 60, label: 'DOWNLOADING BRAIN RUNTIME' } } : {}),
-      map: { weight: 15, label: 'DOWNLOADING JUNKYARD MAP' },
+      map: { weight: 15, label: 'DOWNLOADING MAP' },
       network: { weight: 3, label: 'DOWNLOADING NETWORK' },
       compile: { weight: 10, label: 'STARTING THE NETWORK' },
     });

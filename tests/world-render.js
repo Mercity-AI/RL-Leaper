@@ -54,8 +54,9 @@ try {
   const { renderer, scene, camera } = engine;
   result.textContent = 'RENDER CHECKS';
   check(engine.quality.name === 'high' && engine.glow, 'high quality on WebGL2 gets the glow pass');
-  check(renderer.getContext().getContextAttributes().antialias === false && engine.glow.sceneTarget.isWebGLMultisampleRenderTarget,
-    'with glow, the off-screen picture is anti-aliased and the screen keeps no second MSAA buffer');
+  check(renderer.getContext().getContextAttributes().antialias === false && !engine.glow.sceneTarget.isWebGLMultisampleRenderTarget
+    && engine.glow.composite.defines.FXAA === 1,
+    'with glow, edges are smoothed by FXAA in the final blend (no costly MSAA buffers)');
   check(renderer.toneMapping === THREE.ACESFilmicToneMapping && renderer.outputEncoding === THREE.sRGBEncoding,
     'ACES filmic tone mapping with sRGB output');
   const labEngine = createScene(document.createElement('div'), { quality: 'high', glow: false });

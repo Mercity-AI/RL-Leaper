@@ -72,6 +72,10 @@ export const AMMO_BULLETS = Object.freeze({
   // length (0.925 preview units) so it fills the sphere the same way.
   modelAxis: 'y',
   modelLength: 0.925,
+  // The bullet is 10% bigger than the pill (owner, 2026-10-22), and Lola's
+  // reach grows with its sphere so it is taken the moment she touches it.
+  size: SHARED.size * 1.1,
+  reach: SHARED.reach + (SHARED.size * 0.1) / 2,
   // The gun it feeds and how many spare rounds one bullet gives (2 magazines).
   gun: 'm416',
   rounds: 40,

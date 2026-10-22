@@ -142,6 +142,34 @@ test('spread blooms with sustained fire, shrinks back at rest, and tightens whil
   assert.ok(Math.abs(state.spread() - base) < 1e-12, 'back to the base cone after a rest');
 });
 
+// ---- The spray pattern ----
+
+test('a held M416 spray walks its pattern; a rest or a tap starts over at shot 1', () => {
+  const state = new WeaponState({ ...WEAPONS.m416, magazine: 1000 });
+  const { pattern } = WEAPONS.m416.spray;
+  const offsets = [];
+  for (let i = 0; i < 240 && offsets.length < pattern.length; i += 1) {
+    state.advance(1 / 60);
+    state.pull({ pressed: i === 0, held: true }, () => { offsets.push(state.sprayOffset()); return true; });
+  }
+  assert.equal(offsets.length, pattern.length);
+  offsets.forEach((offset, i) => {
+    assert.ok(Math.abs(offset.right - pattern[i][0] * Math.PI / 180) < 1e-9, `shot ${i + 1} right`);
+    assert.ok(Math.abs(offset.up - pattern[i][1] * Math.PI / 180) < 1e-9, `shot ${i + 1} up`);
+  });
+  assert.ok(offsets.at(-1).up > offsets[0].up + 0.05, 'the spray climbs');
+  for (let i = 0; i < 90; i += 1) state.advance(1 / 60);
+  assert.deepEqual(state.sprayOffset(), { right: 0, up: 0 }, 'wound back after a rest');
+  // Taps every 0.4 s always fire the first shot of the pattern.
+  for (let tap = 0; tap < 5; tap += 1) {
+    let up = null;
+    state.pull({ pressed: true, held: false }, () => { up = state.sprayOffset().up; return true; });
+    assert.equal(up, 0, `tap ${tap + 1}`);
+    for (let i = 0; i < 24; i += 1) state.advance(1 / 60);
+  }
+  assert.deepEqual(new WeaponState(WEAPONS.pistol).sprayOffset(), { right: 0, up: 0 }, 'the pistol has none');
+});
+
 // ---- The weapon data ----
 
 test('every gun has the full set of data fields', () => {
@@ -155,17 +183,17 @@ test('every gun has the full set of data fields', () => {
     for (const field of ['base', 'moving', 'bloomPerShot', 'bloomMax', 'bloomDelay', 'bloomRecovery']) {
       assert.ok(weapon.spread[field] >= 0, `${id}.spread.${field}`);
     }
-    for (const field of ['pitch', 'yawJitter', 'recovery']) assert.ok(weapon.recoil[field] >= 0, `${id}.recoil.${field}`);
+    for (const field of ['pitch', 'yawJitter', 'roll', 'push', 'recovery']) assert.ok(weapon.recoil[field] >= 0, `${id}.recoil.${field}`);
     for (const field of ['zoom', 'spread', 'recoil']) assert.ok(weapon.ads[field] > 0, `${id}.ads.${field}`);
   }
 });
 
-test('gun slots follow Lola outfit order, and 1 / 2 pick the pistol / M416', () => {
+test('gun slots follow Lola outfit order, and 1 / 2 pick the M416 / pistol', () => {
   assert.deepEqual(WEAPON_SLOTS, ['m416', 'pistol']);
   assert.deepEqual(OUTFIT_WEAPONS, ['m416', 'basic'], 'outfit 0 carries the rifle, outfit 1 the pistol');
   assert.equal(weaponForSlot(0), WEAPONS.m416);
-  assert.equal(slotForKey('1'), 1);
-  assert.equal(slotForKey('2'), 0);
+  assert.equal(slotForKey('1'), 0);
+  assert.equal(slotForKey('2'), 1);
 });
 
 test('weapon roles: the M416 has the higher sustained DPS, the pistol the bigger, more precise shot', () => {

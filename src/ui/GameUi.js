@@ -1,6 +1,6 @@
 import { Hud } from './Hud.js';
 import { GameScreens } from './GameScreens.js';
-import { ControlsLegend } from './ControlsLegend.js';
+import { ControlsLegend, legendRows } from './ControlsLegend.js';
 import { buildCredits } from './CreditsScreen.js';
 import { registerGameSections, settingsScreen } from './SettingsScreen.js';
 import { settings as settingsStore } from './settings.js';
@@ -13,6 +13,13 @@ import { CAMERA } from '../config/tuning/index.js';
 import { NO_TIMER } from '../debug/PhaseTimer.js';
 import { HudLayout, MOVABLE_PIECES } from '../controls/MovableHud.js';
 import { loadDevTools, wantsDevTools } from '../debug/devTools.js';
+import { TitleShowcase } from '../game/TitleShowcase.js';
+import { FpsCounter } from './FpsCounter.js';
+import { AdaptiveResolution } from '../core/AdaptiveResolution.js';
+
+// The end of a fight: seconds the final impact (sounds.json gameEnd) rings
+// before the end screen and its music appear.
+const END_SCREEN = Object.freeze({ delay: 1.6 });
 
 // The game's front end in one place: the HUD shell (src/ui/Hud.js) and the menu
 // screens (src/ui/GameScreens.js) on top of the game state, wired to the game
@@ -69,24 +76,44 @@ export class GameUi {
     const { hud, flow, inputController: input } = this;
     // 1. The page's existing HUD pieces go to their corners.
     this.mountPagePieces(playtest);
-    // 2. The menu screens, with CONTROLS and CREDITS (SETTINGS registers itself).
+    // 2. The menu screens, with CONTROLS (opened from SETTINGS) and CREDITS
+    //    (SETTINGS registers itself). Players see no key hints on screen: the
+    //    keys are listed only under SETTINGS > CONTROLS (owner, 2026-10-22). The
+    //    H legend over the fight, its hint and the testing items (EXPLORE) are
+    //    developer tools.
+    const dev = this.dev = wantsDevTools();
+    // The frame rate on screen, and the resolution easing down to hold 60 fps
+    // (both switched in SETTINGS > GRAPHICS; owner, 2026-10-22).
+    this.fps = new FpsCounter();
+    const resolution = playtest.engine?.resolution;
+    let storage = null;
+    try { storage = globalThis.localStorage ?? null; } catch { /* Private storage. */ }
+    this.adaptive = resolution ? new AdaptiveResolution({ resolution, enabled: () => this.settings.get('keep60'), storage }) : null;
+    // Behind the title: the Leaper turning on the spot, Lola hidden (src/game/TitleShowcase.js).
+    this.showcase = new TitleShowcase({ encounter: playtest.encounter, world: playtest.world,
+      camera: this.cameraController.camera, scene: playtest.engine?.scene, sun: playtest.presentation?.sun });
+    // The page knows too, for key labels drawn by CSS (the gun circles' 1 and 2).
+    document.body.classList.toggle('dev-tools', dev);
     const legend = CONTROLS.find((row) => row.action === 'legend');
-    this.legendKey = wantsTouchControls() ? '' : legend?.keyboard || 'H';
+    this.legendKey = dev && !wantsTouchControls() ? legend?.keyboard || 'H' : '';
     this.screens = new GameScreens({
       actions: this.menuActions(),
       announce: (text) => hud.announce(text),
       // A menu always has a free mouse.
       onOpenChange: (open) => { if (open) this.cameraController.releaseMouse(); },
-      hint: this.legendKey ? `In the fight, ${this.legendKey} shows the controls.` : 'The pause menu shows the controls.',
+      hint: this.legendKey ? `In the fight, ${this.legendKey} shows the controls.` : '',
+      dev,
     });
     this.screens.defineScreen('controls', {
       title: 'CONTROLS',
       build: (body) => new ControlsLegend(body, {
+        rows: legendRows().filter((row) => dev || row.action !== 'legend'),
         devices: wantsTouchControls() ? ['touch', 'gamepad'] : ['keyboard', 'gamepad', 'touch'],
       }),
     });
     this.screens.defineScreen('credits', { title: 'CREDITS', build: (body) => buildCredits(body) });
-    registerGameSections(this.settings, { quality: this.quality, playing: () => flow.playing || flow.paused });
+    registerGameSections(this.settings, { quality: this.quality, playing: () => flow.playing || flow.paused,
+      showControls: () => this.screens.activate('controls') });
     // Sound: the audio engine's own section (on/off and the volume sliders) replaces
     // the placeholder; the saved Sound switch starts in step with the engine.
     if (playtest.audio) {
@@ -121,7 +148,11 @@ export class GameUi {
       if (next.name === 'playing') this.lastMode = next.mode;
       // A game state change (a gamepad Start resuming, say) ends the layout editing.
       if (this.editing) this.editLayout(false);
-      this.screens.sync(next, { result: playtest.encounter.result });
+      // The fight is decided: one big impact now, and the end screen once it has
+      // rung out (lateUpdate opens it).
+      this.endScreenIn = next.name === 'ended' ? END_SCREEN.delay : 0;
+      if (next.name === 'ended') playtest.audio?.play?.('gameEnd');
+      if (!this.endScreenIn) this.screens.sync(next, { result: playtest.encounter.result });
       // The first fight of the session says how to see the controls.
       if (next.name === 'playing' && !this.hinted && this.legendKey) {
         this.hinted = true;
@@ -138,12 +169,13 @@ export class GameUi {
     }
   }
 
-  // Move the page's existing pieces into the HUD: VIEW top right, the TOP view
-  // hint top centre, the Leaper's name plate top left, the LEAPER POV crosshair
+  // Move the page's existing pieces into the HUD: VIEW top right (developers
+  // only: its other views are lab tools), the TOP view hint top centre, the Leaper's name plate top left, the LEAPER POV crosshair
   // centre, and on phones the joystick (bottom left) and SPRINT (bottom right).
   mountPagePieces(playtest) {
     const { hud } = this;
-    hud.adopt('top-right', document.getElementById('cameraToggle'));
+    const view = hud.adopt('top-right', document.getElementById('cameraToggle'));
+    if (view && !wantsDevTools()) view.hidden = true;
     hud.adopt('top-centre', document.getElementById('topViewHint'));
     const plate = hud.adopt('top-left', playtest.combat?.enemyHud);
     // Its attack-state line is rewritten every frame: no screen-reader live region.
@@ -202,12 +234,17 @@ export class GameUi {
     else if (key === 'fov') camera.chaseFov = value;
     else if (key === 'textSize') document.documentElement.dataset.textSize = value;
     else if (key === 'captions') this.hud.setCaptions(value);
+    else if (key === 'showFps' && this.fps) this.fps.visible = value;
     else if (key === 'sound' && this.playtest && this.playtest.audio.enabled !== value) this.playtest.toggleSound();
   }
 
   // What each menu item does, through the game's own actions.
   menuActions() {
-    const run = (mode) => (mode === 'explore' ? this.playtest.startPlayer() : this.playtest.start());
+    const run = (mode) => {
+      // The title's backdrop ends before the fight starts (the Leaper back on its spot).
+      this.showcase?.show(false);
+      return mode === 'explore' ? this.playtest.startPlayer() : this.playtest.start();
+    };
     return {
       play: () => run('hunt'),
       explore: () => run('explore'),
@@ -240,8 +277,8 @@ export class GameUi {
       return;
     }
     this.screens?.handleInput(this.inputController, dt);
-    // H (gamepad Back) shows or hides the controls legend over the fight.
-    if (this.inputController.pressed?.('legend')) this.hud.toggleLegend();
+    // H (gamepad Back) shows or hides the controls legend over the fight (developers only).
+    if (this.dev && this.inputController.pressed?.('legend')) this.hud.toggleLegend();
   }
 
   // Late phase: the HUD redraws from this frame's numbers and the title its notice
@@ -249,6 +286,29 @@ export class GameUi {
   lateUpdate(dt = 0) {
     const { playtest, snapshot, flow } = this;
     const { encounter } = playtest;
+    // Frame rate: counted, shown, and held at 60 by the resolution.
+    const now = performance.now() / 1000;
+    this.adaptive?.frame(now);
+    this.fps?.frame(now, playtest.engine?.resolution?.scale ?? 1);
+    // The title's backdrop, while the title (or a screen opened from it) is up.
+    const onTitle = flow.state.name === 'ready' && this.screens?.stack.base === 'title';
+    this.showcase?.show(onTitle);
+    // The end screen opens once the fight's final impact has rung out.
+    if (this.endScreenIn > 0) {
+      this.endScreenIn = Math.max(0, this.endScreenIn - dt);
+      if (!this.endScreenIn) this.screens.sync(flow.state, { result: playtest.encounter.result });
+    }
+    const onEnd = flow.state.name === 'ended' && !this.endScreenIn && this.screens?.stack.base === 'end';
+    // The title music plays while the title or the end screen is up (owner,
+    // 2026-10-22) and fades out when they go.
+    const music = onTitle || onEnd;
+    if (music !== this.titleMusic) {
+      this.titleMusic = music;
+      if (music) playtest.audio?.startAmbience?.('titleMusic');
+      else playtest.audio?.stopAmbience?.('titleMusic');
+    }
+    this.showcase?.update(flow.paused ? 0 : dt);
+    this.showcase?.lateUpdate();
     snapshot.flow = flow.state.name;
     snapshot.dt = flow.paused ? 0 : dt;
     snapshot.menu = Boolean(this.screens?.open);
@@ -277,6 +337,7 @@ export class GameUi {
     for (const off of this.offCaptions ?? []) off?.();
     this.inputController.setUiCapture?.(null);
     this.screens?.dispose();
+    this.fps?.dispose();
     this.hud.dispose();
   }
 }

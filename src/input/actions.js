@@ -35,8 +35,8 @@ export const BUTTON_ACTIONS = Object.freeze({
   crouch: Object.freeze({ label: 'Crouch', keys: ['KeyC'], pad: [PAD.B], touch: 'CROUCH' }),
   sprint: Object.freeze({ label: 'Sprint', hold: true, keys: ['ShiftLeft', 'ShiftRight'], pad: [PAD.LB], touch: 'SPRINT' }),
   switchWeapon: Object.freeze({ label: 'Switch gun', pad: [PAD.Y], touch: 'SWITCH' }),
-  weapon1: Object.freeze({ label: 'Basic gun', keys: ['Digit1', 'Numpad1'] }),
-  weapon2: Object.freeze({ label: 'M416', keys: ['Digit2', 'Numpad2'] }),
+  weapon1: Object.freeze({ label: 'M416', keys: ['Digit1', 'Numpad1'] }),
+  weapon2: Object.freeze({ label: 'Basic gun', keys: ['Digit2', 'Numpad2'] }),
   // Escape also lets go of the mouse (the camera handles that part, because
   // browsers use Escape to end pointer lock). Start / the touch PAUSE button
   // also resume a paused game. ui: it still counts while a menu has the controls.

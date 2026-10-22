@@ -115,12 +115,12 @@ try {
   combat.reset(); combat.pose(); combat.track(combat.pose()[1]); combat.fire();
   combat.config = { ...COMBAT, projectileSpeed: 1000 };
   combat.updateProjectiles(0.1, combat.pose());
-  check(combat.bolts.length === 0 && combat.lolaHealth === 100, 'full-frame sweep hits thin cover before Lola at extreme speed');
+  check(combat.bolts.length === 0 && combat.lolaHealth === COMBAT.lolaHealth, 'full-frame sweep hits thin cover before Lola at extreme speed');
   combat.config = COMBAT; actual.hit = originalHit;
   reset(); target.mesh.position.copy(lane); tick(0); frames(100);
-  check(combat.lolaHealth === 92, 'one unobstructed hit deals exactly 8 damage');
+  check(combat.lolaHealth === COMBAT.lolaHealth - 8, 'one unobstructed hit deals exactly 8 damage');
   check(target.hitDirection.dot(combat.direction) > 0.8, 'actual bolt collision passes its travel direction into hit recoil');
-  check(p.vitals.element.querySelector('[data-health-bar]').value === 92 && !p.vitals.element.textContent.includes('100'), 'damage updates the visible health HUD');
+  check(p.vitals.element.querySelector('[data-health-bar]').value === (COMBAT.lolaHealth - 8) * COMBAT.lolaHealthShown / COMBAT.lolaHealth && !p.vitals.element.textContent.includes(String(COMBAT.lolaHealthShown)), 'damage updates the visible health HUD (out of 100)');
 
   reset(); target.mesh.position.copy(lane); animatePlayer(); tick(0);
   const standingHead = combat.pose()[0].y;
@@ -161,7 +161,7 @@ try {
   check(combat.lolaHealth === 0 && target.defeated && !p.walking, 'Lola defeat clamps health and ends encounter');
   const position = target.mesh.position.clone(); target.move(1, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), 4.5, 0.1);
   check(target.mesh.position.distanceTo(position) === 0, 'defeated Lola cannot move');
-  reset(); check(combat.lolaHealth === 100 && combat.leaperHealth === 600 && !target.defeated && combat.bolts.length === 0, 'restart restores both health pools and control');
+  reset(); check(combat.lolaHealth === COMBAT.lolaHealth && combat.leaperHealth === 600 && !target.defeated && combat.bolts.length === 0, 'restart restores both health pools and control');
 
   // Detect any accidental weapon-to-trained-sensing coupling.
   const fakeSight = { playtest: p, bones };
@@ -171,8 +171,11 @@ try {
   check(JSON.stringify(before) === JSON.stringify(after), 'weapon aim does not change the saved-brain sensing pose');
   combat.reset(); combat.damageLola();
   check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'ordinary damage does not tint screen edges');
-  for (let i = 0; i < 9; i++) combat.damageLola();
-  check(combat.lolaHealth === 20 && Number(document.documentElement.style.getPropertyValue('--damage-flash')) > 0, 'screen-edge warning begins at 20 HP');
+  // Bolts until her health first reaches the warning threshold (24 of 120).
+  while (combat.lolaHealth - COMBAT.boltDamage > COMBAT.lowHealthThreshold) combat.damageLola();
+  check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'no edge warning above the threshold');
+  combat.damageLola();
+  check(combat.lolaHealth <= COMBAT.lowHealthThreshold && Number(document.documentElement.style.getPropertyValue('--damage-flash')) > 0, `screen-edge warning begins at ${COMBAT.lowHealthThreshold} HP`);
   combat.reset(); p.vitals.reset();
   check(document.documentElement.style.getPropertyValue('--damage-flash') === '0', 'restart clears critical-health screen tint');
   // Floating Leaper health bar: hidden until a burst of real damage, then drains and fades.
@@ -341,18 +344,18 @@ try {
   release(); overlay.dispose();
   p.walking = true; p.brain.ready = true;
   // 1 / 2 are input actions now: applied by the player's controls each frame, frozen by a pause.
-  pressKey('Digit2', { frozen: true });
+  pressKey('Digit1', { frozen: true });
   keyFrame();
-  check(target.weaponIndex === 1, '2 does nothing while paused');
-  pressKey('Digit2');
-  check(target.weaponIndex === 0, '2 switches from pistol to M416');
+  check(target.weaponIndex === 1, '1 does nothing while paused');
   pressKey('Digit1');
-  check(target.weaponIndex === 1, '1 switches back to pistol');
+  check(target.weaponIndex === 0, '1 switches from pistol to M416');
+  pressKey('Digit2');
+  check(target.weaponIndex === 1, '2 switches back to pistol');
   const slots = [...document.querySelectorAll('#playerGuns .gun')];
-  check(slots[0].dataset.gun === 'pistol' && slots[0].textContent.trim() === '1' && slots[1].dataset.gun === 'm416',
-    'gun icons read pistol (1) then M416 (2), left to right');
+  check(slots[0].dataset.gun === 'm416' && slots[0].textContent.trim() === '1' && slots[1].dataset.gun === 'pistol',
+    'gun icons read M416 (1) then pistol (2), left to right');
   for (const weaponIndex of [0, 1]) {
-    pressKey(weaponIndex ? 'Digit1' : 'Digit2');
+    pressKey(weaponIndex ? 'Digit2' : 'Digit1');
     const weapon = p.playerWeapon, name = weaponIndex ? 'pistol' : 'M416';
     const sounds = [], play = combat.audio.play;
     combat.audio.play = key => { sounds.push(key); return play.call(combat.audio, key); };

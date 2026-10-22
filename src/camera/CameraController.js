@@ -64,7 +64,11 @@ export class CameraController {
     // up or down than its own limits allow, easing to 0 (review fix 5.22).
     this.viewPitchOffset = 0;
     // Gun recoil: view kick (radians up / sideways) that settles back over time.
-    this.recoil = { pitch: 0, yaw: 0, recovery: 10 };
+    // roll and push only shake the view (a tilt and a jolt back), never the aim.
+    this.recoil = { pitch: 0, yaw: 0, roll: 0, push: 0, recovery: 10 };
+    // The share of a spray pattern the view climbs with (radians), easing toward
+    // the goal the gun sets each frame (setSprayView).
+    this.spray = { pitch: 0, yaw: 0, goalPitch: 0, goalYaw: 0 };
     this.pointerId = null;
     this.lastX = 0;
     this.lastY = 0;
@@ -118,9 +122,12 @@ export class CameraController {
       this.captureClick = false;
       if (this.spectator?.active) return;
       if (this.gameplayStarted && this.followSubject && this.mode === 'CHASE'
-          && event.pointerType === 'mouse' && document.pointerLockElement !== canvas && !this.fallbackMouseLook) {
-        this.captureClick = true;
-        this.captureMouse();
+          && event.pointerType === 'mouse' && document.pointerLockElement !== canvas) {
+        // Hover-look (a grab the browser refused, as when ?explore=1 starts play
+        // with no click) stops turning at the screen's edge: a click tries for
+        // the real grab again, and still counts as a click in the game.
+        this.captureClick = !this.fallbackMouseLook;
+        this.captureMouse({ retry: this.fallbackMouseLook });
       }
       this.pointerId = event.pointerId;
       this.lastX = event.clientX;
@@ -176,8 +183,8 @@ export class CameraController {
 
   // ---- Mouse capture ----
 
-  captureMouse() {
-    if (this.mode !== 'CHASE' || this.spectator?.active || this.fallbackMouseLook
+  captureMouse({ retry = false } = {}) {
+    if (this.mode !== 'CHASE' || this.spectator?.active || (this.fallbackMouseLook && !retry)
         || this.capturePending || document.pointerLockElement === this.canvas) return;
     // Touch screens and pens have no mouse to capture: no pointer lock and no
     // hover-look fallback, so every on-screen control keeps working (review fix 5.9).
@@ -490,10 +497,21 @@ export class CameraController {
   // A gun kicked: raise the view by `pitch` and turn it by `yaw` (radians); the
   // kick settles back at `recovery` per second. Sustained fire stacks up to
   // CAMERA.recoilMax.
-  addRecoil(pitch, yaw = 0, recovery = this.recoil.recovery) {
+  // shake: { roll, push } tilts the screen by `roll` radians and jolts the view
+  // back by `push` map units, settling the same way.
+  addRecoil(pitch, yaw = 0, recovery = this.recoil.recovery, { roll = 0, push = 0 } = {}) {
     this.recoil.pitch = Math.min(CAMERA.recoilMax, this.recoil.pitch + pitch);
     this.recoil.yaw = THREE.MathUtils.clamp(this.recoil.yaw + yaw, -CAMERA.recoilMax, CAMERA.recoilMax);
+    this.recoil.roll = THREE.MathUtils.clamp(this.recoil.roll + roll, -CAMERA.recoilMax, CAMERA.recoilMax);
+    this.recoil.push = Math.min(CAMERA.recoilPushMax, this.recoil.push + push);
     this.recoil.recovery = recovery;
+  }
+
+  // Where a held spray has carried the view: `pitch` up and `yaw` right (radians).
+  // The view eases there (CAMERA.sprayEase), so the climb looks smooth.
+  setSprayView(pitch, yaw) {
+    this.spray.goalPitch = pitch;
+    this.spray.goalYaw = yaw;
   }
 
   // A new encounter starts calm: any shake left over from the last fight's
@@ -503,6 +521,9 @@ export class CameraController {
     this.shakeClock = 0;
     this.recoil.pitch = 0;
     this.recoil.yaw = 0;
+    this.recoil.roll = 0;
+    this.recoil.push = 0;
+    Object.assign(this.spray, { pitch: 0, yaw: 0, goalPitch: 0, goalYaw: 0 });
     this.viewPitchOffset = 0;
   }
 
@@ -515,17 +536,26 @@ export class CameraController {
 
   // The recoil settles back smoothly.
   fadeRecoil(deltaTime) {
-    if (!this.recoil.pitch && !this.recoil.yaw) return;
-    const keep = Math.exp(-this.recoil.recovery * Math.max(0, deltaTime));
-    this.recoil.pitch = Math.abs(this.recoil.pitch * keep) < 1e-5 ? 0 : this.recoil.pitch * keep;
-    this.recoil.yaw = Math.abs(this.recoil.yaw * keep) < 1e-5 ? 0 : this.recoil.yaw * keep;
+    const dt = Math.max(0, deltaTime);
+    const ease = 1 - Math.exp(-CAMERA.sprayEase * dt);
+    this.spray.pitch += (this.spray.goalPitch - this.spray.pitch) * ease;
+    this.spray.yaw += (this.spray.goalYaw - this.spray.yaw) * ease;
+    const keep = Math.exp(-this.recoil.recovery * dt);
+    for (const key of ['pitch', 'yaw', 'roll', 'push']) {
+      const value = this.recoil[key] * keep;
+      this.recoil[key] = Math.abs(value) < 1e-5 ? 0 : value;
+    }
   }
 
   // Tilt the finished chase/aim view by the current recoil (the crosshair, and
   // so the next bullet, follows the kick).
+  // The spray's climb turns the aim too; the roll and the jolt back only shake it.
   applyRecoil() {
-    if (this.recoil.yaw) this.camera.rotateY(this.recoil.yaw);
-    if (this.recoil.pitch) this.camera.rotateX(this.recoil.pitch);
+    const yaw = this.recoil.yaw - this.spray.yaw, pitch = this.recoil.pitch + this.spray.pitch;
+    if (yaw) this.camera.rotateY(yaw);
+    if (pitch) this.camera.rotateX(pitch);
+    if (this.recoil.roll) this.camera.rotateZ(this.recoil.roll);
+    if (this.recoil.push) this.camera.translateZ(this.recoil.push);
   }
 
   // Wobble the finished chase/aim view a little.
