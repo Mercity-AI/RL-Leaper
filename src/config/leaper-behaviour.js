@@ -55,6 +55,9 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     // The body comes back up over recovery; no new stomp during cooldown.
     recovery: 0.6,
     cooldown: 3.5,
+    // Once it is back up, the eye waits this long before it starts charging a
+    // bolt (owner, 2026-10-29: "a lil cooldown" before it shoots).
+    attackRecovery: 0.5,
   }),
 
   // ---- Leap / pounce: a scripted jump onto Lola, then the brain carries on ----
@@ -83,6 +86,9 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     cameraShake: 0.85,
     recovery: 0.5,
     cooldown: 8,
+    // Once it has recovered, the eye waits this long before it starts charging
+    // a bolt (owner, 2026-10-29). A leap called off before take-off does not.
+    attackRecovery: 0.5,
     // The brain must accept the landing spot (the same check its physics uses)
     // before take-off; the crouch waits at most this long for its answer.
     acceptTimeout: 1.0,

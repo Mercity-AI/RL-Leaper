@@ -52,3 +52,6 @@ public/rl_live_state.*.tmp
 
 # The owner keeps this guide locally; it is not part of the repository.
 docs/How-the-Leaper-Works.pdf
+# No new PDFs ever (owner, 2026-10-22: "dont push pdfs i made"). The PDFs
+# committed before this rule stay tracked until the owner says otherwise.
+*.pdf

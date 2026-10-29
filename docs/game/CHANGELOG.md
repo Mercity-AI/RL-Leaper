@@ -3,6 +3,14 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-10-29: a breather after the big attacks
+
+### For players
+
+- **The Leaper's eye pauses after a stomp or a leap.** Once it is back on its
+  feet it waits half a second before it starts charging its next laser bolt,
+  so there is a short window to get clear or shoot back.
+
 ## 2026-10-22: the crosshair decides, a clean screen, Lola's voice
 
 ### For players

@@ -402,6 +402,9 @@ export class LeaperActor {
         // takes its warning ring with it (after a slam the shockwave cleared it).
         if (from === 'stomp') this.feedback?.clearWarnings();
         if (from === 'downed' && this.combat) this.combat.damageScale = 1;
+        // A finished stomp or leap: the eye takes a breath before its next bolt.
+        if (reason === 'stomp done') this.combat?.tree.interrupt?.(c.stomp.attackRecovery);
+        if (reason === 'landed') this.combat?.tree.interrupt?.(c.leap.attackRecovery);
         emit(LEAPER_EVENTS.stateChanged, { from, to, reason, locomotion: this.director.locomotion, label: this.director.label });
       },
       // Stomp: warn (crouch, red ring, sound), then slam the area around it.
