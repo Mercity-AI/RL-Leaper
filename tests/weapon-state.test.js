@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WeaponState } from '../src/weapons/WeaponState.js';
 import {
-  HIT_ZONES, LEAPER_HITBOXES, WEAPONS, WEAPON_SLOTS, slotForKey, weaponBalance, weaponForSlot,
+  HIT_ZONES, LEAPER_HITBOXES, WEAPONS, WEAPON_SLOTS, weaponBalance, weaponForSlot,
 } from '../src/config/weapons.js';
 import { COMBAT } from '../src/config/combat.js';
 import { OUTFIT_WEAPONS } from '../src/actors/lola/LolaAssets.js';
@@ -188,12 +188,10 @@ test('every gun has the full set of data fields', () => {
   }
 });
 
-test('gun slots follow Lola outfit order, and 1 / 2 pick the M416 / pistol', () => {
-  assert.deepEqual(WEAPON_SLOTS, ['m416', 'pistol']);
+test('the M416 is the player\'s only gun, in Lola\'s first outfit', () => {
+  assert.deepEqual(WEAPON_SLOTS, ['m416']);
   assert.deepEqual(OUTFIT_WEAPONS, ['m416', 'basic'], 'outfit 0 carries the rifle, outfit 1 the pistol');
   assert.equal(weaponForSlot(0), WEAPONS.m416);
-  assert.equal(slotForKey('1'), 0);
-  assert.equal(slotForKey('2'), 1);
 });
 
 test('weapon roles: the M416 has the higher sustained DPS, the pistol the bigger, more precise shot', () => {

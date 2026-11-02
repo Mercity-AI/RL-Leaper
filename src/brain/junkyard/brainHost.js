@@ -7,6 +7,7 @@
 // Python server. While a message is loading something it also posts
 // { id, progress } messages, which the page shows in its loading UI.
 
+import { steppedOver } from '../../world/stepOverProps.js';
 import contact from '../../config/player-contact.json' with { type: 'json' };
 import eyeVision from '../../config/eye-vision.json' with { type: 'json' };
 import { JunkyardBrainCore } from './brainSession.js';
@@ -79,6 +80,8 @@ export function createBrainHost({ ort, glbUrl, collisionUrl, wasmUrl = null, pos
   let baseUrl = null;
   let glbTriangles = null;
   let collision = null;
+  // Boxes of low junk the game leaves out of the walking map (none: the whole yard).
+  let stepOver = null;
   const worlds = new Map();
   const timings = { worlds: {} };
 
@@ -93,7 +96,8 @@ export function createBrainHost({ ort, glbUrl, collisionUrl, wasmUrl = null, pos
     }
     const started = performance.now();
     let baked = null;
-    const entry = manifest.rasters?.[String(width)];
+    // (The baked file holds the whole yard: with junk left out the raster is built here.)
+    const entry = stepOver?.length ? null : manifest.rasters?.[String(width)];
     // Stages of this size's loading: a baked file is one small download; any
     // other size downloads collision.json once and builds its raster here.
     const stages = (isBaked) => progressTracker(report, 'world', isBaked
@@ -115,6 +119,7 @@ export function createBrainHost({ ort, glbUrl, collisionUrl, wasmUrl = null, pos
       progress('download', 0);
       const bytes = await fetchBytes(collisionUrl, (n, of) => of && progress('download', n / of));
       collision = JSON.parse(new TextDecoder().decode(bytes));
+      if (stepOver?.length) collision.triangles = collision.triangles.filter((t) => !steppedOver(t, stepOver));
     }
     progress(baked ? 'raster' : 'download', 1);
     const fetchMs = performance.now() - started;
@@ -132,9 +137,10 @@ export function createBrainHost({ ort, glbUrl, collisionUrl, wasmUrl = null, pos
   }
 
   // --- Loading the brain itself --------------------------------------------------------
-  async function init(url, report) {
+  async function init(url, report, junk = null) {
     const started = performance.now();
     baseUrl = url;
+    stepOver = junk;
     const progress = progressTracker(report, 'load', {
       manifest: { weight: 1, label: 'BRAIN.JSON' },
       ...(wasmUrl ? { runtime: { weight: 60, label: 'DOWNLOADING BRAIN RUNTIME' } } : {}),
@@ -179,7 +185,7 @@ export function createBrainHost({ ort, glbUrl, collisionUrl, wasmUrl = null, pos
       report = (progress) => post({ id, progress });
       try {
         let result;
-        if (method === 'init') result = await init(payload.baseUrl, (progress) => report(progress));
+        if (method === 'init') result = await init(payload.baseUrl, (progress) => report(progress), payload.stepOver);
         else if (!core) throw new Error('Brain worker is not loaded');
         else if (method === 'prepare') {
           await loadWorld(Number(payload.width), (progress) => report(progress));

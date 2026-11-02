@@ -43,7 +43,7 @@ export class LeaperCombat {
     this.geometry = new CombatGeometry(playtest.world.map);
     this.direction = new THREE.Vector3(0, 0, 1);
     this.origin = new THREE.Vector3();
-    this.bolts = []; this.effects = [];
+    this.bolts = []; this.effects = []; this.beams = [];
     this.selectedPoint = null;
     const rig = playtest.simulation.rig;
     rig.weaponControlled = true;
@@ -95,7 +95,7 @@ export class LeaperCombat {
   reset() {
     this.legs.reset();
     this.audio.stop();
-    this.clearProjectiles(); this.tree.reset(); this.selectedPoint = null;
+    this.clearProjectiles(); this.clearBeams(); this.tree.reset(); this.selectedPoint = null;
     this.leaperHealth = this.config.leaperHealth;
     this.fireFlash = 0;
     this.lockFlash = 0;
@@ -113,11 +113,16 @@ export class LeaperCombat {
     for (const item of [...this.bolts, ...this.effects]) this.playtest.engine.scene.remove(item.mesh);
     this.bolts.length = 0; this.effects.length = 0;
   }
+  clearBeams() {
+    for (const beam of this.beams) this.playtest.engine.scene.remove(beam.mesh);
+    this.beams.length = 0;
+  }
   // The session is over: bolts and severed-leg debris leave the scene, this
   // Leaper's HUD panel and floating bar leave the page. (The rig itself is freed
   // by the mode, together with the eye materials cloned above.)
   dispose() {
     this.clearProjectiles();
+    this.clearBeams();
     this.legs.reset();
     this.hud.dispose();
     this.healthBar.element.remove();
@@ -195,7 +200,7 @@ export class LeaperCombat {
     mesh.position.copy(this.origin);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), this.direction);
     this.playtest.engine.scene.add(mesh);
-    this.bolts.push({ mesh, direction: this.direction.clone(), travelled: 0 });
+    this.bolts.push({ mesh, direction: this.direction.clone(), travelled: 0, from: this.origin.clone() });
     this.fireFlash = 0.12;
     this.audio.fire();
     this.effect(this.origin, true);
@@ -210,7 +215,8 @@ export class LeaperCombat {
   // How far the eye can shoot: the bolt range, but never beyond the brain's own
   // sight (review fix 5.31), so it never fires while its brain is SEARCHING.
   range() {
-    return attackRange(this.playtest.world.scale, BRAIN_SIGHT, this.config);
+    const { scale } = this.playtest.world;
+    return attackRange(scale, { ...BRAIN_SIGHT, sightRange: this.config.sightRange * scale }, this.config);
   }
   updateProjectiles(dt, points) {
     const scale = this.playtest.world.scale, range = this.range();
@@ -223,13 +229,18 @@ export class LeaperCombat {
       const hitDistance = Math.min(cover?.distance ?? Infinity, playerDistance);
       bolt.mesh.position.addScaledVector(bolt.direction, Math.min(distance, hitDistance));
       bolt.travelled += distance;
-      // Grow out of the muzzle; the tail never extends behind the firing eye.
-      bolt.mesh.scale.z = scale * Math.min(1, bolt.travelled / (this.config.laserLength * scale));
+      // One line from the eye to its tip the whole way (owner, 2026-11-02: a short
+      // bolt with a line after it looked like two shots).
+      bolt.mesh.scale.z = bolt.from.distanceTo(bolt.mesh.position) / this.config.laserLength;
       if (hitDistance <= distance || bolt.travelled >= range) {
-        // No impact orb: damage is communicated by the health bar until a hit animation is supplied.
-        this.playtest.engine.scene.remove(bolt.mesh); this.bolts.splice(this.bolts.indexOf(bolt), 1);
+        // Where it ended, the line stays a moment and thins away.
+        this.bolts.splice(this.bolts.indexOf(bolt), 1);
+        this.beams.push({ mesh: bolt.mesh, width: bolt.mesh.scale.x, age: 0 });
         // Cover wins ties. Never damage Lola through a blocking triangle.
-        if (playerDistance <= distance && playerDistance < (cover?.distance ?? Infinity)) this.damageLola(bolt.direction);
+        if (playerDistance <= distance && playerDistance < (cover?.distance ?? Infinity)) {
+          this.lolaStruck(bolt);
+          this.damageLola(bolt.direction);
+        }
         else if (cover && cover.distance <= distance) this.audio.playSlot?.('leaperBoltImpact', { at: bolt.mesh.position });
         if (this.dead) break;
       }
@@ -242,8 +253,27 @@ export class LeaperCombat {
       }
     }
   }
+  // A bolt hit her: sparks off her body and a jolt to the view (the flinch, the red
+  // edge and the mark showing where it came from follow from the damage itself).
+  lolaStruck(bolt) {
+    const { sparks, roll, push, recovery } = COMBAT.lolaHit;
+    this.playtest.world.effects?.impact(bolt.mesh.position, bolt.direction.clone().negate(), { strength: sparks, decal: false });
+    this.playtest.cameraController?.addRecoil?.(0, 0, recovery, { roll: (Math.random() < 0.5 ? -1 : 1) * roll, push });
+  }
+  // The beams thin away (also once the fight is over: the last bolt shows too).
+  updateBeams(dt) {
+    for (const beam of [...this.beams]) {
+      beam.age += dt;
+      const left = 1 - beam.age / this.config.beamTime;
+      beam.mesh.scale.x = beam.mesh.scale.y = beam.width * Math.max(0, left);
+      if (left > 0) continue;
+      this.playtest.engine.scene.remove(beam.mesh);
+      this.beams.splice(this.beams.indexOf(beam), 1);
+    }
+  }
   update(dt) {
     const p = this.playtest, rig = p.simulation.rig, c = this.config;
+    this.updateBeams(dt);
     if (!document.hidden) this.legs.update(dt);
     // The attacks run whenever a run is on, brain or no brain: without the brain
     // service the Leaper stands still but still tracks and fires (turret mode).

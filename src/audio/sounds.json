@@ -328,27 +328,99 @@
       ]
     },
     {
-      "id": "lolaHurtBig",
-      "label": "Lola's low-health cry",
-      "use": "Lola is hit while at low health (a heavier pain cry).",
+      "id": "lolaPant",
+      "label": "Lola panting",
+      "use": "Lola is badly hurt (health under 25 as shown): an exaggerated breath in and out, one after another for as long as she stays hurt (PlayerVitals). The owner's own voice (2026-11-02): seven breaths cut from one recording, one picked at random each time, never the same twice in a row. Gain 0.24 while she runs (owner: was 0.7, then 0.4; roughening made it about 3 dB louder); quieter still standing (COMBAT.lolaHurt.standingVolume).",
       "bus": "sfx",
-      "gain": 0.7,
-      "priority": 9,
-      "maxVoices": 1,
+      "gain": 0.24,
+      "priority": 6,
+      "maxVoices": 2,
       "spatial": false,
-      "variation": { "pitch": 0.03, "volume": 0.05 },
+      "variation": { "pitch": 0.03, "volume": 0.06 },
       "variations": [
         {
-          "name": "lola-hurt-big",
-          "files": { "ogg": "assets/build/audio/lola-hurt-big.ogg", "m4a": "assets/build/audio/lola-hurt-big.m4a" },
+          "name": "lola-pant-1",
+          "files": { "ogg": "assets/build/audio/lola-pant-1.ogg", "m4a": "assets/build/audio/lola-pant-1.m4a" },
           "source": {
-            "wav": "assets/audio/lola-hurt-big.wav",
-            "from": "assets/audio/sources/opengameart/261419__archeos__womanscream.ogg",
-            "start": 0,
-            "duration": 0.55,
-            "made": "scripts/assets/make-sounds.mjs"
+            "wav": "assets/audio/lola-pant-1.wav",
+            "from": "assets/audio/sources/owner/lola-panting-2026-11-02.ogg",
+            "start": 5.33,
+            "duration": 0.81,
+            "made": "cut by hand with ffmpeg, not pnpm assets: one breath in and out, the first 0.390 s (the breath in) raised 9 dB, then all of it roughened (owner: too soft): more upper range, soft clipping and a 47 Hz flutter for a gravelly edge"
           },
-          "credits": ["freesound-261419"]
+          "credits": ["owner-voice"]
+        },
+        {
+          "name": "lola-pant-2",
+          "files": { "ogg": "assets/build/audio/lola-pant-2.ogg", "m4a": "assets/build/audio/lola-pant-2.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-pant-2.wav",
+            "from": "assets/audio/sources/owner/lola-panting-2026-11-02.ogg",
+            "start": 6.15,
+            "duration": 0.75,
+            "made": "cut by hand with ffmpeg, not pnpm assets: one breath in and out, the first 0.470 s (the breath in) raised 9 dB, then all of it roughened (owner: too soft): more upper range, soft clipping and a 47 Hz flutter for a gravelly edge"
+          },
+          "credits": ["owner-voice"]
+        },
+        {
+          "name": "lola-pant-3",
+          "files": { "ogg": "assets/build/audio/lola-pant-3.ogg", "m4a": "assets/build/audio/lola-pant-3.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-pant-3.wav",
+            "from": "assets/audio/sources/owner/lola-panting-2026-11-02.ogg",
+            "start": 6.95,
+            "duration": 0.75,
+            "made": "cut by hand with ffmpeg, not pnpm assets: one breath in and out, the first 0.380 s (the breath in) raised 9 dB, then all of it roughened (owner: too soft): more upper range, soft clipping and a 47 Hz flutter for a gravelly edge"
+          },
+          "credits": ["owner-voice"]
+        },
+        {
+          "name": "lola-pant-4",
+          "files": { "ogg": "assets/build/audio/lola-pant-4.ogg", "m4a": "assets/build/audio/lola-pant-4.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-pant-4.wav",
+            "from": "assets/audio/sources/owner/lola-panting-2026-11-02.ogg",
+            "start": 7.72,
+            "duration": 0.7,
+            "made": "cut by hand with ffmpeg, not pnpm assets: one breath in and out, the first 0.300 s (the breath in) raised 9 dB, then all of it roughened (owner: too soft): more upper range, soft clipping and a 47 Hz flutter for a gravelly edge"
+          },
+          "credits": ["owner-voice"]
+        },
+        {
+          "name": "lola-pant-5",
+          "files": { "ogg": "assets/build/audio/lola-pant-5.ogg", "m4a": "assets/build/audio/lola-pant-5.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-pant-5.wav",
+            "from": "assets/audio/sources/owner/lola-panting-2026-11-02.ogg",
+            "start": 8.45,
+            "duration": 0.67,
+            "made": "cut by hand with ffmpeg, not pnpm assets: one breath in and out, the first 0.320 s (the breath in) raised 9 dB, then all of it roughened (owner: too soft): more upper range, soft clipping and a 47 Hz flutter for a gravelly edge"
+          },
+          "credits": ["owner-voice"]
+        },
+        {
+          "name": "lola-pant-6",
+          "files": { "ogg": "assets/build/audio/lola-pant-6.ogg", "m4a": "assets/build/audio/lola-pant-6.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-pant-6.wav",
+            "from": "assets/audio/sources/owner/lola-panting-2026-11-02.ogg",
+            "start": 9.18,
+            "duration": 0.66,
+            "made": "cut by hand with ffmpeg, not pnpm assets: one breath in and out, the first 0.340 s (the breath in) raised 9 dB, then all of it roughened (owner: too soft): more upper range, soft clipping and a 47 Hz flutter for a gravelly edge"
+          },
+          "credits": ["owner-voice"]
+        },
+        {
+          "name": "lola-pant-7",
+          "files": { "ogg": "assets/build/audio/lola-pant-7.ogg", "m4a": "assets/build/audio/lola-pant-7.m4a" },
+          "source": {
+            "wav": "assets/audio/lola-pant-7.wav",
+            "from": "assets/audio/sources/owner/lola-panting-2026-11-02.ogg",
+            "start": 9.86,
+            "duration": 0.74,
+            "made": "cut by hand with ffmpeg, not pnpm assets: one breath in and out, the first 0.410 s (the breath in) raised 9 dB, then all of it roughened (owner: too soft): more upper range, soft clipping and a 47 Hz flutter for a gravelly edge"
+          },
+          "credits": ["owner-voice"]
         }
       ]
     },
@@ -388,9 +460,9 @@
     {
       "id": "leaperCharge",
       "label": "bolt charge warning",
-      "use": "The Leaper's eye starts charging a bolt (its 0.6 s warning): an energy hum swelling in.",
+      "use": "The Leaper's eye starts charging a bolt (its 0.6 s warning). The Leaper's own laser rushing backwards into the shot: the owner's pick B from previews/charge-sounds.html (2026-11-02; the old hum sounded like something vibrating). Gain 0.63 keeps it as loud as the hum at gain 0.33, half as loud again as its first 0.22 (owner).",
       "bus": "creature",
-      "gain": 0.22,
+      "gain": 0.63,
       "priority": 9,
       "maxVoices": 2,
       "spatial": true,
@@ -398,14 +470,14 @@
       "variation": { "pitch": 0.03, "volume": 0.03 },
       "variations": [
         {
-          "name": "leaper-charge",
-          "files": { "ogg": "assets/build/audio/leaper-charge.ogg", "m4a": "assets/build/audio/leaper-charge.m4a" },
+          "name": "leaper-charge-reverse",
+          "files": { "ogg": "assets/build/audio/leaper-charge-reverse.ogg", "m4a": "assets/build/audio/leaper-charge-reverse.m4a" },
           "source": {
-            "wav": "assets/audio/leaper-charge.wav",
-            "from": "assets/audio/sources/kenney/sci-fi-sounds/forceField_001.ogg",
-            "made": "scripts/assets/make-sounds.mjs"
+            "wav": "assets/audio/leaper-charge-reverse.wav",
+            "from": "assets/build/audio/leaper-laser.ogg",
+            "made": "by hand with ffmpeg, not pnpm assets: the Leaper's laser backwards, 0.6 s ending on its loudest moment, compressed so it carries"
           },
-          "credits": ["kenney-sci-fi-sounds"]
+          "credits": ["freesound-479353"]
         }
       ]
     },
@@ -922,14 +994,6 @@
       "attribution": "\"Empty Gun Shot\" by KlawyKogut, https://freesound.org/s/154934/ (CC0 1.0)",
       "notes": "Courtesy credit."
     },
-    "freesound-261419": {
-      "title": "WomanScream.wav",
-      "author": "Archeos",
-      "sourceUrl": "https://freesound.org/s/261419/",
-      "licence": "CC0 1.0",
-      "attribution": "\"WomanScream.wav\" by Archeos, https://freesound.org/s/261419/ (CC0 1.0)",
-      "notes": "Courtesy credit. Downloaded as file 4.ogg of the \"female screams\" collection by congusbongus (https://opengameart.org/content/female-screams), whose licence.txt lists this file as CC0 from Freesound 261419. Only its first 0.55 s is used."
-    },
     "kenney-impact-sounds": {
       "title": "Impact Sounds",
       "author": "Kenney (www.kenney.nl)",
@@ -955,12 +1019,12 @@
       "notes": "Courtesy credit. The pack's License.txt is kept beside the used file."
     },
     "owner-voice": {
-      "title": "Lola's pain grunts",
+      "title": "Lola's pain grunts and panting",
       "author": "the Leaper project (the owner's own voice)",
       "sourceUrl": "assets/audio/sources/owner/lola-grunts-2026-10-22.ogg",
       "licence": "Project original",
-      "attribution": "Lola's pain grunts, recorded by the game's owner for this project",
-      "notes": "The owner's own voice, recorded 2026-10-22 and cut into four grunts (scripts/assets/make-sounds.mjs) with the breaths left out. It carries the project's own terms."
+      "attribution": "Lola's pain grunts and panting, recorded by the game's owner for this project",
+      "notes": "The owner's own voice: recorded 2026-10-22 and cut into four grunts (scripts/assets/make-sounds.mjs) with the breaths left out, and recorded 2026-11-02 (assets/audio/sources/owner/lola-panting-2026-11-02.ogg) and cut into seven breaths. It carries the project's own terms."
     },
     "project-pickup-sounds": {
       "title": "Pickup sounds",

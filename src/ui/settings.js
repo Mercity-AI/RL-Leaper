@@ -20,6 +20,7 @@ export const SETTINGS_KEY = 'leaper.settings.v1';
 //   captions     short captions for sound cues ("[Leaper's eye charges]")
 //   sound        the whole game's sound on or off
 //   showFps      the frame rate in the top right corner (owner, 2026-10-22: on)
+//   showPerf     frame time and CPU time under it (owner, 2026-10-30: on)
 //   keep60       draw fewer pixels when needed to stay at 60 fps (AdaptiveResolution)
 export const SETTING_DEFAULTS = Object.freeze({
   sensitivity: CAMERA.look.sensitivity,
@@ -29,6 +30,7 @@ export const SETTING_DEFAULTS = Object.freeze({
   captions: false,
   sound: true,
   showFps: true,
+  showPerf: true,
   keep60: true,
 });
 
@@ -51,7 +53,7 @@ export function normalizeSettings(raw = {}) {
   };
   number('sensitivity');
   number('fov');
-  for (const key of ['invertY', 'captions', 'sound', 'showFps', 'keep60']) if (typeof raw?.[key] === 'boolean') value[key] = raw[key];
+  for (const key of ['invertY', 'captions', 'sound', 'showFps', 'showPerf', 'keep60']) if (typeof raw?.[key] === 'boolean') value[key] = raw[key];
   if (TEXT_SIZES.includes(raw?.textSize)) value.textSize = raw.textSize;
   return value;
 }

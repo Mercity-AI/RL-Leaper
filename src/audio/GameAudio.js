@@ -17,7 +17,7 @@ import { AudioService } from './AudioService.js';
 // The recordings older code and tests know by these keys (manifest ids are the same names).
 const CLIPS = Object.freeze(['laser', 'pistol', 'm416', 'leaper', 'run', 'walk', 'robot', 'm416Reload', 'pistolReload']);
 // The optional slots (now ordinary manifest sounds that may have no takes yet).
-const SLOTS = Object.freeze(['kneeBreak', 'gunEmpty', 'lolaHurt', 'lolaHurtBig', 'lolaHitThud']);
+const SLOTS = Object.freeze(['kneeBreak', 'gunEmpty', 'lolaHurt', 'lolaPant', 'lolaHitThud']);
 // Footstep recordings are played one impact at a time by step(), never whole.
 const STEP_KINDS = new Set(['run', 'walk', 'robot']);
 

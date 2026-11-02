@@ -86,16 +86,17 @@ test('mute is the remembered setting, and the toolbar switch drives it', async (
 test('every slot the game and the Leaper\'s behaviour call has a take; the Leaper\'s are placed at it', () => {
   const byId = new Map(SOUNDS.sounds.map((sound) => [sound.id, sound]));
   // Called by PlayerWeapon, PlayerVitals, LeaperCombat and the Leaper's behaviour layer (src/actors/leaper/).
-  const called = ['kneeBreak', 'gunEmpty', 'lolaHurtBig', 'lolaHitThud', 'leaperCharge', 'leaperLock',
+  const called = ['kneeBreak', 'gunEmpty', 'lolaHitThud', 'leaperCharge', 'leaperLock',
     'leaperStompWindup', 'leaperStomp', 'leaperLeapWindup', 'leaperLand', 'leaperStagger', 'leaperDowned', 'leaperCollapse',
     'leaperJointBurst', 'uiClick', 'yardAmbience'];
   for (const id of called) assert.ok(byId.get(id)?.variations.length > 0, `${id} has a recording`);
   // Lola's pain grunts: the owner's own voice, four takes so a hit never sounds the same twice in a row (2026-10-22).
   assert.equal(byId.get('lolaHurt').variations.length, 4, 'four pain grunts to pick from');
+  assert.equal(byId.get('lolaPant').variations.length, 7, 'seven breaths to pick from');
   for (const sound of SOUNDS.sounds.filter((entry) => /^leaper[A-Z]/.test(entry.id) && entry.id !== 'leaperBoltImpact')) {
     assert.ok(sound.spatial && ['leaper', 'leaperEye'].includes(sound.emitter), `${sound.id} plays at the Leaper`);
   }
-  for (const id of ['lolaHurt', 'lolaHurtBig', 'lolaHitThud', 'uiClick', 'yardAmbience']) assert.equal(byId.get(id).spatial, false);
+  for (const id of ['lolaHurt', 'lolaHitThud', 'uiClick', 'yardAmbience']) assert.equal(byId.get(id).spatial, false);
   assert.equal(byId.get('yardAmbience').bus, 'ambience');
   assert.equal(byId.get('uiClick').bus, 'ui');
 });

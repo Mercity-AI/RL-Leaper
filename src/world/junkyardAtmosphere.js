@@ -6,9 +6,9 @@ import * as THREE from 'three';
 // stopping at a hard edge.
 export const JUNKYARD_ATMOSPHERE = Object.freeze({
   // Sky at the horizon: also the fog colour (the old flat background grey).
-  horizon: 0x555555,
+  horizon: 0x2d3035,
   // Sky straight up: a touch darker and cooler, for a subtle overcast gradient.
-  zenith: 0x40464f,
+  zenith: 0x212429,
   // How high above the horizon (0 = horizon, 1 = straight up) the sky reaches
   // the zenith colour.
   blend: 0.55,
@@ -18,6 +18,18 @@ export const JUNKYARD_ATMOSPHERE = Object.freeze({
   // so grey surfaces stay grey instead of turning blue.
   lightColour: 0xffffff,
   groundBounce: 0x777777,
+  // How bright the sky fill, the sun and the rim light are in the yard (owner,
+  // 2026-11-02: darker, not dark; they were 0.95, 1.25 and 0.16).
+  fill: 0.42,
+  sun: 0.6,
+  rim: 0.08,
+  // The warm lamps on the standing poles (yardLamps.js; distances in map units).
+  // range: how far one reaches; decay: how quickly it fades on the way; slots:
+  // how many shine at once (the nearest); fade: seconds to swap lamps.
+  lamps: Object.freeze({
+    colour: 0xffb661, intensity: 3, range: 20, decay: 1.2, slots: 2, fade: 0.8,
+    height: 4.9, reachOut: 0.5, bulbColour: 0xffd9a0, bulbRadius: 0.16,
+  }),
 });
 
 // The sky: a big inside-out ball that follows the camera and is drawn behind
@@ -74,9 +86,11 @@ export function applyAtmosphere(scene, { sky = true, atmosphere = JUNKYARD_ATMOS
   scene.fog?.color.setHex(atmosphere.horizon);
   scene.traverse((object) => {
     if (!object.isLight) return;
-    original.lights.push([object, object.color.getHex(), object.groundColor?.getHex()]);
+    original.lights.push([object, object.color.getHex(), object.groundColor?.getHex(), object.intensity]);
     object.color.setHex(atmosphere.lightColour);
     if (object.isHemisphereLight) object.groundColor.setHex(atmosphere.groundBounce);
+    if (object.isHemisphereLight) object.intensity = atmosphere.fill;
+    else if (object.isDirectionalLight) object.intensity = object.castShadow ? atmosphere.sun : atmosphere.rim;
   });
   const dome = sky ? createSky(atmosphere) : null;
   if (dome) scene.add(dome);
@@ -88,8 +102,9 @@ export function applyAtmosphere(scene, { sky = true, atmosphere = JUNKYARD_ATMOS
     }
     if (original.background !== undefined) scene.background.setHex(original.background);
     if (original.fog !== undefined) scene.fog.color.setHex(original.fog);
-    for (const [light, colour, ground] of original.lights) {
+    for (const [light, colour, ground, intensity] of original.lights) {
       light.color.setHex(colour);
+      light.intensity = intensity;
       if (ground !== undefined) light.groundColor.setHex(ground);
     }
   };

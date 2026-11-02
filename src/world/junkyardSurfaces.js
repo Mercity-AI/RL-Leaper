@@ -78,6 +78,14 @@ const NOISE = /* glsl */ `
     for (int octave = 0; octave < 5; octave++) { sum += amp * grimeNoise(p); p = grimeTurn * p * 2.07 + 5.3; amp *= 0.5; }
     return sum / 0.96875;
   }
+  // The fine detail for a point in map units: floor grit, pebbles and chips, and
+  // the walls' grit. (Unwarped: warping fine detail smears it into streaks.)
+  vec4 grimeFineFields(vec2 at) {
+    float grit = grimeFbm(vec3(at * 2.3, 3.0)) * 0.6 + grimeNoise(vec3(at * 7.9, 0.5)) * 0.4;
+    float pebble = smoothstep(0.76, 0.86, grimeNoise(vec3(at * 9.0, 21.0)));
+    float chip = smoothstep(0.8, 0.9, grimeNoise(vec3(at * 11.0, 37.0)));
+    return vec4(grit, pebble, chip, grimeNoise(vec3(at * 5.0, 3.0)));
+  }
 `;
 
 // Floor: mud patches, dry dust, oil stains, grit.
@@ -117,14 +125,15 @@ const FLOOR_SHADE = /* glsl */ `
   float near = 1.0 - smoothstep(6.0, 30.0, length(vViewPosition) / grimeScale);
   // Past the fade there is nothing to draw, so the noise isn't worked out there.
   if (near > 0.0) {
-    // (Unwarped: warping fine detail smears it into streaks.)
-    float grit = grimeFbm(vec3(p.xz * 2.3, 3.0)) * 0.6 + grimeNoise(vec3(p.xz * 7.9, 0.5)) * 0.4;
-    surface *= 1.0 + grimeGrit * near * (grit - 0.5) * 2.2;
+    #ifdef GRIME_BAKED
+      vec4 fine = texture2D(grimeFine, p.xz / grimeFineTile);
+    #else
+      vec4 fine = grimeFineFields(p.xz);
+    #endif
+    surface *= 1.0 + grimeGrit * near * (fine.r - 0.5) * 2.2;
     // Pebbles and chips: small, soft-edged dark and light specks, scattered at random.
-    float pebble = smoothstep(0.76, 0.86, grimeNoise(vec3(p.xz * 9.0, 21.0)));
-    float chip = smoothstep(0.8, 0.9, grimeNoise(vec3(p.xz * 11.0, 37.0)));
-    surface *= 1.0 - 0.22 * pebble * near;
-    surface = mix(surface, grimeDust * 1.15, 0.3 * chip * near);
+    surface *= 1.0 - 0.22 * fine.g * near;
+    surface = mix(surface, grimeDust * 1.15, 0.3 * fine.b * near);
   }
   diffuseColor.rgb = surface;
   float grimeGloss = oil;
@@ -158,7 +167,12 @@ const WALL_SHADE = /* glsl */ `
   vec3 surface = mix(diffuseColor.rgb, grimeRust, rust * grimeRustAmount * upright);
   surface = mix(surface, grimeStreak, drip * grimeStreakAmount);
   surface = mix(surface, grimeMud, splash * upright * 0.9);
-  surface *= 1.0 + grimeGrit * (grimeNoise(vec3(along * 5.0, p.y * 5.0, 3.0)) - 0.5) * 2.0;
+  #ifdef GRIME_BAKED
+    float wallGrit = texture2D(grimeFine, vec2(along, p.y) / grimeFineTile).a;
+  #else
+    float wallGrit = grimeFineFields(vec2(along, p.y)).a;
+  #endif
+  surface *= 1.0 + grimeGrit * (wallGrit - 0.5) * 2.0;
   diffuseColor.rgb = surface;
   float grimeGloss = 0.0;
 `;
@@ -187,9 +201,11 @@ function dress(material, kind, scale, bounds) {
   uniforms.grimeGrit = { value: look.grit };
   uniforms.grimeScale = { value: scale };
   // The baked fields (bakeJunkyardSurfaces): the picture, and the map-unit
-  // rectangle it covers (floor: x and z; walls: along the wall, and height).
+  // rectangle it covers (floor: x and z; walls: along the wall, and height),
+  // and the shared fine-detail tile with its size in map units.
   const field = { grimeField: { value: null }, grimeFieldMin: { value: new THREE.Vector2() },
-    grimeFieldSize: { value: new THREE.Vector2(1, 1) } };
+    grimeFieldSize: { value: new THREE.Vector2(1, 1) },
+    grimeFine: { value: null }, grimeFineTile: { value: BAKE.fine.tile } };
   BAKES.set(material, { kind, uniforms, field, bounds });
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms, field);
@@ -214,7 +230,8 @@ function dress(material, kind, scale, bounds) {
 // once it is). Kept off the material so a clone (a camera fade) never shares it.
 const BAKES = new WeakMap();
 
-const FIELD_DECLARATIONS ='uniform sampler2D grimeField;\nuniform vec2 grimeFieldMin;\nuniform vec2 grimeFieldSize;';
+const FIELD_DECLARATIONS = 'uniform sampler2D grimeField;\nuniform vec2 grimeFieldMin;\nuniform vec2 grimeFieldSize;\n'
+  + 'uniform sampler2D grimeFine;\nuniform float grimeFineTile;';
 
 // Dress the yard's own floor and wall materials (junkyard_v2's Cube: a
 // "... walls" and a "... ground" material). Other maps are left alone.
@@ -267,15 +284,40 @@ export function colourJunkyardProps(map, looks = JUNKYARD_PROP_COLOURS) {
 // game near 20 fps whenever the camera looked across the yard. The large,
 // slow parts (mud patches, dust, oil, colour shifts; wall streaks and rust)
 // never change, so they are drawn once into a picture at load and only looked
-// up after that. The fine grit and pebbles stay live (small, and they fade
-// with distance). Picture sizes in pixels: the floor's covers the whole yard
+// up after that. Picture sizes in pixels: the floor's covers the whole yard
 // (about 26 pixels per map unit), the walls' runs the yard's length.
+//
+// The fine grit and pebbles (owner, 2026-10-30: the ground should not be worked
+// out again every frame) were 8 layers of noise per nearby floor pixel. They
+// are too fine for one picture of the whole yard, so one seamless tile holds
+// them and repeats across floor and walls. fine: its size in pixels, the map
+// units it covers (2048 / 16 = 128 pixels per map unit), the share of each edge
+// blended into the opposite edge so the seams never show, and how sharp it
+// stays when seen at a low angle (anisotropy).
 export const BAKE = Object.freeze({
   floor: Object.freeze({ width: 2048, height: 2048 }),
   walls: Object.freeze({ width: 4096, height: 256 }),
+  fine: Object.freeze({ size: 2048, tile: 16, overlap: 0.1, anisotropy: 4 }),
 });
 
 const BAKE_VERTEX = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+
+// The fine-detail tile. Each pixel blends the detail at its own spot with the
+// detail one tile over, so a tile's right edge becomes exactly its left edge.
+const FINE_BAKE_SHADER = /* glsl */ `
+  uniform float tile;
+  uniform float overlap;
+  varying vec2 vUv;
+  ${NOISE}
+  void main() {
+    vec2 at = vUv * tile;
+    vec2 blend = smoothstep(1.0 - overlap, 1.0, vUv);
+    gl_FragColor = mix(
+      mix(grimeFineFields(at), grimeFineFields(at - vec2(tile, 0.0)), blend.x),
+      mix(grimeFineFields(at - vec2(0.0, tile)), grimeFineFields(at - vec2(tile, tile)), blend.x),
+      blend.y);
+  }
+`;
 
 // Draw each dressed floor / wall material's fields into its picture and
 // switch it to looking them up. roots: what holds the yard's materials (the
@@ -294,6 +336,21 @@ export function bakeJunkyardSurfaces(renderer, roots) {
   const scene = new THREE.Scene();
   scene.add(quad);
   const previous = renderer.getRenderTarget();
+  // One fine-detail tile for every material.
+  const { size, tile, overlap, anisotropy } = BAKE.fine;
+  const fine = new THREE.WebGLRenderTarget(size, size, { minFilter: THREE.LinearMipmapLinearFilter,
+    magFilter: THREE.LinearFilter, wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping,
+    anisotropy: Math.min(anisotropy, renderer.capabilities.getMaxAnisotropy()),
+    format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false });
+  fine.texture.generateMipmaps = true;
+  quad.material = new THREE.ShaderMaterial({
+    uniforms: { tile: { value: tile }, overlap: { value: overlap } },
+    vertexShader: BAKE_VERTEX, fragmentShader: FINE_BAKE_SHADER,
+    depthTest: false, depthWrite: false, toneMapped: false,
+  });
+  renderer.setRenderTarget(fine);
+  renderer.render(scene, camera);
+  quad.material.dispose();
   for (const material of materials) {
     const bake = BAKES.get(material);
     const { min, max } = bake.bounds;
@@ -322,8 +379,9 @@ export function bakeJunkyardSurfaces(renderer, roots) {
     renderer.render(scene, camera);
     quad.material.dispose();
     bake.target = target;
-    material.addEventListener('dispose', () => target.dispose());
+    material.addEventListener('dispose', () => { target.dispose(); fine.dispose(); });
     bake.field.grimeField.value = target.texture;
+    bake.field.grimeFine.value = fine.texture;
     bake.field.grimeFieldMin.value.copy(lo);
     bake.field.grimeFieldSize.value.copy(span);
     material.defines = { ...material.defines, GRIME_BAKED: '' };

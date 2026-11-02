@@ -1,10 +1,12 @@
 import { contact, severedLegs } from '../world/playerContact.js';
 import { lerpAngle, wrapAngle } from '../core/angles.js';
 import { FixedStep } from '../core/GameLoop.js';
+import { COMBAT } from '../config/combat.js';
 import { ENCOUNTER } from '../config/encounter.js';
 import { BRAIN_PROVIDERS, brainProviderOrder, createBrainProvider, describeProgress } from '../brain/BrainProvider.js';
 import { HttpBrainProvider, brainServiceUrl, DEFAULT_BRAIN_URL } from '../brain/HttpBrainProvider.js';
 import { OnnxBrainProvider } from '../brain/junkyard/OnnxBrainProvider.js';
+import { STEP_OVER_PROPS } from '../world/stepOverProps.js';
 
 // The brain service's address helpers live with the HTTP provider now; they are
 // re-exported here for the code and tests that always found them in this file.
@@ -50,7 +52,7 @@ export function createGameBrainProvider({ search = globalThis.location?.search ?
   return createBrainProvider({
     order: brainProviderOrder(search),
     factories: {
-      onnx: () => new OnnxBrainProvider(),
+      onnx: () => new OnnxBrainProvider({ stepOver: STEP_OVER_PROPS }),
       http: () => new HttpBrainProvider({ url: brainServiceUrl({ search }) }),
     },
   });
@@ -167,6 +169,7 @@ export class JunkyardBrain {
       width: this.playtest.world.width, position: [pose.x, pose.z],
       yaw: pose.yaw, target: [this.target.mesh.position.x, this.target.mesh.position.z],
       player_collision: Boolean(this.target.isPlayer), ...this.contactPayload(),
+      sight_range: COMBAT.sightRange * this.playtest.world.scale,
       ...(this.playtest.sight ? { sight_mode: this.playtest.sight.mode, sight_pose: this.playtest.sight.pose() } : {}),
     };
   }

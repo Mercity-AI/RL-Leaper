@@ -1,3 +1,7 @@
+import * as THREE from 'three';
+import { JunkyardNavigation } from './JunkyardNavigation.js';
+import { PLAYER_GRID } from './junkyardCollision.js';
+
 // Props Lola may not walk into (owner, 2026-10-22: from inside the open
 // container in the middle of the yard she could shoot the Leaper endlessly while
 // it never saw or reached her). Only true hiding places are blocked: the owner
@@ -9,7 +13,7 @@
 // Lola only: collision.json is untouched, so the Leaper's grid and the Python
 // brain see exactly the yard they were trained on. Props are found by their
 // Blender names (every part whose name starts with `prop`, like
-// CLIMBABLE_PROPS); a new yard without one simply has no blocker for it.
+// JUNKYARD_PROP_COLOURS); a new yard without one simply has no blocker for it.
 export const PLAYER_BLOCKED_PROPS = Object.freeze([
   // The open container lying on its side by the central spill (rust inside):
   // its deep end is seen from 3-4% of the Leaper's places.
@@ -17,6 +21,25 @@ export const PLAYER_BLOCKED_PROPS = Object.freeze([
   // The fallen container in the north-east corner (olive inside): its deep end,
   // against the yard's east wall, is seen from 1-5%.
   '06 - northeast fallen freight',
+]);
+
+// Props Lola's body stays out of, from their own triangles: each part reaching
+// above minTop is solid for her at every height up to her head, however low it
+// is (nothing to step or jump onto), and she keeps bodyRadius (map units) from it.
+//   Cars and racks (owner, 2026-10-30: she could stand half inside a car). Her
+//   0.25 circle fits between their parts, and their sills, wheels and bonnets
+//   were things she could step or jump onto, so her arms and legs went through
+//   them. bodyRadius is about her shoulders; gaps wide enough for her stay open,
+//   and so do the racks' low decks. The bus and the van stay open shelters.
+//   Containers (owner, 2026-10-30: she never gets onto one). Their low edges are
+//   no way up; she still walks in through their open ends on the flat floors.
+export const PLAYER_SOLID_PROPS = Object.freeze([
+  Object.freeze({ bodyRadius: 0.42, minTop: 0.35, names: Object.freeze(['blue_sedan', 'burgundy_hatchback',
+    'car_rack_empty', 'car_rack_loaded_6', 'car_wreck_missing_hood', 'car_wreck_stripped_roof', 'car_station_wagon',
+    'Rack - middle six cars']) }),
+  Object.freeze({ bodyRadius: PLAYER_GRID.radius, minTop: 0.35, names: Object.freeze(['01 - central side-fallen freight',
+    '02 - central angled collapse', '03 - southern fallen freight', '04 - southern overturned freight',
+    '05 - west processing spill', '06 - northeast fallen freight']) }),
 ]);
 
 // The loader writes spaces as underscores and drops dots.
@@ -87,6 +110,58 @@ export function findPlayerBlockers(map, scale, props = PLAYER_BLOCKED_PROPS) {
     if (points.length >= 3) blockers.push(new Blocker(prop, convexHull(points)));
   }
   return blockers;
+}
+
+// A blocker made of props' own triangles (their outline may have gaps she can
+// use). They live in one small grid; bodyRadius replaces the radius asked about,
+// so the check is her body's and not her thin collision circle.
+export class SolidProps {
+  constructor(triangles, bodyRadius) {
+    this.name = 'solid props';
+    this.bodyRadius = bodyRadius;
+    const far = 1e4;
+    this.grid = new JunkyardNavigation({ bounds: { minX: -far, maxX: far, minZ: -far, maxZ: far }, triangles },
+      bodyRadius, PLAYER_GRID.height, 0.4, { free: new Uint8Array(0) });
+  }
+
+  contact(x, z) {
+    return this.grid.contact(x, z, this.bodyRadius, 0);
+  }
+}
+
+// One entry's triangles in a loaded map, in map units, as collision.json has
+// them: [ax, az, bx, bz, cx, cz, lowest, highest].
+function propTriangles(map, scale, { names, minTop }) {
+  const wanted = names.map(plain), triangles = [];
+  const corner = new THREE.Vector3();
+  map.traverse((object) => {
+    if (!object.isMesh) return;
+    const name = plain(object.name);
+    if (!wanted.some((prop) => name === prop || name.startsWith(`${prop} `))) return;
+    const position = object.geometry.attributes.position, index = object.geometry.index;
+    const count = index ? index.count : position.count;
+    for (let i = 0; i + 2 < count; i += 3) {
+      const t = [0, 0, 0, 0, 0, 0, Infinity, -Infinity];
+      for (let k = 0; k < 3; k += 1) {
+        corner.fromBufferAttribute(position, index ? index.getX(i + k) : i + k).applyMatrix4(object.matrixWorld).divideScalar(scale);
+        t[k * 2] = corner.x;
+        t[k * 2 + 1] = corner.z;
+        t[6] = Math.min(t[6], corner.y);
+        t[7] = Math.max(t[7], corner.y);
+      }
+      if (t[7] > minTop) triangles.push(t);
+    }
+  });
+  return triangles;
+}
+
+// The solid props of a loaded map as blockers (a new yard without them has none).
+export function findSolidProps(map, scale, props = PLAYER_SOLID_PROPS) {
+  map.updateMatrixWorld(true);
+  return props.flatMap((entry) => {
+    const triangles = propTriangles(map, scale, entry);
+    return triangles.length ? [new SolidProps(triangles, entry.bodyRadius)] : [];
+  });
 }
 
 // Lola's wall checks (map units) with the blockers added: blocked, contact

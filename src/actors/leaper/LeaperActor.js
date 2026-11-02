@@ -209,7 +209,9 @@ export class LeaperActor {
       if (this.followsBrain) this.playout.push(frame);
     }
     // 2. Where the body goes this frame.
-    if (locomotion === 'scripted' && this.flight) {
+    if (director.state === 'investigate') {
+      this.walkToShot(dt);
+    } else if (locomotion === 'scripted' && this.flight) {
       this.flight.time += dt;
       const arc = leapArc(this.flight.plan, this.flight.time, this.config.leap);
       Object.assign(this.pose, { x: arc.x, z: arc.z, yaw: wrapAngle(arc.yaw) });
@@ -240,9 +242,51 @@ export class LeaperActor {
       dt, null, { alive });
   }
 
-  // Whether the brain's replies move the body (not during a leap, nor once destroyed).
+  // Whether the brain's replies move the body (not during a leap or an
+  // investigation, nor once destroyed).
   get followsBrain() {
-    return !['leap', 'dying', 'dead'].includes(this.director.state);
+    return !['leap', 'investigate', 'dying', 'dead'].includes(this.director.state);
+  }
+
+  // Investigate: follow a route to where the shot came from, turning on the
+  // spot first and walking at the brain's own pace. Every point of the route is
+  // a place the brain accepts, so it carries on from wherever this ends.
+  walkToShot(dt) {
+    const director = this.director, goal = director.goal;
+    if (!goal) return;
+    const c = this.config.investigate;
+    if (this.trek?.goal !== goal) {
+      this.trek = { goal, path: this.world.leaperRoute?.(this.pose, goal, this.seesFrom(goal)) ?? [], next: 0 };
+    }
+    const { path } = this.trek;
+    const speed = c.speed * Math.max(0.05, this.simulation.rig.mobility ?? 1);
+    // The next point of the route (close ones count as passed); at the end, the shot itself.
+    while (this.trek.next < path.length
+      && Math.hypot(path[this.trek.next].x - this.pose.x, path[this.trek.next].z - this.pose.z) < 0.5) this.trek.next += 1;
+    const point = path[this.trek.next] ?? goal;
+    const heading = Math.atan2(point.x - this.pose.x, point.z - this.pose.z);
+    this.pose.yaw = wrapAngle(turnToward(this.pose.yaw, heading, LEAPER_ANGLES.investigateTurnRate * dt));
+    const off = Math.abs(shortestAngle(this.pose.yaw, heading));
+    if (this.trek.next >= path.length) {
+      // Route finished: facing the shot is the end of it.
+      if (off < LEAPER_ANGLES.faceTolerance) director.reachedGoal();
+      return;
+    }
+    if (off > LEAPER_ANGLES.investigateWalkFacing) return;
+    const step = Math.min(speed * dt, Math.hypot(point.x - this.pose.x, point.z - this.pose.z));
+    this.pose.x += Math.sin(heading) * step;
+    this.pose.z += Math.cos(heading) * step;
+  }
+
+  // Could its eye, stood at a point of the yard, see the shooter's spot past the
+  // walls? (Lola shooting out of a container: the nearest spot is often the
+  // other side of its wall, owner 2026-11-02.)
+  seesFrom(goal) {
+    const combat = this.combat;
+    if (!combat?.geometry) return null;
+    const to = combat.pose()[1].clone().setX(goal.x).setZ(goal.z);
+    const from = new THREE.Vector3(0, combat.origin.y, 0);
+    return (point) => combat.geometry.clear(from.setX(point.x).setZ(point.z), to);
   }
 
   // Hold: turn the body in place toward Lola (Engage) or the leap's direction
@@ -376,8 +420,10 @@ export class LeaperActor {
 
   // A bullet (or the debug button) hurt the Leaper: flash and sparks; a crit on
   // the weak point is a big hit.
-  damaged({ point = null, normal = null, weakPoint = false, major = false } = {}) {
+  damaged({ point = null, normal = null, weakPoint = false, major = false, debug = false } = {}) {
     this.feedback?.hit({ point, normal, strength: weakPoint ? 1.5 : 1 });
+    // It knows which way that bullet came from.
+    if (!debug) this.director.shotAt(this.player.mesh.position);
     if (weakPoint && !major) this.director.bigHit('weakPoint');
   }
 

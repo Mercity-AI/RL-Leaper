@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { Hud } from './Hud.js';
 import { GameScreens } from './GameScreens.js';
 import { ControlsLegend, legendRows } from './ControlsLegend.js';
@@ -30,6 +31,16 @@ const END_SCREEN = Object.freeze({ delay: 1.6 });
 // While a menu is open the menus have the controls: the input controller reports
 // only menu actions, Lola's controls are frozen as in a pause, and the mouse is
 // free (pointer lock released).
+
+// Which way round the screen the last bolt came from: the angle clockwise from
+// straight ahead of the camera, in radians, or null.
+const cameraAhead = new THREE.Vector3();
+function hitFrom({ hitShare, hitDirection }, camera) {
+  if (!hitShare || !hitDirection || !camera) return null;
+  camera.getWorldDirection(cameraAhead);
+  const x = -hitDirection.x, z = -hitDirection.z;
+  return Math.atan2(x * -cameraAhead.z + z * cameraAhead.x, x * cameraAhead.x + z * cameraAhead.z);
+}
 
 export class GameUi {
   // input: the game's InputController. cameraController: the chase camera (look
@@ -234,7 +245,7 @@ export class GameUi {
     else if (key === 'fov') camera.chaseFov = value;
     else if (key === 'textSize') document.documentElement.dataset.textSize = value;
     else if (key === 'captions') this.hud.setCaptions(value);
-    else if (key === 'showFps' && this.fps) this.fps.visible = value;
+    else if ((key === 'showFps' || key === 'showPerf') && this.fps) this.fps.show({ fps: this.settings.get('showFps'), details: this.settings.get('showPerf') });
     else if (key === 'sound' && this.playtest && this.playtest.audio.enabled !== value) this.playtest.toggleSound();
   }
 
@@ -300,8 +311,10 @@ export class GameUi {
     }
     const onEnd = flow.state.name === 'ended' && !this.endScreenIn && this.screens?.stack.base === 'end';
     // The title music plays while the title or the end screen is up (owner,
-    // 2026-10-22) and fades out when they go.
-    const music = onTitle || onEnd;
+    // 2026-10-22) and fades out when they go. Only in the window being used: a
+    // second copy of the game left on its title must not play under the real one
+    // (owner, 2026-11-02).
+    const music = (onTitle || onEnd) && document.hasFocus();
     if (music !== this.titleMusic) {
       this.titleMusic = music;
       if (music) playtest.audio?.startAmbience?.('titleMusic');
@@ -313,6 +326,7 @@ export class GameUi {
     snapshot.dt = flow.paused ? 0 : dt;
     snapshot.menu = Boolean(this.screens?.open);
     snapshot.vitals = playtest.vitals.view({ over: encounter.over });
+    snapshot.hitFrom = hitFrom(snapshot.vitals, playtest.engine?.camera);
     snapshot.weapon = playtest.playerWeapon.hudState;
     encounter.enemies.forEach(({ combat }, index) => {
       const leaper = snapshot.leapers[index] ??= { health: 0, max: 0 };

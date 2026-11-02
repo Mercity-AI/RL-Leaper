@@ -36,6 +36,8 @@ export class JunkyardPresentation {
     this.cameraController.update(primary.simulation.state, primary.simulation.rig.eyePivot, dt);
     // 2. Sun and shadows centred on Lola, snapped to shadow pixels.
     this.sun.update(this.player.mesh.position);
+    this.world.lamps?.update(this.player.mesh.position, dt);
+    this.engine.setBlur?.(this.encounter.vitals?.weakness ?? 0);
     // 3. LEAPER POV (spectator) overrides the camera while it is on.
     this.pov.update();
     // 4. Fresh camera matrices, so anything projected below uses this frame's view.

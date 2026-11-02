@@ -139,6 +139,7 @@ export function registerGameSections(store, { quality, reload = () => location.r
     });
     // The frame rate on screen, and holding 60 fps by drawing fewer pixels (owner, 2026-10-22).
     c.toggle(container, { label: 'Show FPS', checked: s.get('showFps'), onChange: (on) => s.set('showFps', on) });
+    c.toggle(container, { label: 'Show performance stats (frame time, CPU)', checked: s.get('showPerf'), onChange: (on) => s.set('showPerf', on) });
     c.toggle(container, { label: 'Keep 60 FPS (lower the resolution when needed)', checked: s.get('keep60'),
       onChange: (on) => s.set('keep60', on) });
   } });

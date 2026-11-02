@@ -25,9 +25,11 @@ export function defaultBrainBaseUrl() {
 const TIMEOUT_MS = { init: 90000, prepare: 90000, reset: 90000, step: 3000, sense: 3000, sync: 3000, close: 3000 };
 
 export class OnnxBrainProvider extends BrainProviderBase {
-  constructor({ baseUrl = defaultBrainBaseUrl(), createWorker = null } = {}) {
+  // stepOver: boxes of low junk left out of its walking map (src/world/stepOverProps.js).
+  constructor({ baseUrl = defaultBrainBaseUrl(), createWorker = null, stepOver = null } = {}) {
     super('onnx');
     this.baseUrl = baseUrl;
+    this.stepOver = stepOver;
     this.createWorker = createWorker
       ?? (() => new Worker(new URL('./brainWorker.js', import.meta.url), { type: 'module', name: 'leaper-brain' }));
     this.worker = null;
@@ -60,7 +62,7 @@ export class OnnxBrainProvider extends BrainProviderBase {
         // A worker that dies takes its sessions with it: start afresh next time.
         this.worker.onerror = (event) => this.dispose(new BrainUnavailableError(
           `Brain worker failed: ${event?.message || 'could not start'}`, { kind: 'onnx' }));
-        const result = await this.call('init', { baseUrl: this.baseUrl });
+        const result = await this.call('init', { baseUrl: this.baseUrl, stepOver: this.stepOver });
         this.manifest = result.manifest;
         this.loadInfo = result.timings;
         return result.manifest;

@@ -43,6 +43,25 @@ export function undoWarp(outfit) {
   outfit.warpBases = [];
 }
 
+// Turn a bone so it points along `direction` (in the frame of `mesh`, her
+// whole body), by `share`. Bones run along their own +Y.
+const LIMP_UP = new THREE.Vector3(0, 1, 0);
+const aim = {
+  bone: new THREE.Quaternion(), turn: new THREE.Quaternion(), parent: new THREE.Quaternion(), none: new THREE.Quaternion(),
+  along: new THREE.Vector3(), goal: new THREE.Vector3(), body: new THREE.Quaternion(),
+};
+function aimBone(bone, direction, mesh, share) {
+  bone.updateWorldMatrix(true, false);
+  bone.getWorldQuaternion(aim.bone);
+  aim.along.set(0, 1, 0).applyQuaternion(aim.bone).normalize();
+  aim.goal.copy(direction).applyQuaternion(mesh.getWorldQuaternion(aim.body));
+  aim.turn.setFromUnitVectors(aim.along, aim.goal);
+  aim.turn.slerp(aim.none, 1 - share);
+  bone.parent.getWorldQuaternion(aim.parent);
+  bone.quaternion.copy(aim.turn).multiply(aim.bone).premultiply(aim.parent.invert()).normalize();
+  bone.updateWorldMatrix(false, false);
+}
+
 // Put the flinched spine joints back to their pose from before the flinch.
 export function undoFlinch(outfit) {
   for (const joint of outfit.flinchBones ?? []) {
@@ -90,9 +109,9 @@ export class LolaAnimator {
   }
 
   // Evaluate one outfit's final pose from its clips and the active layers:
-  // layers = { stall: { share, idle }, jump: { action, weight, clip, carried }, shot: { action, upper, legs },
+  // layers = { stall: { share, idle }, jump: { action, weight, clip, carried, steady }, shot: { action, upper, legs },
   //            reload: { action, weight }, warp: { angle, hips },
-  //            flinch: { strength, angle, direction }, silence: [actions], mesh }.
+  //            hunch and flinch: { strength, angle, direction }, silence: [actions], mesh }.
   pose(outfit, layers) {
     // The twist and flinch are added after the mixer, so start from the clean pose.
     undoFlinch(outfit);
@@ -128,6 +147,9 @@ export class LolaAnimator {
     const total = base.reduce((sum, weight) => sum + weight, 0) + legs || 1;
     if (layers.shot) layers.shot.upper.setEffectiveWeight(overlayWeight(1, total));
     if (layers.reload) layers.reload.action.setEffectiveWeight(overlayWeight(layers.reload.weight, total));
+    // The plain jump keeps her arms and gun as they were (a shot or reload wins).
+    outfit.steadyArms.setEffectiveWeight(layers.jump?.steady && layers.jump.weight > 0 && !layers.shot && !layers.reload
+      ? overlayWeight(1, total) : 0);
 
     // One mixer evaluation per frame; the clocks were already advanced. The
     // other gun's clips share the body's mixer, so they are silent for it.
@@ -141,9 +163,25 @@ export class LolaAnimator {
     // Post-mixer: glue the reload gun into her hand, hand the jump gun over
     // while the jump fades, twist the hips, then add the flinch.
     if (layers.reload) this.placeReloadGun(outfit, layers.reload.action.time);
-    if (layers.jump?.clip?.grip && layers.jump.carried && layers.jump.weight < 1) this.blendJumpGun(outfit, layers.jump);
+    if (layers.jump?.clip?.grip && layers.jump.carried && !layers.jump.steady && layers.jump.weight < 1) this.blendJumpGun(outfit, layers.jump);
     if (layers.warp) this.warp(outfit, layers.warp.angle, layers.warp.hips);
+    if (layers.hunch) this.flinch(outfit, layers.hunch, layers.mesh);
     if (layers.flinch) this.flinch(outfit, layers.flinch, layers.mesh);
+    if (layers.limp) this.limp(outfit, layers.limp, layers.mesh);
+  }
+
+  // Going slack as she falls: the spine straightens in line with her body and
+  // both arms drop to her sides, by `share` (0..1). The mixer poses her afresh
+  // every frame, so nothing needs undoing.
+  limp(outfit, { share, armLeft, armRight }, mesh) {
+    const { limpBones } = outfit;
+    mesh.updateMatrixWorld(true);
+    const lay = (bones, direction) => {
+      for (const bone of bones) aimBone(bone, direction, mesh, share);
+    };
+    lay(limpBones.spine, LIMP_UP);
+    lay(limpBones.armL, new THREE.Vector3().fromArray(armLeft).normalize());
+    lay(limpBones.armR, new THREE.Vector3().fromArray(armRight).normalize());
   }
 
   // Twist her legs by `angle` (radians, positive = toward her right) about the
@@ -224,7 +262,7 @@ export class LolaAnimator {
     outfit.flinchBones[0].bone.parent.getWorldQuaternion(parent);
     worldAxis.copy(UP).cross(direction);
     for (const joint of outfit.flinchBones) {
-      joint.base = joint.bone.quaternion.clone();
+      joint.base ??= joint.bone.quaternion.clone();
       axis.copy(worldAxis).applyQuaternion(inverse.copy(parent).invert()).normalize();
       joint.bone.quaternion.premultiply(rotation.setFromAxisAngle(axis, angle * strength * joint.share));
       parent.multiply(joint.bone.quaternion);

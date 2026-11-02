@@ -101,6 +101,7 @@ export function prepareOutfits(models, { jumps = [], reloads = [], runJumps = {}
     if (jumps[index]) sources.jump = addJumpGun(model, jumps[index], 'Jump', weapon);
     for (const [name, files] of Object.entries(runJumps)) {
       if (files?.[index]) sources[name] = addJumpGun(model, files[index], name, weapon);
+      if (files?.[index] && RUN_JUMPS[name]?.steadyLegs) steadyLegs(sources[name].clip, RUN_JUMPS[name].steadyLegs);
     }
     return sources;
   });
@@ -125,6 +126,11 @@ export function prepareOutfits(models, { jumps = [], reloads = [], runJumps = {}
   const body = {
     model, rig, mixer, flinchBones, warpRoots, warpSpine,
     hitBone: flinchBones[0]?.bone ?? null,
+    limpBones: {
+      spine: LIMP_SPINE.map(name => bone(model, name)),
+      armL: limpArm('L').map(name => bone(model, name)),
+      armR: limpArm('R').map(name => bone(model, name)),
+    },
     headBone: bone(model, 'DEF-spine.006'),
     warpLegs: ['DEF-thigh.L', 'DEF-thigh.R'].map(name => bone(model, name)).filter(Boolean),
     warpSpineTotal: warpSpine.reduce((sum, { share }) => sum + share, 0) || 1,
@@ -147,6 +153,34 @@ export function prepareOutfits(models, { jumps = [], reloads = [], runJumps = {}
   }
   return views;
 }
+
+// The bones LolaAnimator.limp lays straight, shoulder or hips outward.
+const LIMP_SPINE = ['DEF-spine.003', 'DEF-spine.004', 'DEF-spine.005', 'DEF-spine.006'];
+const limpArm = (side) => [`DEF-upper_arm.${side}`, `DEF-upper_arm.${side}.001`, `DEF-forearm.${side}`,
+  `DEF-forearm.${side}.001`, `DEF-hand.${side}`];
+
+// Between two frames (counted from 1) her legs glide from the first pose to the
+// last, in place of what the clip does there. Height stays the clip's: only the
+// joints' turns and stretch change.
+const LEG_PARTS = /^DEF-(thigh|shin|foot|toe)/;
+function steadyLegs(clip, [first, last]) {
+  const a = first - 1, b = last - 1;
+  for (const track of clip.tracks) {
+    const [name, property] = track.name.split('.').slice(-2);
+    if (!LEG_PARTS.test(name) || track.times.length <= b || property === 'position') continue;
+    const size = track.getValueSize(), values = track.values;
+    const from = values.slice(a * size, (a + 1) * size), to = values.slice(b * size, (b + 1) * size);
+    for (let key = a + 1; key < b; key += 1) {
+      const share = THREE.MathUtils.smoothstep(key, a, b);
+      if (property === 'quaternion') {
+        scratchTurn.fromArray(from).slerp(scratchTurnTo.fromArray(to), share).toArray(values, key * size);
+      } else {
+        for (let i = 0; i < size; i += 1) values[key * size + i] = from[i] + (to[i] - from[i]) * share;
+      }
+    }
+  }
+}
+const scratchTurn = new THREE.Quaternion(), scratchTurnTo = new THREE.Quaternion();
 
 // One gun's view of the shared body: its clips (converted to the fixed
 // skeleton), its guns, and the stride data its clips were measured with.
@@ -188,6 +222,13 @@ function prepareView(body, gltf, index, jumpSources, reloadSource) {
     action.clampWhenFinished = true;
     jumpClips[kind] = { action, gun, grip: gripSamplers(converted, gun, rightHand) };
   }
+  // The plain jump's arms and gun: Idle's, over the jump's legs (LolaAnimator.pose).
+  // The authored clip is "Jump Shoot" and raises the gun to fire (owner, 2026-11-02).
+  const steadyClip = authored('Idle').clone();
+  steadyClip.name = 'SteadyArms';
+  steadyClip.tracks = steadyClip.tracks.filter(track => !LOWER_BODY.test(track.name));
+  const steadyArms = mixer.clipAction(steadyClip);
+  steadyArms.setEffectiveWeight(0).play();
   const reload = reloadSource ? createReload(model, mixer, reloadSource, weapon, rig) : null;
 
   // This gun's objects on the body: in her hands, firing, stowed while the
@@ -203,13 +244,13 @@ function prepareView(body, gltf, index, jumpSources, reloadSource) {
   for (const [name, action] of Object.entries(actions)) action.setEffectiveWeight(name === 'Idle' ? 1 : 0).play();
   // Every action the animator advances by hand (see LolaAnimator.advance).
   const timed = [...Object.values(actions), ...Object.values(shooting), ...Object.values(shootingUpper),
-    ...Object.values(jumpClips).map(({ action }) => action), ...(reload ? [reload.action] : [])];
+    ...Object.values(jumpClips).map(({ action }) => action), steadyArms, ...(reload ? [reload.action] : [])];
   const view = {
-    model, rig, mixer, actions, footContacts: null, shooting, shootingUpper, shotGun, carriedGun, stowed, guns,
+    model, rig, mixer, actions, footContacts: null, shooting, shootingUpper, steadyArms, shotGun, carriedGun, stowed, guns,
     jump: jumpClips.jump ?? null, jumpClips, reload, profiles: strideProfiles[weapon], current: 'Idle', timed, posed: -1,
     // The moving clips LolaLocomotion keeps on one stride phase.
     strideActions: new Set(STRIDE_CLIPS.map(name => actions[name])),
-    hitBone: body.hitBone, headBone: body.headBone, flinchBones: body.flinchBones,
+    hitBone: body.hitBone, headBone: body.headBone, limpBones: body.limpBones, flinchBones: body.flinchBones,
     warpRoots: body.warpRoots, warpLegs: body.warpLegs, warpSpine: body.warpSpine, warpSpineTotal: body.warpSpineTotal,
   };
   // Offsets added to the shared bones after the pose belong to the body.

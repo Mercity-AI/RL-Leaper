@@ -66,12 +66,12 @@ export function checkDisabledLegs(data, legCount) {
 export class JunkyardBrainSession {
   // policy.act(obs Float32Array(34), memory|null, episodeStart) -> { action, memory }
   constructor({ policy, world, contact, sightVersion, contactVersion, position, yaw, target, playerCollision, sightPose,
-    disabledLegs = [] }) {
+    disabledLegs = [], sightRange }) {
     this.policy = policy;
     this.sightVersion = sightVersion;
     this.contactVersion = contactVersion;
     this.env = new FrozenJunkyardEnv({ raster: world.raster, sight: sightPose ? world.sight : null, contact,
-      position, yaw, target, playerCollision, sightPose, disabledLegs });
+      position, yaw, target, playerCollision, sightPose, disabledLegs, sightRange });
     this.obs = this.env.initialObservation();
     this.memory = null;
     this.action = new Float32Array(2);
@@ -193,6 +193,8 @@ export class JunkyardBrainCore {
       playerCollision: data.player_collision === true,
       sightPose: mode === 'eye' ? checkSightPose(data) : null,
       disabledLegs: this.disabledLegs(data),
+      // The game's longer sight; leave it out for the trained one (the fixtures do).
+      sightRange: Number(data.sight_range) > 0 ? Number(data.sight_range) : undefined,
     });
     if (this.sessions.size >= this.maxSessions) this.sessions.delete(this.sessions.keys().next().value);
     this.counter += 1;

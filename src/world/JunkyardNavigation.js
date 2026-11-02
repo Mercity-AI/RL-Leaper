@@ -1,3 +1,7 @@
+// walkRoute's search for a spot that sees the goal: every stride-th reached cell
+// from the goal outward, at most `checks` of them (each is one sight ray).
+const ROUTE_SIGHT = Object.freeze({ stride: 6, checks: 160 });
+
 // Conservative flat-ground clearance: a disk around the complete leg span.
 // Mesh triangles retain height so roofs above the robot do not seal passages.
 function segmentDistanceSquared(x, z, ax, az, bx, bz) {
@@ -121,7 +125,8 @@ export class JunkyardNavigation {
   // data: { bounds, triangles } from collision.json (or a packed copy).
   // radius: the disc that must fit; height: triangles whose lowest point is
   // above this pass overhead (roofs, upper rack decks); cell: grid cell size.
-  constructor(data, radius, height, cell = 0.4, prepared = null) {
+  // skip(triangle), optional: triangles that are no obstacle on this grid.
+  constructor(data, radius, height, cell = 0.4, prepared = null, skip = null) {
     // 1. Shape and grid.
     this.bounds = data.bounds;
     this.radius = radius;
@@ -133,7 +138,7 @@ export class JunkyardNavigation {
     this.rows = Math.ceil((this.bounds.maxZ - this.bounds.minZ) / cell);
     // 2. Solid triangles only (taller than the floor, low enough to block),
     //    sorted into buckets so each test only looks nearby.
-    this.grid = prepared?.grid ?? bucketTriangles(this.triangles, t => !(t[6] > height || t[7] <= 0.12), this.bucketSize);
+    this.grid = prepared?.grid ?? bucketTriangles(this.triangles, t => !(t[6] > height || t[7] <= 0.12 || skip?.(t)), this.bucketSize);
     // 3. Which cell centres a disc of `radius` fits on.
     this.free = prepared?.free ?? this.computeFree();
     // 4. Connected regions (labelRegions) and safe spawn cells, when known.
@@ -307,16 +312,57 @@ export class JunkyardNavigation {
     return i < 0 ? -1 : regions.labels[i];
   }
 
+  // A walking route from `start` as near to `goal` as this body can get (goal
+  // may be somewhere it does not fit), over the cells it can safely start from:
+  // one flood out from start, then every few cells of the way back. Quick enough
+  // to ask in play (route() above checks every step and is not).
+  // sees(point), when given: end at the nearest cell it answers yes for, so a wall
+  // right beside the goal is no place to stop. No such cell: the nearest cell.
+  walkRoute(start, goal, sees = null) {
+    const open = this.spawnable ?? this.free;
+    const first = this.nearest(start, open);
+    if (first < 0) return [];
+    const parent = new Int32Array(open.length).fill(-1);
+    const queue = new Int32Array(open.length);
+    let head = 0, tail = 0, best = first, bestDistance = Infinity;
+    queue[tail++] = first;
+    parent[first] = first;
+    while (head < tail) {
+      const i = queue[head++];
+      const p = this.point(i), distance = (p.x - goal.x) ** 2 + (p.z - goal.z) ** 2;
+      if (distance < bestDistance) { best = i; bestDistance = distance; }
+      const col = i % this.columns;
+      for (const j of [col > 0 ? i - 1 : -1, col < this.columns - 1 ? i + 1 : -1, i - this.columns, i + this.columns]) {
+        if (j < 0 || j >= open.length || !open[j] || parent[j] >= 0) continue;
+        parent[j] = i;
+        queue[tail++] = j;
+      }
+    }
+    if (sees) {
+      const away = (i) => { const p = this.point(i); return (p.x - goal.x) ** 2 + (p.z - goal.z) ** 2; };
+      const reached = [...queue.subarray(0, tail)].map((i) => [away(i), i]).sort((a, b) => a[0] - b[0]);
+      for (let k = 0, asked = 0; k < reached.length && asked < ROUTE_SIGHT.checks; k += ROUTE_SIGHT.stride, asked += 1) {
+        if (sees(this.point(reached[k][1]))) { best = reached[k][1]; break; }
+      }
+    }
+    const path = [];
+    for (let i = best, n = 0; ; i = parent[i], n += 1) {
+      if (n % 4 === 0 || i === first) path.push(this.point(i));
+      if (i === first) break;
+    }
+    return path.reverse();
+  }
+
   point(i) {
     return { x: this.bounds.minX + (i % this.columns + 0.5) * this.cell,
       z: this.bounds.minZ + (Math.floor(i / this.columns) + 0.5) * this.cell };
   }
 
-  nearest(p) {
+  nearest(p, open = this.free) {
     let best = -1;
     let distance = Infinity;
-    for (let i = 0; i < this.free.length; i += 1) {
-      if (!this.free[i]) continue;
+    for (let i = 0; i < open.length; i += 1) {
+      if (!open[i]) continue;
       const q = this.point(i);
       const d = (q.x - p.x) ** 2 + (q.z - p.z) ** 2;
       if (d < distance) { best = i; distance = d; }

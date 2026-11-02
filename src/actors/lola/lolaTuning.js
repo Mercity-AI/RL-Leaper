@@ -14,7 +14,7 @@ export const LOLA_SUBSTEP_RATE = 120;
 // as multiples of each clip's authored speed. Run and sprint raised 15% on request,
 // then another 15% (owner, 2026-10-21: was run 2.3, sprint 3.1). The clips play
 // faster with it, so her feet stay planted; the sprint stays ~35% above the run.
-export const LOLA_PACE = Object.freeze({ run: 2.3 * 1.15, sprint: 3.1 * 1.15, crouch: 2 });
+export const LOLA_PACE = Object.freeze({ run: 2.3 * 1.15, sprint: 3.1 * 1.15 * 1.1, crouch: 2 });
 // When the shared stride phase jumps (reversing W+D into S+D re-measures it
 // from the run's backward cycle), a clip that is visibly blended in catches up
 // at most this many stride cycles per second on top of its own playback, so
@@ -27,6 +27,9 @@ export const LOLA_SPRINT_SPEED = 5;
 // sprinting till empty leaves her winded, running at her normal pace, for
 // restSeconds before Shift works again. Letting go early refills at the same
 // rate (a full refill takes restSeconds), standing or running.
+// Badly hurt and running, she hunches forward (owner, 2026-11-02): radians of bend
+// down her spine at full hurt, and how quickly it comes and goes (per second).
+export const LOLA_HUNCH = Object.freeze({ angle: 0.42, rate: 3 });
 export const LOLA_STAMINA = Object.freeze({ sprintSeconds: 10, restSeconds: 4 });
 // How fast Lola turns to face the camera's heading, in radians per second.
 export const LOLA_TURN_RATE = 9;
@@ -65,21 +68,29 @@ export const LOLA_WARP_SPINE = Object.freeze([
   ['DEF-spine.004', 0.3],
 ]);
 
-// Climbing onto a prop's roof (owner, 2026-10-21: the open yellow container;
-// which props: src/world/climbableRoofs.js). Jump with the roof's edge within
-// `reach` (map units, from where she stands) while facing it (cosine of the
-// angle off: 0.5 = within 60 degrees) and she climbs up, landing `inset` map
-// units in from the edge. Walking off an edge drops her to the ground.
-export const LOLA_CLIMB = Object.freeze({ reach: 0.9, facing: 0.5, inset: 0.5 });
-
 // Standing on low props (owner, 2026-10-21: "jump at least above the tires"),
 // in map units (Lola is about 1.7 tall). She walks up onto anything up to
 // stepUp without jumping (fallen poles, a flat tire, the torn container side)
 // and jumps onto anything up to jumpUp (barrels ~0.9, tire stacks and mounds
-// 1.0-1.2, spill piles). Taller props (cars ~1.4+, big heaps, skips) stay
-// walls. rise: how fast she moves up onto a step, map units per second.
+// 1.0-1.2, spill piles), measured from the floor, so a tire stack is no step up
+// to anything higher. Taller props stay walls: containers (owner, 2026-10-30:
+// she never gets on top of one), big heaps, skips. rise: how fast she moves up onto a step, map units per second.
 // Walking off something higher than stepUp drops her.
 export const LOLA_FOOTING = Object.freeze({ stepUp: 0.35, jumpUp: 1.25, rise: 8 });
+
+// Falling down when she loses: tip (radians) over `time` seconds, and how far
+// (map units) she ends above what she stands on, the thickness of her body.
+// limp: how far along the fall her pose goes slack (LolaAnimator.limp): her spine
+// straightens and her arms drop to her sides, in her own frame ([right is -x,
+// up +y, forward +z] from her chest), or they would go through the floor. The
+// gun in her hands drops out of sight.
+export const LOLA_FALL = Object.freeze({
+  tip: 86 * Math.PI / 180, time: 0.55, lift: 0.26,
+  armLeft: Object.freeze([0.4, -1, -0.12]), armRight: Object.freeze([-0.4, -1, -0.12]),
+  // The gun she drops (DroppedGun.js): seconds to the ground, how far along her body
+  // and out to her side it lands (shares of her height), and its turn off her line.
+  gunTime: 0.5, gunAlong: 0.45, gunBeside: 0.3, gunTurn: 0.4,
+});
 
 // The physics hop used only when the authored jump clips are missing.
 export const LOLA_GRAVITY = 14;
@@ -104,11 +115,16 @@ export const JUMP_FADE_OUT = 0.15;
 // clips hold a still landing pose, which would skate along the ground, so the
 // run takes over the moment the boot lands (see measureJumpLanding).
 export const RUN_JUMPS = Object.freeze({
-  RunJumpRL: { file: 'runjumprl', direction: 1, takeoff: 15 },
-  RunJumpLR: { file: 'runjumplr', direction: 1, takeoff: 3 },
+  RunJumpRL: { file: 'runjumprl', direction: 1, takeoff: 15, steadyLegs: [9, 21] },
+  RunJumpLR: { file: 'runjumplr', direction: 1, takeoff: 3, steadyLegs: [9, 21] },
   BackJumpLR: { file: 'backjumplr', direction: -1, takeoff: 6 },
   BackJumpRL: { file: 'backjumprl', direction: -1, takeoff: 18 },
 });
+// steadyLegs [first, last] (frames, counted from 1): in the air the authored
+// forward clips snap both legs together and spread them again (frames 10-20,
+// feet 0.5 apart to 0.14 and back; owner, 2026-11-03: "her legs just do a weird
+// moment"; the backward clips hold them still). The game glides from the first
+// pose to the last instead (LolaAssets.steadyLegs); the Blender file is untouched.
 export const RUN_FRAMES = 24;
 // Same playback speed as the plain jump; close to the run's own frame rate.
 export const RUN_JUMP_SPEED = 1.5;

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { CAMERA } from '../config/tuning/index.js';
-import { WEAPONS, slotForKey } from '../config/weapons.js';
 import { LOLA_STAMINA } from '../actors/lola/lolaTuning.js';
 
 // Lola's running and sprinting speeds as handed to LolaPlayer.move (she turns
@@ -53,8 +52,6 @@ export class PlayerController {
     this.right = new THREE.Vector3();
     this.intent = null;
     this.stamina = new SprintStamina();
-    // weaponIndex slot each gun key equips (1 = the pistol, 2 = the M416).
-    this.keySlots = { weapon1: slotForKey('1'), weapon2: slotForKey('2') };
   }
 
   // Input phase: read every device once for this frame, then what the player asks
@@ -91,23 +88,8 @@ export class PlayerController {
       sprint: this.input.sprinting,
       heading: this.cameraController.getMovementHeading(this.headingYaw()),
       crouch: Boolean(this.input.pressed?.('crouch')),
-      weapon: this.wantedWeapon(),
     };
     return this.intent;
-  }
-
-  // The weaponIndex slot the player asks for this frame, or null: 1 / 2 pick a
-  // gun (pressing the equipped gun's key keeps it), SWITCH / Y swaps to the other.
-  wantedWeapon() {
-    const input = this.input;
-    if (!input.pressed) return null;
-    if (input.pressed('weapon1')) return this.keySlots.weapon1;
-    if (input.pressed('weapon2')) return this.keySlots.weapon2;
-    if (input.pressed('switchWeapon')) {
-      const count = Object.keys(WEAPONS).length;
-      return ((this.player.weaponIndex ?? 0) + 1) % count;
-    }
-    return null;
   }
 
   // A new fight: Lola starts rested.
@@ -123,7 +105,6 @@ export class PlayerController {
     const moving = Math.hypot(intent.forward, intent.side) > 0.1;
     const sprint = this.stamina.update(intent.sprint && moving, dt);
     if (intent.crouch) this.player.toggleCrouch?.();
-    if (intent.weapon !== null && intent.weapon >= 0 && intent.weapon !== this.player.weaponIndex) this.player.switchWeapon?.();
     if (intent.jump) this.player.jump();
     this.forward.set(Math.sin(intent.heading), 0, Math.cos(intent.heading));
     this.right.set(-this.forward.z, 0, this.forward.x);

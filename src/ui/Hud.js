@@ -48,6 +48,10 @@ export class Hud {
     this.root.className = 'hud-root';
     this.root.dataset.flow = 'loading';
     this.edges = { danger: this.edge('danger'), reward: this.edge('reward') };
+    this.hitMark = document.createElement('div');
+    this.hitMark.className = 'hud-hit-mark';
+    this.hitMark.setAttribute('aria-hidden', 'true');
+    this.root.append(this.hitMark);
     this.regions = new Map(HUD_REGIONS.map((name) => {
       const region = document.createElement('div');
       region.className = 'hud-region';
@@ -94,6 +98,14 @@ export class Hud {
   }
 
   // ---- Building ----
+
+  // The red mark on a ring round the screen, on the side the last bolt came from
+  // (behind Lola: at the bottom), so a hit from out of view still says where.
+  showHitMark(angle, share) {
+    const mark = this.hitMark;
+    mark.style.opacity = angle === null || angle === undefined ? '0' : String(share);
+    if (angle !== null && angle !== undefined) mark.style.transform = `rotate(${angle}rad)`;
+  }
 
   // One screen-edge flash layer ('danger' red, 'reward' blue).
   edge(kind) {
@@ -171,6 +183,7 @@ export class Hud {
     if (snapshot.vitals) {
       this.views.vitals.update(snapshot.vitals);
       this.strength('danger', live ? snapshot.vitals.edgeTint : 0);
+      this.showHitMark(live ? snapshot.hitFrom : null, snapshot.vitals.hitShare);
     }
     // 3. The guns: crosshair, icons, the touch band (shown only during play and
     //    pauses), and the blue reward glow after a big hit.

@@ -103,8 +103,8 @@ test('each complete movement cycle travels its measured stride, with a stable fl
 });
 
 test('C toggles crouch once per press and A/D select authored crossovers for both guns', async () => {
-  // The C / 1 / 2 keys are input actions now (src/input/actions.js), applied by
-  // PlayerController each frame, so drive them through the real InputController.
+  // The C key is an input action now (src/input/actions.js), applied by
+  // PlayerController each frame, so drive it through the real InputController.
   let keydown;
   const originalListener = window.addEventListener;
   window.addEventListener = (name, callback) => { if (name === 'keydown') keydown = callback; };
@@ -141,10 +141,7 @@ test('C toggles crouch once per press and A/D select authored crossovers for bot
     assert.equal(player.outfits[weapon].current, 'CrouchWalk');
     press('KeyC');
     assert.equal(player.crouching, false);
-    press(weapon === 0 ? 'Digit2' : 'Digit1');
-    assert.equal(player.weaponIndex, 1 - weapon, '1 / 2 select the M416 / pistol');
-    press(weapon === 0 ? 'Digit2' : 'Digit1');
-    assert.equal(player.weaponIndex, 1 - weapon, 'pressing the equipped gun key keeps it');
+    player.switchWeapon();
   }
   for (const gltf of models) {
     const left = gltf.animations.find(clip => clip.name === 'StrafeLeft');
@@ -394,13 +391,25 @@ test('authored jump plays the exported clip, lifts the feet, keeps run momentum 
   const move = (f, dt) => player.move(f, 0, new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), 4.5, dt);
   move(0, 0.1);
   const standing = footY();
+  // Where the hand holds the gun, seen from her chest.
+  const hand = outfit.limpBones.armR.at(-1), chest = outfit.limpBones.spine.at(-1);
+  const held = () => {
+    outfit.model.updateMatrixWorld(true);
+    return chest.worldToLocal(hand.getWorldPosition(new THREE.Vector3()));
+  };
+  const before = held();
   assert.equal(player.jump(), true);
   assert.equal(player.jump(), false, 'no double jump');
-  assert.equal(outfit.jump.gun.visible, true);
-  assert.equal(outfit.carriedGun.visible, false);
+  assert.equal(outfit.jump.gun.visible, false, 'the plain jump never raises a gun of its own');
+  assert.equal(outfit.carriedGun.visible, true);
   assert.equal(player.startShot(), false, 'no shooting mid-jump');
-  let peak = -Infinity;
-  for (let t = 0; t < 0.9; t += 1 / 60) { move(0, 1 / 60); peak = Math.max(peak, footY()); }
+  let peak = -Infinity, drift = 0;
+  for (let t = 0; t < 0.9; t += 1 / 60) {
+    move(0, 1 / 60);
+    peak = Math.max(peak, footY());
+    drift = Math.max(drift, held().distanceTo(before));
+  }
+  assert.ok(drift < 0.05, `her arms and gun stay as they were (moved ${drift})`);
   assert.ok(peak > standing + 0.3, `feet lift during the authored jump (${peak} vs ${standing})`);
   assert.equal(player.mesh.position.y, 0, 'height comes from the animation, not physics');
   for (let t = 0; t < 0.55; t += 1 / 60) move(0, 1 / 60);

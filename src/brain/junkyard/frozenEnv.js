@@ -46,9 +46,12 @@ export class FrozenJunkyardEnv {
   // raster: JunkyardRaster; sight: JunkyardSight or null (legacy flat sight);
   // contact: player-contact.json; position/target [x, z]; sightPose {eye, points};
   // disabledLegs: severed leg indices (contact v4, Lola's contact only).
+  // sightRange: how far it can see Lola and search the yard; the 16 wall rays stay
+  // at RAY_MAX_RANGE, the trained input (the game asks for more: COMBAT.sightRange).
   constructor({ raster, sight = null, contact, position, yaw, target, playerCollision = false, sightPose = null,
-    disabledLegs = [] }) {
+    disabledLegs = [], sightRange = RAY_MAX_RANGE }) {
     this.raster = raster;
+    this.sightRange = sightRange;
     this.sight = sight;
     this.contact = contact;
     this.sightPose = sightPose;
@@ -168,7 +171,7 @@ export class FrozenJunkyardEnv {
       const dx = this.coverageCentres[c * 2] - px, dz = this.coverageCentres[c * 2 + 1] - pz;
       const d = Math.sqrt(dx * dx + dz * dz);
       const relative = pyMod(Math.atan2(dx, dz) - this.yaw + PI, TWO_PI) - PI;
-      let ok = Math.abs(relative) <= VISION_FOV / 2 && d - TARGET_RADIUS <= RAY_MAX_RANGE;
+      let ok = Math.abs(relative) <= VISION_FOV / 2 && d - TARGET_RADIUS <= this.sightRange;
       if (d <= 1e-9) ok = true;
       visible[k] = ok ? 1 : 0;
       distance[k] = d;
@@ -197,7 +200,7 @@ export class FrozenJunkyardEnv {
       at += size;
       let longest = -Infinity;
       for (const k of batch) longest = Math.max(longest, distance[k]);
-      const maxRange = Math.min(RAY_MAX_RANGE, longest);
+      const maxRange = Math.min(this.sightRange, longest);
       const count = this.raster.sampleCount(maxRange);
       for (const k of batch) {
         const [dx, dz] = direction(k);
@@ -227,7 +230,7 @@ export class FrozenJunkyardEnv {
       const d = Math.sqrt(dx * dx + dz * dz);
       const relative = pyMod(Math.atan2(dx, dz) - this.yaw + PI, TWO_PI) - PI;
       if (d <= 1e-9) return true;
-      if (!(Math.abs(relative) <= VISION_FOV / 2 && d - TARGET_RADIUS <= RAY_MAX_RANGE)) return false;
+      if (!(Math.abs(relative) <= VISION_FOV / 2 && d - TARGET_RADIUS <= this.sightRange)) return false;
       const visible = new Uint8Array([1]);
       this.marchBatches([0], new Float64Array([d]), () => [dx / d, dz / d], () => d - TARGET_RADIUS, visible);
       return visible[0] === 1;
@@ -237,7 +240,7 @@ export class FrozenJunkyardEnv {
     const atan = f32(Math.atan2(dx, dz));
     const relative = f32(pyMod32(f32(f32(atan - f32(this.yaw)) + PI_32), TWO_PI_32) - PI_32);
     const slack = f32(d - TARGET_RADIUS_32);
-    const ok = Math.abs(relative) <= HALF_FOV_32 && slack <= RAY_MAX_RANGE;
+    const ok = Math.abs(relative) <= HALF_FOV_32 && slack <= this.sightRange;
     if (d <= TINY_32) return true;
     if (!ok) return false;
     const visible = new Uint8Array([1]);
@@ -281,8 +284,8 @@ export class FrozenJunkyardEnv {
     // In view: inside the 270° cone and within ray range (Python mixes float32 here).
     const bearing = this.targetIs64 ? Math.atan2(dx, dz) : f32(Math.atan2(dx, dz));
     const relative = pyMod(bearing - this.yaw + PI, TWO_PI) - PI;
-    const inRange = this.targetIs64 ? norm64(dx, dz) - TARGET_RADIUS <= RAY_MAX_RANGE
-      : f32(norm32(dx, dz) - TARGET_RADIUS_32) <= RAY_MAX_RANGE;
+    const inRange = this.targetIs64 ? norm64(dx, dz) - TARGET_RADIUS <= this.sightRange
+      : f32(norm32(dx, dz) - TARGET_RADIUS_32) <= this.sightRange;
     const inView = Math.abs(relative) <= VISION_FOV / 2 && inRange;
     // Eye position: the body-relative eye offset turned by the heading.
     const offset = this.sightPose.eye;

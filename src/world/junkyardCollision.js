@@ -1,3 +1,4 @@
+import { steppedOver } from './stepOverProps.js';
 import { ENCOUNTER } from '../config/encounter.js';
 import { BODY_COLLISION_RADIUS, STANDING_HEIGHT } from '../config/robot.js';
 import { JunkyardNavigation, packTriangles, triangleViews } from './JunkyardNavigation.js';
@@ -39,7 +40,7 @@ export const WIDTH_LIMITS = Object.freeze({ min: 1.2, max: 8, step: 0.1 });
 // report(share): optional progress after each step (for the loading bar).
 export function buildJunkyardCollision(data, width, report = () => {}) {
   const leaper = leaperGridSize(width);
-  const navigation = new JunkyardNavigation(data, leaper.radius, leaper.height);
+  const navigation = new JunkyardNavigation(data, leaper.radius, leaper.height, undefined, null, steppedOver);
   report(0.65);
   navigation.labelRegions();
   navigation.markSpawnable(SPAWN_MARGIN);

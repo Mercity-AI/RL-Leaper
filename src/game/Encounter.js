@@ -1,3 +1,4 @@
+import { COMBAT } from '../config/combat.js';
 import { FOOT_HEIGHT } from '../config/robot.js';
 import { contact, leaperReach, createLeaperBlocker } from '../world/playerContact.js';
 import { GAME_EVENTS } from '../core/events.js';
@@ -184,6 +185,12 @@ export class Encounter {
     const practice = !this.flow.hunting || (winner === 'lola' && this.stats.assisted);
     this.result = { winner, practice, seconds: this.elapsed, ...this.stats };
     this.result.text = resultText(this.result);
+    // Lola going down hits hard.
+    if (winner === 'leaper') {
+      const { roll, push, recovery } = COMBAT.lolaDownJolt;
+      this.cameraController.shake?.(COMBAT.cameraShake.lolaDown);
+      this.cameraController.addRecoil?.(0, 0, recovery, { roll, push });
+    }
     this.flow.end(winner, practice);
     this.events.emit(GAME_EVENTS.encounterEnded, { winner, practice, stats: this.result });
     return true;

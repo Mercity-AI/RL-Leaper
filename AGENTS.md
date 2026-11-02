@@ -44,7 +44,7 @@ On 2026-10-20/21 (changelog, 2026-10-21): floating pickups (blue health pills,
 yellow ammo bullets, from the owner's Blender models), limited M416 spare ammo
 with a bullet-icon HUD, synthesised pickup sounds, Lola 15% faster with a
 sprint stamina limit, climbing onto the toppled yellow container and low
-props, hanging cut legs, the reworked yard floor and walls, `?explore=1`, and
+props (the container climb was removed on 2026-10-30), hanging cut legs, the reworked yard floor and walls, `?explore=1`, and
 a fix for gamepads whose stick rests off-centre. `CLAUDE.md` lists what is
 committed and the owner's chosen values.
 
@@ -77,7 +77,14 @@ committed and the owner's chosen values.
   `src/brain/junkyard/`). `tests/test_frozen_recipe.py` pins the recipe's
   SHA256s; the policy weights' SHA256 is
   `883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594`
-  (`brain.json` `policy_sha256`, shown in the DEV brain badge).
+  (`brain.json` `policy_sha256`, shown in the DEV brain badge). One owner-approved
+  exception (2026-10-30): the game asks the JS env for a longer sight
+  (`COMBAT.sightRange`, `sight_range` on reset; default the trained 28, which the
+  fixtures use). The 16 wall rays and the weights stay as trained.
+  A second one (2026-11-02): the game leaves the low junk in `src/world/stepOverProps.js`
+  out of the brain's walking map (`stepOver` on `OnnxBrainProvider`; default none, which
+  the fixtures and `pnpm play`'s Python server use), so it walks over it. The weights,
+  the code's rules and the 3D sight triangles are unchanged.
 - **Parity tests stay at zero differences.** `tests/brain-parity.test.js`,
   `tests/brain-onnx.html` and the Python brain tests replay recorded fixtures
   with zero observation, pose or collision differences between Python and JS.

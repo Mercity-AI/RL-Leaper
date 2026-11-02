@@ -198,7 +198,6 @@ test('the controls list covers every action on every device, from the bindings t
   assert.deepEqual([row('reload').keyboard, row('reload').gamepad], ['R', 'X']);
   assert.deepEqual([row('jump').keyboard, row('jump').gamepad], ['Space', 'A']);
   assert.deepEqual([row('crouch').keyboard, row('crouch').gamepad], ['C', 'B']);
-  assert.equal(row('switchWeapon').gamepad, 'Y');
   assert.deepEqual([row('pause').keyboard, row('pause').gamepad], ['Esc', 'Start']);
   assert.equal(row('move').keyboard, 'W A S D / ↑ ← ↓ →');
   assert.equal(row('move').gamepad, 'Left stick');

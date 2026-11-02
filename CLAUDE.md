@@ -55,24 +55,69 @@ it shows the pill and the bullet in yellow and in blue.
 - **HUD:** a row of bullet icons above the gun circles, one per magazine the
   M416 can carry: lit yellow as far as its spares go, new ones pop in.
 
-## Climbing (owner's choice, 2026-10-21)
+## Standing on things (owner, 2026-10-21, changed 2026-10-30)
 
-- Lola climbs onto the open, toppled yellow container ("03 - southern fallen
-  freight") by pressing jump beside it while facing it (option A; no climb
-  animation yet, she rises during the jump clip: an authored climb clip from
-  the owner would replace that). Walking off an edge drops her. Up there she is
-  safe from stomps and leaps, not from the laser. Roofs: `src/world/climbableRoofs.js`;
-  reach and landing inset: `LOLA_CLIMB` in `src/actors/lola/lolaTuning.js`.
-- Low props (owner, 2026-10-21: "at least above the tires", heights my call):
-  she walks up onto anything up to 0.35 map units and jumps onto anything up
-  to 1.25 (barrels, tire stacks and mounds, spill piles); cars (1.4+), big
-  heaps and skips stay walls. `LOLA_FOOTING` in `src/actors/lola/lolaTuning.js`;
-  the height under her comes from the collision triangles' tops
-  (`JunkyardNavigation.surface`). Standing on them does not protect her from
-  the Leaper; only the container roof does.
+- **Never on a container (owner, 2026-10-30):** the old climb onto container 03
+  is gone, code and all. Every part of containers 01-06 taller than a step is
+  solid for her (`PLAYER_SOLID_PROPS` in `src/world/playerBlockers.js`), and
+  what she can reach is capped at `jumpUp` above the floor, so a tire stack is
+  no step up. She still walks into the open ones (see "No hiding places").
+- **Low props:** she walks up onto anything up to 0.35 map units and jumps onto
+  anything up to 1.25 (barrels, tire stacks and mounds, spill piles).
+  `LOLA_FOOTING` in `src/actors/lola/lolaTuning.js`; the height under her comes
+  from the collision triangles' tops (`JunkyardNavigation.surface`).
+- **Cars and racks (owner, 2026-10-30):** her body keeps 0.42 map units from
+  them and their sills and wheels are no footing (`PLAYER_SOLID_PROPS`); gaps
+  wide enough and the racks' low decks stay usable. The bus and van stay open
+  and were not changed. All of this is Lola's only: `collision.json` and the
+  Leaper's grid are untouched.
 - That container is a duller yellow with its grey inside wall yellow
   (`JUNKYARD_PROP_COLOURS` in `src/world/junkyardSurfaces.js`, applied over the
   baked texture, so it survives a re-bake as long as the part names stay).
+
+## The Leaper's sight and search (owner, 2026-10-30)
+
+- **Sight 50 map units** (was 19.3; yard about 78 x 73): `COMBAT.sightRange` in
+  `src/config/combat.js`, for the eye-level sight and the ground search sweep,
+  sent to the brain session as `sight_range`. The laser matches it. The owner
+  approved this one exception to the frozen rules: weights and the 16 wall rays
+  are unchanged (the rays still report at the trained 28 world units), and the
+  fixtures still run at 28. Only the browser brain reads it: `pnpm play`'s Python
+  server ignores `sight_range` and stays at 19.3.
+- **Investigate:** a bullet from out of sight (brain and eye both blind to her)
+  sends it from Search or Chase to Investigate: the brain pauses, it turns and
+  walks a route to where the shot came from (`walkToShot` in `LeaperActor`,
+  `JunkyardNavigation.walkRoute`, numbers in `LEAPER_BEHAVIOUR.investigate`), then
+  the brain carries on from there. Scripted, so no retraining and no new inputs.
+  The route ends at the nearest spot its eye can see the shot's spot from
+  (`LeaperActor.seesFrom`, owner 2026-11-02): the plain nearest spot was often
+  the far side of a container wall, 58% seeing her against 96% measured.
+
+## Lola down, gun kick (owner, 2026-10-30)
+
+- **Defeat (changed 2026-11-02):** she falls on her face, or a side if the ground
+  there is blocked, never on her back: her face has no eyes drawn, so it must
+  stay unseen (`LolaPlayer.pickFall`, `LOLA_FALL`). A big shake as it happens
+  (`COMBAT.cameraShake.lolaDown`, `lolaDownJolt`), and the camera tips down and
+  swings round so she lies across the screen under the box (`CAMERA.defeat`). No
+  authored clip: one from the owner would replace it. Her pose goes slack as she
+  falls (spine straight, arms at her sides, hand gun hidden: `LolaAnimator.limp`);
+  without that her head and arms sat 0.4 map units under the floor. `LOLA_FALL`
+  tip 86° and lift 0.26 were measured so every part clears the ground.
+- **Running jump legs (owner, 2026-11-03):** in the forward clips (29 and 30, 27
+  and 28 in `Lola All Animations.blend`) the legs snap together and apart in the
+  air, frames 10-20. The game glides them between frames 9 and 21
+  (`steadyLegs` in `RUN_JUMPS`, `LolaAssets.js`); the Blender file is unchanged.
+- **Standing jump gun (owner, 2026-11-02):** the plain jump clip is "Jump Shoot"
+  and raises the gun, so her arms and the carried gun stay Idle's over the jump's
+  legs (`steadyArms` in `LolaAssets.js`, used in `LolaAnimator.pose`). Strafing
+  jumps use the same clip; running jumps keep their own guns.
+- **Shake (owner, 2026-11-02):** shooting shakes a little less (M416 roll 0.026,
+  push 0.24; pistol 0.04, 0.4; pitch and spray unchanged); each bullet landing on
+  the Leaper adds `COMBAT.hitJolt` (tilt and jolt back only, so the aim never
+  moves); a leg coming off stays the bigger `cameraShake.bigHit`.
+- **First-person kick:** `gunKick` per gun in `src/config/weapons.js`; only the
+  drawn picture moves (`src/weapons/GunKick.js`), aim and bullets never do.
 
 ## Where things stand (2026-10-21)
 
@@ -94,7 +139,7 @@ it shows the pill and the bullet in yellow and in blue.
   Its look is procedural in Blender and is baked into one texture before export:
   the four steps are in `README.md`, "Art pipeline". Re-run them whenever the
   owner sends a new version of the yard. The owner's working files live in
-  `C:\Blender\`; never modify them.
+  `C:\Blender`; never modify them.
 - **Owner choices to keep** (from the owner, 2026-10-19): the plain "+"
   crosshair (spread ticks, hit-marker X and OBSTRUCTED look stay off in
   `src/styles/ui/reticle.css`); leg pieces take 11-13 (knees) and 19-21 (long, "20ish" 2026-10-22
@@ -122,6 +167,88 @@ it shows the pill and the bullet in yellow and in blue.
   each pad's first reading is now its centre (`PAD_TUNING.maxRest`,
   `InputController.padRestAxes`).
 
+## One gun, her dropped gun, laser and hit feedback (owner, 2026-11-02)
+
+- **M416 only, "for now":** `WEAPON_SLOTS` in `src/config/weapons.js` is `['m416']`.
+  Gun keys 1 / 2, SWITCH, gamepad Y, the second HUD circle, the number tags and the
+  holstered pistol are gone. The pistol's data, model and clips are still loaded
+  (`OUTFIT_WEAPONS`, `LolaPlayer.switchWeapon`): bringing it back means restoring
+  that list and the controls, not rebuilding it. Removing it for good would also
+  shorten the download.
+- **Dropped gun:** when she falls, a copy of the gun in her hands drops and lies flat
+  beside her until the next fight (`src/actors/lola/DroppedGun.js`, gun numbers in
+  `LOLA_FALL`).
+- **Laser:** was 3.5 cm thick, dark and fading, and a close bolt landed before it
+  was drawn. Now `laserRadius` 0.03, bright red. A shot is one line growing from
+  the eye to its tip (a short bolt followed by a line read as two shots: owner),
+  which thins away over `beamTime` 0.18 s where it ended (`LeaperCombat.beams`).
+- **Charge sound:** `leaperCharge` is the owner's pick B, the Leaper's laser backwards
+  (`previews/charge-sounds.html`; C, a deep power-up, was tried in play and dropped;
+  the old hum "sounded like something vibrating"). Made by hand, not `pnpm assets`.
+  Gain 0.63 equals the hum at 0.33, 1.5x its first 0.22 (0.9 was far too much).
+- **Bolt hit on Lola:** sparks off her body and a view jolt (`COMBAT.lolaHit`), a
+  burst of the red screen edges (`HIT_EDGE` in `PlayerVitals`) and a red arc on a
+  ring round the screen pointing at where it came from (`Hud.showHitMark`), so a
+  shot from out of view still says where.
+
+## The Leaper walks over low junk (owner, 2026-11-02)
+
+- 36 low props (split tires, broken poles, small scrap, the torn container side, the
+  fallen signboard), each approved from marked pictures, are listed as boxes in
+  `src/world/stepOverProps.js` and left out of its walking map only: the brain's raster
+  (`stepOver`, built in the worker instead of the baked file) and the route grid. So no
+  retraining: the brain simply reads open floor there. Lola's grid, bullets and every
+  sight line keep them (owner: "it is still a solid object, it should not see through
+  it"), though its eye, 2.4 world units up, can look down over one from close by.
+- The scrap and pole wedged between the green and brown skips (-31, -11) stay in: the
+  owner does not want it near the skips, which stay solid like every container.
+- Feet: `LeaperSimulation.startStep` lands on top (`world.leaperFootHeight`, Lola's grid)
+  and lifts high enough to clear what lies under the step. Re-measure the boxes if the
+  owner sends a new yard. `metrics.json` was re-baked (`bake-junkyard-metrics.mjs`).
+
+## The Leaper keeps moving (owner, 2026-11-02)
+
+- A close Leaper (within `engage.enterDistance`) stands and shoots, then walks. It stood
+  frozen 60-70% of a fight at `maxHoldTime` 6 / `repositionTime` 2.5, and every stagger
+  restarted the clock, so shooting its legs pinned it. Now 2.5 and 3 (it fires as it
+  walks), and `heldTime` adds up across staggers. A knocked-down Leaper still cannot move.
+
+## Sprint and Lola badly hurt (owner, 2026-11-02)
+
+- **Health panel:** her name LOLA, the number and the bar (`VitalsView`); the HIT word
+  was taken out (the number still turns pink for a moment on a hit).
+
+- **Sprint 10% faster:** `LOLA_PACE.sprint` 3.565 -> 3.92 (the owner said "swift":
+  taken to mean the sprint. 20% was tried first and halved; her run is unchanged).
+- **All on the health the player sees** (`COMBAT.lolaHurt`, `PlayerVitals.updateHurt`):
+  under 20 she pants (first 25) and the screen edges stay slightly red (`hurtEdge`); under 10
+  her sight blurs and she hunches as she runs (15 was tried); health back eases it off,
+  gone at 20. Falling from above stays clear until under 10. Fades 1.5 s
+  in, 2.5 s out. One number, `weakness` (0..1), drives both.
+- **Panting:** `lolaPant`, seven breaths (each a breath in and out, the breath in raised
+  9 dB) cut from `assets/audio/sources/owner/lola-panting-2026-11-02.ogg` by hand with
+  ffmpeg, not `pnpm assets`. Then roughened (owner: "way too soft"): more upper
+  range, soft clipping, a 47 Hz flutter. Gain 0.24 running, x `standingVolume` 0.45
+  otherwise (the owner lowered both).
+- **Blur:** in the final picture (`blurred` in `src/core/postprocessing.js`, 12 taps, only
+  while hurt), `engine.setBlur`; without the glow pass (low quality) a CSS blur.
+- **Hunch:** `LOLA_HUNCH`, added to the spine like a flinch.
+
+## Darker yard and pole lamps (owner, 2026-11-02)
+
+- **Darker, not dark:** sky, fog and lights in `JUNKYARD_ATMOSPHERE`
+  (`src/world/junkyardAtmosphere.js`): fill 0.42, sun 0.6, rim 0.08 (were 0.95,
+  1.25, 0.16).
+- **Lamps:** all five standing poles have a glowing bulb; only the 2 nearest Lola
+  are real lights, without shadows, fading across as she moves
+  (`src/world/yardLamps.js`, `lamps.slots`). Measured at 1920 x 1080 high quality
+  with no frame limit, readings noisy: AMD chip about 62-82 fps with no lamp light,
+  55-64 with 2, 55-60 with all 5 (and 5 fell below 60 everywhere); RTX 3050 no
+  measurable change with 5 (about 240 fps).
+- **Title music only plays in the focused window** (`GameUi.lateUpdate`): a game
+  tab left on its title (the app's hidden preview pane counts as visible) played
+  it under the real game. Close preview tabs after use.
+
 ## Open items
 
 - **Sounds the owner still needs:** a sound for a cut-off leg piece landing
@@ -129,6 +256,8 @@ it shows the pill and the bullet in yellow and in blue.
   owner's own voice (2026-10-22): four takes cut from
   `assets/audio/sources/owner/lola-grunts-2026-10-22.ogg` with the breaths left
   out (owner: "remove any inhaling sounds"), never the same take twice in a row.
+  The low-health scream was removed (owner, 2026-11-03: it sounded like an
+  animal); she uses the same grunts at any health.
   Re-encode new takes alone: `pnpm assets` re-encodes every sound with this
   machine's ffmpeg and changes them all, so keep only the new files.
 - **No hiding places (owner, 2026-10-22):** Lola may not walk into a container
@@ -154,7 +283,7 @@ it shows the pill and the bullet in yellow and in blue.
   sound without a gesture still holds it until the first key or click. Every new
   game (restart, title) drops the Leaper and Lola at random spots 22-42 map
   units apart (`GAME_START` in `src/world/randomJunkyardStart.js`). Lola's
-  grunts were raised to gain 0.65 (cry 0.7) in `src/audio/sounds.json`.
+  grunts were raised to gain 0.65 in `src/audio/sounds.json`.
 - **HUD and frame rate (owner, 2026-10-22):** the M416 is gun 1 (left, the
   default), the pistol gun 2. The Leaper's floating bar flashes white only in
   its filled part on a hit, and its eye badge has no diamond box. The ammo
@@ -165,6 +294,12 @@ it shows the pill and the bullet in yellow and in blue.
   shows the share (e.g. "60 FPS · 85%") while it is lowered, and the settled
   share is remembered (`leaper.resolutionScale`). Game logic costs about 2 ms
   a frame, so a slow rate is the drawing (the graphics card).
+- **Performance stats (owner, 2026-10-30):** under the FPS, FRAME and CPU (both
+  median ms over 0.5 s; `src/ui/FpsCounter.js`), on by default, for players
+  too; SETTINGS > GRAPHICS > Show performance stats turns them off (`showPerf`).
+  CPU covers the main thread's frame (game code plus draw calls), not the
+  Leaper's brain, which runs in its own worker. With developer tools the box
+  sits below the VIEW button.
 - **Frame-rate fix (2026-10-22), measured on the owner's laptop graphics (AMD
   Radeon built in; full screen = 2400 x 1350 drawn pixels) with GPU timers:**
   the frame took 50-58 ms (~17-20 fps). Two causes: (1) the floor and walls
@@ -177,6 +312,11 @@ it shows the pill and the bullet in yellow and in blue.
   (`src/core/postprocessing.js`). After: 16-18 ms at full screen in every
   direction (and Keep 60 FPS trims the rest). If the floor or wall dirt
   numbers in `JUNKYARD_SURFACES` change, the bake follows automatically.
+  Grit and pebbles baked too (owner, 2026-10-30): one seamless tile
+  (`BAKE.fine` in `src/world/junkyardSurfaces.js`, 2048 px per 16 map units)
+  repeats across floor and walls. On the AMD chip the ground went from 4.2 to
+  1.5 ms and the worst 5% of frames from 32 to 17 ms. "CPU" from the owner
+  means the processor with its built-in graphics: judge speed on that chip.
 - **Player vs developer screen (2026-10-22):** players get PLAY / SETTINGS /
   CREDITS and no key hints; the key list is SETTINGS > CONTROLS > KEYS AND
   BUTTONS. EXPLORE, `?explore=1`, START THE HUNT FROM HERE, the VIEW button,
@@ -192,6 +332,9 @@ it shows the pill and the bullet in yellow and in blue.
   (`push`) that shake without moving the aim (raised 1.5x on request: M416
   0.012 / 0.075, pistol 0.021 / 0.12); M416 bloom cut (max 0.02 ->
   0.012). The pistol has no pattern.
+  Raised again (owner, 2026-10-30: "more recoil", "more camera shake"):
+  M416 pitch 0.024, yawJitter 0.01, roll 0.032, push 0.3; pistol pitch 0.06,
+  yawJitter 0.012, roll 0.05, push 0.5; `CAMERA.recoilPushMax` 0.25 -> 0.7.
 - **Lola's health (owner, 2026-10-22: "+20%"):** really 120 (was 100;
   `COMBAT.lolaHealth` in `src/config/combat.js`), but the player always sees
   it out of 100 (`lolaHealthShown`; owner: "120 looks weird, we are upping the
@@ -211,8 +354,9 @@ it shows the pill and the bullet in yellow and in blue.
   (eye-7.98-chase stays in lockstep 74 steps, below its floor; it came with the
   rebuilt map and fixtures). If the README controls check fails on line
   endings, `node scripts/print-controls.mjs --write` fixes it. Three in-browser pages still stage scenes on the old map layout and
-  fail: the weak-point shot in `tests/browser-combat.js`, a shot in
-  `tests/leaper-behaviour.js`, and the loading-progress check in
+  fail: the weak-point shot in `tests/browser-combat.js`, the stomp set-up in
+  `tests/leaper-behaviour.js` (it places Lola from the Leaper's spot before a
+  reset, and each reset now picks a new random start), and the loading-progress check in
   `tests/brain-game.html`.
 - **History:** `docs/How-the-Leaper-Works.pdf` was pushed by mistake and then
   removed; it is still in the branch history. The owner keeps it locally and

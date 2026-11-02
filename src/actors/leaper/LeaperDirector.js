@@ -7,6 +7,7 @@ import { COMBAT } from '../../config/tuning/index.js';
 // Node tests drive it with plain "sense" objects.
 //
 //   Dormant -> Search -> Chase <-> Engage, and from those Stomp and Leap;
+//   Search or Chase -> Investigate (shot from out of sight) -> Search or Chase;
 //   any of them -> Stagger (a big hit) -> Downed (too many legs) -> Dying -> Dead.
 //
 // Each state picks where the Leaper's movement comes from (`locomotion`):
@@ -14,7 +15,7 @@ import { COMBAT } from '../../config/tuning/index.js';
 //   'hold'     the brain is paused; the body only turns in place by animation
 //              (Engage turns to face Lola; a stomp, a stagger, a fall do not);
 //   'scripted' the brain is paused; an animation moves the body (the leap's
-//              flight, the collapse and the wreck).
+//              flight, the walk to where a shot came from, the collapse and the wreck).
 // The brain itself is only ever paused, resumed or told a new pose (after a
 // leap or a turn in place); it never gets new inputs. LeaperActor carries the
 // decisions out and calls the hooks below.
@@ -41,6 +42,7 @@ import { COMBAT } from '../../config/tuning/index.js';
 export const LEAPER_STATES = Object.freeze({
   dormant: Object.freeze({ locomotion: 'hold', bolts: false }),
   search: Object.freeze({ locomotion: 'rl', bolts: false }),
+  investigate: Object.freeze({ locomotion: 'scripted', bolts: false }),
   chase: Object.freeze({ locomotion: 'rl', bolts: true }),
   engage: Object.freeze({ locomotion: 'hold', bolts: true }),
   stomp: Object.freeze({ locomotion: 'hold', bolts: false }),
@@ -58,7 +60,7 @@ export function stateLabel(state, phase = null, { permanent = false } = {}) {
   if (state === 'downed') return phase === 'rising' ? 'GETTING UP' : permanent ? 'DOWN FOR GOOD' : 'DOWN · VULNERABLE';
   if (state === 'stomp') return phase === 'windup' ? 'STOMP!' : 'STOMPED';
   return {
-    dormant: 'DORMANT', search: 'SEARCHING', chase: 'HUNTING', engage: 'ENGAGING',
+    dormant: 'DORMANT', search: 'SEARCHING', investigate: 'INVESTIGATING', chase: 'HUNTING', engage: 'ENGAGING',
     stagger: 'STAGGERED', dying: 'DESTROYED', dead: 'WRECK',
   }[state] ?? state.toUpperCase();
 }
@@ -83,6 +85,7 @@ export class LeaperDirector {
     this.cooldowns = { stomp: 0, leap: 0, stagger: 0, reposition: 0 };
     this.reachTime = 0;
     this.unseenTime = 0;
+    this.heldTime = 0;
     this.planClock = 0;
     this.plan = null;
     this.acceptance = null;
@@ -93,6 +96,11 @@ export class LeaperDirector {
     this.toppled = false;
     // Legs lost so far (from legBroken), so a stump snapping is not counted again.
     this.lostLegs = 0;
+    // The last shot from out of sight { x, z, time } and, while investigating,
+    // where it is heading { x, z } and whether it got there.
+    this.alarm = null;
+    this.goal = null;
+    this.arrived = false;
     this.transitions = 0;
   }
 
@@ -162,6 +170,19 @@ export class LeaperDirector {
   // Another big hit: a crit on the eye's weak point (when the gun reports it).
   bigHit(kind) {
     if (kind === 'weakPoint' && this.config.stagger.onWeakPoint) this.pendingStagger ??= 'weak point';
+  }
+
+  // A bullet hit it, fired from (x, z). Worth acting on only if it cannot see
+  // the shooter (see investigateReady); a later shot from elsewhere moves the goal.
+  shotAt({ x, z }) {
+    this.alarm = { x, z, time: this.time };
+    const goal = this.goal;
+    if (goal && Math.hypot(x - goal.x, z - goal.z) >= this.config.investigate.replanDistance) this.goal = { x, z };
+  }
+
+  // The route's end was reached (LeaperActor).
+  reachedGoal() {
+    this.arrived = true;
   }
 
   // The brain's answer about the leap's landing spot (true = it accepted the pose).
@@ -238,6 +259,13 @@ export class LeaperDirector {
       && this.cooldowns.reposition <= 0;
   }
 
+  // Shot recently, and neither the brain nor the eye can see who did it.
+  investigateReady(sense) {
+    const alarm = this.alarm;
+    return Boolean(alarm) && !sense.aware && !sense.eyeSees
+      && this.time - alarm.time <= this.config.investigate.alarmTime;
+  }
+
   // ---- One function per state: returns [next state, reason] or nothing ----
 
   dormant(dt, sense) {
@@ -247,13 +275,23 @@ export class LeaperDirector {
 
   search(dt, sense) {
     if (this.stompReady()) return ['stomp', 'Lola under it'];
+    if (this.investigateReady(sense)) return ['investigate', 'shot from out of sight'];
     if (sense.aware || sense.remembers) return ['chase', 'spotted Lola'];
+    return null;
+  }
+
+  investigate(dt, sense) {
+    if (this.stompReady()) return ['stomp', 'Lola under it'];
+    if (sense.eyeSees) return ['chase', 'found Lola'];
+    if (this.arrived) return ['search', 'nobody there'];
+    if (this.stateTime >= this.config.investigate.maxTime) return ['search', 'gave up'];
     return null;
   }
 
   chase(dt, sense) {
     if (this.stompReady()) return ['stomp', 'Lola under it'];
     if (this.leapReady(dt, sense)) return ['leap', 'pounce'];
+    if (this.investigateReady(sense)) return ['investigate', 'shot from out of sight'];
     if (!sense.aware && !sense.remembers) return ['search', 'lost Lola'];
     if (this.engageReady(sense)) return ['engage', 'in range'];
     return null;
@@ -264,9 +302,10 @@ export class LeaperDirector {
     if (this.stompReady()) return ['stomp', 'Lola under it'];
     if (this.leapReady(dt, sense)) return ['leap', 'pounce'];
     this.unseenTime = sense.eyeSees ? 0 : this.unseenTime + dt;
+    this.heldTime += dt;
     if (sense.distance > c.exitDistance) return ['chase', 'out of range'];
     if (this.unseenTime >= c.lostSightTime) return ['chase', 'lost sight'];
-    if (this.stateTime >= c.maxHoldTime) {
+    if (this.heldTime >= c.maxHoldTime) {
       this.cooldowns.reposition = c.repositionTime;
       return ['chase', 'reposition'];
     }
@@ -364,6 +403,15 @@ export class LeaperDirector {
     this.transitions += 1;
     this.setPhase({ stomp: 'windup', leap: 'windup', downed: 'falling' }[next] ?? null);
     if (next === 'engage') this.unseenTime = 0;
+    // (A stagger leaves Engage too, but it comes back to finish the same hold.)
+    if (from === 'engage' && next === 'chase') this.heldTime = 0;
+    if (next === 'investigate') {
+      this.goal = { x: this.alarm.x, z: this.alarm.z };
+      this.alarm = null;
+      this.arrived = false;
+    } else {
+      this.goal = null;
+    }
     if (next === 'leap') this.acceptance = 'pending';
     if (next === 'downed' && from !== 'downed') this.reachTime = 0;
     // 3. Tell the Leaper (and anyone listening) what started.

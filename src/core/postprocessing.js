@@ -55,10 +55,10 @@ export function markGlow(target, on = true) {
 // screen 2400 x 1350) cost half of every frame: 58 ms a frame with it, 28 ms
 // without (measured 2026-10-22).
 const COMPOSITE_SHADER = {
-  defines: { BLOOM: 1, FXAA: 1 },
-  uniforms: { tScene: { value: null }, tBloom: { value: null }, texel: { value: new THREE.Vector2(1, 1) } },
+  defines: { BLOOM: 1, FXAA: 1, BLUR_PIXELS: '14.0' },
+  uniforms: { tScene: { value: null }, tBloom: { value: null }, texel: { value: new THREE.Vector2(1, 1) }, blur: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D tScene; uniform sampler2D tBloom; uniform vec2 texel; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tScene; uniform sampler2D tBloom; uniform vec2 texel; uniform float blur; varying vec2 vUv;
     #if FXAA
     // FXAA (after Timothy Lottes' public-domain FXAA, the short "console" form):
     // find the edge direction from the four corner neighbours' brightness and
@@ -83,11 +83,25 @@ const COMPOSITE_SHADER = {
       return (lB < lMin || lB > lMax) ? a : b;
     }
     #endif
+    // Hurt vision: the picture averaged over a disc, wider away from the centre.
+    // The disc turns from pixel to pixel, so its 12 taps read as soft, not doubled.
+    vec3 blurred(vec2 uv, vec3 sharp) {
+      vec2 fromCentre = uv - 0.5;
+      float radius = blur * (BLUR_PIXELS * 0.55 + BLUR_PIXELS * 0.9 * length(fromCentre));
+      float turn = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2832;
+      vec3 sum = sharp;
+      for (int i = 1; i <= 12; i++) {
+        float at = float(i) * 2.39996 + turn, reach = sqrt(float(i) / 12.0) * radius;
+        sum += texture2D(tScene, uv + vec2(cos(at), sin(at)) * reach * texel).rgb;
+      }
+      return sum / 13.0;
+    }
     void main() {
       vec4 base = texture2D(tScene, vUv);
       #if FXAA
         base.rgb = smoothEdges(vUv);
       #endif
+      if (blur > 0.0) base.rgb = blurred(vUv, base.rgb);
       #if BLOOM
         base.rgb += texture2D(tBloom, vUv).rgb;
       #endif

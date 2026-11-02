@@ -48,11 +48,63 @@ function chasing() {
 const PLAN = { from: { x: 0, z: 0, yaw: 0 }, to: { x: 0, z: 8, yaw: 0 }, heading: 0, travel: 8, turn: 0 };
 
 test('every state names its locomotion source and whether the eye may fire', () => {
-  assert.deepEqual(Object.keys(LEAPER_STATES), ['dormant', 'search', 'chase', 'engage', 'stomp', 'leap', 'stagger', 'downed', 'dying', 'dead']);
+  assert.deepEqual(Object.keys(LEAPER_STATES), ['dormant', 'search', 'investigate', 'chase', 'engage', 'stomp', 'leap', 'stagger', 'downed', 'dying', 'dead']);
   assert.deepEqual(Object.entries(LEAPER_STATES).filter(([, s]) => s.locomotion === 'rl').map(([n]) => n), ['search', 'chase']);
   assert.deepEqual(Object.entries(LEAPER_STATES).filter(([, s]) => s.bolts).map(([n]) => n), ['chase', 'engage', 'downed']);
   assert.equal(stateLabel('downed', 'down', { permanent: true }), 'DOWN FOR GOOD');
   assert.equal(stateLabel('leap', 'windup'), 'POUNCE!');
+});
+
+test('shot from out of sight it investigates, however it was searching', () => {
+  const d = director();
+  run(d, 0.1, sense());
+  assert.equal(d.state, 'search');
+  d.shotAt({ x: 10, z: 20 });
+  d.update(DT, sense());
+  assert.equal(d.state, 'investigate');
+  assert.deepEqual(d.goal, { x: 10, z: 20 });
+  assert.equal(d.locomotion, 'scripted', 'the brain is paused');
+  assert.equal(d.boltsAllowed, false);
+  // A later shot from elsewhere moves the goal; one from about the same spot does not.
+  d.shotAt({ x: 11, z: 20 });
+  assert.deepEqual(d.goal, { x: 10, z: 20 });
+  d.shotAt({ x: 30, z: 20 });
+  assert.deepEqual(d.goal, { x: 30, z: 20 });
+  d.reachedGoal();
+  d.update(DT, sense());
+  assert.equal(d.state, 'search', 'nobody there: the brain searches on');
+  // Chasing an old sighting, a shot from elsewhere still turns it round.
+  const c = director();
+  until(c, 'chase', sense({ aware: true }));
+  c.shotAt({ x: 1, z: 2 });
+  c.update(DT, sense({ aware: false, remembers: true }));
+  assert.equal(c.state, 'investigate');
+});
+
+test('investigating ends when the eye finds her or after maxTime; a seen shooter is no alarm', () => {
+  const d = director();
+  run(d, 0.1, sense());
+  d.shotAt({ x: 10, z: 20 });
+  d.update(DT, sense());
+  d.update(DT, sense({ eyeSees: true }));
+  assert.equal(d.state, 'chase');
+  const late = director();
+  run(late, 0.1, sense());
+  late.shotAt({ x: 10, z: 20 });
+  until(late, 'investigate', sense());
+  run(late, late.config.investigate.maxTime + 0.1, sense());
+  assert.equal(late.state, 'search');
+  const seen = director();
+  until(seen, 'chase', sense({ aware: true }));
+  seen.shotAt({ x: 1, z: 2 });
+  seen.update(DT, sense({ aware: true }));
+  assert.notEqual(seen.state, 'investigate');
+  const old = director();
+  old.shotAt({ x: 1, z: 2 });
+  run(old, old.config.investigate.alarmTime + 0.1, sense({ hunting: false }));
+  old.update(DT, sense());
+  old.update(DT, sense());
+  assert.equal(old.state, 'search', 'a shot from long ago is forgotten');
 });
 
 test('Dormant -> Search -> Chase -> Engage and back, following what the brain sees', () => {
@@ -81,6 +133,20 @@ test('Dormant -> Search -> Chase -> Engage and back, following what the brain se
   d.update(DT, sense());
   assert.equal(d.state, 'search');
   assert.ok(d.count('onStateChange') >= 5);
+});
+
+test('a stagger does not restart the clock on how long it may stand and shoot', () => {
+  const d = director();
+  const close = { aware: true, eyeSees: true, distance: 10 };
+  until(d, 'engage', sense(close));
+  run(d, B.engage.maxHoldTime * 0.8, sense(close));
+  d.bigHit('weakPoint');
+  run(d, 0.1, sense(close));
+  assert.equal(d.state, 'stagger');
+  run(d, B.stagger.time + 0.2, sense(close));
+  assert.equal(d.state, 'engage', 'back to holding after the stagger');
+  run(d, B.engage.maxHoldTime * 0.3, sense(close));
+  assert.equal(d.state, 'chase', 'and it still walks on time');
 });
 
 test('Engage ends when the eye loses Lola for a while, and never holds longer than maxHoldTime', () => {

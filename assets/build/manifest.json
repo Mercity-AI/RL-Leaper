@@ -260,20 +260,6 @@
       "bytes": 3721,
       "sha256": "372ea1bd41b14eb6c77a26fca3320cb1e1474895cdf9f5beb7d6639bbbde8c08"
     },
-    "audio/lola-hurt-big.ogg": {
-      "source": "assets/audio/lola-hurt-big.wav",
-      "sourceBytes": 48554,
-      "sourceSha256": "d4c495edad58e5467aeab8004575e0e3eb3285dd128b864e969d1570449fbe5f",
-      "bytes": 3694,
-      "sha256": "bc5482b1e36af339f2935e96c0675fd0d28af1551a835a1fbb13809bddaac32e"
-    },
-    "audio/lola-hurt-big.m4a": {
-      "source": "assets/audio/lola-hurt-big.wav",
-      "sourceBytes": 48554,
-      "sourceSha256": "d4c495edad58e5467aeab8004575e0e3eb3285dd128b864e969d1570449fbe5f",
-      "bytes": 5648,
-      "sha256": "2a97bc3217f1d2bd09bf03d0221127690f31078739be90b13a361f2f09b26d78"
-    },
     "audio/lola-hit-thud-1.ogg": {
       "source": "assets/audio/lola-hit-thud-1.wav",
       "sourceBytes": 30914,
@@ -301,20 +287,6 @@
       "sourceSha256": "025a1503e2b1bb18ad9926fa996faa3eb18b8898f964184bffd42514d8e9c910",
       "bytes": 3902,
       "sha256": "5128ecc7d245ebfba027a815230f2b137237854c15f2f3f67c81c4d3a300a877"
-    },
-    "audio/leaper-charge.ogg": {
-      "source": "assets/audio/leaper-charge.wav",
-      "sourceBytes": 61784,
-      "sourceSha256": "c01d4f1a136c5c76d5fea475324bc65a574302e4201f7f3e94623086bba9b293",
-      "bytes": 4652,
-      "sha256": "e7de00183f8c2e68ed3be0f70b1dfd49dfe4e720cf9ec197fda246be759e6693"
-    },
-    "audio/leaper-charge.m4a": {
-      "source": "assets/audio/leaper-charge.wav",
-      "sourceBytes": 61784,
-      "sourceSha256": "c01d4f1a136c5c76d5fea475324bc65a574302e4201f7f3e94623086bba9b293",
-      "bytes": 6908,
-      "sha256": "97e7547dc3795c71fb0ea94d63e13a07c5da24d01a429928971949cebcba39fd"
     },
     "audio/leaper-lock.ogg": {
       "source": "assets/audio/leaper-lock.wav",
@@ -609,6 +581,118 @@
       "sourceSha256": "ca16b0a89294cb85e8c00556f7caff9812a78505f74f55bcf563857eeb265360",
       "bytes": 27674,
       "sha256": "753ceb2146493369bbb3fcd45bc2a1d8b3d45b365617a9e2f8b6863c4603ceb5"
+    },
+    "audio/lola-pant-1.ogg": {
+      "source": "assets/audio/lola-pant-1.wav",
+      "sourceBytes": 71520,
+      "sourceSha256": "268abce07dbd610ef68137736ca75a9d12b943b8db2283ca52bc8ea12bf91f2f",
+      "bytes": 5390,
+      "sha256": "c20abe292256d0138cfa221a434e29b425f3091fad25575092c2541ea72ea9a0"
+    },
+    "audio/lola-pant-1.m4a": {
+      "source": "assets/audio/lola-pant-1.wav",
+      "sourceBytes": 71520,
+      "sourceSha256": "268abce07dbd610ef68137736ca75a9d12b943b8db2283ca52bc8ea12bf91f2f",
+      "bytes": 7632,
+      "sha256": "f00fedbe9816df553f3738648b249b5f4a8f4070fb6dfdfdfd7dccb7081bfc60"
+    },
+    "audio/lola-pant-2.ogg": {
+      "source": "assets/audio/lola-pant-2.wav",
+      "sourceBytes": 66228,
+      "sourceSha256": "7e5538e3493219111547948bed6748c5d5dea4299ab4d35ff66bfa67e2fd40e9",
+      "bytes": 4758,
+      "sha256": "267f3e589a56b2a720dbdb870b098bd4e6bfb2c3350be9973148fdf56a9c8757"
+    },
+    "audio/lola-pant-2.m4a": {
+      "source": "assets/audio/lola-pant-2.wav",
+      "sourceBytes": 66228,
+      "sourceSha256": "7e5538e3493219111547948bed6748c5d5dea4299ab4d35ff66bfa67e2fd40e9",
+      "bytes": 7368,
+      "sha256": "fab98664961dfc2d5e2f00350ffa8c06c3b0d853847a623a3ad104e038a920e4"
+    },
+    "audio/lola-pant-3.ogg": {
+      "source": "assets/audio/lola-pant-3.wav",
+      "sourceBytes": 66228,
+      "sourceSha256": "afe14397b4bc008260b66d1ca3ac78666694bdd102cf1ad227ef91cbf26d6437",
+      "bytes": 4730,
+      "sha256": "7eae4697439a1cb8fd806d1255e092b1a80be996303bccbdb0b9fc312e7c1ee0"
+    },
+    "audio/lola-pant-3.m4a": {
+      "source": "assets/audio/lola-pant-3.wav",
+      "sourceBytes": 66228,
+      "sourceSha256": "afe14397b4bc008260b66d1ca3ac78666694bdd102cf1ad227ef91cbf26d6437",
+      "bytes": 7391,
+      "sha256": "d9e2f61e35ce02e6b1f87acf677b615aadb6de4be38af4ba0deae5df3d9079d7"
+    },
+    "audio/lola-pant-4.ogg": {
+      "source": "assets/audio/lola-pant-4.wav",
+      "sourceBytes": 61818,
+      "sourceSha256": "35a85f632803fc19924a9075fd89d9f3259a15b2083bd165039f5872380b043c",
+      "bytes": 4480,
+      "sha256": "6ef267b3d0a2fb5bf1d0b123b87b922fef893bbc89531a2946358396ca2502a5"
+    },
+    "audio/lola-pant-4.m4a": {
+      "source": "assets/audio/lola-pant-4.wav",
+      "sourceBytes": 61818,
+      "sourceSha256": "35a85f632803fc19924a9075fd89d9f3259a15b2083bd165039f5872380b043c",
+      "bytes": 6897,
+      "sha256": "d57e307b9ad42d5c873bd0b21d4910d8d4bcadf22e51be189802aaa4de3839b9"
+    },
+    "audio/lola-pant-5.ogg": {
+      "source": "assets/audio/lola-pant-5.wav",
+      "sourceBytes": 59172,
+      "sourceSha256": "36d24245ce29eccd4f490b07d8b0417a12155ac13ef17bf50bcbaaef87354270",
+      "bytes": 4291,
+      "sha256": "0dce360ff7189753addc526e7ee51f2f40ea2d58022b61748c9d0f5bbe3d4938"
+    },
+    "audio/lola-pant-5.m4a": {
+      "source": "assets/audio/lola-pant-5.wav",
+      "sourceBytes": 59172,
+      "sourceSha256": "36d24245ce29eccd4f490b07d8b0417a12155ac13ef17bf50bcbaaef87354270",
+      "bytes": 6568,
+      "sha256": "474e3a7ef245cf1bb4e521719165e20452f6523d3a52524c0932023f1c4d7228"
+    },
+    "audio/lola-pant-6.ogg": {
+      "source": "assets/audio/lola-pant-6.wav",
+      "sourceBytes": 58290,
+      "sourceSha256": "76f8fccabe4ccbb68ef864e827d8b76cbc5d842b8928e1aa03a8686175b47f32",
+      "bytes": 4689,
+      "sha256": "7c1993426404e079fc6afe7871c173c6c49b4aee95ccd7c41ec34941ee511b2d"
+    },
+    "audio/lola-pant-6.m4a": {
+      "source": "assets/audio/lola-pant-6.wav",
+      "sourceBytes": 58290,
+      "sourceSha256": "76f8fccabe4ccbb68ef864e827d8b76cbc5d842b8928e1aa03a8686175b47f32",
+      "bytes": 6490,
+      "sha256": "8d36a8ca51ca039854f253e9c9b272df14fb9691fdc4d296138de9b4a60746dd"
+    },
+    "audio/lola-pant-7.ogg": {
+      "source": "assets/audio/lola-pant-7.wav",
+      "sourceBytes": 65346,
+      "sourceSha256": "137a09b70b3c07606e851da84d61751d15bc6f4c61b725735130807da2e84066",
+      "bytes": 4710,
+      "sha256": "cb8e3a1e50221bb3690ace6f469b4e0de57e84fa091959661bf5d985b1a8d06a"
+    },
+    "audio/lola-pant-7.m4a": {
+      "source": "assets/audio/lola-pant-7.wav",
+      "sourceBytes": 65346,
+      "sourceSha256": "137a09b70b3c07606e851da84d61751d15bc6f4c61b725735130807da2e84066",
+      "bytes": 7128,
+      "sha256": "01f2fdf545fb614cdf9cd7787b1d883588e0fe2330c05e380b53adefe5ae846c"
+    },
+    "audio/leaper-charge-reverse.ogg": {
+      "source": "assets/audio/leaper-charge-reverse.wav",
+      "sourceBytes": 52426,
+      "sourceSha256": "eb495b256468d9204ed9ca405f1d50266d88fb81b12c538f73e2f9c12787bf84",
+      "bytes": 4455,
+      "sha256": "5d567217dc1e4840a3b80eaac277b511025a0bf544f3c56bd3d2e70708345f58"
+    },
+    "audio/leaper-charge-reverse.m4a": {
+      "source": "assets/audio/leaper-charge-reverse.wav",
+      "sourceBytes": 52426,
+      "sourceSha256": "eb495b256468d9204ed9ca405f1d50266d88fb81b12c538f73e2f9c12787bf84",
+      "bytes": 5946,
+      "sha256": "01584231c936026e69616b7f4b75feb10527d8e57aac97fb026e7b2e87c14a92"
     }
   },
   "textures": {

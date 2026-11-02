@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { LolaPlayer } from '../src/robot/LolaPlayer.js';
-import { LOLA_FOOTING } from '../src/actors/lola/lolaTuning.js';
+import { LOLA_FALL, LOLA_FOOTING } from '../src/actors/lola/lolaTuning.js';
 import { JunkyardNavigation } from '../src/world/JunkyardNavigation.js';
 import { PLAYER_GRID } from '../src/world/junkyardCollision.js';
 import { WorldCollision } from '../src/world/WorldCollision.js';
@@ -92,6 +92,29 @@ test('a car-high block stays a wall even with a jump', async () => {
   player.jump();
   walk(player, 90);
   assert.ok(player.mesh.position.z <= 1.25 + 1e-6);
+  assert.equal(player.mesh.position.y, 0);
+});
+
+test('nothing is reachable above jumpUp from the floor, even from the top of a stack', async () => {
+  const player = await lola(blockWorld(1));
+  player.standHeight = LOLA_FOOTING.jumpUp;
+  player.grounded = true;
+  assert.equal(player.footingReach(), LOLA_FOOTING.jumpUp, 'a step up from a stack adds nothing');
+  player.jumpState = { elapsed: 1, liftoff: 0.5, landing: 2 };
+  assert.equal(player.footingReach(), LOLA_FOOTING.jumpUp, 'nor does a jump from it');
+  player.jumpState = null;
+});
+
+test('when she loses she falls and lies on the ground, and a new fight stands her up', async () => {
+  const player = await lola(blockWorld(1));
+  player.defeated = true;
+  assert.ok(player.droppedGun?.gun.parent, 'her gun drops, it does not vanish');
+  for (let i = 0; i < 60; i += 1) player.move(0, 0, FORWARD, RIGHT, 0, 1 / 60);
+  assert.ok(Math.abs(Math.abs(player.mesh.rotation.x) + Math.abs(player.mesh.rotation.z) - LOLA_FALL.tip) < 1e-6, 'lying down');
+  assert.ok(player.mesh.rotation.x >= 0, 'never on her back');
+  player.defeated = false;
+  assert.equal(player.mesh.rotation.x, 0);
+  assert.equal(player.mesh.rotation.z, 0);
   assert.equal(player.mesh.position.y, 0);
 });
 

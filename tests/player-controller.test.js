@@ -140,16 +140,15 @@ function frame(controller, options) {
   controller.update(options?.frozen ? 0 : 1 / 60);
 }
 
-test('C crouches and 1 / 2 pick guns as input actions, and a pause freezes them too', () => {
+test('C crouches as an input action, a pause freezes it, and there are no gun keys', () => {
   const { input, key } = realInput();
   const player = armedPlayer();
   const controller = new PlayerController({ player, input, cameraController: camera(0) });
   // Pressed during a pause: nothing happens, then or afterwards.
   key('keydown', 'KeyC'); key('keyup', 'KeyC');
-  key('keydown', 'Digit2'); key('keyup', 'Digit2');
   frame(controller, { frozen: true });
   frame(controller);
-  assert.deepEqual([player.crouches, player.switches], [0, 0], 'a pause froze C and 2');
+  assert.deepEqual([player.crouches, player.switches], [0, 0], 'a pause froze C');
   // While playing: one press, one change.
   key('keydown', 'KeyC');
   frame(controller);
@@ -158,16 +157,10 @@ test('C crouches and 1 / 2 pick guns as input actions, and a pause freezes them 
   assert.equal(player.crouches, 1, 'held C (key repeat) toggles once');
   key('keydown', 'Digit2');
   frame(controller);
-  assert.equal(player.weaponIndex, 1, '2 = the pistol');
-  key('keyup', 'Digit2'); key('keydown', 'Digit2');
-  frame(controller);
-  assert.equal(player.weaponIndex, 1, 'the equipped gun\'s key keeps it');
-  key('keydown', 'Digit1');
-  frame(controller);
-  assert.equal(player.weaponIndex, 0, '1 = the M416');
+  assert.equal(player.switches, 0, 'one gun: 2 does nothing');
 });
 
-test('the gamepad and touch buttons: move, look, switch guns, pause and resume', () => {
+test('the gamepad and touch buttons: move, look, pause and resume', () => {
   const { input } = realInput();
   const pad = { connected: true, buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })), axes: [0, -1, 1, 0] };
   const saved = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
@@ -183,7 +176,7 @@ test('the gamepad and touch buttons: move, look, switch guns, pause and resume',
     assert.ok(looked > 0, 'right stick turns the camera');
     pad.buttons[3] = { pressed: true, value: 1 };
     frame(controller);
-    assert.equal(player.weaponIndex, 1, 'Y switches guns');
+    assert.equal(player.weaponIndex, 0, 'one gun: Y does nothing');
     pad.buttons[9] = { pressed: true, value: 1 };
     frame(controller);
     assert.equal(pauses, 1, 'Start pauses');
@@ -192,10 +185,6 @@ test('the gamepad and touch buttons: move, look, switch guns, pause and resume',
     pad.buttons[9] = { pressed: true, value: 1 };
     frame(controller, { frozen: true });
     assert.equal(resumes, 1, 'Start again resumes');
-    // The touch SWITCH button is the same action.
-    input.virtualDown('switchWeapon');
-    frame(controller);
-    assert.equal(player.weaponIndex, 0);
   } finally {
     if (saved) Object.defineProperty(globalThis, 'navigator', saved);
     else delete globalThis.navigator;

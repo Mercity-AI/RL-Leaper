@@ -50,9 +50,6 @@ const RECIPES = [
     fadeIn: 0.005, fadeOut: 0.04, peak: -3 },
   { name: 'lola-hurt-4', length: 0.17, layers: [{ file: 'owner/lola-grunts-2026-10-22.ogg', from: 6.51 }],
     fadeIn: 0.008, fadeOut: 0.05, peak: -3 },
-  // Lola nearly down: the start of a short scream, cut before it becomes a shriek.
-  { name: 'lola-hurt-big', length: 0.55, layers: [{ file: 'opengameart/261419__archeos__womanscream.ogg' }],
-    fadeOut: 0.22, peak: -3 },
   // The body thud under every hit Lola takes (two takes).
   { name: 'lola-hit-thud-1', length: 0.35, layers: [{ file: 'kenney/impact-sounds/impactPunch_heavy_001.ogg' }],
     fadeOut: 0.12, peak: -2 },
@@ -117,9 +114,6 @@ const RECIPES = [
     { file: 'kenney/interface-sounds/glitch_003.ogg', gain: 0.5, at: 0.18 },
     { file: 'kenney/sci-fi-sounds/impactMetal_002.ogg', gain: 0.4, speed: 1.4 },
   ], fadeOut: 0.08, peak: -4 },
-  // The eye starts charging a bolt (its 0.6 s warning): an energy hum swelling in.
-  { name: 'leaper-charge', length: 0.7, layers: [{ file: 'kenney/sci-fi-sounds/forceField_001.ogg', fadeIn: 0.3 }],
-    fadeOut: 0.1, peak: -4 },
   // The eye's aim locks (the last moment before the bolt): a sharp click.
   { name: 'leaper-lock', length: 0.3, layers: [
     { file: 'kenney/interface-sounds/tick_004.ogg' },

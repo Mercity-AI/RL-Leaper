@@ -13,7 +13,7 @@ const STYLES = `
 #leaperHealthHud .leaper-hud-meter { position: relative; height: 4px; margin: 3px 0 2px; border-radius: 2px; overflow: hidden; background: #2a2d33; }
 #leaperHealthHud .leaper-hud-meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--hp, 1) * 100%); background: #ff5a30; transition: width .08s; }
 #leaperHealthHud .leaper-hud-state { display: inline-block; margin-left: 5px; padding: 0 4px; border-radius: 3px; font: bold 9px/1.45 monospace; letter-spacing: .03em; vertical-align: 1px; color: #e9e3e1; background: #3a3d44; }
-#leaperHealthHud[data-state=chase] .leaper-hud-state, #leaperHealthHud[data-state=engage] .leaper-hud-state { background: #8d1d10; color: #ffe0d8; }
+#leaperHealthHud[data-state=chase] .leaper-hud-state, #leaperHealthHud[data-state=investigate] .leaper-hud-state, #leaperHealthHud[data-state=engage] .leaper-hud-state { background: #8d1d10; color: #ffe0d8; }
 #leaperHealthHud[data-state=stomp] .leaper-hud-state, #leaperHealthHud[data-state=leap] .leaper-hud-state { background: #ff3b1a; color: #fff; animation: leaper-hud-warn .25s ease-in-out infinite alternate; }
 #leaperHealthHud[data-state=stagger] .leaper-hud-state { background: #c9a227; color: #1a1406; }
 #leaperHealthHud[data-state=downed] .leaper-hud-state { background: #2f7d4f; color: #eafff1; }

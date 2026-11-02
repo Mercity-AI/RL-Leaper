@@ -40,6 +40,9 @@ import { CALF_LENGTH, COXA_LENGTH, FEMUR_LENGTH, SHIN_LENGTH } from './robot.js'
 //                  back) and recovery (how quickly the view settles back, per second;
 //                  higher = snappier). Roll and push shake the view without moving
 //                  the crosshair's aim
+//   gunKick        the gun jumping in her hands while aiming down the sights: pitch
+//                  (radians up), back (map units toward the eye), snap (how fast it
+//                  jumps, per second) and settle (how fast it comes down, per second)
 //   spray          (automatic guns) a fixed, learnable spray pattern, like CS2's:
 //                    pattern       where each bullet of a held spray goes, in degrees
 //                                  [right, up] from where Lola aims (shot 1 first;
@@ -72,7 +75,8 @@ export const WEAPONS = Object.freeze({
     range: 60,
     spread: Object.freeze({ base: 0.006, moving: 1.8, bloomPerShot: 0.002, bloomMax: 0.012,
       bloomDelay: 0.18, bloomRecovery: 0.08 }),
-    recoil: Object.freeze({ pitch: 0.011, yawJitter: 0.004, roll: 0.012, push: 0.075, recovery: 9 }),
+    recoil: Object.freeze({ pitch: 0.024, yawJitter: 0.01, roll: 0.026, push: 0.24, recovery: 9 }),
+    gunKick: Object.freeze({ pitch: 0.075, back: 0.09, snap: 45, settle: 11 }),
     // Up for the first 8 shots, a hook left, across to the right, then a small
     // wobble back (in the spirit of CS2's M4A4).
     spray: Object.freeze({
@@ -92,24 +96,20 @@ export const WEAPONS = Object.freeze({
     range: 60,
     spread: Object.freeze({ base: 0.002, moving: 1.5, bloomPerShot: 0.004, bloomMax: 0.008,
       bloomDelay: 0.15, bloomRecovery: 0.05 }),
-    recoil: Object.freeze({ pitch: 0.03, yawJitter: 0.004, roll: 0.021, push: 0.12, recovery: 10 }),
+    recoil: Object.freeze({ pitch: 0.06, yawJitter: 0.012, roll: 0.04, push: 0.4, recovery: 10 }),
+    gunKick: Object.freeze({ pitch: 0.14, back: 0.13, snap: 45, settle: 8 }),
     ads: Object.freeze({ zoom: 1.35, spread: 0.25, recoil: 0.7 }),
   }),
 });
 
-// Which gun each of Lola's outfits carries, in her weaponIndex order
-// (outfit 0 = the M416 view, outfit 1 = the pistol view; see LolaAssets.OUTFIT_WEAPONS).
-export const WEAPON_SLOTS = Object.freeze(['m416', 'pistol']);
+// The guns the player has, in her weaponIndex order (outfit 0 = the M416 view; see
+// LolaAssets.OUTFIT_WEAPONS). The M416 only for now (owner, 2026-11-02): the pistol's
+// data, model and clips stay, but nothing shows or selects it.
+export const WEAPON_SLOTS = Object.freeze(['m416']);
 
-// The gun in a weaponIndex slot (0 = M416, 1 = pistol).
+// The gun in a weaponIndex slot.
 export function weaponForSlot(index) {
   return WEAPONS[WEAPON_SLOTS[index]];
-}
-
-// The weaponIndex slot of the gun a key equips ('1' -> the M416's slot, the
-// default gun, shown left; '2' -> the pistol: owner, 2026-10-22), or -1.
-export function slotForKey(key) {
-  return WEAPON_SLOTS.findIndex(id => WEAPONS[id].key === key);
 }
 
 // ---- Shooting feel shared by both guns ------------------------------------------

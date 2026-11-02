@@ -85,9 +85,6 @@ Generated from the game's input bindings; **H** shows them during the fight.
 | Jump | Space | A | JUMP |
 | Crouch | C | B | CROUCH |
 | Sprint | Shift / Right Shift (hold) | LB | SPRINT |
-| Switch gun | — | Y | SWITCH |
-| M416 | 1 / Num 1 | — | — |
-| Basic gun | 2 / Num 2 | — | — |
 | Pause | Esc | Start | PAUSE |
 | Show / hide controls | H | Back | — |
 <!-- controls:end -->

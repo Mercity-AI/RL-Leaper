@@ -46,6 +46,9 @@ await brain.load();                             // optional; first request loads
 await brain.prepare(width);                     // optional; loads/builds that size's raster
 const frame = await brain.reset({ width, position: [x, z], yaw, target: [lx, lz],
   player_collision: true, sight_mode: 'eye', sight_pose });   // same body as POST /reset
+// Optional sight_range (world units): how far it sees Lola and searches; the 16
+// wall rays stay at 28. Browser brain only; the Python server ignores it.
+// Game only: new OnnxBrainProvider({ stepOver }) leaves low junk out of its walking map.
 const next = await brain.step({ token: frame.token, target: [lx, lz], sight_pose });
 const preview = await brain.sense({ token: frame.token, target: [lx, lz], sight_pose });
 const landed = await brain.sync({ token: frame.token, position: [x2, z2], yaw: yaw2,

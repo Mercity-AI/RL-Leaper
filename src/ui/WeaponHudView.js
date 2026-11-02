@@ -27,7 +27,7 @@ export class WeaponHudView {
     this.element.className = 'weapon-hud';
     this.element.setAttribute('aria-label', 'Weapons and ammunition');
     this.element.innerHTML = `<div class="spare-rows"></div><div class="gun-row">${ordered.map(slot => `
-      <div class="gun" data-gun="${slot.id}" title="${slot.label}"><i class="gun-fill"></i>${ICONS[slot.icon] ?? ''}<span class="gun-tag">${slot.key}</span></div>`).join('')}
+      <div class="gun" data-gun="${slot.id}" title="${slot.label}"><i class="gun-fill"></i>${ICONS[slot.icon] ?? ''}</div>`).join('')}
     </div>`;
     parent.append(this.element);
     // 2. Each gun's circle, by weapon id.

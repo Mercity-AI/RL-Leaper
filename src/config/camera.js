@@ -50,6 +50,12 @@ export const CAMERA = Object.freeze({
   // changes it. The wheel does nothing while aiming (review fix 5.38).
   boom: Object.freeze({ start: 8.5, min: 6, max: 22, wheelRate: 0.001 }),
 
+  // ---- Lola down ----
+  // The camera tips down over her body (pitch, radians above level) and swings
+  // round her (turn, radians) at `ease` per second, so she lies across the screen;
+  // lookUp (radians) keeps her in the lower part, under the end screen's box.
+  defeat: Object.freeze({ pitch: 1.0, turn: 1.2, ease: 3, lookUp: -0.3 }),
+
   // ---- Big-impact shake ----
   // strength (0-1) fades out over `duration` seconds; the view wobbles by up to
   // these angles at full strength, `speed` sets how fast it wobbles.
@@ -61,7 +67,7 @@ export const CAMERA = Object.freeze({
   recoilMax: 0.12,
   // The most the per-shot jolt can push the view back (map units), and how fast
   // the view follows a spray pattern's climb (per second; higher = tighter).
-  recoilPushMax: 0.25,
+  recoilPushMax: 0.7,
   sprayEase: 30,
 
   // ---- First-person aim ----

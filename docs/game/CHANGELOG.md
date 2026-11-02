@@ -3,6 +3,97 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-11-02: a darker yard with lamps, a smarter search
+
+### For players
+
+- **Junk no longer stops the Leaper.** It walks over low tires, poles and scrap, its
+  feet stepping on top of them. They still hide Lola and stop shots.
+- **The Leaper keeps moving.** Up close it stands to shoot for shorter spells and keeps
+  walking between them, so hitting its legs no longer pins it in place.
+- **Faster sprint.** Lola sprints 10% faster.
+- **She feels it when she is badly hurt.** Under 20 health she pants, softly when she
+  stands still and harder as she runs, and the screen edges stay slightly red. Under 10 the
+  screen blurs and she hunches as she runs; health pills ease it back, and it clears
+  by 20.
+- **One gun for now: the M416.** The pistol, its keys and the gun numbers are gone.
+- **Lola keeps her gun.** It drops from her hands and lies beside her when she falls.
+- **You can see the laser.** It is thicker and brighter: one line from the Leaper's
+  eye to where it lands, even at point-blank range.
+- **Hear it coming.** The Leaper's charge-up has a new sound: its laser rushing
+  backwards into the shot.
+- **Being hit is clear.** Sparks fly off Lola, the view jolts, the screen edges flash
+  red and a red arc shows which way the shot came from.
+- **Cleaner health panel.** Just her name, her number and her bar.
+- **Darker yard.** The sky and daylight are dimmer, with warm lamps on the poles.
+- **The Leaper finds you in a container.** After an unseen shot it walks to a spot
+  it can actually see you from, not just the nearest side of the wall.
+- **The gun stays put in a standing jump.** Lola no longer raises it as if to fire.
+- **Title music stays out of the fight.** It only plays in the window you are using.
+
+## 2026-11-03: cleaner jumps, a proper fall, no more scream
+
+### For players
+
+- **Running jumps look right.** Lola's legs no longer snap together and apart
+  in mid-air; they hold their stride from take-off to landing.
+- **Lola lies on the ground, not in it.** Her body goes slack as she falls, with
+  her arms at her sides, and nothing sinks through the floor.
+- **No more scream at low health.** Lola uses the same grunts at any health.
+
+## 2026-11-02: a harder fall, more weight in the hits
+
+### For players
+
+- **Lola falls on her face.** A big camera shake as she goes down, then she
+  lies on her face (or her side, if something is in the way) across the screen.
+- **Hits feel heavier.** Every bullet landing on the Leaper shakes the picture,
+  and shooting itself shakes a little less. The spray and the crosshair are
+  exactly as before. A leg coming off still shakes much harder than a hit.
+
+## 2026-10-30 (later): a sharper Leaper, a real defeat
+
+### For players
+
+- **No more standing on containers.** Lola can never get on top of any
+  container, whether by jumping, climbing or hopping up from a tire stack. She
+  still walks into the open ones. Barrels, tires and trash piles can still be
+  jumped onto.
+- **The Leaper hunts whoever shoots it.** Shot from somewhere it cannot see,
+  it stops searching, turns, and walks around the junk to where the shot came
+  from (its label says INVESTIGATING) until it finds Lola or gets there.
+- **The Leaper sees much further:** 50 map units, up from 19.3, most of the
+  yard's 78 x 73. Its laser reaches as far as it sees. Cover matters far more.
+- **Lola falls when she loses.** She drops to the ground and lies there, and
+  the camera tips down over her.
+- **The gun jumps when you aim and fire.** In first person it kicks up and
+  back, then settles.
+- **Lola stays out of the cars.** Her body no longer sinks into cars and car
+  racks. Gaps wide enough for her still work.
+
+### Behind the scenes
+
+- The frozen brain's weights are unchanged, and its 16 wall rays still report
+  at the trained range, so it walks as well as before. The game asks for the
+  longer sight when a session starts (`COMBAT.sightRange`, sent as
+  `sight_range`). The recorded parity checks still use the trained 28.
+
+## 2026-10-30: performance stats on screen, a much harder kick
+
+### For players
+
+- **Smoother on built-in graphics.** The ground's grit and pebbles are now
+  prepared once while the game loads instead of being worked out every frame.
+  They look the same, and the worst stutters on the AMD chip were cut about in half.
+- **The guns kick and shake much harder.** Each shot now throws the view up
+  about twice as far, tilts the screen and jolts the camera back far more, on
+  both guns. A held M416 spray is noticeably harder to keep on target.
+- **Performance stats, top right.** Under the frame rate the game now shows
+  FRAME (milliseconds from one frame to the next) and CPU (milliseconds of
+  each frame the game's own code took), each the middle value of the last half
+  second. On by default; switch them off in SETTINGS > GRAPHICS > Show
+  performance stats.
+
 ## 2026-10-29: a breather after the big attacks
 
 ### For players

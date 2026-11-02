@@ -99,7 +99,7 @@ test('building Lola copies the loaded files, so two Lolas can share one load', a
     for (let i = 0; i < 30; i += 1) player.move(1, 0, FORWARD, RIGHT, 4.5, 1 / 60);
     assert.ok(player.mesh.position.z > 0.5, 'each copy runs');
     assert.equal(player.jump(), true, 'each copy has its own jump clip and gun');
-    assert.equal(player.outfits[0].jump.gun.visible, true);
+    assert.equal(player.jumpState.kind, 'jump');
   }
   assert.equal(players[1].startReload(), false, 'no reload mid-jump');
 });
@@ -147,19 +147,19 @@ test('only the guns that belong on screen are shown on the one body', async () =
     rifle.model.traverse(node => { if (node.isMesh && !node.isSkinnedMesh && node.visible) names.push(node.name); });
     return names.sort();
   };
-  // Rifle out: in her hands, pistol holstered at the hip.
-  assert.deepEqual(shown(), ['Basic_Gun_At_Waist', 'M416_Carry']);
+  // Rifle out, in her hands; no pistol anywhere, not even holstered.
+  assert.deepEqual(shown(), ['M416_Carry']);
   player.startShot();
-  assert.deepEqual(shown(), ['Basic_Gun_At_Waist', 'm416_ShootingWeapon']);
+  assert.deepEqual(shown(), ['m416_ShootingWeapon']);
   player.cancelShot();
   player.startReload();
-  assert.deepEqual(shown(), ['Basic_Gun_At_Waist', 'm416_ReloadWeapon']);
+  assert.deepEqual(shown(), ['m416_ReloadWeapon']);
   player.cancelReload();
-  // Pistol out: in her hand, rifle slung on her back; same for its jump.
+  // Pistol out: in her hand, rifle slung on her back; a plain jump keeps them.
   player.switchWeapon();
   assert.deepEqual(shown(), ['Lola_Gun_Basic', 'M416']);
   player.jump();
-  assert.deepEqual(shown(), ['M416', 'basic_JumpWeapon']);
+  assert.deepEqual(shown(), ['Lola_Gun_Basic', 'M416']);
   player.endJump();
   assert.deepEqual(shown(), ['Lola_Gun_Basic', 'M416']);
   assert.ok(pistol.carriedGun.visible && !rifle.carriedGun.visible);

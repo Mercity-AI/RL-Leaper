@@ -2,21 +2,22 @@ import * as THREE from 'three';
 
 // A finite red streak: its leading tip is at local Z=0, and its translucent
 // tail extends backward. This is visual only; collision sweeps the leading tip.
+// (Bright and solid to its tail: it must read against the darker yard.)
 export function createLaserVisual(config) {
-  const geometry = new THREE.CylinderGeometry(config.laserRadius, config.laserRadius * 0.15,
+  const geometry = new THREE.CylinderGeometry(config.laserRadius, config.laserRadius * 0.5,
     config.laserLength, 8, 1, false);
   geometry.rotateX(Math.PI / 2);
   geometry.translate(0, 0, -config.laserLength / 2);
   const material = new THREE.ShaderMaterial({
-    uniforms: { tint: { value: new THREE.Color(0x980c27) }, strength: { value: 0.95 } },
+    uniforms: { tint: { value: new THREE.Color(0xff2a18) }, strength: { value: 1 } },
     vertexShader: `varying vec2 laserUv;
       void main() { laserUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `uniform vec3 tint; uniform float strength; varying vec2 laserUv;
-      void main() { gl_FragColor = vec4(tint, strength * pow(laserUv.y, 1.5)); }`,
+      void main() { gl_FragColor = vec4(tint, strength * (0.4 + 0.6 * pow(laserUv.y, 1.5))); }`,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
   });
   const glow = material.clone();
-  glow.uniforms.strength.value = 0.10;
+  glow.uniforms.strength.value = 0.3;
   glow.blending = THREE.AdditiveBlending;
   return {
     create() {

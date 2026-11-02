@@ -152,6 +152,7 @@ export async function start({ engine, params }) {
   //    reports its time to ui.profiler (the developer perf overlay; a no-op for players).
   let disposed = false;
   let renderStart = 0;
+  let frameStart = 0;
   const timed = (name, phase) => (dt) => {
     if (disposed) return;
     const start = ui.profiler.begin();
@@ -163,6 +164,7 @@ export async function start({ engine, params }) {
     // Read the player's input (the menus' while one is open), run the fight
     // (Encounter order), then presentation.
     input: timed('input', (dt) => {
+      frameStart = performance.now();
       ui.profiler.frame();
       ui.input(dt);
     }),
@@ -191,6 +193,8 @@ export async function start({ engine, params }) {
       playtest.playerWeapon.afterRender();
       cameraController.afterRender();
       ui.profiler.end('render', renderStart);
+      // The whole frame's work, for the CPU line of the performance stats.
+      ui.fps?.work(performance.now() - frameStart);
     },
     // Tear the whole session down: listeners, page elements, scene objects and
     // their GPU memory, the sound engine. (InputController and LolaPlayer keep

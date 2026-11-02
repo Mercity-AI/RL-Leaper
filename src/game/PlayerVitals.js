@@ -16,6 +16,8 @@ export const TRAIL_HOLD = 0.45; // seconds the lost chunk stays before draining
 export const TRAIL_DRAIN = 0.6; // share of a full bar drained per second
 // Seconds the "HIT" label and the highlighted health readout show after a hit.
 const HIT_FLASH = 0.4;
+// How strong the red screen edges burst on a hit (0..1).
+const HIT_EDGE = 0.8;
 
 // The page side for pages without the game's HUD: Lola's panel, a result banner
 // with RESTART ENCOUNTER, and the red screen-edge tint (a page-wide variable).
@@ -93,6 +95,12 @@ export class PlayerVitals {
   reset() {
     this.health = this.max;
     this.hitFlash = 0;
+    this.hitDirection = null;
+    this.breathIn = 0;
+    this.faint = false;
+    this.weakness = 0;
+    this.player.weakness = 0;
+    this.hurtEdge = 0;
     this.trail = { value: 1, hold: 0 };
     this.player.defeated = false;
     this.player.clearHitReaction?.();
@@ -112,10 +120,11 @@ export class PlayerVitals {
     // 2. Readable feedback: the lost chunk holds, the readout flashes, she flinches.
     this.trail.hold = TRAIL_HOLD;
     this.hitFlash = HIT_FLASH;
+    this.hitDirection = direction;
     this.player.reactToHit?.(direction);
-    // 3. Layered hurt sound: a body thud under a voice, heavier when nearly down.
+    // 3. Layered hurt sound: a body thud under her voice.
     this.audio?.playSlot('lolaHitThud');
-    this.audio?.playSlot(this.health <= this.config.lowHealthThreshold ? 'lolaHurtBig' : 'lolaHurt');
+    this.audio?.playSlot('lolaHurt');
     // 4. Down: Lola can no longer move, jump or shoot (her flinch still plays out).
     if (this.dead) this.player.defeated = true;
     this.updateHud();
@@ -143,7 +152,32 @@ export class PlayerVitals {
     if (trail.value <= share) trail.value = share;
     else if (trail.hold > 0) trail.hold = Math.max(0, trail.hold - dt);
     else trail.value = Math.max(share, trail.value - TRAIL_DRAIN * dt);
+    this.updateHurt(dt, over);
     this.updateHud({ over });
+  }
+
+  // Badly hurt: panting, then (COMBAT.lolaHurt) a weakness that eases in and out,
+  // for her blurred sight and hunched run. It starts under blurBelow, and from there
+  // health back eases it off, gone at clearAbove.
+  updateHurt(dt, over) {
+    const hurt = this.config.lolaHurt;
+    if (!hurt) return;
+    const shown = this.health * this.shownScale;
+    this.breathIn -= dt;
+    if (dt > 0 && shown < hurt.pantBelow && !this.dead && !over && this.breathIn <= 0) {
+      this.audio?.playSlot('lolaPant', { gain: this.player.running ? 1 : hurt.standingVolume });
+      const [least, most] = hurt.breathEvery;
+      this.breathIn = least + Math.random() * (most - least);
+    }
+    if (shown < hurt.blurBelow) this.faint = true;
+    else if (shown >= hurt.clearAbove) this.faint = false;
+    const wanted = this.faint ? Math.min(1, (hurt.clearAbove - shown) / (hurt.clearAbove - hurt.blurBelow)) : 0;
+    const time = wanted > this.weakness ? hurt.fadeIn : hurt.fadeOut;
+    const step = dt / time;
+    this.weakness = Math.max(Math.min(this.weakness + step, wanted), this.weakness - step);
+    this.player.weakness = this.weakness;
+    const edge = shown < hurt.edgeBelow && !this.dead ? hurt.edge : 0, fade = hurt.edge * dt / hurt.edgeFade;
+    this.hurtEdge = Math.max(Math.min(this.hurtEdge + fade, edge), this.hurtEdge - fade);
   }
 
   // Real health points to the points the player sees (COMBAT.lolaHealthShown).
@@ -167,7 +201,11 @@ export class PlayerVitals {
       share,
       trail: Math.max(share, this.trail.value),
       // Screen edges are reserved for critical health, including while paused.
-      edgeTint: low ? 0.15 + 0.2 * (1 - this.health / this.config.lowHealthThreshold) : 0,
+      // Red edges: a burst on every hit, over a slight steady red while badly hurt.
+      edgeTint: Math.max(this.hurtEdge, HIT_EDGE * this.hitFlash / HIT_FLASH),
+      // The last hit, fading (0..1), and which way it was travelling (null: no bolt).
+      hitShare: this.hitFlash / HIT_FLASH,
+      hitDirection: this.hitDirection ?? null,
     };
   }
 

@@ -16,6 +16,8 @@ import {
 import { turnToward, wrapAngle } from '../core/angles.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+// How far (world units) a stepping foot passes above low junk.
+const FOOT_CLEARANCE = 0.12;
 // The plain walk, for a state built without a behaviour pose.
 const NO_POSTURE = Object.freeze({ lower: 0, pitch: 0, roll: 0, splay: 0, planted: false, slide: 0 });
 
@@ -366,7 +368,9 @@ export class LeaperSimulation {
     }
     if (leg.stepping) {
       leg.stepProgress += deltaTime / leg.stepDuration;
+      const height = leg.stepTo.y;
       leg.stepTo.lerp(desiredFoot, Math.min(1, 10 * deltaTime));
+      leg.stepTo.y = height;
       if (leg.stepProgress >= 1) {
         leg.stepping = false;
         leg.footPosition.copy(leg.stepTo);
@@ -376,7 +380,8 @@ export class LeaperSimulation {
       } else {
         const eased = leg.stepProgress ** 2 * (3 - 2 * leg.stepProgress);
         leg.footPosition.lerpVectors(leg.stepFrom, leg.stepTo, eased);
-        leg.footPosition.y = leg.stepTo.y + Math.sin(leg.stepProgress * Math.PI) * leg.lift;
+        leg.footPosition.y = leg.stepFrom.y + (leg.stepTo.y - leg.stepFrom.y) * eased
+          + Math.sin(leg.stepProgress * Math.PI) * leg.lift;
       }
       return;
     }
@@ -403,11 +408,24 @@ export class LeaperSimulation {
         .setLength(Math.min(0.22, speed * 0.04));
       leg.stepTo.add(velocityLead);
     }
-    leg.stepTo.y = FOOT_HEIGHT + (this.world?.floorHeight ?? 0);
+    const floor = FOOT_HEIGHT + (this.world?.floorHeight ?? 0);
+    leg.stepTo.y = floor + this.footRise(leg.stepTo.x, leg.stepTo.z);
     leg.stepDuration = forcedDuration
       || THREE.MathUtils.clamp(0.245 - speed * 0.012, 0.125, 0.24);
     leg.lift = (0.28 + Math.min(speed / MOVEMENT.sprintSpeed, 1) * 0.18) * ROBOT_SCALE;
+    // High enough to clear low junk lying under the way.
+    for (const share of [0.35, 0.65]) {
+      const top = this.footRise(leg.stepFrom.x + (leg.stepTo.x - leg.stepFrom.x) * share,
+        leg.stepFrom.z + (leg.stepTo.z - leg.stepFrom.z) * share);
+      const under = leg.stepFrom.y + (leg.stepTo.y - leg.stepFrom.y) * share - floor;
+      leg.lift = Math.max(leg.lift, (top - under + FOOT_CLEARANCE) / Math.sin(share * Math.PI));
+    }
     leg.replantDelay = -1;
+  }
+
+  // How far above the floor a foot rests here (on low junk; the training world has none).
+  footRise(x, z) {
+    return this.world?.leaperFootHeight?.(x, z) ?? 0;
   }
 
   // The hip joint (end of the coxa) of a leg reaching toward `foot`, in world space.

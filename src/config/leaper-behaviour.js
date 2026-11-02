@@ -21,6 +21,26 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     memorySteps: 120,
   }),
 
+  // ---- Investigate: shot at by something it cannot see ----
+  // (owner, 2026-10-30.) A bullet from out of sight makes it stop searching, turn
+  // and walk to where the shot came from, along a route around the junk, until
+  // it sees Lola or gets there. The brain is paused meanwhile: its inputs never
+  // change, and it carries on from the new spot.
+  investigate: Object.freeze({
+    // A hit is still worth following this long after it landed (a stagger may
+    // come first).
+    alarmTime: 4,
+    // Gives up and searches again after this long.
+    maxTime: 40,
+    // Same pace as the brain's walk (0.375 units a step, 10 steps a second) and
+    // its turn (degrees per second); it only walks facing within walkFacing.
+    speed: 3.75,
+    turnRate: 90,
+    walkFacing: 35,
+    // A new shot from this much further along changes where it is heading.
+    replanDistance: 3,
+  }),
+
   // ---- Engage: stop, turn to face Lola and shoot ----
   engage: Object.freeze({
     // Starts holding when Lola is visible this close, and walks again beyond exitDistance.
@@ -28,10 +48,11 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     exitDistance: 18,
     // Lola out of the eye's line of sight this long ends the hold (it hunts her again).
     lostSightTime: 1.0,
-    // Holding never lasts longer than this; then it walks for at least
-    // repositionTime before it may hold again (keeps the pressure on).
-    maxHoldTime: 6,
-    repositionTime: 2.5,
+    // Holding never adds up to longer than this, a stagger in between or not; then
+    // it walks (still firing) for at least repositionTime before it may hold again.
+    // Owner, 2026-11-02: at 6 and 2.5 it stood frozen 60-70% of a close fight.
+    maxHoldTime: 2.5,
+    repositionTime: 3,
     // Body turn while holding, degrees per second (the brain itself turns 90 at
     // most), and how close to facing her counts as facing.
     turnRate: 90,
@@ -196,5 +217,7 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
 export const LEAPER_ANGLES = Object.freeze({
   engageTurnRate: deg(LEAPER_BEHAVIOUR.engage.turnRate),
   faceTolerance: deg(LEAPER_BEHAVIOUR.engage.faceTolerance),
+  investigateTurnRate: deg(LEAPER_BEHAVIOUR.investigate.turnRate),
+  investigateWalkFacing: deg(LEAPER_BEHAVIOUR.investigate.walkFacing),
   landingTurns: Object.freeze(LEAPER_BEHAVIOUR.leap.landingTurns.map(deg)),
 });

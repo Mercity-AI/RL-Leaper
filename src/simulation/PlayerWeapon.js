@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GunshotEffects } from './GunshotEffects.js';
 import { CAMERA, SHOOTING, WEAPONS, WEAPON_SLOTS, weaponForSlot } from '../config/tuning/index.js';
+import { COMBAT } from '../config/combat.js';
+import { GunKick } from '../weapons/GunKick.js';
 import { WeaponState } from '../weapons/WeaponState.js';
 import { resolveShot, sightDepth, traceSight } from '../weapons/resolveShot.js';
 import { TargetRegistry } from '../weapons/TargetRegistry.js';
@@ -60,6 +62,7 @@ export class PlayerWeapon {
     // 4. Effects and feedback. The effects' shaders compile now, not on the first shot.
     this.random = Math.random;
     this.visuals = new GunshotEffects(engine.scene, world.scale);
+    this.gunKick = new GunKick(p.target, { scale: world.scale });
     this.visuals.prewarm(engine.renderer, engine.camera);
     this.feedback = new HitFeedback();
     this.firstPerson = new FirstPersonView(p.target);
@@ -276,11 +279,15 @@ export class PlayerWeapon {
     p.cameraController.addRecoil?.(recoil.pitch * kick,
       (this.random() * 2 - 1) * recoil.yawJitter * kick, recoil.recovery,
       { roll: (this.random() * 2 - 1) * (recoil.roll ?? 0) * kick, push: (recoil.push ?? 0) * kick });
+    this.gunKick.fired(weapon.gunKick);
     // 5. An enemy hit: sparks, the damage through its hit zone, and the feedback.
     if (shot.hit?.kind === 'target') {
       const hit = shot.hit.hit;
       this.visuals.impact(shot.end, hit.normal, rifle);
       const outcome = hit.target.applyHit(hit, { damage: weapon.damage, direction: shot.direction });
+      // The picture jolts as the bullet lands; the aim does not move.
+      p.cameraController.addRecoil?.(0, 0, recoil.recovery,
+        { roll: (this.random() * 2 - 1) * COMBAT.hitJolt.roll, push: COMBAT.hitJolt.push });
       this.feedback.hit(outcome);
       if (outcome.brokeJoint) p.audio.playSlot('kneeBreak', { at: shot.end });
     } else {
@@ -352,6 +359,7 @@ export class PlayerWeapon {
     const pressed = action => fresh && Boolean(this.input.pressed?.(action));
     const released = action => fresh && Boolean(this.input.released?.(action));
     const held = action => Boolean(this.input.held?.(action));
+    this.gunKick.update(dt);
     // 3. The gun just became unavailable (paused, POV, TOP view, the fight is over):
     //    let go of it once. A pause only releases the controls, so a reload resumes.
     //    Tracers and sparks keep fading, so the kill shot is seen (frozen while paused).
@@ -480,9 +488,11 @@ export class PlayerWeapon {
 
   beforeRender() {
     if (!this.p.pov.active) this.visuals.beforeRender(this.p.simulation.rig.robot);
+    this.gunKick.beforeRender(this.p.cameraController.aiming);
   }
 
   afterRender() {
+    this.gunKick.afterRender();
     this.visuals.afterRender(this.p.simulation.rig.robot);
   }
 

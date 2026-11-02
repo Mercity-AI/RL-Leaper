@@ -125,5 +125,14 @@ export function createScene(container, { quality = pickQuality().name, glow: all
     glow?.dispose();
     renderer.dispose();
   };
-  return { renderer, scene, camera, sun, quality: { name, ...preset }, glow, frame, render, resolution, dispose };
+  // Lola's hurt vision, 0 (clear) to 1. Without the glow's last pass, the page blurs
+  // the canvas instead.
+  let blurShown = 0;
+  const setBlur = (amount) => {
+    if (amount === blurShown) return;
+    blurShown = amount;
+    if (glow) glow.composite.uniforms.blur.value = amount;
+    else renderer.domElement.style.filter = amount > 0 ? `blur(${(amount * 5).toFixed(2)}px)` : '';
+  };
+  return { renderer, scene, camera, sun, quality: { name, ...preset }, glow, frame, render, resolution, setBlur, dispose };
 }

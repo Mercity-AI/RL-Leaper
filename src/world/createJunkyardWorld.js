@@ -7,10 +7,10 @@ import metrics from '../../assets/maps/junkyard/metrics.json' with { type: 'json
 import { disposeObject3D } from '../core/disposeObject3D.js';
 import { accelerateStaticMeshes, releaseStaticMeshes } from './raycastAcceleration.js';
 import { batchStaticMeshes } from './staticBatching.js';
-import { applyAtmosphere } from './junkyardAtmosphere.js';
+import { JUNKYARD_ATMOSPHERE, applyAtmosphere } from './junkyardAtmosphere.js';
+import { YardLamps } from './yardLamps.js';
 import { colourJunkyardProps, dressJunkyardSurfaces } from './junkyardSurfaces.js';
-import { findClimbableRoofs } from './climbableRoofs.js';
-import { findPlayerBlockers, withPlayerBlockers } from './playerBlockers.js';
+import { findPlayerBlockers, findSolidProps, withPlayerBlockers } from './playerBlockers.js';
 import { WorldEffects } from './WorldEffects.js';
 import { limitShadowCasters, QUALITY_PRESETS } from '../core/Quality.js';
 
@@ -28,6 +28,9 @@ const COLLISION_URL = new URL('../../assets/maps/junkyard/collision.json', impor
 // The collision job counts like a file of this many bytes on the loading bar
 // (its download plus the grid building in the worker).
 const COLLISION_LOAD_WEIGHT = 2e6;
+
+// A Leaper foot on the junk: the highest thing it stands on and its size (map units).
+const LEAPER_FOOT = Object.freeze({ topmost: 0.6, radius: 0.12 });
 
 // Load and set up the junkyard. assets: the page's loader (progress bar); tests
 // and tools get a quiet one of their own. quality: the graphics preset
@@ -51,10 +54,10 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   const spawn = navigation.point(spawnIndex);
   const { floorHeight, floor } = prepareJunkyardMap(gltf.scene, scale);
   scene.add(gltf.scene);
-  // Roofs Lola can climb onto (measured before the map is batched).
-  const roofs = findClimbableRoofs(gltf.scene);
-  // Props Lola may not walk into (her grid only; the Leaper's stays as trained).
-  const playerNavigation = withPlayerBlockers(playerGrid, findPlayerBlockers(gltf.scene, scale));
+  // Props Lola may not walk into and cars her body stays out of (her grid only;
+  // the Leaper's stays as trained; measured before the map is batched).
+  const playerNavigation = withPlayerBlockers(playerGrid,
+    [...findPlayerBlockers(gltf.scene, scale), ...findSolidProps(gltf.scene, scale)]);
   // Shadows only from props big enough to show one at this quality (the floor
   // and perimeter walls always cast), then one draw per material and yard patch
   // for the map (see staticBatching.js).
@@ -64,10 +67,12 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   // Sky, fog and neutral fill light (see junkyardAtmosphere.js), and the pooled
   // world effects (dust under the Leaper's feet, impact sparks and scorch marks).
   const restoreAtmosphere = applyAtmosphere(scene, { sky: quality.sky !== false });
+  const lamps = new YardLamps(gltf.scene, scene, { scale, lamps: JUNKYARD_ATMOSPHERE.lamps });
   const effects = new WorldEffects(scene, { scale, quality });
   // Take the map out again: off the scene, its GPU memory freed, colours restored.
   const dispose = () => {
     effects.dispose();
+    lamps.dispose();
     batching.dispose();
     scene.remove(gltf.scene);
     releaseStaticMeshes(gltf.scene);
@@ -79,7 +84,7 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   const goal = navigation.point(goalIndex);
   return {
     dispose,
-    colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene, effects,
+    colliders: [], navigation, scale, width, defaultWidth, map: gltf.scene, effects, lamps,
     // The combined map meshes actually drawn (the map's own meshes stay for rays)
     // and how many map meshes they replace.
     batches: batching.group, batchStats: batching.stats,
@@ -89,10 +94,14 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
     // slider's maximum), baked by scripts/assets/bake-junkyard-metrics.mjs.
     maxWidth: metrics.maxWorkableWidth ?? WIDTH_LIMITS.max,
     floorHeight,
-    roofs,
     spawn: { x: spawn.x * scale, z: spawn.z * scale },
     initialTarget: { x: goal.x * scale, z: goal.z * scale },
     positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),
+    // The Leaper's way from one point toward another, around the junk (world
+    // units); sees(point), if given, picks where the route ends.
+    leaperRoute: (from, to, sees = null) => navigation.walkRoute({ x: from.x / scale, z: from.z / scale }, { x: to.x / scale, z: to.z / scale },
+      sees && ((point) => sees({ x: point.x * scale, z: point.z * scale })))
+      .map((point) => ({ x: point.x * scale, z: point.z * scale })),
     playerBlocked: (x, z) => playerNavigation.blocked(x / scale, z / scale),
     // The same without the props Lola may not enter (playerBlockers.js), for tools.
     playerGridBlocked: (x, z) => playerGrid.blocked(x / scale, z / scale),
@@ -100,6 +109,12 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
     // above: only what reaches higher than this (above the floor) is a wall.
     playerContact: (x, z, above) => playerNavigation.contact(x / scale, z / scale, undefined,
       above === undefined ? undefined : (above + floorHeight) / scale),
+    // How high (world units above the floor) a Leaper foot rests at (x, z): on top
+    // of low junk, the floor beside anything taller (it never plants on that).
+    leaperFootHeight: (x, z) => {
+      const top = playerGrid.surface(x / scale, z / scale, LEAPER_FOOT.topmost + floorHeight / scale, LEAPER_FOOT.radius);
+      return top === null ? 0 : Math.max(0, top * scale - floorHeight);
+    },
     // What Lola would stand on at (x, z): its height above the floor (0 on the
     // floor), or null when something there reaches above maxTop (above the floor).
     playerSurface: (x, z, maxTop) => {

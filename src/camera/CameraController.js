@@ -66,6 +66,11 @@ export class CameraController {
     // Gun recoil: view kick (radians up / sideways) that settles back over time.
     // roll and push only shake the view (a tilt and a jolt back), never the aim.
     this.recoil = { pitch: 0, yaw: 0, roll: 0, push: 0, recovery: 10 };
+    // The view tipped down over Lola when she lost (see followDefeat).
+    this.pitchBeforeDefeat = null;
+    this.yawBeforeDefeat = null;
+    this.defeatLook = 0;
+    this.fallShift = new THREE.Vector3();
     // The share of a spray pattern the view climbs with (radians), easing toward
     // the goal the gun sets each frame (setSprayView).
     this.spray = { pitch: 0, yaw: 0, goalPitch: 0, goalYaw: 0 };
@@ -431,7 +436,8 @@ export class CameraController {
     this.camera.up.set(0, 1, 0);
     if (this.followSubject) {
       // Ease the camera down/up when crouching instead of snapping to the new height.
-      const goal = this.followSubject.crouching ? 0.72 : 1.05;
+      const goal = this.followSubject.defeated ? 0.1 : this.followSubject.crouching ? 0.72 : 1.05;
+      this.followDefeat(deltaTime);
       this.followHeight += (goal - this.followHeight) * (1 - Math.exp(-8 * deltaTime));
       this.chaseAnchor(this.tempA);
     } else if (chaseFocus) {
@@ -469,7 +475,7 @@ export class CameraController {
     // Just after a steep aim, the view still looks along the aim's pitch and eases back.
     this.viewPitchOffset *= Math.exp(-CAMERA.aimExitEase * deltaTime);
     if (Math.abs(this.viewPitchOffset) < 1e-4) this.viewPitchOffset = 0;
-    this.lookDirection(this.tempC, this.pitch + this.viewPitchOffset);
+    this.lookDirection(this.tempC, this.pitch + this.viewPitchOffset + this.defeatLook);
     // Cast from the actual character, not the lagging follow target: that target
     // can still be on the other side of a corner after the player has turned.
     this.occlusion?.resolve(this.tempA, this.tempB, this.camera, deltaTime,
@@ -597,9 +603,31 @@ export class CameraController {
   // Point on Lola the chase camera orbits around.
   chaseAnchor(out) {
     const subject = this.followSubject;
-    return out.set(subject.mesh.position.x,
+    out.set(subject.mesh.position.x,
       subject.height * this.followHeight + 0.5 * this.followScale + subject.mesh.position.y,
       subject.mesh.position.z);
+    // Lying down, the middle of her body is no longer over her feet.
+    if (subject.fall) out.add(subject.fallOffset(this.fallShift));
+    return out;
+  }
+
+  // Lola is down: tip the camera to look down at her, and back for the next fight.
+  followDefeat(deltaTime) {
+    const { pitch, turn, ease, lookUp } = CAMERA.defeat;
+    const blend = 1 - Math.exp(-ease * deltaTime);
+    if (this.followSubject.defeated) {
+      this.pitchBeforeDefeat ??= this.pitch;
+      this.yawBeforeDefeat ??= this.yaw;
+      this.pitch += (pitch - this.pitch) * blend;
+      this.yaw += (this.yawBeforeDefeat + turn - this.yaw) * blend;
+      this.defeatLook += (lookUp - this.defeatLook) * blend;
+    } else if (this.pitchBeforeDefeat !== null) {
+      this.pitch = this.pitchBeforeDefeat;
+      this.yaw = this.yawBeforeDefeat;
+      this.pitchBeforeDefeat = null;
+      this.yawBeforeDefeat = null;
+      this.defeatLook = 0;
+    }
   }
 
   // Entering the eye-level aim: turn so the aim's centre ray (the crosshair)
