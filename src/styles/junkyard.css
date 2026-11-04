@@ -84,8 +84,6 @@ body.dev-tools #leaperHealthHud [data-attack] { display: block; }
 #combatHud { box-sizing: border-box; width: min(260px, calc(100vw - 2 * var(--gap-l))); padding: var(--gap-s) var(--gap-m); border: 1px solid #ffffff1f; border-radius: 8px; background: var(--c-panel); color: var(--c-text); font: var(--font-s)/1.5 var(--font-mono); pointer-events: none; }
 #combatHud[data-hit="true"] .combat-health { color: #ffb09d; }
 #combatHud .combat-health b { display: flex; gap: var(--gap-s); align-items: baseline; letter-spacing: 0.15em; }
-#combatHud .hp-text { margin-left: auto; color: #cfd4d2; font-weight: normal; letter-spacing: 0; }
-#combatHud[data-level="low"] .hp-text { color: #ff6a5b; }
 #combatHud progress { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
 /* Her health meter: solid fill = health now, pale trail = the chunk just lost. */
 .health-meter { position: relative; height: 14px; margin: var(--gap-xs) 0 0; overflow: hidden; border-radius: 3px; background: #2a2d33; box-shadow: inset 0 0 0 1px #0007; background-image: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), #0006 calc(10% - 1px) 10%); }

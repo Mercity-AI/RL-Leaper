@@ -75,6 +75,55 @@ it shows the pill and the bullet in yellow and in blue.
   (`JUNKYARD_PROP_COLOURS` in `src/world/junkyardSurfaces.js`, applied over the
   baked texture, so it survives a re-bake as long as the part names stay).
 
+## The Leaper's aim lock holds a spot (owner, 2026-11-04)
+
+- Firing as it walks, the Leaper moved about 0.5 map units during the 0.2 s lock and its
+  bolt flew parallel to the aimed line, 0.2-0.3 to the side, so it missed a Lola standing
+  still. The lock now freezes the spot aimed at (`LeaperCombat.lockPoint`) and the eye
+  keeps turning to it as the body moves: measured 0.00 miss, every shot hit. Lola moving
+  after the lock still dodges.
+- A freeze up close reported the same day was not reproduced (4 probes, about 4 minutes,
+  Lola still in front, beside and behind it). A tab covered by another window counts as
+  hidden and the game pauses the Leaper on purpose; it resumed every time in the probe.
+
+## The eye alone starts a stand-and-shoot (owner, 2026-11-04)
+
+- Lola deep in container 04 (red): the eye had a clear shot past the doors but the brain's
+  sight (its own eye offset) missed her, so the Leaper searched, spinning, and never fired;
+  or it shot once or twice, the 2.5 s hold sent it walking with a brain that could not see
+  her, and it spun until the next hold. Now (`LeaperDirector.engageReady`, `engage`): the
+  eye alone may start Engage from Search or Chase out to `exitDistance`, a brain-blind
+  hold never ends in a reposition walk, and the reposition cooldown only applies while the
+  brain sees her. "Brain sees" is `sense.brainSees` (`sight_visible` or `target_visible`):
+  `target_visible` alone stays at its last move while the brain is paused, so without it
+  a fight starting in Engage never walked off. Probes: 8-14 shots, all hits, in 25 s; with
+  both blind (doors hide her) it still searches, and a shot from cover sends it to
+  Investigate. Open-yard fights unchanged (shoot, walk off, stomp).
+- Floating prop: "Scrap island - south centre" hung 0.22 up after the van was laid down
+  (it leaned on it); grounded with `scripts/ground_junkyard_props.py` (0 left in both files).
+
+## Out of container 03's door end (owner, 2026-11-04)
+
+- Lola walks in through 03's open long side but could not get out of its door end
+  (west): the lower door hung half open across it, its free edge 0.44 up (over her 0.35
+  step). It now rests on the ground (turned 12.2 degrees about its hinge with its locking
+  bar, top 0.19), and the salvage pile it used to cut through ("Container spill -
+  recognizable salvage 2") moved 1.6 west and 1.6 north beside the doorway, clear of
+  everything. Both repo yard files, then the same rebuild as the van. Container 06 stays
+  closed to her (owner: she does not go in there). Before/after:
+  `previews/container-03-door.png`.
+
+## The van on its side (owner, 2026-11-04)
+
+- "Van - workshop service" (south of containers 03/04; the owner called it the bus) leaned
+  43° and now lies flat on its right side, moved 1.5 map units east so it clears the
+  scrap island west of it. Changed in the repo's `junkyard_v2.blend` and
+  `junkyard_v2_baked.blend` alike (no re-bake needed: the bake is colour only), then
+  exported, map-only compress (`assets/build/maps/junkyard.glb`, not `pnpm assets`),
+  metrics, the brain raster and fixtures re-made. The collide-reverse fixture starts at
+  (16, 19) (was 18) so all three legs still bump. Add it again if the owner sends a new yard.
+  Before/after: `previews/van-on-side.png`.
+
 ## The Leaper's sight and search (owner, 2026-10-30)
 
 - **Sight 50 map units** (was 19.3; yard about 78 x 73): `COMBAT.sightRange` in
@@ -215,8 +264,8 @@ it shows the pill and the bullet in yellow and in blue.
 
 ## Sprint and Lola badly hurt (owner, 2026-11-02)
 
-- **Health panel:** her name LOLA, the number and the bar (`VitalsView`); the HIT word
-  was taken out (the number still turns pink for a moment on a hit).
+- **Health panel:** her name LOLA and the bar only (`VitalsView`); the HIT word and
+  then the number were taken out (owner, 2026-11-04).
 
 - **Sprint 10% faster:** `LOLA_PACE.sprint` 3.565 -> 3.92 (the owner said "swift":
   taken to mean the sprint. 20% was tried first and halved; her run is unchanged).
@@ -225,6 +274,9 @@ it shows the pill and the bullet in yellow and in blue.
   her sight blurs and she hunches as she runs (15 was tried); health back eases it off,
   gone at 20. Falling from above stays clear until under 10. Fades 1.5 s
   in, 2.5 s out. One number, `weakness` (0..1), drives both.
+- **Panting in runs (owner, 2026-11-04: nonstop was distracting):** 1-3 breaths 0.85-1.1 s
+  apart, then a 2.5-4.5 s rest, all random (`breathRun`, `breathEvery`, `breathRest` in
+  `COMBAT.lolaHurt`).
 - **Panting:** `lolaPant`, seven breaths (each a breath in and out, the breath in raised
   9 dB) cut from `assets/audio/sources/owner/lola-panting-2026-11-02.ogg` by hand with
   ffmpeg, not `pnpm assets`. Then roughened (owner: "way too soft"): more upper
@@ -340,6 +392,9 @@ it shows the pill and the bullet in yellow and in blue.
   it out of 100 (`lolaHealthShown`; owner: "120 looks weird, we are upping the
   value of 100, not the number"): a bolt shows as about 7, DAMAGE TAKEN too.
   The low-health warning moved with it to 24 real (still 20%).
+- **End words (owner, 2026-11-04):** YOU WIN / YOU LOSE on the end screen
+  (`endSummary` in `src/ui/screens.js`) and the fight-screen banner (`resultText` in
+  `src/game/Encounter.js`); were VICTORY / DEFEAT and LEAPER / LOLA DEFEATED.
 - **End of a fight (owner, 2026-10-22):** the moment it is decided (won or
   lost) one big impact plays (`gameEnd` in `src/audio/sounds.json`, recipe
   `game-end-impact` in `scripts/assets/make-sounds.mjs`, encoded by hand, not

@@ -97,6 +97,7 @@ export class PlayerVitals {
     this.hitFlash = 0;
     this.hitDirection = null;
     this.breathIn = 0;
+    this.breathsLeft = 0;
     this.faint = false;
     this.weakness = 0;
     this.player.weakness = 0;
@@ -166,7 +167,13 @@ export class PlayerVitals {
     this.breathIn -= dt;
     if (dt > 0 && shown < hurt.pantBelow && !this.dead && !over && this.breathIn <= 0) {
       this.audio?.playSlot('lolaPant', { gain: this.player.running ? 1 : hurt.standingVolume });
-      const [least, most] = hurt.breathEvery;
+      // A run of a few breaths, then a rest before the next run.
+      if (!(this.breathsLeft > 0)) {
+        const [fewest, most] = hurt.breathRun ?? [1, 1];
+        this.breathsLeft = fewest + Math.floor(Math.random() * (most - fewest + 1));
+      }
+      this.breathsLeft -= 1;
+      const [least, most] = this.breathsLeft > 0 || !hurt.breathRest ? hurt.breathEvery : hurt.breathRest;
       this.breathIn = least + Math.random() * (most - least);
     }
     if (shown < hurt.blurBelow) this.faint = true;
@@ -216,7 +223,7 @@ export class PlayerVitals {
     this.hud.render(this.view({ over }));
   }
 
-  // The end-of-fight banner ("LEAPER DEFEATED", "PRACTICE · …", "LOLA DEFEATED").
+  // The end-of-fight banner ("YOU WIN", "PRACTICE · …", "YOU LOSE").
   showResult(text) {
     this.hud.showResult(text);
   }

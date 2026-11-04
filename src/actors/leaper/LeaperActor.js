@@ -128,6 +128,9 @@ export class LeaperActor {
       brainOnline: online,
       // The brain's own sight decides awareness; in turret mode the eye does.
       aware: online ? Boolean(frame?.target_visible) : eyeSees,
+      // The brain's sight right now: also refreshed while it is paused (its /sense
+      // previews), when target_visible keeps the answer of its last move.
+      brainSees: online ? Boolean(frame?.sight_visible || frame?.target_visible) : eyeSees,
       remembers: online && Boolean(frame?.target_ever_seen) && (frame?.memory_age ?? Infinity) < this.config.awareness.memorySteps,
       eyeSees,
       distance,

@@ -1,9 +1,9 @@
-// Lola's health panel (bottom left of the HUD): her name, the number and the health
-// meter (owner, 2026-11-02), the meter with its pale "chunk just lost" trail, and a progress
+// Lola's health panel (bottom left of the HUD): her name and the health meter, no number
+// (owner, 2026-11-04), the meter with its pale "chunk just lost" trail, and a progress
 // bar for screen readers. Like every HUD view it builds its own markup, is handed
 // plain numbers (PlayerVitals.view()) and only touches the page when one changed.
 
-const TEMPLATE = '<div class="combat-health"><b>LOLA <span class="hp-text" data-hp-text></span></b>'
+const TEMPLATE = '<div class="combat-health"><b>LOLA</b>'
   + '<progress aria-label="Lola health" data-health-bar max="100" value="100"></progress>'
   + '<div class="health-meter" aria-hidden="true"><i class="hp-trail"></i><i class="hp-fill"></i></div></div>';
 
@@ -15,7 +15,6 @@ export class VitalsView {
     this.element.id = 'combatHud';
     this.element.innerHTML = TEMPLATE;
     this.bar = this.element.querySelector('[data-health-bar]');
-    this.number = this.element.querySelector('[data-hp-text]');
     this.meter = this.element.querySelector('.health-meter');
     parent?.append(this.element);
     // 2. What was last drawn, so update() only writes changes.
@@ -23,16 +22,13 @@ export class VitalsView {
   }
 
   // view: { health, max, shown, shownMax, hit, level, share, trail } (PlayerVitals.view()).
-  // The number and the bar use the shown scale (100) when it is given.
+  // The screen-reader bar uses the shown scale (100) when it is given.
   update({ health: real, max: realMax, shown, shownMax, hit, level, share, trail }) {
     const health = shown ?? real, max = shownMax ?? realMax;
-    // 1. The number and the screen-reader bar move in whole points.
+    // 1. The screen-reader bar moves in whole points.
     const points = Math.ceil(health - 1e-9);
     this.change('max', max, (value) => { this.bar.max = value; });
-    this.change('points', points, (value) => {
-      this.bar.value = health;
-      this.number.textContent = String(value);
-    });
+    this.change('points', points, () => { this.bar.value = health; });
     // 2. The flash on a hit and the colour level (full / mid / low).
     this.change('hit', Boolean(hit), (value) => { this.element.dataset.hit = String(value); });
     this.change('level', level, (value) => { this.element.dataset.level = value; });

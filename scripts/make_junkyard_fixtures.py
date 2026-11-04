@@ -419,7 +419,7 @@ def scenarios():
         # (16, 18) facing +z in junkyard_v2: a wall run that also catches a pole
         # between the legs, so the inner leg samples (leg-1) collide too.
         dict(name="scripted-collide-reverse-5.5", width=5.5, sight_mode="eye", player_collision=False,
-             start=(16.0, 18.0), yaw=0.0, steps=220, actions=scripted_drive,
+             start=(16.0, 19.0), yaw=0.0, steps=220, actions=scripted_drive,  # 19 (was 18) since the van was laid on its side, 2026-11-04: keeps all three legs bumping
              description="Physics only (scripted actions, no policy): ram a wall, keep pushing "
                          "while turning, signed reverse, turn on the spot, clipped inputs.",
              lola=[(0, -10.0, -25.0, "stand")]),

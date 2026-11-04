@@ -21,7 +21,8 @@ import { PlayerKnockback } from '../actors/leaper/PlayerKnockback.js';
 // moved), so brain playtests stay honest; DEBUG TEST marks that the OPTIONS
 // debug button did damage.
 export function resultText({ winner, practice = false, turret = false, debugUsed = false }) {
-  const outcome = winner === 'lola' ? 'LEAPER DEFEATED' : 'LOLA DEFEATED';
+  // Owner, 2026-11-04: YOU WIN / YOU LOSE (was LEAPER DEFEATED / LOLA DEFEATED).
+  const outcome = winner === 'lola' ? 'YOU WIN' : 'YOU LOSE';
   return `${practice ? 'PRACTICE · ' : ''}${outcome}${turret ? ' · TURRET MODE' : ''}${debugUsed ? ' · DEBUG TEST' : ''}`;
 }
 

@@ -122,7 +122,7 @@ export function endSummary(result) {
   if (result?.debugUsed) tags.push('DEBUG');
   return {
     victory,
-    heading: victory ? 'VICTORY' : 'DEFEAT',
+    heading: victory ? 'YOU WIN' : 'YOU LOSE', // owner, 2026-11-04 (was VICTORY / DEFEAT)
     line: victory ? 'The Leaper is down.' : 'Lola is down.',
     tags,
     stats: [

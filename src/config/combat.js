@@ -13,12 +13,15 @@ export const COMBAT = Object.freeze({
   // shows (owner, 2026-11-02: hits with no laser seen).
   laserLength: 2.2, laserRadius: 0.03, beamTime: 0.18, lowHealthThreshold: 24,
   // Lola badly hurt (owner, 2026-11-02), on the health the player sees. Under pantBelow
-  // she pants, one breath every breathEvery seconds, at standingVolume of its volume
+  // she pants in short runs (owner, 2026-11-04: nonstop panting was distracting): breathRun
+  // breaths (fewest, most) breathEvery seconds apart, then a rest of breathRest seconds,
+  // all picked at random each time. Breaths play at standingVolume of their volume
   // unless she is running (no need for huge breaths then). Under blurBelow her sight blurs
   // and she hunches as she runs; a pill eases that back and it has gone by clearAbove.
   // fadeIn / fadeOut: seconds that takes to set in and to clear. Under edgeBelow the
   // screen edges stay slightly red (edge, 0-1), fading on and off over edgeFade seconds.
-  lolaHurt: Object.freeze({ pantBelow: 20, breathEvery: Object.freeze([0.8, 1]), standingVolume: 0.45,
+  lolaHurt: Object.freeze({ pantBelow: 20, breathEvery: Object.freeze([0.85, 1.1]),
+    breathRun: Object.freeze([1, 3]), breathRest: Object.freeze([2.5, 4.5]), standingVolume: 0.45,
     blurBelow: 10, clearAbove: 20, fadeIn: 1.5, fadeOut: 2.5, edgeBelow: 20, edge: 0.3, edgeFade: 1 }),
   // A shot every shotInterval + warning seconds while Lola stays in view
   // (1.73 s = 1.5x as often as the original 2.6 s; the 0.6 s warning glow is kept).

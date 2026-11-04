@@ -69,11 +69,24 @@ test('hurt: panting under 20, blur under 10 that eases in, and a pill eases it o
   seconds(3);
   assert.equal(sounds.filter((id) => id === 'lolaPant').length, 0, 'nor at 21');
   vitals.health = FULL * 0.18;
-  seconds(5);
-  assert.ok(sounds.filter((id) => id === 'lolaPant').length >= 4, 'breath after breath at 18');
+  sounds.length = 0;
+  const times = [];
+  for (let t = 0; t < 20; t += 0.1) {
+    const before = sounds.length;
+    vitals.update(0.1);
+    if (sounds.length > before && sounds.at(-1) === 'lolaPant') times.push(t);
+  }
+  const gaps = times.slice(1).map((time, i) => time - times[i]);
+  const { breathRun, breathRest } = COMBAT.lolaHurt;
+  assert.ok(times.length >= 4, 'breaths keep coming at 18');
+  assert.ok(gaps.some((gap) => gap >= breathRest[0] - 0.15), 'with rests between short runs');
+  assert.ok(gaps.every((gap) => gap <= breathRest[1] + 0.15), 'never longer than the longest rest');
+  let run = 1, longest = 1;
+  for (const gap of gaps) { run = gap < breathRest[0] - 0.15 ? run + 1 : 1; longest = Math.max(longest, run); }
+  assert.ok(longest <= breathRun[1], 'a run is never longer than its most breaths');
   assert.equal(audio.last.gain, COMBAT.lolaHurt.standingVolume, 'quieter standing still');
   player.running = true;
-  seconds(2);
+  seconds(breathRest[1] + 0.5);
   assert.equal(audio.last.gain, 1, 'full volume running');
   player.running = false;
   assert.equal(vitals.weakness, 0, 'still clear-sighted at 18');
@@ -125,8 +138,8 @@ test('the red edges fade after a hit, even nearly down; zero health defeats Lola
 test('reset restores health, frees Lola, clears her flinch and hides the result banner', () => {
   const { vitals, player, hud } = setup();
   vitals.damage(FULL);
-  vitals.showResult('LOLA DEFEATED');
-  assert.equal(hud.shown, 'LOLA DEFEATED');
+  vitals.showResult('YOU LOSE');
+  assert.equal(hud.shown, 'YOU LOSE');
   const cleared = player.cleared;
   vitals.reset();
   assert.equal(vitals.health, FULL);

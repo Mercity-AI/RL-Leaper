@@ -180,8 +180,8 @@ export default async function gameFlow(page, { baseUrl, check }) {
     heading: document.querySelector('.screen[data-screen=end] .screen-heading').textContent,
     stats: [...document.querySelectorAll('.end-stats dt')].map((dt) => dt.textContent),
   }));
-  check(end.heading === 'VICTORY' && end.stats.join() === 'TIME,DAMAGE DEALT,DAMAGE TAKEN,KNEES BROKEN' && !now.locked,
-    'the end screen shows VICTORY with time, damage dealt and taken and knees broken, mouse free');
+  check(end.heading === 'YOU WIN' && end.stats.join() === 'TIME,DAMAGE DEALT,DAMAGE TAKEN,KNEES BROKEN' && !now.locked,
+    'the end screen shows YOU WIN with time, damage dealt and taken and knees broken, mouse free');
   await frames(page, 2);
   overlaps = await hudOverlaps(page);
   check(!overlaps.length, `end screen at 1280 x 720: nothing overlaps (${overlaps.join('; ') || 'clear'})`);

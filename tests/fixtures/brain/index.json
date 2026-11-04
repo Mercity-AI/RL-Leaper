@@ -4,8 +4,8 @@
  "policy_sha256": "883dade3c7617d0fd85793c405ba8ccadd66c5e914c9032356ff7318351eb594",
  "contact_version": 4,
  "sight_version": "eye-vision-v1",
- "collision_sha256": "0d1956365abca0a618898f84eb346107ebde133517b7803c9c59eba1e856b8c9",
- "glb_sha256": "16dcb5e9cade47faa7aaa0414d77bdb5f6937c48aac88124653c74e8889aafd6",
+ "collision_sha256": "7f112b0d22545af926ead5b41d5f4539e4760d3f372ca2e4baf4ac357acbcb6a",
+ "glb_sha256": "18e27881da11825923767445755eb5a7ee403bd69b287327518691ca142c845e",
  "worlds": {
   "2.9": {
    "width": 2.9,
@@ -14,8 +14,8 @@
     780,
     731
    ],
-   "raster_sha256": "042098046d46cf9aa6df35014e94811cc2ad7a741a8b1137918cb7aa971d34ad",
-   "raster_solid": 72103,
+   "raster_sha256": "55ea8371e57aed5c985c396b681be148dbfe919932cc320c4557c21b33f7025a",
+   "raster_solid": 71691,
    "cell": 0.2751724137931035,
    "minimum": [
     -107.23270841379312,
@@ -33,8 +33,8 @@
     780,
     731
    ],
-   "raster_sha256": "c866e9b231c689212d3fb4af7ca1af5d9cdc7829339dc0f822fa5f51ca57b3b9",
-   "raster_solid": 79536,
+   "raster_sha256": "fa1380631574ef845ca2f2137f16dfd6e1c5587761f812c4d084e27360b6b2d4",
+   "raster_solid": 78996,
    "cell": 0.1450909090909091,
    "minimum": [
     -56.54088261818182,
@@ -52,8 +52,8 @@
     780,
     731
    ],
-   "raster_sha256": "a1ff44919321ccae987786ef0ba8046c013a881589e4dfb6d031aa2db7271241",
-   "raster_solid": 79705,
+   "raster_sha256": "e6302452e4a089f402db47d8a1be77f61fd64123b3b9011613769622be939233",
+   "raster_solid": 79165,
    "cell": 0.1,
    "minimum": [
     -38.96928,
@@ -73,18 +73,18 @@
    "summary": {
     "steps": 420,
     "hidden_before_seen": 4,
-    "visible": 334,
-    "hidden_with_memory": 82,
+    "visible": 315,
+    "hidden_with_memory": 101,
     "collisions": {
-     "player": 48,
-     "leg-3": 5
+     "player": 49,
+     "leg-3": 8
     },
-    "reverse": 124,
+    "reverse": 132,
     "caught": 11,
-    "partial_eye": 0,
-    "moved": 22.02
+    "partial_eye": 2,
+    "moved": 21.4
    },
-   "bytes": 1050539
+   "bytes": 1054036
   },
   "legacy-5.5-hide-seek": {
    "file": "legacy-5.5-hide-seek.json",
@@ -93,18 +93,18 @@
    "summary": {
     "steps": 360,
     "hidden_before_seen": 4,
-    "visible": 258,
-    "hidden_with_memory": 98,
+    "visible": 256,
+    "hidden_with_memory": 100,
     "collisions": {
-     "leg-3": 12,
+     "leg-3": 16,
      "leg-2": 1
     },
-    "reverse": 75,
-    "caught": 121,
+    "reverse": 79,
+    "caught": 120,
     "partial_eye": 0,
-    "moved": 25.15
+    "moved": 24.39
    },
-   "bytes": 778794
+   "bytes": 778948
   },
   "eye-7.98-chase": {
    "file": "eye-7.98-chase.json",
@@ -112,19 +112,19 @@
    "sight_mode": "eye",
    "summary": {
     "steps": 300,
-    "hidden_before_seen": 79,
-    "visible": 87,
-    "hidden_with_memory": 134,
+    "hidden_before_seen": 80,
+    "visible": 83,
+    "hidden_with_memory": 137,
     "collisions": {
-     "player": 41,
-     "leg-3": 111
+     "player": 17,
+     "leg-3": 18
     },
-    "reverse": 65,
-    "caught": 16,
+    "reverse": 110,
+    "caught": 0,
     "partial_eye": 1,
-    "moved": 17.61
+    "moved": 11.17
    },
-   "bytes": 773209
+   "bytes": 776927
   },
   "eye-2.9-search": {
    "file": "eye-2.9-search.json",
@@ -152,17 +152,17 @@
    "summary": {
     "steps": 220,
     "hidden_before_seen": 0,
-    "visible": 207,
-    "hidden_with_memory": 13,
+    "visible": 220,
+    "hidden_with_memory": 0,
     "collisions": {
-     "player": 37
+     "player": 49
     },
-    "reverse": 63,
+    "reverse": 75,
     "caught": 0,
     "partial_eye": 0,
-    "moved": 9.8
+    "moved": 13.7
    },
-   "bytes": 521639
+   "bytes": 520974
   },
   "scripted-collide-reverse-5.5": {
    "file": "scripted-collide-reverse-5.5.json",
@@ -174,15 +174,16 @@
     "visible": 0,
     "hidden_with_memory": 0,
     "collisions": {
-     "leg-3": 45,
-     "leg-1": 15
+     "leg-3": 42,
+     "leg-2": 19,
+     "leg-1": 25
     },
     "reverse": 50,
     "caught": 0,
     "partial_eye": 0,
-    "moved": 26.46
+    "moved": 23.65
    },
-   "bytes": 420197
+   "bytes": 420482
   },
   "scripted-player-contact-5.5": {
    "file": "scripted-player-contact-5.5.json",
@@ -201,7 +202,7 @@
     "partial_eye": 0,
     "moved": 1.14
    },
-   "bytes": 211684
+   "bytes": 211699
   },
   "scripted-severed-legs-5.5": {
    "file": "scripted-severed-legs-5.5.json",
@@ -228,11 +229,11 @@
   "file": "sight-lines-5.5.json",
   "width": 5.5,
   "count": 1200,
-  "hits": 863,
-  "bytes": 121986
+  "hits": 864,
+  "bytes": 121985
  },
  "glb_triangles": {
   "count": 147214,
-  "sha256": "e68ab5ad8a58042b5a13fc2b97c90891f4588bb85c3774c81d05b62d9e1b10f5"
+  "sha256": "8a79fd61dfd305bdcde856dfbd5b17e1788b58596aee8470d4662a6962dd9c4c"
  }
 }

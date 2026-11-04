@@ -44,6 +44,7 @@ export class LeaperCombat {
     this.direction = new THREE.Vector3(0, 0, 1);
     this.origin = new THREE.Vector3();
     this.bolts = []; this.effects = []; this.beams = [];
+    this.lockPoint = new THREE.Vector3();
     this.selectedPoint = null;
     const rig = playtest.simulation.rig;
     rig.weaponControlled = true;
@@ -179,7 +180,15 @@ export class LeaperCombat {
     this.origin.copy(simulation.rig.eyePivot.localToWorld(new THREE.Vector3(0, 0, 0.148)));
     return sight.bones[target.weaponIndex].map(bone => bone.getWorldPosition(new THREE.Vector3()));
   }
+  // Aim at `point`. The last point tracked is where the lock freezes the aim: a spot in
+  // the yard, not a direction (owner, 2026-11-04: a Leaper firing as it walks drifted half
+  // a unit during the lock and missed a Lola standing still), so the eye keeps pointing at
+  // it while the body moves. Lola can still dodge by moving after the lock.
   track(point) {
+    this.lockPoint.copy(point);
+    this.aimAt(point);
+  }
+  aimAt(point) {
     const rig = this.playtest.simulation.rig;
     const center = rig.eyePivot.getWorldPosition(new THREE.Vector3());
     this.direction.copy(point).sub(center).normalize();
@@ -294,7 +303,12 @@ export class LeaperCombat {
     const point = points[this.selectedPoint];
     const selectedVisible = point && visible[this.selectedPoint];
     const canAim = selectedVisible && withinAim(aimAngles(rig.robot, point.clone().sub(this.origin).normalize()), c);
-    if (this.tree.locked && withinAim(aimAngles(rig.robot, this.direction), c)) this.applyAim();
+    if (this.tree.locked) {
+      // Locked: turn the eye to the locked spot from wherever the body is now.
+      const center = rig.eyePivot.getWorldPosition(new THREE.Vector3());
+      const toSpot = this.lockPoint.clone().sub(center).normalize();
+      if (withinAim(aimAngles(rig.robot, toSpot), c)) this.aimAt(this.lockPoint);
+    }
     if (!paused && !this.dead) this.updateProjectiles(dt, points);
     this.tree.tick(dt, {
       dead: this.dead, paused, held: Boolean(this.hold),

@@ -27,6 +27,8 @@ import { COMBAT } from '../../config/tuning/index.js';
 //   brainOnline  a brain answers (not turret mode)
 //   aware        the brain sees Lola now (target_visible); in turret mode the eye does
 //   remembers    the brain saw her recently (target_ever_seen, memory still fresh)
+//   brainSees    the brain's sight sees her right now, also while it is paused (optional;
+//                aware stands in for it)
 //   eyeSees      the eye has a clear line of fire to her (LeaperCombat)
 //   distance     Leaper centre to Lola, world units
 //   inReach      Lola is hugging the Leaper (within its reach + stomp.reachMargin)
@@ -253,10 +255,16 @@ export class LeaperDirector {
     return Boolean(this.plan);
   }
 
-  // Lola seen, in the eye's line of fire, close enough, and no reposition under way.
+  // Lola in the eye's line of fire and close enough, and no reposition under way.
+  // The eye alone is enough (owner, 2026-11-04): from some spots, such as deep in a
+  // container seen past its doors, the eye has a clear shot while the brain's own
+  // sight misses her. Then it may stand and shoot out to exitDistance, and a
+  // reposition cooldown does not stop it (walking would only make the brain search).
   engageReady(sense) {
-    return sense.aware && sense.eyeSees && sense.distance <= this.config.engage.enterDistance
-      && this.cooldowns.reposition <= 0;
+    const c = this.config.engage;
+    if (!sense.eyeSees) return false;
+    if (sense.brainSees ?? sense.aware) return sense.distance <= c.enterDistance && this.cooldowns.reposition <= 0;
+    return sense.distance <= c.exitDistance;
   }
 
   // Shot recently, and neither the brain nor the eye can see who did it.
@@ -275,6 +283,7 @@ export class LeaperDirector {
 
   search(dt, sense) {
     if (this.stompReady()) return ['stomp', 'Lola under it'];
+    if (this.engageReady(sense)) return ['engage', 'eye on Lola'];
     if (this.investigateReady(sense)) return ['investigate', 'shot from out of sight'];
     if (sense.aware || sense.remembers) return ['chase', 'spotted Lola'];
     return null;
@@ -292,8 +301,8 @@ export class LeaperDirector {
     if (this.stompReady()) return ['stomp', 'Lola under it'];
     if (this.leapReady(dt, sense)) return ['leap', 'pounce'];
     if (this.investigateReady(sense)) return ['investigate', 'shot from out of sight'];
-    if (!sense.aware && !sense.remembers) return ['search', 'lost Lola'];
     if (this.engageReady(sense)) return ['engage', 'in range'];
+    if (!sense.aware && !sense.remembers) return ['search', 'lost Lola'];
     return null;
   }
 
@@ -305,7 +314,9 @@ export class LeaperDirector {
     this.heldTime += dt;
     if (sense.distance > c.exitDistance) return ['chase', 'out of range'];
     if (this.unseenTime >= c.lostSightTime) return ['chase', 'lost sight'];
-    if (this.heldTime >= c.maxHoldTime) {
+    // It walks off only when the brain sees her too: with only the eye on her, the
+    // brain would search on the spot (it spun between shots, owner 2026-11-04).
+    if (this.heldTime >= c.maxHoldTime && (sense.brainSees ?? sense.aware)) {
       this.cooldowns.reposition = c.repositionTime;
       return ['chase', 'reposition'];
     }

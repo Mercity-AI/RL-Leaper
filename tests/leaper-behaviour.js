@@ -193,7 +193,7 @@ try {
     p.combat.damageLeaper(p.combat.leaperHealth);
     await until(() => director.state === 'dying', 5, 'Dying');
     check(heard.some((e) => e.name === 'leaperDied'), 'the death is announced');
-    check(p.flow.ended && /LEAPER DEFEATED/.test(p.encounter.result.text), `the fight ends: "${p.encounter.result.text}"`);
+    check(p.flow.ended && /YOU WIN/.test(p.encounter.result.text), `the fight ends: "${p.encounter.result.text}"`);
     check(actor.feedback.debris.length > 0, 'sparks and debris fly');
     await until(() => director.state === 'dead', 10, 'Dead');
     check(rig.robot.position.y - floor < B.dying.restHeight + 0.4, `the wreck lies on the floor (${(rig.robot.position.y - floor).toFixed(2)} up)`);

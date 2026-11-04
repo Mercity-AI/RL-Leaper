@@ -118,9 +118,9 @@
     780,
     731
    ],
-   "solid": 79536,
-   "raster_sha256": "c866e9b231c689212d3fb4af7ca1af5d9cdc7829339dc0f822fa5f51ca57b3b9",
-   "collision_sha256": "0d1956365abca0a618898f84eb346107ebde133517b7803c9c59eba1e856b8c9"
+   "solid": 78996,
+   "raster_sha256": "fa1380631574ef845ca2f2137f16dfd6e1c5587761f812c4d084e27360b6b2d4",
+   "collision_sha256": "7f112b0d22545af926ead5b41d5f4539e4760d3f372ca2e4baf4ac357acbcb6a"
   }
  }
 }

@@ -3,6 +3,25 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-11-04: a quieter health panel, calmer panting, the van on its side
+
+### For players
+
+- **YOU WIN / YOU LOSE.** The end of a fight says YOU WIN or YOU LOSE (was VICTORY /
+  DEFEAT, and LEAPER / LOLA DEFEATED on the fight screen).
+- **No more spinning between shots.** When the Leaper has a clear shot at Lola (even
+  hiding deep in a container) it stands and keeps firing instead of turning away.
+- **No floating junk.** The scrap pile beside the van rests on the ground again.
+- **The Leaper's shots no longer drift.** Shooting while walking, its bolts landed a
+  little to the side and missed a Lola standing still; now they go where it aimed.
+- **No number on Lola's health.** The panel shows just her name and the bar.
+- **Panting with pauses.** When badly hurt she pants in short runs of one to three
+  breaths, then rests a few seconds, instead of breathing nonstop.
+- **A way out of the yellow container.** Its lower door now lies flat on the ground,
+  so Lola can walk out of its door end, not only its open side.
+- **The workshop van lies on its side.** It used to lean at an odd angle; it now lies
+  flat on its right side, moved a little east so it clears the scrap heap beside it.
+
 ## 2026-11-02: a darker yard with lamps, a smarter search
 
 ### For players

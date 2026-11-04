@@ -447,3 +447,33 @@ test('a joint snapping on a leg already lost is no new leg: it never keeps it do
   d.update(DT, seen);
   assert.equal(d.state, 'stagger', 'a first leg in a new fight is a stagger again');
 });
+
+test('the eye alone on Lola is enough to stand and shoot, and it holds while the brain is blind', () => {
+  // Owner, 2026-11-04: deep in a container the eye had a clear shot the brain's sight missed;
+  // the Leaper searched (no bolts), or walked off between shots and spun on the spot.
+  const c = B.engage;
+  const d = director();
+  run(d, 0.1, sense());
+  assert.equal(d.state, 'search');
+  const eyeOnly = sense({ eyeSees: true, brainSees: false, distance: c.exitDistance - 1 });
+  run(d, 0.1, eyeOnly);
+  assert.equal(d.state, 'engage', 'from Search, out to exitDistance');
+  run(d, c.maxHoldTime * 3, eyeOnly);
+  assert.equal(d.state, 'engage', 'no reposition walk while only the eye sees her');
+  run(d, 0.2, { ...eyeOnly, brainSees: true, aware: true });
+  assert.equal(d.state, 'chase', 'once the brain sees her too, the hold limit sends it walking');
+  assert.equal(d.reason, 'reposition');
+  // Walking off, a brain that loses her again does not keep it from shooting.
+  run(d, 0.1, eyeOnly);
+  assert.equal(d.state, 'engage', 'the reposition cooldown only applies while the brain sees her');
+});
+
+test('with the brain seeing her the hold still ends after maxHoldTime (it keeps moving)', () => {
+  const c = B.engage;
+  const d = chasing();
+  const seen = sense({ aware: true, brainSees: true, eyeSees: true, distance: c.enterDistance - 1 });
+  until(d, 'engage', seen);
+  run(d, c.maxHoldTime + 0.1, seen);
+  assert.equal(d.state, 'chase');
+  assert.equal(d.reason, 'reposition');
+});

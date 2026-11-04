@@ -61,7 +61,11 @@ test('teacher-forced: every recorded step matches the Python server exactly', as
     assert.equal(report.flips, 0, `${fixture.name}: no collision/sight/memory flips`);
     assert.equal(report.stateDiffs, 0, `${fixture.name}: env memory`);
     assert.equal(report.coverageDiffs, 0, `${fixture.name}: coverage cells`);
-    assert.equal(report.distance, 0, `${fixture.name}: distance`);
+    // The reported distance is not one of the brain's inputs (those, its moves and its
+    // pose stay bit-identical above). Its float64 length can round its last bit either
+    // way with NumPy's maths library (a fused multiply-add or not: 3.6e-15 in
+    // legacy-5.5-hide-seek since the 2026-11-04 yard), so it gets a rounding margin.
+    assert.ok(report.distance < 1e-12, `${fixture.name}: distance (${report.distance})`);
     assert.equal(report.vision, 0, `${fixture.name}: 16 rays`);
     assert.ok(report.sight < 1e-9, `${fixture.name}: sight hit points`);
   }
@@ -74,7 +78,8 @@ test('free run with the recorded actions stays bit-identical for every step', as
     assert.equal(report.lockstep, fixture.steps.length, `${fixture.name}: lockstep ${report.lockstep}/${fixture.steps.length}`);
     assert.equal(report.obsIn, 0, `${fixture.name}: inputs stay bit-identical`);
     assert.equal(report.obsOut, 0, `${fixture.name}: observations stay bit-identical`);
-    assert.equal(report.pose + report.distance + report.vision, 0, `${fixture.name}: pose, distance and rays stay bit-identical`);
+    assert.equal(report.pose + report.vision, 0, `${fixture.name}: pose and rays stay bit-identical`);
+    assert.ok(report.distance < 1e-12, `${fixture.name}: distance within rounding (see the teacher-forced test)`);
   }
 });
 

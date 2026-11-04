@@ -78,7 +78,7 @@ test('sub-screens stack on a base screen; BACK closes them; a new state closes t
 test('the end screen summarises the fight: verdict, time, damage, knees and labels', () => {
   const win = endSummary({ winner: 'lola', practice: false, seconds: 83.6, damageDealt: 600, damageTaken: 47.5, jointsBroken: 3,
     turret: false, debugUsed: false });
-  assert.equal(win.heading, 'VICTORY');
+  assert.equal(win.heading, 'YOU WIN');
   assert.equal(win.victory, true);
   assert.deepEqual(win.tags, []);
   assert.deepEqual(win.stats, [
@@ -86,7 +86,7 @@ test('the end screen summarises the fight: verdict, time, damage, knees and labe
     { label: 'DAMAGE TAKEN', value: '48' }, { label: 'KNEES BROKEN', value: '3' },
   ]);
   const loss = endSummary({ winner: 'leaper', practice: true, turret: true, debugUsed: true, seconds: 5 });
-  assert.equal(loss.heading, 'DEFEAT');
+  assert.equal(loss.heading, 'YOU LOSE');
   assert.deepEqual(loss.tags, ['PRACTICE', 'TURRET', 'DEBUG']);
   assert.equal(endSummary(null).stats[0].value, '—', 'no time (no result yet, or a practice fight in EXPLORE) is a dash');
   assert.equal(formatTime(3725), '1:02:05');
