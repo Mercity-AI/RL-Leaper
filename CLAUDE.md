@@ -419,6 +419,14 @@ it shows the pill and the bullet in yellow and in blue.
 
 ## RL lab
 
+**Moving-target retrain (2026-11-05/06):** runs A and D (copies of today's
+brain on a moving, hiding Lola; `rl/moving_target*.py`) helped little. The
+owner rejected a route arrow as input ("she needs a brain of her own"); the
+next step is round 1 of `docs/MOVING_TARGET_RUN_LIST_2026-11-06.md`
+(scorecard changes, a big random obstacle arena, real-yard rounds, a critic
+that sees the truth), handed to another machine via
+`docs/MOVING_TARGET_HANDOFF_2026-11-06.md`. Run A is the baseline.
+
 The PPO_29 normalized-throttle task this file used to describe is done; runs
 continued to PPO_35. Start from `AGENTS.md` Part 2 and
 `docs/SEEKER_HANDOFF.md`. Generated artifacts in `rl_artifacts/` stay

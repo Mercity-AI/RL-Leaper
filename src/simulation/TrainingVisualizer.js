@@ -364,7 +364,10 @@ export class TrainingVisualizer {
     try {
       const previousLatest = this.collections().at(-1);
       const previousStep = previousLatest?.end_step ?? previousLatest?.step;
-      const response = await fetch(`/rl_live_state.json?t=${Date.now()}`, { cache: 'no-store' });
+      // ?training=1&run=A reads run A's feed (rl_live_state_A.json); default as before.
+      const run = new URLSearchParams(window.location.search).get('run');
+      const feed = run && /^[\w-]+$/.test(run) ? `rl_live_state_${run}.json` : 'rl_live_state.json';
+      const response = await fetch(`/${feed}?t=${Date.now()}`, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       this.data = await response.json();
       const latest = this.collections().at(-1);
@@ -426,6 +429,13 @@ export class TrainingVisualizer {
         ? 'TARGET: REMEMBERED · CURRENTLY HIDDEN'
         : 'TARGET: NOT DISCOVERED';
     this.panel.querySelector('[data-field="target-state"]').textContent = targetState;
+    // Moving-target runs (2026-11-05) record where the target is every step.
+    if (from.target?.length >= 2 && to.target?.length >= 2) {
+      this.target.setPosition(
+        THREE.MathUtils.lerp(from.target[0], to.target[0], amount),
+        THREE.MathUtils.lerp(from.target[1], to.target[1], amount),
+      );
+    }
     this.updateVisionDisplay(from);
     this.updateCoverageDisplay(episode, frameIndex);
     this.simulation.updateExternal(
