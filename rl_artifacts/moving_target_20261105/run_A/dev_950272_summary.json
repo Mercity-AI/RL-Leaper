@@ -1,0 +1,23 @@
+{
+  "rounds": 200,
+  "catch_rate": 0.675,
+  "stuck_or_frozen_rate": 0.015,
+  "first_sighting_rate": 1.0,
+  "bump_rate": 0.041355150168752935,
+  "mean_reward": 23.029041285152417,
+  "timeouts": 62,
+  "lost_her_moments": 950,
+  "refind_rate": 0.8905263157894737,
+  "goes_her_way_rate": 0.4305408271474019,
+  "goes_her_way_moments": 943,
+  "hover_seconds_median": 0.0,
+  "gap_change_median": 2.1581521320090813,
+  "refind_seconds_median": 3.0,
+  "catch_seconds_median": 30.7,
+  "hiding_moments": 72,
+  "hiding_checked_rate": 0.5416666666666666,
+  "wanderer_rounds": 136,
+  "wanderer_catch_rate": 0.6102941176470589,
+  "hider_rounds": 64,
+  "hider_catch_rate": 0.8125
+}

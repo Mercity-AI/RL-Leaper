@@ -1,0 +1,100 @@
+exam 57344: 50/200
+exam 57344: 100/200
+exam 57344: 150/200
+exam 57344: 200/200
+{"steps": 57344, "summary": {"rounds": 200, "catch_rate": 0.6, "stuck_or_frozen_rate": 0.015, "first_sighting_rate": 1.0, "bump_rate": 0.05300464027561424, "mean_reward": 19.338901331362713, "timeouts": 77, "lost_her_moments": 1085, "refind_rate": 0.8995391705069125, "goes_her_way_rate": 0.42361761949390814, "goes_her_way_moments": 1067, "hover_seconds_median": 0.0, "gap_change_median": 2.2615315198899353, "refind_seconds_median": 2.6500000000000004, "catch_seconds_median": 30.55, "hiding_moments": 68, "hiding_checked_rate": 0.5588235294117647, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5294117647058824, "hider_rounds": 64, "hider_catch_rate": 0.75}}
+exam 106496: 50/200
+exam 106496: 100/200
+exam 106496: 150/200
+exam 106496: 200/200
+{"steps": 106496, "summary": {"rounds": 200, "catch_rate": 0.59, "stuck_or_frozen_rate": 0.015, "first_sighting_rate": 1.0, "bump_rate": 0.058664070107108085, "mean_reward": 18.58886640110491, "timeouts": 79, "lost_her_moments": 1125, "refind_rate": 0.8915555555555555, "goes_her_way_rate": 0.4055755395683453, "goes_her_way_moments": 1112, "hover_seconds_median": 0.0, "gap_change_median": 1.80496959280784, "refind_seconds_median": 2.7, "catch_seconds_median": 33.65, "hiding_moments": 72, "hiding_checked_rate": 0.5555555555555556, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5220588235294118, "hider_rounds": 64, "hider_catch_rate": 0.734375}}
+exam 155648: 50/200
+exam 155648: 100/200
+exam 155648: 150/200
+exam 155648: 200/200
+{"steps": 155648, "summary": {"rounds": 200, "catch_rate": 0.635, "stuck_or_frozen_rate": 0.01, "first_sighting_rate": 1.0, "bump_rate": 0.055234265763194255, "mean_reward": 20.806062510180464, "timeouts": 71, "lost_her_moments": 1081, "refind_rate": 0.9047178538390379, "goes_her_way_rate": 0.4071294559099437, "goes_her_way_moments": 1066, "hover_seconds_median": 0.0, "gap_change_median": 1.998589816077815, "refind_seconds_median": 2.8, "catch_seconds_median": 32.1, "hiding_moments": 73, "hiding_checked_rate": 0.547945205479452, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5735294117647058, "hider_rounds": 64, "hider_catch_rate": 0.765625}}
+exam 204800: 50/200
+exam 204800: 100/200
+exam 204800: 150/200
+exam 204800: 200/200
+{"steps": 204800, "summary": {"rounds": 200, "catch_rate": 0.65, "stuck_or_frozen_rate": 0.02, "first_sighting_rate": 1.0, "bump_rate": 0.05601292675440972, "mean_reward": 20.322233643326754, "timeouts": 66, "lost_her_moments": 936, "refind_rate": 0.8728632478632479, "goes_her_way_rate": 0.440567066521265, "goes_her_way_moments": 917, "hover_seconds_median": 0.0, "gap_change_median": 1.7243142873970605, "refind_seconds_median": 2.7, "catch_seconds_median": 23.049999999999997, "hiding_moments": 70, "hiding_checked_rate": 0.5714285714285714, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5588235294117647, "hider_rounds": 64, "hider_catch_rate": 0.84375}}
+exam 253952: 50/200
+exam 253952: 100/200
+exam 253952: 150/200
+exam 253952: 200/200
+{"steps": 253952, "summary": {"rounds": 200, "catch_rate": 0.625, "stuck_or_frozen_rate": 0.015, "first_sighting_rate": 1.0, "bump_rate": 0.04744277082801464, "mean_reward": 20.4794010371065, "timeouts": 72, "lost_her_moments": 986, "refind_rate": 0.8884381338742393, "goes_her_way_rate": 0.4057377049180328, "goes_her_way_moments": 976, "hover_seconds_median": 0.0, "gap_change_median": 1.9339594350805518, "refind_seconds_median": 2.7, "catch_seconds_median": 26.5, "hiding_moments": 76, "hiding_checked_rate": 0.4868421052631579, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5661764705882353, "hider_rounds": 64, "hider_catch_rate": 0.75}}
+exam 303104: 50/200
+exam 303104: 100/200
+exam 303104: 150/200
+exam 303104: 200/200
+{"steps": 303104, "summary": {"rounds": 200, "catch_rate": 0.595, "stuck_or_frozen_rate": 0.015, "first_sighting_rate": 1.0, "bump_rate": 0.04808613605729412, "mean_reward": 19.714150840845093, "timeouts": 78, "lost_her_moments": 1053, "refind_rate": 0.8917378917378918, "goes_her_way_rate": 0.4614643545279383, "goes_her_way_moments": 1038, "hover_seconds_median": 0.0, "gap_change_median": 2.1317943058710913, "refind_seconds_median": 2.8, "catch_seconds_median": 26.5, "hiding_moments": 72, "hiding_checked_rate": 0.5, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5, "hider_rounds": 64, "hider_catch_rate": 0.796875}}
+exam 352256: 50/200
+exam 352256: 100/200
+exam 352256: 150/200
+exam 352256: 200/200
+{"steps": 352256, "summary": {"rounds": 200, "catch_rate": 0.59, "stuck_or_frozen_rate": 0.035, "first_sighting_rate": 1.0, "bump_rate": 0.04435557021522223, "mean_reward": 19.874973313479412, "timeouts": 75, "lost_her_moments": 1041, "refind_rate": 0.882804995196926, "goes_her_way_rate": 0.40233236151603496, "goes_her_way_moments": 1029, "hover_seconds_median": 0.0, "gap_change_median": 2.1134764603278704, "refind_seconds_median": 3.0, "catch_seconds_median": 25.95, "hiding_moments": 70, "hiding_checked_rate": 0.5142857142857142, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5147058823529411, "hider_rounds": 64, "hider_catch_rate": 0.75}}
+exam 401408: 50/200
+exam 401408: 100/200
+exam 401408: 150/200
+exam 401408: 200/200
+{"steps": 401408, "summary": {"rounds": 200, "catch_rate": 0.635, "stuck_or_frozen_rate": 0.02, "first_sighting_rate": 1.0, "bump_rate": 0.05595872199650752, "mean_reward": 19.776821246957766, "timeouts": 69, "lost_her_moments": 980, "refind_rate": 0.8918367346938776, "goes_her_way_rate": 0.46961894953656025, "goes_her_way_moments": 971, "hover_seconds_median": 0.0, "gap_change_median": 2.0212580590702665, "refind_seconds_median": 2.7, "catch_seconds_median": 24.5, "hiding_moments": 66, "hiding_checked_rate": 0.48484848484848486, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5367647058823529, "hider_rounds": 64, "hider_catch_rate": 0.84375}}
+exam 450560: 50/200
+exam 450560: 100/200
+exam 450560: 150/200
+exam 450560: 200/200
+{"steps": 450560, "summary": {"rounds": 200, "catch_rate": 0.615, "stuck_or_frozen_rate": 0.02, "first_sighting_rate": 1.0, "bump_rate": 0.048713140419089564, "mean_reward": 20.005049729223238, "timeouts": 73, "lost_her_moments": 954, "refind_rate": 0.8668763102725366, "goes_her_way_rate": 0.44029850746268656, "goes_her_way_moments": 938, "hover_seconds_median": 0.0, "gap_change_median": 1.5166570890311961, "refind_seconds_median": 2.6, "catch_seconds_median": 26.5, "hiding_moments": 73, "hiding_checked_rate": 0.4657534246575342, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5514705882352942, "hider_rounds": 64, "hider_catch_rate": 0.75}}
+exam 507904: 50/200
+exam 507904: 100/200
+exam 507904: 150/200
+exam 507904: 200/200
+{"steps": 507904, "summary": {"rounds": 200, "catch_rate": 0.63, "stuck_or_frozen_rate": 0.02, "first_sighting_rate": 1.0, "bump_rate": 0.044720551050658294, "mean_reward": 21.70977721653937, "timeouts": 70, "lost_her_moments": 986, "refind_rate": 0.8975659229208925, "goes_her_way_rate": 0.42024539877300615, "goes_her_way_moments": 978, "hover_seconds_median": 0.0, "gap_change_median": 1.600683404517543, "refind_seconds_median": 2.7, "catch_seconds_median": 23.75, "hiding_moments": 70, "hiding_checked_rate": 0.5428571428571428, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5514705882352942, "hider_rounds": 64, "hider_catch_rate": 0.796875}}
+exam 557056: 50/200
+exam 557056: 100/200
+exam 557056: 150/200
+exam 557056: 200/200
+{"steps": 557056, "summary": {"rounds": 200, "catch_rate": 0.615, "stuck_or_frozen_rate": 0.01, "first_sighting_rate": 1.0, "bump_rate": 0.04533975450754684, "mean_reward": 21.122948351879103, "timeouts": 75, "lost_her_moments": 1032, "refind_rate": 0.9001937984496124, "goes_her_way_rate": 0.44227005870841485, "goes_her_way_moments": 1022, "hover_seconds_median": 0.0, "gap_change_median": 1.7928135695561869, "refind_seconds_median": 2.7, "catch_seconds_median": 26.2, "hiding_moments": 73, "hiding_checked_rate": 0.547945205479452, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5220588235294118, "hider_rounds": 64, "hider_catch_rate": 0.8125}}
+exam 606208: 50/200
+exam 606208: 100/200
+exam 606208: 150/200
+exam 606208: 200/200
+{"steps": 606208, "summary": {"rounds": 200, "catch_rate": 0.615, "stuck_or_frozen_rate": 0.03, "first_sighting_rate": 1.0, "bump_rate": 0.051068383269859456, "mean_reward": 20.427119035916313, "timeouts": 71, "lost_her_moments": 971, "refind_rate": 0.8908341915550978, "goes_her_way_rate": 0.4380853277835588, "goes_her_way_moments": 961, "hover_seconds_median": 0.0, "gap_change_median": 1.8424383653832095, "refind_seconds_median": 2.7, "catch_seconds_median": 25.2, "hiding_moments": 74, "hiding_checked_rate": 0.5945945945945946, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5441176470588235, "hider_rounds": 64, "hider_catch_rate": 0.765625}}
+exam 655360: 50/200
+exam 655360: 100/200
+exam 655360: 150/200
+exam 655360: 200/200
+{"steps": 655360, "summary": {"rounds": 200, "catch_rate": 0.575, "stuck_or_frozen_rate": 0.015, "first_sighting_rate": 1.0, "bump_rate": 0.051026748020582754, "mean_reward": 19.166298793115597, "timeouts": 82, "lost_her_moments": 1016, "refind_rate": 0.8818897637795275, "goes_her_way_rate": 0.434, "goes_her_way_moments": 1000, "hover_seconds_median": 0.0, "gap_change_median": 1.7935207147078023, "refind_seconds_median": 2.8, "catch_seconds_median": 26.6, "hiding_moments": 69, "hiding_checked_rate": 0.463768115942029, "wanderer_rounds": 136, "wanderer_catch_rate": 0.47794117647058826, "hider_rounds": 64, "hider_catch_rate": 0.78125}}
+exam 704512: 50/200
+exam 704512: 100/200
+exam 704512: 150/200
+exam 704512: 200/200
+{"steps": 704512, "summary": {"rounds": 200, "catch_rate": 0.63, "stuck_or_frozen_rate": 0.02, "first_sighting_rate": 1.0, "bump_rate": 0.04018797742190006, "mean_reward": 21.742745539779644, "timeouts": 70, "lost_her_moments": 958, "refind_rate": 0.8903966597077244, "goes_her_way_rate": 0.4575371549893843, "goes_her_way_moments": 942, "hover_seconds_median": 0.0, "gap_change_median": 1.84078145150683, "refind_seconds_median": 2.7, "catch_seconds_median": 26.65, "hiding_moments": 72, "hiding_checked_rate": 0.4861111111111111, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5514705882352942, "hider_rounds": 64, "hider_catch_rate": 0.796875}}
+exam 753664: 50/200
+exam 753664: 100/200
+exam 753664: 150/200
+exam 753664: 200/200
+{"steps": 753664, "summary": {"rounds": 200, "catch_rate": 0.665, "stuck_or_frozen_rate": 0.02, "first_sighting_rate": 1.0, "bump_rate": 0.047802139790244245, "mean_reward": 21.75598557933806, "timeouts": 63, "lost_her_moments": 954, "refind_rate": 0.8909853249475891, "goes_her_way_rate": 0.44136460554371004, "goes_her_way_moments": 938, "hover_seconds_median": 0.0, "gap_change_median": 1.7141035328241632, "refind_seconds_median": 2.8, "catch_seconds_median": 25.4, "hiding_moments": 75, "hiding_checked_rate": 0.52, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5955882352941176, "hider_rounds": 64, "hider_catch_rate": 0.8125}}
+exam 802816: 50/200
+exam 802816: 100/200
+exam 802816: 150/200
+exam 802816: 200/200
+{"steps": 802816, "summary": {"rounds": 200, "catch_rate": 0.635, "stuck_or_frozen_rate": 0.01, "first_sighting_rate": 1.0, "bump_rate": 0.048742871185607634, "mean_reward": 21.607380491056425, "timeouts": 71, "lost_her_moments": 1023, "refind_rate": 0.8895405669599218, "goes_her_way_rate": 0.4406779661016949, "goes_her_way_moments": 1003, "hover_seconds_median": 0.0, "gap_change_median": 1.4193517176532318, "refind_seconds_median": 2.6, "catch_seconds_median": 27.6, "hiding_moments": 71, "hiding_checked_rate": 0.5915492957746479, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5294117647058824, "hider_rounds": 64, "hider_catch_rate": 0.859375}}
+exam 851968: 50/200
+exam 851968: 100/200
+exam 851968: 150/200
+exam 851968: 200/200
+{"steps": 851968, "summary": {"rounds": 200, "catch_rate": 0.67, "stuck_or_frozen_rate": 0.01, "first_sighting_rate": 1.0, "bump_rate": 0.041300535309294915, "mean_reward": 22.24370939525126, "timeouts": 64, "lost_her_moments": 928, "refind_rate": 0.8933189655172413, "goes_her_way_rate": 0.43392070484581496, "goes_her_way_moments": 908, "hover_seconds_median": 0.0, "gap_change_median": 1.4919484483216667, "refind_seconds_median": 2.8, "catch_seconds_median": 22.549999999999997, "hiding_moments": 71, "hiding_checked_rate": 0.6056338028169014, "wanderer_rounds": 136, "wanderer_catch_rate": 0.6029411764705882, "hider_rounds": 64, "hider_catch_rate": 0.8125}}
+exam 901120: 50/200
+exam 901120: 100/200
+exam 901120: 150/200
+exam 901120: 200/200
+{"steps": 901120, "summary": {"rounds": 200, "catch_rate": 0.63, "stuck_or_frozen_rate": 0.01, "first_sighting_rate": 1.0, "bump_rate": 0.04564191153832997, "mean_reward": 21.7554010341358, "timeouts": 72, "lost_her_moments": 994, "refind_rate": 0.8913480885311871, "goes_her_way_rate": 0.44036697247706424, "goes_her_way_moments": 981, "hover_seconds_median": 0.0, "gap_change_median": 2.2170585388909156, "refind_seconds_median": 2.6, "catch_seconds_median": 22.7, "hiding_moments": 69, "hiding_checked_rate": 0.5507246376811594, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5441176470588235, "hider_rounds": 64, "hider_catch_rate": 0.8125}}
+exam 950272: 50/200
+exam 950272: 100/200
+exam 950272: 150/200
+exam 950272: 200/200
+{"steps": 950272, "summary": {"rounds": 200, "catch_rate": 0.675, "stuck_or_frozen_rate": 0.015, "first_sighting_rate": 1.0, "bump_rate": 0.041355150168752935, "mean_reward": 23.029041285152417, "timeouts": 62, "lost_her_moments": 950, "refind_rate": 0.8905263157894737, "goes_her_way_rate": 0.4305408271474019, "goes_her_way_moments": 943, "hover_seconds_median": 0.0, "gap_change_median": 2.1581521320090813, "refind_seconds_median": 3.0, "catch_seconds_median": 30.7, "hiding_moments": 72, "hiding_checked_rate": 0.5416666666666666, "wanderer_rounds": 136, "wanderer_catch_rate": 0.6102941176470589, "hider_rounds": 64, "hider_catch_rate": 0.8125}}
+exam 1007616: 50/200
+exam 1007616: 100/200
+exam 1007616: 150/200
+exam 1007616: 200/200
+{"steps": 1007616, "summary": {"rounds": 200, "catch_rate": 0.65, "stuck_or_frozen_rate": 0.01, "first_sighting_rate": 1.0, "bump_rate": 0.04326605407596007, "mean_reward": 22.17746179297446, "timeouts": 68, "lost_her_moments": 963, "refind_rate": 0.9044652128764278, "goes_her_way_rate": 0.42105263157894735, "goes_her_way_moments": 950, "hover_seconds_median": 0.0, "gap_change_median": 2.183397679350766, "refind_seconds_median": 2.8, "catch_seconds_median": 25.3, "hiding_moments": 71, "hiding_checked_rate": 0.5774647887323944, "wanderer_rounds": 136, "wanderer_catch_rate": 0.5588235294117647, "hider_rounds": 64, "hider_catch_rate": 0.84375}, "still_target_catch_rate": 0.97}
