@@ -153,3 +153,42 @@ user chose the 2026-11-05 numbers).
    numbers stay comparable).
 3. Attack close-range navigation: R4 (walking-distance closer/further points)
    as a branch of F7 at 1M, alongside R6 and B1.
+
+## Last-seen and hiding-spot probe (2026-11-15 22:20, `rl/lastseen_probe.py`)
+
+Hider rounds with Lola starting 10-20 map units away (so most spots are
+reachable), 60 rounds per brain, seeds 90000+, deterministic play. Files in
+`rl_artifacts/moving_target_round1_20261115/probe/`.
+
+Genuine losses (she stays unseen 3 s or more; the last-seen spot is reachable
+in 10 s and more than 6 units away):
+
+| Brain | moments | heads to the last-seen spot (3 s) | gets within 4 units in 10 s |
+|---|---|---|---|
+| today's game brain | 56 | 16% | 5% |
+| F3 @2M | 56 | 11% | 5% |
+| F1 @1.7M | 65 | 14% | 5% |
+| F7 @1.6M | 64 | 16% | 6% |
+| FUSE @1.4M | 36 | 11% | 3% |
+| F7R4 @1.3M | 62 | 15% | 3% |
+| F7R6 @1.3M | 60 | 13% | 3% |
+
+Reachable hidings (she runs to a hiding spot a perfect walk could reach in 10 s):
+
+| Brain | hidings | heads there | gets within 4 units in 10 s | its eye sees the hiding place |
+|---|---|---|---|---|
+| today's game brain | 83 | 52% | 20% | 98% |
+| F3 @2M | 101 | 38% | 16% | 97% |
+| F1 @1.7M | 88 | 51% | 25% | 100% |
+| F7 @1.6M | 97 | 47% | 18% | 96% |
+| FUSE @1.4M | 92 | 45% | 18% | 97% |
+| F7R4 @1.3M | 83 | 55% | 24% | 98% |
+| F7R6 @1.3M | 91 | 52% | 19% | 98% |
+
+Reading: no retrain is better than today's brain at going where she was. After
+a genuine loss it heads to the last-seen spot only 11-16% of the time. Advisor
+review (same evening): the practice world rarely demands it (her hiding spots
+are visible to the eye; the 1 s shot win ends 93% of practice rounds before any
+re-finding). Next round should fix the world first: eye-occluded hiding
+spots, a shot that does not end the round (Lola flees to cover), more yard
+rounds; gate R6 to switch on after 1 s unseen.
