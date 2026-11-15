@@ -35,6 +35,12 @@ Round 2 additions (2026-11-15, owner's "check the hiding spot" problem):
   direction (2), real distance / the arena diagonal, and 1 while she is hiding.
   The actor never reads them (rl/round2_brain.py PrivilegedLstmPolicy).
 - ``hider_share``: share of practice rounds with a hider (default: run A's 1/3).
+- ``shot_flee`` (genuine-loss practice, 2026-11-15): a 1 s clear shot pays
+  +10 (at most 5 a round) and does NOT end the round; Lola then sprints to a
+  hiding spot hidden from where the Leaper stands, as after being shot in the
+  game, so every engagement becomes a re-find.
+- ``look_after``: R6 switches on only after she has been out of sight this many
+  steps (10 = the exams' 1 s "lost her" rule), so it pays for real losses.
 - ``walk_progress`` (R4): the closer/further points (+-0.2 per unit, capped at
   one step's 0.375 units) on the walking distance around obstacles from the
   Leaper to her (rl/walk_field.py, body radius 1.5) instead of the straight
@@ -50,7 +56,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from rl.moving_target import MAP_TO_BRAIN
+from rl.moving_target import MAP_TO_BRAIN, SPRINT_STEP
 from rl.moving_target_env import MovingTargetEnv
 from rl.moving_target_game_exam import EYE, GameExamEnv, SIGHT_RANGE
 
@@ -61,8 +67,9 @@ NOT_THERE_RADIUS = 4.0
 LOOK_SCALE = 0.1                   # R6: points per unit of walking distance
 GAMMA = 0.995                      # the PPO discount, for potential-based shaping
 PRIVILEGED = 4
+SHOT_FLEE_REWARD, SHOT_FLEE_CAP = 10.0, 5
 WALK_EVERY = 3                     # R4: rebuild her distance map at most every 3 steps
-SCORING = ("shot_goal", "hidden_cost", "no_hidden_distance", "look_where", "walk_progress")
+SCORING = ("shot_goal", "hidden_cost", "no_hidden_distance", "look_where", "walk_progress", "shot_flee")
 INPUTS = ("new_inputs", "not_there", "privileged")
 TRAINING = ("hider_share",)
 
@@ -76,11 +83,13 @@ class Round1Mixin:
 
     def _r1_init(self, shot_goal=False, hidden_cost=False, no_hidden_distance=False,
                  not_there=False, look_where=False, privileged=False, hider_share=None,
-                 walk_progress=False, **_):
+                 walk_progress=False, shot_flee=False, look_after=0, **_):
         self.shot_goal, self.hidden_cost = shot_goal, hidden_cost
         self.no_hidden_distance, self.not_there = no_hidden_distance, not_there
         self.look_where, self.privileged, self.hider_share = look_where, privileged, hider_share
         self.walk_progress = walk_progress
+        self.shot_flee, self.look_after = shot_flee, int(look_after)
+        self.shots_paid = 0
         size = observation_size(self.new_inputs, not_there, privileged)
         self.observation_space = spaces.Box(-1, 1, (size,), dtype=np.float32)
         self.shot_streak = 0
@@ -90,6 +99,7 @@ class Round1Mixin:
 
     def _r1_reset(self, obs):
         self._hide_book = {}
+        self.shots_paid = 0
         self.shot_streak = 0
         self.shot_steps = 0
         self.first_shot = None
@@ -150,7 +160,8 @@ class Round1Mixin:
     def _look_shaping(self, terminated):
         """gamma * new potential - old potential (R6)."""
         new = 0.0
-        if self.target_ever_seen and not self.target_visible and not terminated:
+        if (self.target_ever_seen and not self.target_visible and not terminated
+                and getattr(self, "unseen_steps", 0) >= self.look_after):
             spot = np.asarray(self.last_seen_target, dtype=np.float64)
             if self.look_spot is None or np.linalg.norm(spot - self.look_spot) > 0.5:
                 self.look_spot, self.look_done = spot, False
@@ -196,6 +207,14 @@ class Round1Mixin:
             if self.first_shot is None:
                 self.first_shot = self.steps
         info["shot_win"] = False
+        if (self.shot_flee and not terminated and self.shot_streak >= SHOT_STEPS
+                and self.shots_paid < SHOT_FLEE_CAP):
+            reward += SHOT_FLEE_REWARD
+            terms["goal"] += SHOT_FLEE_REWARD
+            info["shot_win"] = True
+            self.shots_paid += 1
+            self.shot_streak = 0
+            self._make_her_flee()
         if self.shot_goal and not terminated and self.shot_streak >= SHOT_STEPS:
             reward += self.GOAL_REWARD
             terms["goal"] += self.GOAL_REWARD
@@ -211,6 +230,20 @@ class Round1Mixin:
                 info["lost_her"] = dict(info["lost_her"], **shot)
         self._hide_watch(terminated, truncated, info)
         return self._r1_extend(obs), reward, terminated, truncated, info
+
+    def _make_her_flee(self):
+        """After a shot: she sprints to a spot hidden from where the Leaper stands."""
+        m = self.mover
+        if m is None:
+            return
+        spot, route = m._pick_hide(np.asarray(self.position, dtype=np.float64), watched=False)
+        if spot is None:
+            return
+        if m.kind == "hider":
+            m.state, m.hide_spot = "dash", spot
+            m.hidings.append(dict(start=m.steps, arrive=None, spot=spot.tolist(), watched=True))
+        m.wait = 0
+        m._go(spot, SPRINT_STEP, route)
 
     def _hide_watch(self, terminated, truncated, info):
         """Exams only (metrics on): for each hiding, did it see her there / reach the spot

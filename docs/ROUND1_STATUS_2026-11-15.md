@@ -192,3 +192,52 @@ are visible to the eye; the 1 s shot win ends 93% of practice rounds before any
 re-finding). Next round should fix the world first: eye-occluded hiding
 spots, a shot that does not end the round (Lola flees to cover), more yard
 rounds; gate R6 to switch on after 1 s unseen.
+
+## Final state at the end of the session (2026-11-15 22:35 UTC, all training stopped by the user)
+
+Every run saved a final checkpoint (`model_<steps>.zip`; continue with
+`--resume --steps 2015232`). Full results table: `REPORT_final_2026-11-15.md`
+in the campaign folder (bucket).
+
+| Run | Steps reached | Status |
+|---|---|---|
+| F3 | 2,015,232 | complete |
+| F1 | 1,851,392 | stopped (resume to 2M) |
+| F7 | 1,765,824 | stopped |
+| FUSE | 1,626,960 | stopped |
+| F7B1 | 1,486,432 | stopped (branch of F7 at 1M) |
+| F7R4 | 1,453,168 | stopped |
+| F7R6 | 1,428,768 | stopped |
+| F7HIDE | 1,422,496 | stopped |
+| F7R6B1 | 1,376,256 | stopped |
+| try 2 of F3/F1/F7/FUSE | 320k-450k | stopped earlier (one try per run) |
+
+Two results from the last minutes:
+
+- **Today's game brain on the same new yard exam** (seeds 70000-70099):
+  clear shot 77%, first shot 15.5 s, **stuck 23%** (the 2026-11-05 exam code
+  said 28%), touch 18%. This is the baseline to quote; the retrains are at
+  8-11% stuck. (`baseline/yard_today_*`)
+- **Sampled vs average moves** (F7 at 1.25M, same 100 rounds): with sampled
+  actions stuck falls from 11% to **2%** (clear shot 79 -> 82%, first shot
+  15.1 -> 17.6 s, touch 23 -> 16%). Much of the dithering/stuck comes from the
+  game always playing the brain's average move (a single Gaussian cannot say
+  "left OR right around the container"). Worth testing small action noise in
+  the game, or a policy that can represent two options. (`sampled/`)
+
+Built and tested but **not launched** (user stopped the session first):
+**F7GL "genuine loss" practice** (`--run F7GL`, branch of F7 at 1M): the 1 s
+shot pays +10 (max 5 a round) and does not end the round, Lola then sprints to
+cover; R6 only after 1 s unseen; 12 yard + 4 arena worlds. Test with F7's 1M
+brain over 10 rounds: 0 rounds ended by a shot (F7: all 9), she ran 5.7 units
+in the 2 s after a shot, **62 genuine losses (3 s+) vs 15** in the same number
+of rounds, R6 never active before 1 s unseen. This is the recommended next run;
+measure it with `rl/lastseen_probe.py` (genuine losses).
+
+Advisor review of the approach (strongest points): the practice world rarely
+demands real search (hiding spots visible to the eye; the shot win ended 93%
+of practice rounds) so world changes come before more reward variants; the new
+inputs are only weakly adopted (5-18% of a normal input's weight), seeding them
+would speed that up; verdict statistics need paired, multi-exam, failure-aware
+comparisons on fresh seeds; the 128-step window may be a genuine improvement
+(the late-round difference) and should be checked seed by seed.

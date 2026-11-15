@@ -20,6 +20,8 @@ Round 2 branches (continue F7's own 1M checkpoint, same try, to 2M; compare with
   F7R6B1  + both
   F7HIDE  + half the practice rounds with a hider (1/3 before)
   F7R4    + R4 closer/further points on walking distance (close-range navigation around junk)
+  F7GL    genuine-loss practice: the 1 s shot pays +10 and does not end the round (she flees to
+          cover, so it must re-find her); R6 only after 1 s unseen; 12 yard + 4 arena worlds
   python -m rl.round1_train --run F7R6 --try 1      (needs run_F7_try1/model_1007616.zip)
 
   W7   F7 with sliding-window memory: the LSTM starts blank every step and
@@ -69,6 +71,9 @@ RUNS = {
     "F7R6B1": dict(switches=dict(F7, look_where=True, privileged=True), fusion=False, branch_from="F7"),
     "F7HIDE": dict(switches=dict(F7, hider_share=0.5), fusion=False, branch_from="F7"),
     "F7R4": dict(switches=dict(F7, walk_progress=True), fusion=False, branch_from="F7"),
+    "F7GL": dict(switches=dict({k: v for k, v in F7.items() if k != "shot_goal"}, shot_flee=True,
+                               look_where=True, look_after=10),
+                 fusion=False, branch_from="F7", yard_envs=12),
 }
 BRANCH_AT = 1_007_616
 YARD_ENVS = 8
@@ -89,8 +94,9 @@ def input_switches(run):
 def make_envs(run, seed, leg=0):
     """``leg`` > 0 (a continuation) gives the yard rounds a fresh stream."""
     switches = RUNS[run]["switches"]
-    fns = [lambda i=i: Monitor(YardPractice(seed * 100 + i + 50 * leg, **switches)) for i in range(YARD_ENVS)]
-    fns += [lambda: Monitor(Round1ArenaEnv(**switches)) for _ in range(N_ENVS - YARD_ENVS)]
+    yard_envs = RUNS[run].get("yard_envs", YARD_ENVS)
+    fns = [lambda i=i: Monitor(YardPractice(seed * 100 + i + 50 * leg, **switches)) for i in range(yard_envs)]
+    fns += [lambda: Monitor(Round1ArenaEnv(**switches)) for _ in range(N_ENVS - yard_envs)]
     env = DummyVecEnv(fns)
     if RUNS[run].get("window"):
         from rl.window_brain import WindowVecEnv
@@ -208,7 +214,8 @@ def train(run, attempt, total, campaign):
         hider_share=spec["switches"].get("hider_share", 1 / 3),
         fusion=spec["fusion"], window=spec.get("window"), observation_size=observation_size(**input_switches(run)),
         trainable_parameters=sum(p.numel() for p in model.policy.parameters()),
-        worlds=dict(yard=YARD_ENVS, plain_arena=N_ENVS - YARD_ENVS),
+        worlds=dict(yard=spec.get("yard_envs", YARD_ENVS), plain_arena=N_ENVS - spec.get("yard_envs", YARD_ENVS)),
+        look_after=spec["switches"].get("look_after", 0),
         target=dict(moving=True, hider_share=1 / 3, run_step=0.638, sprint_step=0.929),
         practice_exams_at=callback.practice + [aligned(total)], yard_exams_at=callback.yard + [aligned(total)],
         n_envs=N_ENVS, **HYPER, fast_sim=True,
