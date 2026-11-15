@@ -38,7 +38,21 @@ def headline(summary, rows):
                 H4_checks_hiding_spot=summary.get("hiding_checked_rate"),
                 H5_touch=summary["catch_rate"],
                 time_in_shot=float(np.mean([r["lost_her"].get("shot_share", 0.0) for r in rows])),
-                goes_her_way=summary.get("goes_her_way_rate"), refind=summary.get("refind_rate"))
+                goes_her_way=summary.get("goes_her_way_rate"), refind=summary.get("refind_rate"),
+                **hiding_numbers(rows))
+
+
+def hiding_numbers(rows):
+    """Honest hiding measures (2026-11-15): sees her while she hides within 10 s (all
+    hidings), and within 4 units in 10 s counted only where a perfect walk could."""
+    hidings = [h for r in rows for h in (r.get("lost_her") or {}).get("hidings_seen", [])]
+    if not hidings:
+        return {}
+    reachable = [h for h in hidings if h["reachable"]]
+    return dict(H4b_sees_her_hiding_10s=float(np.mean([h["seen10"] is not None for h in hidings])),
+                H4r_reached_if_reachable=(float(np.mean([h["reached10"] is not None for h in reachable]))
+                                          if reachable else None),
+                hidings=len(hidings), hidings_reachable=len(reachable))
 
 
 def load_model(path, run, env_fn):

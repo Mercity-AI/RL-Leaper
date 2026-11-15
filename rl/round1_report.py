@@ -127,6 +127,15 @@ def main():
                       + " | ".join(fmt(y.get(k), k) for k in KEYS)
                       + (f" | {fmt(practice.get('moving_catch'), '')} | {fmt(practice.get('still_catch'), '')} |"
                          if last else " | | |"))
+    print("\n## Honest hiding measures (yard exams from 2026-11-15 21:30 on)\n")
+    print("| Run | Try | Steps | Sees her while she hides <= 10 s | Within 4 units <= 10 s, reachable hidings only | Hidings (reachable) |")
+    print("|---|---|---|---|---|---|")
+    for name in ORDER:
+        for attempt, v in sorted(runs.get(name, {}).items()):
+            for y in v["yard"]:
+                if "H4b_sees_her_hiding_10s" in y:
+                    print(f"| {name} | {attempt} | {y['steps']} | {fmt(y['H4b_sees_her_hiding_10s'], '')} | "
+                          f"{fmt(y.get('H4r_reached_if_reachable'), '')} | {y['hidings']} ({y['hidings_reachable']}) |")
     print("\n## Free window test: same brain, 128-step window vs normal memory (yard exam)\n")
     print("| Run | Try | Steps | Memory | " + " | ".join(SHORT[k] for k in KEYS) + " |")
     print("|---|---|---|---|" + "---|" * len(KEYS))

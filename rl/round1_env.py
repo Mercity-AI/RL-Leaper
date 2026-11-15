@@ -89,6 +89,7 @@ class Round1Mixin:
         self._look_reset()
 
     def _r1_reset(self, obs):
+        self._hide_book = {}
         self.shot_streak = 0
         self.shot_steps = 0
         self.first_shot = None
@@ -208,7 +209,39 @@ class Round1Mixin:
             info["shot"] = shot
             if "lost_her" in info:
                 info["lost_her"] = dict(info["lost_her"], **shot)
+        self._hide_watch(terminated, truncated, info)
         return self._r1_extend(obs), reward, terminated, truncated, info
+
+    def _hide_watch(self, terminated, truncated, info):
+        """Exams only (metrics on): for each hiding, did it see her there / reach the spot
+        within 10 s, and could a perfect walk have got within 4 units in 10 s? Never raises."""
+        try:
+            if self.lost is None or self.mover is None:
+                return
+            book = self.__dict__.setdefault("_hide_book", {})
+            for i, h in enumerate(self.mover.hidings):
+                if h.get("arrive") is None:
+                    continue
+                if i not in book:
+                    spot = np.asarray(h["spot"], dtype=np.float64)
+                    walker = self._walker()
+                    walk0 = float(walker.distance(walker.field(spot), self.position, spot))
+                    book[i] = dict(arrive=h["arrive"], spot=spot, walk0=walk0, seen=None, reached=None)
+                b = book[i]
+                age = self.steps - b["arrive"]
+                if 0 <= age <= 100:
+                    if (b["seen"] is None and self.target_visible and self.mover.state == "hide"
+                            and np.linalg.norm(np.asarray(self.target) - b["spot"]) < 1.0):
+                        b["seen"] = age / 10
+                    if b["reached"] is None and np.linalg.norm(self.position - b["spot"]) <= NOT_THERE_RADIUS:
+                        b["reached"] = age / 10
+            if (terminated or truncated) and isinstance(info.get("lost_her"), dict):
+                info["lost_her"]["hidings_seen"] = [
+                    dict(walk0=b["walk0"], reachable=bool(b["walk0"] - NOT_THERE_RADIUS <= self.MOVE_SPEED * 100),
+                         seen10=b["seen"], reached10=b["reached"]) for b in book.values()]
+        except Exception as error:      # a measurement must never break an exam
+            if isinstance(info.get("lost_her"), dict):
+                info["lost_her"]["hidings_seen_error"] = repr(error)
 
 
 class Round1ArenaEnv(Round1Mixin, MovingTargetEnv):
