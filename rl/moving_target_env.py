@@ -29,6 +29,7 @@ import math
 import numpy as np
 from gymnasium import spaces
 
+from rl.fast_sim import FastFrontierMixin
 from rl.seeker_env import SeekerEnv
 from rl.moving_target import ArenaWorld, MovingTarget, SPRINT_STEP
 
@@ -129,7 +130,7 @@ class MovingTargetMixin:
         return self._extend(obs), reward, terminated, truncated, info
 
 
-class MovingTargetEnv(MovingTargetMixin, SeekerEnv):
+class MovingTargetEnv(MovingTargetMixin, FastFrontierMixin, SeekerEnv):
     def __init__(self, moving=True, new_inputs=False, refind_bonus=False, metrics=False,
                  kind=None):
         SeekerEnv.__init__(self, "control", metrics=False)

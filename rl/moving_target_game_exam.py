@@ -22,6 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
+from rl.fast_sim import FastFrontierMixin, make_fast
 from rl.junkyard_env import JunkyardEnv
 from rl.junkyard_server import JunkyardWorlds, ROOT
 from rl.moving_target import Grid, JunkyardWorld, MAP_TO_BRAIN
@@ -38,19 +39,27 @@ LEAPER_CLEARANCE = 3.5   # open-floor margin when picking its start (legs reach 
 _CACHE = {}
 
 
-def yard():
-    if "yard" not in _CACHE:
+def yard(fast=True):
+    """The yard (cached). ``fast`` swaps in rl.fast_sim's exact fast geometry."""
+    key = "yard" if fast else "yard_original"
+    if key not in _CACHE:
         geometry, sight = JunkyardWorlds.shipped().get(LEAPER_WIDTH)
+        if fast:
+            geometry = make_fast(geometry)
         world = JunkyardWorld(geometry)
-        _CACHE["yard"] = (geometry, sight, world, Grid(world))
-    return _CACHE["yard"]
+        _CACHE[key] = (geometry, sight, world, Grid(world))
+    return _CACHE[key]
 
 
-class GameExamEnv(MovingTargetMixin, JunkyardEnv):
-    def __init__(self, seed, new_inputs=False, kind=None):
-        geometry, sight, world, grid = yard()
+class GameExamEnv(MovingTargetMixin, FastFrontierMixin, JunkyardEnv):
+    def __init__(self, seed, new_inputs=False, kind=None, fast=True):
+        geometry, sight, world, grid = yard(fast)
+        self.FAST_SIM = fast
         rng = np.random.default_rng((int(seed), 4112026))
-        leaper_grid = _CACHE.setdefault("leaper_open", self._leaper_spots(geometry, grid))
+        # Computed once (setdefault would rebuild it, ~8,000 disc tests, every round).
+        if "leaper_open" not in _CACHE:
+            _CACHE["leaper_open"] = self._leaper_spots(geometry, grid)
+        leaper_grid = _CACHE["leaper_open"]
         for _ in range(1000):
             position = leaper_grid[rng.integers(len(leaper_grid))]
             spots = grid.open_centres

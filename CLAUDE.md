@@ -419,6 +419,13 @@ it shows the pill and the bullet in yellow and in blue.
 
 ## RL lab
 
+**Round 1/2 retrain (2026-11-15):** start at `docs/ROUND1_STATUS_2026-11-15.md`.
+Code in `rl/round1_*.py`, `rl/round2_brain.py`, `rl/fast_sim.py`,
+`rl/fast_kernels.py` (exact ~5x faster yard simulation), `rl/window_*.py`,
+`rl/hide_diagnostic.py`. **Results and checkpoints are in the Hugging Face
+bucket `Mercity/RL-Leaper`, folder `leaper_retrain_20261115/`** (not in git).
+One try per experiment (owner's call); runs continue with `--resume`.
+
 **Moving-target retrain (2026-11-05/06):** runs A and D (copies of today's
 brain on a moving, hiding Lola; `rl/moving_target*.py`) helped little. The
 owner rejected a route arrow as input ("she needs a brain of her own"); the
