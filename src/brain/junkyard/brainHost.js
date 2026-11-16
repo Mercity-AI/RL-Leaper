@@ -71,6 +71,16 @@ function progressTracker(report, task, stages, extra = {}) {
   };
 }
 
+// What the session needs to know about the network in brain.json: null for today's 34-input
+// brain (unchanged path), or an opt-in round-1 brain's inputs, identity and search sweep.
+export function brainSpec(manifest, eyeVision) {
+  const size = manifest.obs_size ?? 34;
+  if (size === 34) return null;
+  if (size !== 38 || !manifest.round1_inputs) throw new Error(`brain.json: unsupported brain (${size} inputs)`);
+  return { obsSize: size, modelStep: manifest.num_timesteps, searchRange: manifest.search_range ?? undefined,
+    eye: manifest.round1_inputs.eye_offset ?? eyeVision.eyeOffset };
+}
+
 // ort: onnxruntime module; glbUrl / collisionUrl: the junkyard map files;
 // wasmUrl: the onnxruntime .wasm (downloaded here with progress; optional);
 // post(message): sends a reply to the page; fetchBytes(url, onBytes): optional loader.
@@ -168,7 +178,7 @@ export function createBrainHost({ ort, glbUrl, collisionUrl, wasmUrl = null, pos
     const policy = await OnnxPolicy.create(ort, model);
     glbTriangles = loadGlbTriangles(glb);
     core = new JunkyardBrainCore({ policy, loadWorld: (width) => loadWorld(width, report), contact, eyeVision,
-      policySha256: manifest.policy_sha256 });
+      policySha256: manifest.policy_sha256, brain: brainSpec(manifest, eyeVision) });
     progress('compile', 1);
     timings.loadMs = performance.now() - started;
     return { manifest, timings: { loadMs: timings.loadMs, modelVerified: timings.modelVerified } };

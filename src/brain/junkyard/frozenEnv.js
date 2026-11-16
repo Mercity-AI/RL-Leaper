@@ -48,10 +48,13 @@ export class FrozenJunkyardEnv {
   // disabledLegs: severed leg indices (contact v4, Lola's contact only).
   // sightRange: how far it can see Lola and search the yard; the 16 wall rays stay
   // at RAY_MAX_RANGE, the trained input (the game asks for more: COMBAT.sightRange).
+  // searchRange: the search sweep's reach alone (default: sightRange). Round-1 brains
+  // were trained sweeping at RAY_MAX_RANGE while seeing Lola further (brain.json search_range).
   constructor({ raster, sight = null, contact, position, yaw, target, playerCollision = false, sightPose = null,
-    disabledLegs = [], sightRange = RAY_MAX_RANGE }) {
+    disabledLegs = [], sightRange = RAY_MAX_RANGE, searchRange = sightRange }) {
     this.raster = raster;
     this.sightRange = sightRange;
+    this.searchRange = searchRange;
     this.sight = sight;
     this.contact = contact;
     this.sightPose = sightPose;
@@ -171,7 +174,7 @@ export class FrozenJunkyardEnv {
       const dx = this.coverageCentres[c * 2] - px, dz = this.coverageCentres[c * 2 + 1] - pz;
       const d = Math.sqrt(dx * dx + dz * dz);
       const relative = pyMod(Math.atan2(dx, dz) - this.yaw + PI, TWO_PI) - PI;
-      let ok = Math.abs(relative) <= VISION_FOV / 2 && d - TARGET_RADIUS <= this.sightRange;
+      let ok = Math.abs(relative) <= VISION_FOV / 2 && d - TARGET_RADIUS <= this.searchRange;
       if (d <= 1e-9) ok = true;
       visible[k] = ok ? 1 : 0;
       distance[k] = d;
@@ -181,13 +184,14 @@ export class FrozenJunkyardEnv {
         dirZ[k] = dz / d;
       }
     }
-    this.marchBatches(candidates, distance, (k) => [dirX[k], dirZ[k]], (k) => distance[k] - TARGET_RADIUS, visible);
+    this.marchBatches(candidates, distance, (k) => [dirX[k], dirZ[k]], (k) => distance[k] - TARGET_RADIUS, visible,
+      this.searchRange);
     return visible;
   }
 
   // The ray-march half of points_visible, batched like np.array_split so each
-  // batch marches to the same range Python uses.
-  marchBatches(candidates, distance, direction, threshold, visible) {
+  // batch marches to the same range Python uses (`range`: its max_range).
+  marchBatches(candidates, distance, direction, threshold, visible, range = this.sightRange) {
     if (!candidates.length) return;
     const batches = Math.max(1, Math.ceil(candidates.length / VISIBILITY_BATCH));
     const base = Math.floor(candidates.length / batches), extra = candidates.length % batches;
@@ -200,7 +204,7 @@ export class FrozenJunkyardEnv {
       at += size;
       let longest = -Infinity;
       for (const k of batch) longest = Math.max(longest, distance[k]);
-      const maxRange = Math.min(this.sightRange, longest);
+      const maxRange = Math.min(range, longest);
       const count = this.raster.sampleCount(maxRange);
       for (const k of batch) {
         const [dx, dz] = direction(k);

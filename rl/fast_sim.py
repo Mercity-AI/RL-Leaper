@@ -283,3 +283,71 @@ def make_fast(geometry):
     fast.__dict__.update(geometry.__dict__)
     fast._prepare_fast()
     return fast
+
+
+from rl.fast_kernels import sight_nearby as _compiled_sight_nearby  # noqa: E402
+from rl.fast_kernels import sight_candidates as _compiled_sight_candidates  # noqa: E402
+
+
+class FastSightMixin:
+    """Mixed in front of JunkyardSight (see ``make_fast_sight``), 2026-11-16.
+
+    ``_nearby`` (which triangles can a sight line touch) is about half the cost of
+    the eye-level sight test in the yard. Here it is compiled: the same grid cells
+    by the same float operations, merged into the same ascending unique indices,
+    so ``hit`` then runs its unchanged numpy maths on exactly the same triangles.
+    """
+
+    def _prepare_fast(self):
+        self._sight_args = (float(self.GRID_MARGIN), float(self.grid_origin[0]), float(self.grid_origin[1]),
+                            float(self.cell), int(self.grid_shape[0]), int(self.grid_shape[1]),
+                            np.ascontiguousarray(self.cell_start, dtype=np.int64),
+                            np.ascontiguousarray(self.cell_triangles, dtype=np.int64),
+                            np.zeros(len(self.triangles), dtype=np.int64), np.zeros(1, dtype=np.int64))
+        self._sight_low = np.ascontiguousarray(self.low, dtype=np.float64)
+        self._sight_high = np.ascontiguousarray(self.high, dtype=np.float64)
+
+    def _nearby(self, origin, end):
+        if _compiled_sight_nearby is None:
+            return super()._nearby(origin, end)
+        return _compiled_sight_nearby(float(origin[0]), float(origin[2]), float(end[0]), float(end[2]),
+                                      *self._sight_args)
+
+    def hit(self, origin, end):
+        """JunkyardSight.hit with the candidate triangles (``_nearby`` + bounding-box mask)
+        picked by the compiled kernel; the ray maths below is the original, line for line."""
+        if _compiled_sight_candidates is None:
+            return super().hit(origin, end)
+        origin, end = np.asarray(origin), np.asarray(end)
+        direction = end - origin
+        picked = _compiled_sight_candidates(
+            float(origin[0]), float(origin[2]), float(end[0]), float(end[2]), *self._sight_args,
+            self._sight_low, self._sight_high,
+            np.minimum(origin, end) - 1e-8, np.maximum(origin, end) + 1e-8)
+        tri = self.triangles[picked]
+        if not len(tri):
+            return None
+        a, b = tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]
+        p = np.cross(direction, b)
+        determinant = np.einsum('ij,ij->i', a, p)
+        valid = np.abs(determinant) > 1e-10
+        inverse = np.divide(1, determinant, out=np.zeros_like(determinant), where=valid)
+        delta = origin - tri[:, 0]
+        u = np.einsum('ij,ij->i', delta, p) * inverse
+        q = np.cross(delta, a)
+        v = (q @ direction) * inverse
+        t = np.einsum('ij,ij->i', b, q) * inverse
+        valid &= (u >= -1e-8) & (v >= -1e-8) & (u + v <= 1 + 1e-8)
+        valid &= (t >= 0) & (t < 1 - 1e-7)
+        return (origin + direction * t[valid].min()).tolist() if np.any(valid) else None
+
+
+def make_fast_sight(sight):
+    """A fast copy of a JunkyardSight (shares its arrays; the original is untouched)."""
+    base = type(sight)
+    if base not in _FAST_CLASSES:
+        _FAST_CLASSES[base] = type("Fast" + base.__name__, (FastSightMixin, base), {})
+    fast = object.__new__(_FAST_CLASSES[base])
+    fast.__dict__.update(sight.__dict__)
+    fast._prepare_fast()
+    return fast

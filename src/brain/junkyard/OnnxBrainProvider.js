@@ -15,10 +15,11 @@
 
 import { BrainProviderBase, BrainUnavailableError } from '../BrainProvider.js';
 
-// Where brain.json, actor.onnx and the baked rasters are served (public/brains/...).
-export function defaultBrainBaseUrl() {
+// Where brain.json, actor.onnx and the baked rasters are served (public/brains/...): today's
+// brain, or an opt-in brain's folder (?brain=leaper_r1_<steps>, see BrainProvider.js).
+export function defaultBrainBaseUrl(folder = 'leaper_7757824') {
   const base = import.meta.env?.BASE_URL ?? '/';
-  return new URL('brains/leaper_7757824/', new URL(base, globalThis.location?.href ?? 'http://localhost/')).href;
+  return new URL(`brains/${folder}/`, new URL(base, globalThis.location?.href ?? 'http://localhost/')).href;
 }
 
 // Same limits as the HTTP client: the first reset (or prepare) loads everything.

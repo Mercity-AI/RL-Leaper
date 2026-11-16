@@ -116,3 +116,107 @@ if njit is not None:
     label_regions = njit(cache=True, fastmath=False)(_label_regions_py)
 else:
     disk_blocked = label_regions = None
+
+
+def _sight_nearby_py(ax, az, bx, bz, margin, origin_x, origin_z, cell, shape_x, shape_z,
+                     cell_start, cell_triangles, stamp, counter):
+    """JunkyardSight._nearby, step for step (2026-11-16): the same grid cells by the same
+    float operations (slab test), then their triangle lists merged into ascending unique
+    indices (what np.unique returns). ``stamp``/``counter`` are scratch: a per-triangle mark
+    and the call counter, so no array is cleared between calls."""
+    lo_x = ax if ax < bx else bx
+    lo_z = az if az < bz else bz
+    hi_x = ax if ax > bx else bx
+    hi_z = az if az > bz else bz
+    f0 = int(math.floor((lo_x - margin - origin_x) / cell))
+    f1 = int(math.floor((lo_z - margin - origin_z) / cell))
+    l0 = int(math.floor((hi_x + margin - origin_x) / cell))
+    l1 = int(math.floor((hi_z + margin - origin_z) / cell))
+    f0 = f0 if f0 > 0 else 0
+    f1 = f1 if f1 > 0 else 0
+    l0 = l0 if l0 < shape_x - 1 else shape_x - 1
+    l1 = l1 if l1 < shape_z - 1 else shape_z - 1
+    if l0 < f0 or l1 < f1:
+        return np.zeros(0, dtype=np.int64)
+    step_x = bx - ax
+    step_z = bz - az
+    twice = 2 * margin
+    nx = l0 - f0 + 1
+    nz = l1 - f1 + 1
+    keep = np.zeros(nx * nz, dtype=np.bool_)
+    total = 0
+    for i in range(nx):
+        ix = f0 + i
+        low_x = origin_x + ix * cell - margin
+        high_x = low_x + cell + twice
+        for j in range(nz):
+            iz = f1 + j
+            low_z = origin_z + iz * cell - margin
+            high_z = low_z + cell + twice
+            enter = 0.0
+            leave = 1.0
+            if abs(step_x) < 1e-12:
+                if not (low_x <= ax and ax <= high_x):
+                    leave = -1.0
+            else:
+                near = (low_x - ax) / step_x
+                far = (high_x - ax) / step_x
+                lo = near if near < far else far
+                hi = near if near > far else far
+                enter = enter if enter > lo else lo
+                leave = leave if leave < hi else hi
+            if abs(step_z) < 1e-12:
+                if not (low_z <= az and az <= high_z):
+                    leave = -1.0
+            else:
+                near = (low_z - az) / step_z
+                far = (high_z - az) / step_z
+                lo = near if near < far else far
+                hi = near if near > far else far
+                enter = enter if enter > lo else lo
+                leave = leave if leave < hi else hi
+            if enter <= leave:
+                keep[i * nz + j] = True
+                c = ix * shape_z + iz
+                total += cell_start[c + 1] - cell_start[c]
+    out = np.empty(total, dtype=np.int64)
+    counter[0] += 1
+    mark = counter[0]
+    n = 0
+    for i in range(nx):
+        for j in range(nz):
+            if keep[i * nz + j]:
+                c = (f0 + i) * shape_z + (f1 + j)
+                for k in range(cell_start[c], cell_start[c + 1]):
+                    t = cell_triangles[k]
+                    if stamp[t] != mark:
+                        stamp[t] = mark
+                        out[n] = t
+                        n += 1
+    return np.sort(out[:n])
+
+
+sight_nearby = (njit(cache=True, fastmath=False, error_model="numpy")(_sight_nearby_py)
+                if njit is not None else None)
+
+
+def _sight_candidates_py(ax, az, bx, bz, margin, origin_x, origin_z, cell, shape_x, shape_z,
+                         cell_start, cell_triangles, stamp, counter, low, high, box_min, box_max):
+    """JunkyardSight.hit's candidates: ``_nearby`` then its bounding-box mask (pure
+    comparisons against the same ``np.minimum(origin, end) - 1e-8`` / ``np.maximum(...) + 1e-8``
+    bounds, computed by the caller), in the same ascending order."""
+    nearby = sight_nearby(ax, az, bx, bz, margin, origin_x, origin_z, cell, shape_x, shape_z,
+                          cell_start, cell_triangles, stamp, counter)
+    out = np.empty(nearby.shape[0], dtype=np.int64)
+    n = 0
+    for k in range(nearby.shape[0]):
+        t = nearby[k]
+        if (high[t, 0] >= box_min[0] and high[t, 1] >= box_min[1] and high[t, 2] >= box_min[2]
+                and low[t, 0] <= box_max[0] and low[t, 1] <= box_max[1] and low[t, 2] <= box_max[2]):
+            out[n] = t
+            n += 1
+    return out[:n]
+
+
+sight_candidates = (njit(cache=True, fastmath=False, error_model="numpy")(_sight_candidates_py)
+                    if njit is not None else None)

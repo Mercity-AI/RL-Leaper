@@ -106,6 +106,25 @@ function stateDiffs(env, state, { pose: poseTolerance, obs: obsTolerance }) {
   return diffs;
 }
 
+// Round-1 recordings: the session's I1 memory (note and previous sighting) must match exactly.
+function round1Diffs(session, state) {
+  if (!session.round1 || !state.round1) return [];
+  const diffs = [];
+  const { note, previous } = session.round1;
+  const py = state.round1;
+  if (!note.every((v, i) => v === py.motion_note[i])) diffs.push(`motion_note: js ${note} vs py ${py.motion_note}`);
+  if ((previous === null) !== (py.previous_seen_target === null)
+    || (previous && !previous.every((v, i) => v === py.previous_seen_target[i]))) {
+    diffs.push(`previous_seen_target: js ${previous} vs py ${py.previous_seen_target}`);
+  }
+  return diffs;
+}
+
+// Inputs per step: 34 for today's brain, a round-1 recording says 38 (obs_size).
+export function obsSize(fixture) {
+  return fixture.obs_size ?? 34;
+}
+
 // Teacher forcing and the replayed-action run must be exact: bit-identical pose,
 // observations within 1e-5 (in practice they are bit-identical too).
 export const EXACT = Object.freeze({ pose: 0, obs: 1e-5 });
@@ -116,7 +135,9 @@ function sameList(a, b) {
 
 function newReport(fixture) {
   return { name: fixture.name, steps: fixture.steps.length, obsIn: 0, obsOut: 0, pose: 0, distance: 0,
-    vision: 0, sight: 0, flips: 0, stateDiffs: 0, coverageDiffs: 0, senses: 0, problems: [] };
+    vision: 0, sight: 0, flips: 0, stateDiffs: 0, coverageDiffs: 0, senses: 0, problems: [],
+    // Largest difference per input, over the observations fed to the policy.
+    inputMax: new Array(obsSize(fixture)).fill(0) };
 }
 
 // Paused /sense previews recorded right after step k: same frame, no state change.
@@ -142,10 +163,13 @@ function note(report, step, text) {
 
 function startSession(fixture, world, config, policy) {
   const reset = fixture.reset;
+  // Round-1 recordings carry the brain spec (brain.json fields) and the game's sight range.
+  const round1 = fixture.brain ? { brain: fixture.brain, sightRange: reset.sight_range } : {};
   return new JunkyardBrainSession({ policy, world, contact: config.contact,
     sightVersion: config.eyeVision.version, contactVersion: config.contact.version,
     position: reset.position, yaw: reset.yaw, target: reset.target,
-    playerCollision: reset.player_collision === true, sightPose: reset.sight_mode === 'eye' ? reset.sight_pose : null });
+    playerCollision: reset.player_collision === true, sightPose: reset.sight_mode === 'eye' ? reset.sight_pose : null,
+    ...round1 });
 }
 
 // Check the reset frame and first observation.
@@ -174,8 +198,11 @@ const CONTINUOUS_STATE = /^(position|yaw|previous_action|last_seen_target)/;
 
 function addStep(report, k, session, frame, step, arrays, seen, tolerance = EXACT, quiet = false) {
   const say = (text) => { if (!quiet) note(report, k, text); };
-  const a = seen ? maxAbs(seen, arrays.obs_in.subarray(k * 34, k * 34 + 34)) : 0;
-  const b = maxAbs(session.obs, arrays.obs_out.subarray(k * 34, k * 34 + 34));
+  const n = report.inputMax.length;
+  const recorded = arrays.obs_in.subarray(k * n, k * n + n);
+  const a = seen ? maxAbs(seen, recorded) : 0;
+  const b = maxAbs(session.obs, arrays.obs_out.subarray(k * n, k * n + n));
+  if (seen && !quiet) seen.forEach((v, i) => { report.inputMax[i] = Math.max(report.inputMax[i], Math.abs(v - recorded[i])); });
   report.obsIn = Math.max(report.obsIn, a);
   report.obsOut = Math.max(report.obsOut, b);
   if (a >= tolerance.obs) say(`obs fed to the policy differs by ${a}`);
@@ -187,7 +214,7 @@ function addStep(report, k, session, frame, step, arrays, seen, tolerance = EXAC
   for (const key of ['pose', 'distance', 'vision', 'sight']) report[key] = Math.max(report[key], numbers[key]);
   const poseBad = numbers.pose > tolerance.pose;
   if (poseBad) say(`pose differs by ${numbers.pose}`);
-  const states = stateDiffs(session.env, step.state, tolerance);
+  const states = [...stateDiffs(session.env, step.state, tolerance), ...round1Diffs(session, step.state)];
   const discreteStates = states.filter((d) => !CONTINUOUS_STATE.test(d));
   report.stateDiffs += states.length;
   states.forEach((d) => (CONTINUOUS_STATE.test(d) ? say(d) : note(report, k, d)));
@@ -209,6 +236,7 @@ export async function teacherForced(fixture, world, config) {
   const session = startSession(fixture, world, config, policy);
   const report = newReport(fixture);
   checkInitial(report, session, fixture);
+  const n = obsSize(fixture);
   const cleared = new Uint8Array(session.env.coverageCleared.length);
   for (const c of fixture.initial.coverage) cleared[c] = 1;
   let previousObs = decodeArray(fixture.initial.obs);
@@ -218,6 +246,7 @@ export async function teacherForced(fixture, world, config) {
   for (let k = 0; k < fixture.steps.length; k += 1) {
     const step = fixture.steps[k];
     session.env.setState(previousState, cleared);
+    if (session.round1) session.round1.setState(previousState.round1);
     session.env.sightPose = previousPose;
     session.obs = previousObs;
     policy.index = k;
@@ -230,7 +259,7 @@ export async function teacherForced(fixture, world, config) {
       note(report, k, 'episode_start differs');
     }
     for (const c of step.coverage_new) cleared[c] = 1;
-    previousObs = arrays.obs_out.subarray(k * 34, k * 34 + 34);
+    previousObs = arrays.obs_out.subarray(k * n, k * n + n);
     previousState = step.state;
     previousPose = step.input.sight_pose;
     checkSenses(report, k, session, fixture);

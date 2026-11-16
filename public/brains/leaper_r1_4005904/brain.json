@@ -1,0 +1,186 @@
+{
+ "id": "leaper_r1_4005904",
+ "label": "BRAIN R1 4,005,904",
+ "num_timesteps": 4005904,
+ "policy_sha256": "6e2b8f82f8012b5aa4f56091e0abd1874bba4af1d3eefefcc00898893e26084b",
+ "policy_class": "PrivilegedLstmPolicy",
+ "recipe": "rl/round1_env.py Round1YardEnv",
+ "run": "F7GLSDP",
+ "source_checkpoint": "rl_artifacts/moving_target_round1_20261115/run_F7GLSDP_try2/model_4005904.zip",
+ "switches": {
+  "hidden_cost": true,
+  "no_hidden_distance": false,
+  "new_inputs": true,
+  "not_there": true,
+  "shot_flee": true,
+  "look_where": true,
+  "look_after": 10,
+  "eye_hide": true,
+  "flee_stay": true,
+  "hider_share": 0.5,
+  "close_start_share": 0.25,
+  "walk_progress": true,
+  "privileged": true,
+  "look_reach": true,
+  "look_scale": 0.3,
+  "reach_bonus": 5.0,
+  "look_progress": true
+ },
+ "obs_size": 38,
+ "observation": [
+  "0 target visible now (0/1)",
+  "1 memory age: steps since Lola was last seen / 120, clipped to 1",
+  "2-3 world x/z direction to the last-seen spot (0, 0 before the first sighting)",
+  "4 distance to the last-seen spot / arena diagonal (1 before the first sighting)",
+  "5-6 sin(yaw), cos(yaw)",
+  "7 collided last step (0/1)",
+  "8-9 previous action (throttle, turn) after clipping",
+  "10-25 sixteen 2D rays over 270 degrees: clear distance / 28",
+  "26-27 world x/z direction to the nearest frontier cell of the largest unchecked region",
+  "28 frontier distance / arena diagonal",
+  "29 largest unchecked region size / grid cells",
+  "30 frontier note valid (0/1)",
+  "31-32 last move dx, dz / 0.375 (clipped to [-1, 1])",
+  "33 last turn / 9 degrees (clipped to [-1, 1])",
+  "34-35 I1 motion note: world x/z direction Lola moved between the last two brain steps on which she was seen (0, 0 at reset; kept while unseen)",
+  "36 I1 motion note: her speed then / sprint step (0.929 brain units), at most 1",
+  "37 I2 not there: 1 when she has been seen, is not visible now, the spot where it last saw her is in sight (270 degree view, sight range, an eye line to her head/chest/hips standing there is clear) and she is more than 4 units from that spot; else 0"
+ ],
+ "round1_inputs": {
+  "sight": "eye only (sight_mode 'eye'); a legacy-sight reset is refused",
+  "i1_update": "once per /step, at the live sight refresh before inference; never on the look after the move, /sync or /sense (rl/round1_session.py)",
+  "i2": "computed from the refreshed state; Lola's true position; eye from eye_offset; body points at body_height_shares x 1.7 map units x world scale; range = the session's sight_range (the game's 50 map units)",
+  "sprint_step_map_units_per_step": 0.64,
+  "sprint_step_at_5_5": 0.9285818181818183,
+  "not_there_radius": 4.0,
+  "body_height_shares": [
+   0.9,
+   0.7,
+   0.53
+  ],
+  "body_heights_at_5_5": [
+   2.219890909090909,
+   1.7265818181818182,
+   1.307269090909091
+  ],
+  "eye_offset": [
+   0.0,
+   2.38,
+   1.156
+  ],
+  "map_to_brain_at_5_5": 1.450909090909091,
+  "sight_range_at_5_5": 72.54545454545455
+ },
+ "search_range": 28.0,
+ "action": {
+  "size": 2,
+  "low": [
+   -1.0,
+   -1.0
+  ],
+  "high": [
+   1.0,
+   1.0
+  ],
+  "throttle": "signed reverse: physical throttle = action[0]; negative backs up; |1| moves 0.375 units per step",
+  "turn": "yaw += action[1] * 9 degrees per step",
+  "clipped_in_graph": true
+ },
+ "lstm": {
+  "layers": 1,
+  "hidden_size": 64,
+  "state_shape": [
+   1,
+   1,
+   64
+  ],
+  "episode_start": "feed zeros on the very first step of a session (SB3 multiplies the incoming memory by 1 - episode_start); carry h_out/c_out afterwards"
+ },
+ "onnx": {
+  "file": "actor.onnx",
+  "sha256": "1e08e5ba823ace02206741213d0e8d1b42ff78e0515fcae584467a928b44ef33",
+  "bytes": 152605,
+  "opset": 17,
+  "inputs": {
+   "obs": [
+    1,
+    38
+   ],
+   "h": [
+    1,
+    1,
+    64
+   ],
+   "c": [
+    1,
+    1,
+    64
+   ]
+  },
+  "outputs": {
+   "action": [
+    1,
+    2
+   ],
+   "h_out": [
+    1,
+    1,
+    64
+   ],
+   "c_out": [
+    1,
+    1,
+    64
+   ]
+  }
+ },
+ "physics": {
+  "move_speed": 0.375,
+  "turn_speed_degrees": 9.0,
+  "ray_count": 16,
+  "ray_range": 28.0,
+  "vision_fov_degrees": 270.0,
+  "target_radius": 1.4,
+  "memory_steps": 120,
+  "coverage_cell": 3.0,
+  "body_diameter_for_scale": 7.98
+ },
+ "contact_version": 3,
+ "sight_version": "eye-vision-v1",
+ "parity": {
+  "yard_steps": 8654,
+  "rounds": 9,
+  "seeds": [
+   90000,
+   90008
+  ],
+  "torch_action": 0.0,
+  "onnx_action": 1.43e-06,
+  "onnx_h": 2.98e-07,
+  "onnx_c": 2.86e-06,
+  "not_there": 399,
+  "note_changes": 1426,
+  "visible": 4488,
+  "clipped": 7869
+ },
+ "versions": {
+  "torch": "2.13.0+cpu",
+  "stable_baselines3": "2.9.0",
+  "sb3_contrib": "2.9.0",
+  "numpy": "2.5.3",
+  "onnxruntime": "1.32.0",
+  "python": "3.12.11"
+ },
+ "rasters": {
+  "5.5": {
+   "file": "raster-5.5.bin",
+   "shape": [
+    780,
+    731
+   ],
+   "solid": 78996,
+   "raster_sha256": "fa1380631574ef845ca2f2137f16dfd6e1c5587761f812c4d084e27360b6b2d4",
+   "collision_sha256": "7f112b0d22545af926ead5b41d5f4539e4760d3f372ca2e4baf4ac357acbcb6a"
+  }
+ }
+}

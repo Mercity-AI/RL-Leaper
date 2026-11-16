@@ -33,12 +33,24 @@ export const BRAIN_PROVIDERS = Object.freeze({
   turret: Object.freeze({ badge: 'OFFLINE · TURRET', tooltip: 'OFFLINE · TURRET: no brain could load, so the Leaper stays put but still shoots' }),
 });
 
+// An opt-in retrained brain, named by its folder under public/brains/ in the page address
+// (?brain=leaper_r1_10002464, written by scripts/export_round1_brain_onnx.py), or null for
+// today's brain. Strict pattern: nothing else is ever turned into a URL.
+export const OPT_IN_BRAIN = /^leaper_r1_\d+$/;
+export function optInBrainFolder(search = globalThis.location?.search ?? '') {
+  const choice = new URLSearchParams(search).get('brain') || '';
+  return OPT_IN_BRAIN.test(choice) ? choice : null;
+}
+
 // Which providers to try, from ?brain= in the page address:
 //   (none) / auto   in-browser first, the Python service if that cannot load
 //   onnx            in-browser only
 //   http / python   the Python service only (the parity reference)
 //   turret / off    no brain (turret mode), e.g. to test the fallback
+//   leaper_r1_<n>   that opt-in brain, in-browser only (the Python service only has today's
+//                   brain, so it is never a fallback for it)
 export function brainProviderOrder(search = globalThis.location?.search ?? '') {
+  if (optInBrainFolder(search)) return ['onnx'];
   const choice = (new URLSearchParams(search).get('brain') || 'auto').toLowerCase();
   if (choice === 'onnx' || choice === 'browser') return ['onnx'];
   if (choice === 'http' || choice === 'python' || choice === 'server') return ['http'];

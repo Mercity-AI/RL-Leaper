@@ -115,6 +115,35 @@ class Yard(unittest.TestCase):
         lockstep(lambda s: self.GameExamEnv(s), range(70000, 70004), 250, self,
                  make_slow=lambda s: self.GameExamEnv(s, fast=False))
 
+    def test_eye_sight(self):
+        """make_fast_sight (2026-11-16): same candidate triangles and same hits as JunkyardSight."""
+        from rl.moving_target_game_exam import yard
+        sight, fast = yard(fast=False)[1], yard()[1]
+        self.assertIsNot(sight, fast)
+        rng = np.random.default_rng(11)
+        low = sight.grid_origin - 5
+        high = sight.grid_origin + sight.grid_shape * sight.cell + 5
+        for trial in range(4000):
+            a = np.array([rng.uniform(low[0], high[0]), rng.uniform(0, 4), rng.uniform(low[1], high[1])])
+            if trial % 3 == 0:
+                b = a + np.array([rng.normal(0, 15), rng.uniform(-3, 1), rng.normal(0, 15)])
+            else:
+                b = np.array([rng.uniform(low[0], high[0]), rng.uniform(0, 4), rng.uniform(low[1], high[1])])
+            if trial % 10 == 1:
+                b[0] = a[0]
+            if trial % 10 == 2:
+                b[2] = a[2]
+            if trial % 10 == 3:
+                b[0] = a[0] + 1e-13
+            if trial % 50 == 4:
+                b = a.copy()
+            expected = sight._nearby(a, b)
+            got = fast._nearby(a, b)
+            self.assertEqual(got.dtype, expected.dtype)
+            self.assertTrue(np.array_equal(got, expected), f"trial {trial}")
+            self.assertEqual(fast.hit(a, b), sight.hit(a, b), f"trial {trial}")
+            self.assertEqual(fast.hit(a.tolist(), b.tolist()), sight.hit(a.tolist(), b.tolist()))
+
 
 if __name__ == "__main__":
     unittest.main()

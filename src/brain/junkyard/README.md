@@ -29,6 +29,10 @@ mode last (see "In the game").
 | `pyMath.js` | Python/NumPy arithmetic JavaScript lacks: float32 rounding, Python `%`/`//`, exact FMA, CPython `math.hypot`. |
 | `junkyardWorld.js` | Builds the raster + sight for one Leaper width (reports build progress). |
 | `fixtureReplay.js` | Replays the Python recordings and lists every difference (used by the tests). |
+| `round1Inputs.js` | Opt-in round-1 brains only: inputs 34-37 (I1 motion note, I2 not there), ported from the training code (see "Round-1 brains"). |
+
+Round-1 opt-in brains: `scripts/export_round1_brain_onnx.py`, `scripts/make_round1_fixtures.py`,
+`rl/round1_session.py` (see "Round-1 brains").
 
 Python side (oracle, read-only): `scripts/export_brain_onnx.py` (ONNX + `brain.json`
 + 1,200-step parity proof), `scripts/make_junkyard_fixtures.py` (recordings in
@@ -164,6 +168,77 @@ every request; `scripted-severed-legs-5.5.json` proves both sides agree bit for 
 restart experiment" below for what it does and how it measured;
 `ENCOUNTER.brainSoftRestart` in `src/config/encounter.js`, `?softRestart=1 / 0`
 to compare.
+
+## Round-1 brains (opt-in, 38 inputs)
+
+A retrained brain from the round-1/2 lab runs (`rl/round1_train.py`, e.g. F7GLSD) can be
+tried in the game **without touching today's brain**, which stays the default:
+
+    http://localhost:5173/?brain=leaper_r1_10002464      (pnpm dev; the folder's name)
+    http://localhost:5173/?brain=leaper_r1_4005904       (same run at 4M: smoother chase, see below)
+
+`?brain=` takes the folder name under `public/brains/` (strict pattern `leaper_r1_<digits>`).
+Two round-1 brains ship (2026-11-17), both from run F7GLSDP and both opt-in: `leaper_r1_10002464` (try 1 @10M,
+the pick: stuck 4-5% vs today's 18-20%, best at finding her again) and `leaper_r1_4005904` (try 2 @4M: stuck 8-9%,
+chases like today's brain; the 10M brain learned a forward/back shuffle between 4M and 10M that halves how far its
+walking actually closes on her). Details: rl_artifacts/moving_target_round1_20261115/TODO.md (in the Hugging Face bucket).
+It runs in the page only: the Python server only has today's brain, so it is never a
+fallback (if the folder cannot load, the game goes to turret mode and says why). The badge
+reads `BRAIN R1 10,002,464 · ONNX · IN BROWSER · …` (brain.json `label`). The OPTIONS brain
+menu shows "ONNX" meanwhile; picking another entry there switches back to today's brain.
+Legacy flat sight (`?vision=legacy`) is refused: I2 needs the eye-line test.
+
+**Making one** (inference only; `.venv` has no onnx, so it comes from `tmp/onnx-pylib`):
+
+    PYTHONPATH=tmp/onnx-pylib .venv/bin/python scripts/export_round1_brain_onnx.py \
+        --model rl_artifacts/moving_target_round1_20261115/run_F7GLSDP_try1/model_10002464.zip \
+        --run F7GLSDP --out public/brains/leaper_r1_10002464/
+    .venv/bin/python scripts/make_round1_fixtures.py --model <same zip> --run F7GLSD \
+        --brain public/brains/leaper_r1_10002464      # then: node --test tests/brain-round1.test.js
+
+The export refuses fusion/window runs and anything but 38 actor inputs (I1 and I2 on), keeps
+the actor only (a B1 checkpoint's 4 critic-only inputs are not in the file: `obs[1, 38]`),
+proves ONNX against `model.predict` on real yard rounds (`Round1YardEnv`, 8,000+ steps), writes
+`brain.json` (`obs_size: 38`, `round1_inputs`, `search_range`) and copies today's
+`raster-5.5.bin` (read only).
+
+**The two extra inputs** (`round1Inputs.js`, Python oracle `rl/round1_session.py`):
+
+| Input | Meaning | Training code |
+|---|---|---|
+| 34-35 | I1: x/z direction Lola moved between the last two brain steps on which she was seen | `MovingTargetMixin.step` |
+| 36 | I1: that speed / her sprint step (0.929 units at 5.5), at most 1 | same |
+| 37 | I2: 1 if she was seen, is not visible now, the spot where it last saw her is in its 270° view, in sight range and an eye line to her head/chest/hips standing there is clear, and she is more than 4 units from it | `Round1Mixin._not_there`, `Round1YardEnv._spot_in_sight` |
+
+When: training looks at Lola once per step; the session looks twice per `/step` (the live
+refresh before inference, then after the move, with the same Lola position). **I1 updates once
+per `/step`, at the refresh before inference** (the look that fills input 0 of what the policy
+is fed), so the note's newer end is Lola's newest position and two sightings are one step
+apart, as in training. The look after the move, `/sync` and `/sense` never update it. At reset
+the note is zero and Lola at reset counts as the first sighting if seen. I2 is recomputed from
+the same refreshed state. After a move inputs 34-37 keep what the policy was just fed (the
+next refresh redoes them); a sync keeps 31-37. I2 uses Lola's true position (the request's
+`target`), the fixed eye offset (`eye-vision.json`, = Python's `EYE`) and fixed body heights
+(0.9/0.7/0.53 x 1.7 map units x world scale), not her animated bones; its reach is the
+session's `sight_range` (the game's 50 map units = training's `SIGHT_RANGE`). SPRINT_STEP and
+the body heights scale with the Leaper size (bit-identical to Python at 5.5, the only size
+these brains were trained at). The search sweep (inputs 26-30) uses `search_range` 28 for these
+brains, as in training (`GameExamEnv` only lengthens Lola's sight; measured: 0 of 2,000 training
+steps differ at 28, 334 would at the game's 50 map units); today's brain keeps sweeping at
+`sight_range`. Delete `search_range` from a brain.json to sweep at the game's range instead
+(then re-record its fixtures).
+
+**How we know it matches** (`tests/brain-round1.test.js`, recordings in `tests/fixtures/brain-r1/`):
+2,002 I1/I2 values recorded straight from `Round1YardEnv` yard rounds (534 with I2 = 1) are
+reproduced bit for bit by the JS functions; two session recordings (500 brain steps, 360
+scripted steps; I2 = 1 on 26 and 64 steps, I1 changing 140 and 66 times) replay with all 38
+inputs, the pose, the I1 memory and every yes/no fact bit-identical, teacher-forced and free
+running with the recorded actions; the r1 `actor.onnx` gives the checkpoint's action within
+1.1e-6 and memory within 2.9e-6 on all 500 recorded steps; the worker code loads the folder and
+answers 60 moves like the recording; `JunkyardBrain` (the game's brain driver) loads the folder,
+passes its identity check, shows `BRAIN R1 …` and moves, and still shows `BRAIN 7,757,824` with
+today's folder. Free running with the ONNX network it stays in lockstep for 286 of 500 steps
+(the same ~1e-6 rounding drift as today's brain, see below). Not yet run in a real browser.
 
 ## How we know it matches
 

@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from rl.fast_sim import FastFrontierMixin, make_fast
+from rl.fast_sim import FastFrontierMixin, make_fast, make_fast_sight
 from rl.junkyard_env import JunkyardEnv
 from rl.junkyard_server import JunkyardWorlds, ROOT
 from rl.moving_target import Grid, JunkyardWorld, MAP_TO_BRAIN
@@ -31,6 +31,7 @@ from rl.moving_target_env import MovingTargetMixin
 LEAPER_WIDTH = 5.5
 SIGHT_RANGE = 50 * MAP_TO_BRAIN                       # COMBAT.sightRange, map -> brain units
 START_APART = (22 * MAP_TO_BRAIN, 42 * MAP_TO_BRAIN)  # GAME_START
+START_FACING = False   # 2026-11-16 search drill (rl/round1_env.py drill_share): start turned to face her
 EYE = [0.0, 2.38, 1.156]
 # Lola's head, chest and hips heights: shares of her 1.7 map-unit height, in brain units.
 BODY_HEIGHTS = [h * 1.7 * MAP_TO_BRAIN for h in (0.9, 0.7, 0.53)]
@@ -46,6 +47,7 @@ def yard(fast=True):
         geometry, sight = JunkyardWorlds.shipped().get(LEAPER_WIDTH)
         if fast:
             geometry = make_fast(geometry)
+            sight = make_fast_sight(sight)   # exact: same candidate triangles, same maths (2026-11-16)
         world = JunkyardWorld(geometry)
         _CACHE[key] = (geometry, sight, world, Grid(world))
     return _CACHE[key]
@@ -68,7 +70,9 @@ class GameExamEnv(MovingTargetMixin, FastFrontierMixin, JunkyardEnv):
             if not len(spots):
                 continue
             target = spots[rng.integers(len(spots))]
-            yaw = float(rng.uniform(-math.pi, math.pi))
+            yaw = float(rng.uniform(-math.pi, math.pi))   # always drawn, so the exam's stream is unchanged
+            if START_FACING:
+                yaw = float(math.atan2(target[0] - position[0], target[1] - position[1]))
             try:
                 JunkyardEnv.__init__(self, geometry, position, yaw, target, sight=sight,
                                      sight_pose=dict(eye=EYE, points=self._points(target)))

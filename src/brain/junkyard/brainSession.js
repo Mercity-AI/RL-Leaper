@@ -7,6 +7,7 @@
 
 import { FrozenJunkyardEnv, OBS_SIZE } from './frozenEnv.js';
 import { pyMod } from './pyMath.js';
+import { ROUND1_OBS_SIZE, Round1Inputs } from './round1Inputs.js';
 
 export const MODEL_STEP = 7757824;
 
@@ -65,14 +66,24 @@ export function checkDisabledLegs(data, legCount) {
 
 export class JunkyardBrainSession {
   // policy.act(obs Float32Array(34), memory|null, episodeStart) -> { action, memory }
+  // `brain` (opt-in round-1 brains only, from their brain.json): { obsSize: 38, modelStep,
+  // searchRange, eye }; inputs 34-37 then come from round1Inputs.js. Without it: today's brain.
   constructor({ policy, world, contact, sightVersion, contactVersion, position, yaw, target, playerCollision, sightPose,
-    disabledLegs = [], sightRange }) {
+    disabledLegs = [], sightRange, brain = null }) {
     this.policy = policy;
     this.sightVersion = sightVersion;
     this.contactVersion = contactVersion;
+    this.modelStep = brain?.modelStep ?? MODEL_STEP;
     this.env = new FrozenJunkyardEnv({ raster: world.raster, sight: sightPose ? world.sight : null, contact,
-      position, yaw, target, playerCollision, sightPose, disabledLegs, sightRange });
+      position, yaw, target, playerCollision, sightPose, disabledLegs, sightRange, searchRange: brain?.searchRange });
     this.obs = this.env.initialObservation();
+    this.round1 = null;
+    if (brain?.obsSize === ROUND1_OBS_SIZE) {
+      this.round1 = new Round1Inputs(this.env, { scale: world.raster.scale, eye: brain.eye });
+      this.obs = this.withRound1(this.obs);
+    } else if (brain && brain.obsSize !== OBS_SIZE) {
+      throw new Error(`Unsupported brain: ${brain.obsSize} inputs`);
+    }
     this.memory = null;
     this.action = new Float32Array(2);
     this.info = {};
@@ -90,17 +101,31 @@ export class JunkyardBrainSession {
       env.updateTargetMemory(false);
       const refreshed = new Float32Array(OBS_SIZE);
       refreshed.set(env.observation(), 0);
-      refreshed.set(this.obs.subarray(31), 31);
+      refreshed.set(this.obs.subarray(31, OBS_SIZE), 31);
       this.obs = refreshed;
+      // Round-1 brain: this refresh is the one look per /step that updates I1 (rl/round1_session.py).
+      if (this.round1) {
+        this.round1.see();
+        this.obs = this.withRound1(refreshed);
+      }
     }
     const { action, memory } = await this.policy.act(this.obs, this.memory, env.steps === 0);
     this.action = Float32Array.from(action);
     this.memory = memory;
     const { obs, info } = env.step(this.action);
     if (obs.length !== OBS_SIZE || !obs.every(Number.isFinite)) throw new Error('Invalid checkpoint observation');
-    this.obs = obs;
+    // Round-1: after the move inputs 34-37 keep what the policy was just fed (the next refresh redoes them).
+    this.obs = this.round1 ? this.withRound1(obs, this.obs.subarray(OBS_SIZE)) : obs;
     this.info = info;
     return this.snapshot();
+  }
+
+  // The 34 inputs plus a round-1 brain's inputs 34-37 (computed now unless given).
+  withRound1(obs, extra = this.round1.values()) {
+    const out = new Float32Array(ROUND1_OBS_SIZE);
+    out.set(obs.subarray(0, OBS_SIZE), 0);
+    out.set(extra, OBS_SIZE);
+    return out;
   }
 
   // /sync: game logic moved the Leaper between brain steps (a leap). Port of
@@ -128,7 +153,9 @@ export class JunkyardBrainSession {
     if (env.sight) env.sightPose = sightPose;
     env.updateTargetMemory(false);
     env.updateCoverage();
-    const refreshed = new Float32Array(OBS_SIZE);
+    // Round-1 brains keep inputs 34-37 too: a sync is no new sighting for I1, and the next
+    // /step's refresh recomputes I1/I2 before the policy sees them.
+    const refreshed = new Float32Array(this.obs.length);
     refreshed.set(env.observation(), 0);
     refreshed.set(this.obs.subarray(31), 31);
     this.obs = refreshed;
@@ -154,7 +181,7 @@ export class JunkyardBrainSession {
       sight_version: this.sightVersion, sight: env.sightDebug,
       sight_visible: Boolean(visible), sight_mode: env.sight ? 'eye' : 'legacy',
       contact_version: this.contactVersion,
-      step: env.steps, model_step: MODEL_STEP, distance: env.distance(),
+      step: env.steps, model_step: this.modelStep, distance: env.distance(),
       collision: Boolean(this.info.collision), collisionPart: this.info.collisionPart ?? null,
       target_visible: Boolean(env.targetVisible), target_ever_seen: Boolean(env.targetEverSeen),
       throttle: this.action[0], turn: this.action[1],
@@ -169,8 +196,10 @@ export class JunkyardBrainSession {
 // loadWorld(width) -> Promise<{ raster, sight }>; tokens identify sessions like
 // the server's uuid tokens, and at most 8 sessions are kept (oldest dropped).
 export class JunkyardBrainCore {
-  constructor({ policy, loadWorld, contact, eyeVision, policySha256, maxSessions = 8 }) {
+  // brain: null for today's brain, or a round-1 brain's { obsSize, modelStep, searchRange, eye }.
+  constructor({ policy, loadWorld, contact, eyeVision, policySha256, maxSessions = 8, brain = null }) {
     this.policy = policy;
+    this.brain = brain;
     this.loadWorld = loadWorld;
     this.contact = contact;
     this.eyeVision = eyeVision;
@@ -195,6 +224,7 @@ export class JunkyardBrainCore {
       disabledLegs: this.disabledLegs(data),
       // The game's longer sight; leave it out for the trained one (the fixtures do).
       sightRange: Number(data.sight_range) > 0 ? Number(data.sight_range) : undefined,
+      brain: this.brain,
     });
     if (this.sessions.size >= this.maxSessions) this.sessions.delete(this.sessions.keys().next().value);
     this.counter += 1;

@@ -1,0 +1,62 @@
+{
+ "scenarios": {
+  "r1-eye-5.5-brain": {
+   "file": "r1-eye-5.5-brain.json",
+   "width": 5.5,
+   "sight_mode": "eye",
+   "summary": {
+    "steps": 500,
+    "hidden_before_seen": 4,
+    "visible": 409,
+    "hidden_with_memory": 87,
+    "collisions": {
+     "player": 49
+    },
+    "reverse": 96,
+    "caught": 10,
+    "partial_eye": 1,
+    "moved": 16.1,
+    "not_there": 0,
+    "note_changes": 152,
+    "note_nonzero": 213
+   },
+   "bytes": 1631020
+  },
+  "r1-scripted-spin-5.5": {
+   "file": "r1-scripted-spin-5.5.json",
+   "width": 5.5,
+   "sight_mode": "eye",
+   "summary": {
+    "steps": 360,
+    "hidden_before_seen": 20,
+    "visible": 227,
+    "hidden_with_memory": 113,
+    "collisions": {},
+    "reverse": 30,
+    "caught": 0,
+    "partial_eye": 1,
+    "moved": 4.84,
+    "not_there": 64,
+    "note_changes": 66,
+    "note_nonzero": 174
+   },
+   "bytes": 656515
+  }
+ },
+ "format": "leaper-junkyard-fixture-v1",
+ "brain_id": "leaper_r1_10002464",
+ "model_step": 10002464,
+ "policy_sha256": "f55de4546118390349dc2b6f6298af9a4c40a47762025e74f343e4efad55b048",
+ "onnx_sha256": "4280d9793c11d1aa450e840b06d46dcd90981d15030922352d7ec4bc8b54a826",
+ "collision_sha256": "7f112b0d22545af926ead5b41d5f4539e4760d3f372ca2e4baf4ac357acbcb6a",
+ "glb_sha256": "18e27881da11825923767445755eb5a7ee403bd69b287327518691ca142c845e",
+ "sight_range": 72.54545454545455,
+ "round1_inputs": {
+  "file": "round1-inputs-5.5.json",
+  "rounds": 2,
+  "records": 2002,
+  "not_there": 555,
+  "visible": 460,
+  "bytes": 834032
+ }
+}

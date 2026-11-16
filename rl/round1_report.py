@@ -21,8 +21,9 @@ RUN_A = dict(H1_clear_shot=0.75, H2_first_shot_median_s=15.1, H3_stuck_or_frozen
 TODAY = dict(H1_clear_shot=0.77, H2_first_shot_median_s=15.5, H3_stuck_or_frozen=0.28,
              H4_checks_hiding_spot=0.04, H5_touch=0.15)
 REFERENCE = {"F3": "A", "F1": "F3", "F7": "F3", "FUSE": "F7", "W7": "F7",
-             "F7R6": "F7", "F7B1": "F7", "F7R6B1": "F7", "F7HIDE": "F7", "F7R4": "F7", "F7GL": "F7"}
-ORDER = ("F3", "F1", "F7", "FUSE", "W7", "F7R6", "F7B1", "F7R6B1", "F7HIDE", "F7R4", "F7GL")
+             "F7R6": "F7", "F7B1": "F7", "F7R6B1": "F7", "F7HIDE": "F7", "F7R4": "F7", "F7GL": "F7",
+             "F7GLE": "F7GL", "F7GLS": "F7GL", "F7GLS0": "F7GL", "F7GLSL": "F7GLS", "F7GLSD": "F7GLS", "F7GLSDL": "F7GLSD", "F7GLSDX": "F7GLSD", "F7GLSDW": "F7GLSD", "F7GLSDP": "F7GLSD"}
+ORDER = ("F3", "F1", "F7", "FUSE", "W7", "F7R6", "F7B1", "F7R6B1", "F7HIDE", "F7R4", "F7GL", "F7GLE", "F7GLS", "F7GLS0", "F7GLSL", "F7GLSD", "F7GLSDL", "F7GLSDX", "F7GLSDW", "F7GLSDP")
 KEYS = ("H1_clear_shot", "H2_first_shot_median_s", "H3_stuck_or_frozen", "H4_checks_hiding_spot", "H5_touch")
 SHORT = dict(zip(KEYS, ("H1 shot", "H2 secs", "H3 stuck", "H4 hide", "H5 touch")))
 

@@ -3,9 +3,9 @@ import { lerpAngle, wrapAngle } from '../core/angles.js';
 import { FixedStep } from '../core/GameLoop.js';
 import { COMBAT } from '../config/combat.js';
 import { ENCOUNTER } from '../config/encounter.js';
-import { BRAIN_PROVIDERS, brainProviderOrder, createBrainProvider, describeProgress } from '../brain/BrainProvider.js';
+import { BRAIN_PROVIDERS, brainProviderOrder, createBrainProvider, describeProgress, optInBrainFolder } from '../brain/BrainProvider.js';
 import { HttpBrainProvider, brainServiceUrl, DEFAULT_BRAIN_URL } from '../brain/HttpBrainProvider.js';
-import { OnnxBrainProvider } from '../brain/junkyard/OnnxBrainProvider.js';
+import { OnnxBrainProvider, defaultBrainBaseUrl } from '../brain/junkyard/OnnxBrainProvider.js';
 import { STEP_OVER_PROPS } from '../world/stepOverProps.js';
 
 // The brain service's address helpers live with the HTTP provider now; they are
@@ -47,12 +47,15 @@ export const BRAIN_TURRET_LABEL = 'BRAIN OFFLINE · TURRET MODE';
 
 // The brain the game uses: the saved network in this page (ONNX in a worker)
 // first, the local Python service if that cannot load, then turret mode.
-// ?brain=http / onnx / turret picks another order (see brainProviderOrder).
+// ?brain=http / onnx / turret picks another order (see brainProviderOrder);
+// ?brain=leaper_r1_<steps> plays that opt-in retrained brain in the page instead.
 export function createGameBrainProvider({ search = globalThis.location?.search ?? '' } = {}) {
+  const folder = optInBrainFolder(search);
   return createBrainProvider({
     order: brainProviderOrder(search),
     factories: {
-      onnx: () => new OnnxBrainProvider({ stepOver: STEP_OVER_PROPS }),
+      onnx: () => new OnnxBrainProvider({ stepOver: STEP_OVER_PROPS,
+        ...(folder ? { baseUrl: defaultBrainBaseUrl(folder) } : {}) }),
       http: () => new HttpBrainProvider({ url: brainServiceUrl({ search }) }),
     },
   });
@@ -174,10 +177,17 @@ export class JunkyardBrain {
     };
   }
 
-  // Refuse a brain that is not the approved one, or a service that predates
-  // the contact / eye-vision rules this game sends.
+  // An opt-in round-1 brain's brain.json (38 inputs), when that is what loaded; else null.
+  optInManifest() {
+    const manifest = this.provider?.active?.manifest ?? this.provider?.manifest;
+    return manifest?.obs_size === 38 && Number.isInteger(manifest.num_timesteps) ? manifest : null;
+  }
+
+  // Refuse a brain that is not the approved one (or the opt-in brain the page loaded),
+  // or a service that predates the contact / eye-vision rules this game sends.
   checkIdentity(frame) {
-    if (frame.model_step !== 7757824 || !frame.policy_sha256) throw new Error('Unexpected checkpoint identity');
+    const expected = this.optInManifest()?.num_timesteps ?? 7757824;
+    if (frame.model_step !== expected || !frame.policy_sha256) throw new Error('Unexpected checkpoint identity');
     if (this.target.isPlayer && frame.contact_version !== contact.version) throw new Error('Restart the brain service to enable player collision');
     if (this.playtest.sight && frame.sight_version !== this.playtest.sight.version) throw new Error('Restart the brain service to enable eye-level vision');
   }
@@ -233,7 +243,8 @@ export class JunkyardBrain {
       this.playtest.sight?.show(frame);
       this.ready = true;
       this.offline = false;
-      this.label = 'BRAIN 7,757,824';
+      this.brainName = this.optInManifest()?.label ?? 'BRAIN 7,757,824';
+      this.label = this.brainName;
       // 3. Say what fits the moment: a run already going is not told to "Start Run",
       //    and a pause keeps its own "click to resume" instructions.
       if (!this.playtest.paused) {
@@ -574,7 +585,7 @@ export class JunkyardBrain {
     // With soft restarts on, the status line also counts the brain's episodes.
     const episode = this.softRestart?.enabled && this.episodes > 1 ? ` // EPISODE ${this.episodes}` : '';
     return {
-      label: this.ready ? ['BRAIN 7,757,824', where, mode].filter(Boolean).join(' · ') : loading,
+      label: this.ready ? [this.brainName ?? 'BRAIN 7,757,824', where, mode].filter(Boolean).join(' · ') : loading,
       status: `LIVE TRAINED BRAIN // ${mode}${this.frame?.collision ? ' // CONTACT' : ''}${episode} // STEP ${this.frame?.step || 0}`,
     };
   }

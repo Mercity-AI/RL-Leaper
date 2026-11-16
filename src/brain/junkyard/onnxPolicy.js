@@ -1,5 +1,5 @@
-// The saved Leaper brain (public/brains/leaper_7757824/actor.onnx) run by
-// onnxruntime. The file holds only the deterministic "actor": 34 inputs plus
+// The saved Leaper brain (public/brains/leaper_7757824/actor.onnx, or an opt-in round-1
+// brain's 38-input file) run by onnxruntime. The file holds only the deterministic "actor": 34 inputs plus
 // the LSTM memory in, the clipped [throttle, turn] action plus new memory out.
 // scripts/export_brain_onnx.py made it and proved it matches the checkpoint.
 
@@ -27,7 +27,7 @@ export class OnnxPolicy {
     const fresh = episodeStart || !memory;
     const { Tensor } = this.ort;
     const result = await this.session.run({
-      obs: new Tensor('float32', Float32Array.from(obs), [1, 34]),
+      obs: new Tensor('float32', Float32Array.from(obs), [1, obs.length]),
       h: new Tensor('float32', fresh ? this.zero : memory.h, [1, 1, HIDDEN]),
       c: new Tensor('float32', fresh ? this.zero : memory.c, [1, 1, HIDDEN]),
     });

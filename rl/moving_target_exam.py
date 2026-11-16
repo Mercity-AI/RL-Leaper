@@ -37,7 +37,8 @@ def _frame(env, info, action=None, reward=0.0):
         reward=round(float(reward), 4))
 
 
-def run_exam(model, env_fn, seeds, prefix, record_seeds=(), progress=None):
+def run_exam(model, env_fn, seeds, prefix, record_seeds=(), progress=None, deterministic=True):
+    """``deterministic=False`` samples the brain's moves (2026-11-16: the game plays the average move)."""
     rows, replays = [], []
     record_seeds = set(record_seeds)
     policy = model.policy
@@ -52,7 +53,7 @@ def run_exam(model, env_fn, seeds, prefix, record_seeds=(), progress=None):
         state = None
         for step in range(metrics.cap):
             action, state = model.predict(obs, state=state, episode_start=np.array([step == 0]),
-                                          deterministic=True)
+                                          deterministic=deterministic)
             obs, reward, terminated, truncated, info = env.step(action)
             row = metrics.step(env, action, reward, terminated, truncated, info)
             if frames is not None:
