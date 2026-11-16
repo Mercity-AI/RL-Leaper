@@ -176,12 +176,16 @@ tried in the game **without touching today's brain**, which stays the default:
 
     http://localhost:5173/?brain=leaper_r1_10002464      (pnpm dev; the folder's name)
     http://localhost:5173/?brain=leaper_r1_4005904       (same run at 4M: smoother chase, see below)
+    http://localhost:5173/?brain=leaper_r1_7004176       (4M + 3M with a backing-up charge, see below)
 
 `?brain=` takes the folder name under `public/brains/` (strict pattern `leaper_r1_<digits>`).
 Two round-1 brains ship (2026-11-17), both from run F7GLSDP and both opt-in: `leaper_r1_10002464` (try 1 @10M,
 the pick: stuck 4-5% vs today's 18-20%, best at finding her again) and `leaper_r1_4005904` (try 2 @4M: stuck 8-9%,
 chases like today's brain; the 10M brain learned a forward/back shuffle between 4M and 10M that halves how far its
-walking actually closes on her). Details: rl_artifacts/moving_target_round1_20261115/TODO.md (in the Hugging Face bucket).
+walking actually closes on her). Third (2026-11-17 04:10 IST): `leaper_r1_7004176` = F7GLSDP4C try 2 @7M, the 4M brain trained 3M more steps on
+the same practice plus a charge for backing up when nothing is in the way (rl/round1_env.py reverse_cost): chases like
+today's brain, walks to where it lost her nearly as well as the 10M brain, clear shot 77-79%, stuck ~11% (600 rounds).
+Details: rl_artifacts/moving_target_round1_20261115/TODO.md (in the Hugging Face bucket).
 It runs in the page only: the Python server only has today's brain, so it is never a
 fallback (if the folder cannot load, the game goes to turret mode and says why). The badge
 reads `BRAIN R1 10,002,464 · ONNX · IN BROWSER · …` (brain.json `label`). The OPTIONS brain
