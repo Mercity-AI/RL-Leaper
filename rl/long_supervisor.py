@@ -45,7 +45,7 @@ TOTALS = {"F7GLSDR": 12_001_280, "F7GLSDN": 12_001_280, "F7GLSDRN": 12_001_280,
           # 02:32 IST: G10 on the free cores, with an early stop (yard stuck > 12% or still < 0.94 at 10.5M/11M).
           "F7GLSDPG10": 12_001_280,
           # 03:15 IST: from the pick line's own 4M (per try) back to 10M, reverse charge on from the start.
-          "F7GLSDP4C": 10_002_432, "F7GLSDP4T": 10_002_432, "F7GLSDP4L": 10_002_432}   # 00:23 IST: reverse charge, two doses   # 23:58 IST: approach-speed spin-off of the pick; 00:10 IST (user: kill
+          "F7GLSDP4C": 14_008_320, "F7GLSDP4T": 10_002_432, "F7GLSDP4L": 10_002_432}   # 04:21 IST: 4C (try 2 only) extended to 14M (user: keep scaling it)   # 00:23 IST: reverse charge, two doses   # 23:58 IST: approach-speed spin-off of the pick; 00:10 IST (user: kill
           # every other run, scale this one) -> 18M with its worlds in parallel processes
 FLAGS = ["--practice-every", "1000000", "--yard-every", "500000"]
 # 23:20 IST (user: only one experiment is scaling, use the free cores): its practice worlds run in parallel processes.
