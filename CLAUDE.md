@@ -419,6 +419,13 @@ it shows the pill and the bullet in yellow and in blue.
 
 ## RL lab
 
+**New game brains (2026-11-17), all opt-in by address; today's brain stays the default.**
+Full table and work log: `docs/LEAPER_BRAINS_WORKLOG_2026-11-17.md`.
+- `?brain=leaper_r1_7004176` (run `F7GLSDP4C` @7M): try first for the chase. It closes in on her as smoothly as today's brain; stuck 11% (today 19%); best clear shot 78%.
+- `?brain=leaper_r1_10002464` (run `F7GLSDP` @10M): best search and fewest stuck rounds (4.8%), but it shuffles back and forth while chasing.
+- `?brain=leaper_r1_4005904` (run `F7GLSDP` @4M): the middle ground, chases like today's brain, stuck 8%.
+- Not solved: in the open yard the 4M/7M brains back away from where she vanished; only the 10M brain matches today's brain there.
+
 **Round 1/2 retrain (2026-11-15):** start at `docs/ROUND1_STATUS_2026-11-15.md`.
 Code in `rl/round1_*.py`, `rl/round2_brain.py`, `rl/fast_sim.py`,
 `rl/fast_kernels.py` (exact ~5x faster yard simulation), `rl/window_*.py`,
