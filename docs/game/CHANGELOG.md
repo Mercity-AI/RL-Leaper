@@ -3,6 +3,19 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-11-17: scrap signs on the title and the end
+
+### For players
+
+- **A new title screen.** LEAPER is sprayed in orange on a steel sign hanging from two
+  long chains, swinging gently left and right the whole time. The menu items are metal
+  tags hanging one below another from it (PLAY painted yellow); the one you move to
+  gets a small knock. The keyboard, a gamepad and touch work as before.
+- **A new end screen.** YOU WIN or YOU LOSE is spray-painted on a rusty steel sign that
+  drops from above on two chains, catches with a jolt and sways to rest. Its numbers
+  are painted on it, and RESTART and TITLE are metal tags hanging underneath (the
+  keyboard, a gamepad and touch work as before).
+
 ## 2026-11-04: a quieter health panel, calmer panting, the van on its side
 
 ### For players

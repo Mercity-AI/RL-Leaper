@@ -1,6 +1,8 @@
 import '../styles/ui/screens.css';
 import { ScreenStack, SUB_SCREENS, TAG_NOTES, brainNotice, endSummary, menuItems } from './screens.js';
 import { PAD_AXES } from '../input/actions.js';
+import { ScrapSign } from './ScrapSign.js';
+import { TitleSign } from './TitleSign.js';
 
 // The game's menu screens on top of the game state (GameFlow): the TITLE in
 // Ready, the PAUSE menu while Paused, the END screen once the fight is decided,
@@ -84,9 +86,15 @@ export class GameScreens {
       screen.body.insertAdjacentHTML('beforeend', '<nav class="menu" aria-label="Main menu"></nav>'
         + '<p class="screen-notice" data-brain-notice hidden></p>'
         + (this.hint ? `<p class="screen-hint">${escape(this.hint)}</p>` : ''));
+      // LEAPER on a hanging steel sign, the menu items as tags under it (owner,
+      // 2026-11-17). The heading and tagline above stay for screen readers.
+      this.titleSign = new TitleSign(screen.element);
     } else if (name === 'end') {
       screen.body.insertAdjacentHTML('beforeend', '<p class="end-line" data-end-line></p><ul class="end-tags" data-end-tags></ul>'
         + '<dl class="end-stats" data-end-stats></dl><nav class="menu" aria-label="After the fight"></nav><p class="end-notes" data-end-notes></p>');
+      // The result on a falling scrap sign, its menu items as tags under it
+      // (owner, 2026-11-17). The text above stays for screen readers.
+      this.sign = new ScrapSign(screen.element);
     } else {
       screen.body.insertAdjacentHTML('beforeend', '<nav class="menu" aria-label="Pause menu"></nav>');
     }
@@ -112,6 +120,8 @@ export class GameScreens {
     screen.body.querySelector('[data-end-stats]').innerHTML = summary.stats
       .map(({ label, value }) => `<div><dt>${escape(label)}</dt><dd>${escape(value)}</dd></div>`).join('');
     screen.body.querySelector('[data-end-notes]').textContent = summary.tags.map((tag) => TAG_NOTES[tag]).join(' ');
+    this.sign?.show({ win: summary.victory, heading: summary.heading, line: summary.line.replace(/\.$/, '').toUpperCase(), stats: summary.stats },
+      screen.body.querySelectorAll('.menu .menu-item'), this.result);
     return summary;
   }
 
@@ -175,12 +185,15 @@ export class GameScreens {
     this.root.dataset.screen = current ?? '';
     for (const [name, { element }] of this.screens) element.hidden = name !== current;
     for (const [name, definition] of this.definitions) if (definition.built) definition.built.element.hidden = name !== current;
+    if (current !== 'end') this.sign?.hide();
+    if (current !== 'title') this.titleSign?.hide();
     if (current === null) {
       // Closing: nothing in the menu keeps focus (Enter must never re-trigger it).
       if (this.root.contains(document.activeElement)) document.activeElement.blur();
       return;
     }
     if (this.screens.has(current)) this.renderMenu(current);
+    if (current === 'title') this.titleSign?.show(this.screens.get('title').body.querySelectorAll('.menu .menu-item'));
     if (current === 'end') this.renderEnd();
     if (this.definitions.has(current)) {
       this.subScreen(current).element.hidden = false;
@@ -353,6 +366,8 @@ export class GameScreens {
 
   // The session is over: the screens leave the page.
   dispose() {
+    this.sign?.dispose();
+    this.titleSign?.dispose();
     this.root.remove();
   }
 }

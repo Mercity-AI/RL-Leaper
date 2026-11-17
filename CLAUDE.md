@@ -392,6 +392,30 @@ it shows the pill and the bullet in yellow and in blue.
   it out of 100 (`lolaHealthShown`; owner: "120 looks weird, we are upping the
   value of 100, not the number"): a bolt shows as about 7, DAMAGE TAKEN too.
   The low-health warning moved with it to 24 real (still 20%).
+- **End screen: the scrap sign (owner, 2026-11-17):** picked from five ideas
+  (`previews/end-screen.html`; motion preview `previews/scrap-sign-drop.html`). A rusty
+  steel sheet, the result spray-painted on (red with drips for a loss, cream for a win)
+  with the line and the four numbers, drops on two chains, catches, sways about 2 s and
+  rests a little crooked; RESTART / TITLE are hanging metal tags. Real physics
+  (`src/ui/scrapSign/ScrapSignPhysics.js`), numbers in `src/config/scrapSign.js`. Owner
+  tuning: the tags swing calmly (were about 40 degrees, now about 10), the rust is a
+  lighter red-brown (first one "way too dark"; never yellow), and the painted middle
+  rusts less so the words read. The rust is made in a worker at load
+  (`plateWorker.js`); the real buttons are invisible and laid over the tags every frame
+  (`src/ui/ScrapSign.js`). Font: Black Ops One (SIL OFL, `assets/fonts/`, credited).
+  The owner may call it "the end screen" or "the win / lose screen".
+- **Title screen: the hanging sign (owner, 2026-11-17):** design A of
+  `previews/title-screen.html` (B and C stay there). LEAPER sprayed orange on a sign of
+  the tags' clean steel (the heavily rusted one "looked tacky"), then "a little more
+  dirt", 15% (rust 0.69, edge rust 0.138, grime 15%), the tagline in dark stamped
+  letters; the menu items are tags hanging one below another (PLAY yellow, less rust
+  than the end screen's so the words read; EXPLORE's hint on its tag). It never drops
+  in: it swings gently on two long chains, real physics (a 600-unit pendulum kept at 12
+  units each way, tags feeling 0.6 of their hanging point's jolts; a first, made-up sway
+  "looked weird"), warmed up 12 s so it opens already swaying; the tag you move to
+  gets a small knock. `src/ui/TitleSign.js`, `src/ui/scrapSign/TitleSignMotion.js`,
+  `titlePictures.js`, numbers in `src/config/titleSign.js`; same invisible buttons over
+  the tags as the end screen. Test: `tests/title-sign.test.js`.
 - **End words (owner, 2026-11-04):** YOU WIN / YOU LOSE on the end screen
   (`endSummary` in `src/ui/screens.js`) and the fight-screen banner (`resultText` in
   `src/game/Encounter.js`); were VICTORY / DEFEAT and LEAPER / LOLA DEFEATED.
@@ -412,7 +436,9 @@ it shows the pill and the bullet in yellow and in blue.
   fail: the weak-point shot in `tests/browser-combat.js`, the stomp set-up in
   `tests/leaper-behaviour.js` (it places Lola from the Leaper's spot before a
   reset, and each reset now picks a new random start), and the loading-progress check in
-  `tests/brain-game.html`.
+  `tests/brain-game.html`. `tests/game-flow.browser.mjs` and `tests/hud-layout.browser.mjs`
+  (seen 2026-11-17) still step to EXPLORE on the player's title, which players no
+  longer get (2026-10-22), so they stop there before the end screen.
 - **History:** `docs/How-the-Leaper-Works.pdf` was pushed by mistake and then
   removed; it is still in the branch history. The owner keeps it locally and
   does not want it in the repository.

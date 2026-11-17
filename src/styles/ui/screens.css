@@ -20,9 +20,23 @@ body.touch-controls-on .screens-root[data-base="pause"] { bottom: var(--touch-ba
 .screen-body { display: flex; flex-direction: column; gap: var(--gap-m); min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 .screen-footer { flex: none; }
 
-/* The title: the game's name, big. */
-.screen[data-screen="title"] { width: min(440px, 100%); padding-left: clamp(0px, 4vw, 48px); }
-.screen[data-screen="title"] .screen-heading { color: var(--c-accent); font-size: var(--font-title); letter-spacing: 0.22em; line-height: 1; text-shadow: 0 2px 24px #000a; }
+/* The title: the hanging sign (owner, 2026-11-17). src/ui/TitleSign.js draws
+   LEAPER on a steel sign and the menu items as tags under it on a canvas filling
+   the screen; the menu's buttons are laid over the tags (placed every frame),
+   invisible but for the focus ring. The heading and tagline stay in the page for
+   screen readers only; the brain notice and the small print stay at the bottom. */
+.screens-root .screen[data-screen="title"] { position: fixed; inset: 0; width: auto; max-height: none; padding: 0; }
+.title-sign { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.screen[data-screen="title"] .screen-header { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.screen[data-screen="title"] .screen-body { position: absolute; inset: 0; justify-content: flex-end; align-items: flex-start; overflow: visible; padding: 0 var(--gap-xl) calc(var(--hud-edge-bottom) + var(--gap-l)) clamp(16px, 3vw, 40px); pointer-events: none; }
+.screen[data-screen="title"] .screen-notice,
+.screen[data-screen="title"] .screen-hint { max-width: min(440px, 100%); }
+.screen[data-screen="title"] .menu { position: absolute; inset: 0; display: block; }
+.screen[data-screen="title"] .menu-item { position: absolute; left: 0; top: 0; width: auto; min-height: 0; padding: 0; border: 0; background: transparent; color: transparent; transform-origin: 0 0; transform: translate(-10000px, 0); pointer-events: auto; }
+.screen[data-screen="title"] .menu-item small { color: transparent; }
+.screen[data-screen="title"] .menu-item:hover,
+.screen[data-screen="title"] .menu-item:focus-visible { background: transparent; border-color: transparent; }
+.screen[data-screen="title"] .menu-item:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 3px; }
 .screen-notice { margin: 0; padding: var(--gap-s) var(--gap-m); border-left: 3px solid var(--c-warn); background: #ffb3471a; color: var(--c-text); font-size: var(--font-s); }
 .screen-notice[hidden] { display: none; }
 .screen-hint { margin: 0; color: var(--c-text-dim); font-size: var(--font-s); }
@@ -44,23 +58,26 @@ body.touch-controls-on .screens-root[data-base="pause"] { bottom: var(--touch-ba
 .menu-primary:hover,
 .menu-primary:focus-visible { background: #f05a33; }
 .menu-back { align-items: center; text-align: center; }
-/* The title's menu: short buttons with big words (owner, 2026-10-22). */
-.screen[data-screen="title"] .menu { width: min(260px, 100%); }
-.screen[data-screen="title"] .menu-item { min-height: 52px; padding: var(--gap-s) var(--gap-l); font-size: var(--font-xl); letter-spacing: 0.16em; }
 
-/* ---- The end screen ---- */
-.screen[data-screen="end"] .screen-heading { font-size: calc(var(--font-xl) * 1.5); }
-.screen[data-screen="end"][data-victory="true"] .screen-heading { color: var(--c-good); }
-.screen[data-screen="end"][data-victory="false"] .screen-heading { color: var(--c-danger); }
-.end-line { margin: 0; color: var(--c-text); }
-.end-tags { display: flex; flex-wrap: wrap; gap: var(--gap-s); margin: 0; padding: 0; list-style: none; }
+/* ---- The end screen: the scrap sign (owner, 2026-11-17) ----
+   src/ui/ScrapSign.js draws a rusty sign with the result and the numbers on a
+   canvas filling the screen; the menu's buttons are laid over its hanging tags
+   (placed every frame), invisible but for the focus ring. The heading, line and
+   numbers stay in the page for screen readers only. */
+.screens-root .screen[data-screen="end"] { position: fixed; inset: 0; width: auto; max-height: none; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.scrap-sign { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.screen[data-screen="end"] .screen-body { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.screen[data-screen="end"] .screen-header,
+.end-line,
+.end-stats { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.screen[data-screen="end"] .menu { position: absolute; inset: 0; display: block; }
+.screen[data-screen="end"] .menu-item { position: absolute; left: 0; top: 0; min-height: 0; padding: 0; border: 0; background: transparent; color: transparent; transform-origin: 0 0; transform: translate(-10000px, 0); pointer-events: auto; }
+.screen[data-screen="end"] .menu-item:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 3px; }
+/* Practice / turret / debug notes: small print along the bottom. */
+.end-tags { position: absolute; left: 0; right: 0; bottom: calc(var(--hud-edge-bottom) + 28px); display: flex; flex-wrap: wrap; justify-content: center; gap: var(--gap-s); margin: 0; padding: 0; list-style: none; }
 .end-tags:empty { display: none; }
 .end-tags li { padding: 2px var(--gap-s); border: 1px solid var(--c-warn); border-radius: 4px; color: var(--c-warn); font-size: var(--font-s); letter-spacing: 0.15em; }
-.end-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap-s); margin: 0; }
-.end-stats div { padding: var(--gap-s) var(--gap-m); border-radius: 6px; background: #ffffff0d; }
-.end-stats dt { color: var(--c-text-dim); font-size: var(--font-s); letter-spacing: 0.12em; }
-.end-stats dd { margin: 0; font-size: var(--font-l); font-weight: 700; }
-.end-notes { margin: 0; color: var(--c-text-dim); font-size: var(--font-s); }
+.end-notes { position: absolute; left: var(--gap-xl); right: var(--gap-xl); bottom: var(--hud-edge-bottom); margin: 0; color: var(--c-text-dim); font-size: var(--font-s); text-align: center; }
 .end-notes:empty { display: none; }
 
 /* ---- The controls legend (CONTROLS screen and the H overlay) ---- */

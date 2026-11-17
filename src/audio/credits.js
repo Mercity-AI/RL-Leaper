@@ -48,6 +48,8 @@ export const PROJECT_CREDITS = Object.freeze([
     note: "runs the Leaper's trained brain in the browser" }),
   Object.freeze({ title: 'three-mesh-bvh', author: 'Garrett Johnson', licence: 'MIT', sourceUrl: 'https://github.com/gkjohnson/three-mesh-bvh',
     note: 'fast ray tests against the junkyard' }),
+  Object.freeze({ title: 'Black Ops One font', author: 'James Grieshaber and Eben Sorkin (The Black-Ops Project Authors)', licence: 'SIL OFL 1.1',
+    sourceUrl: 'https://fonts.google.com/specimen/Black+Ops+One', note: 'the title and end screen signs\' lettering (licence: assets/fonts/OFL-black-ops-one.txt)' }),
   // The game's own art (provenance: where it came from, for CREDITS.md only).
   Object.freeze({ title: 'Lola, her guns and animations', author: "from the project owner's Blender files", licence: null, sourceUrl: null,
     note: null, provenance: 'original authorship to be confirmed by the owner, see assets/PROVENANCE.md' }),
