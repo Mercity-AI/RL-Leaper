@@ -502,6 +502,9 @@ export class JunkyardBrain {
       const generation = this.generation;
       this.request(preview ? 'sense' : 'step', { token: this.token,
         target: [this.target.mesh.position.x, this.target.mesh.position.z], ...this.contactPayload(),
+        // Held by the behaviour layer during a hunt: the brain's memory of Lola keeps
+        // up (brainSession.sense). Other previews (explore, the title) only look.
+        ...(preview && this.heldBy ? { remember: true } : {}),
         ...(this.playtest.sight ? { sight_pose: this.playtest.sight.pose() } : {}),
       }).then((frame) => {
         if (generation !== this.generation) return;

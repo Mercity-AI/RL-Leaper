@@ -3,7 +3,7 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
-## 2026-11-17: scrap signs on the title and the end
+## 2026-11-17: the Leaper keeps track of Lola while it shoots; scrap signs on the title and the end
 
 ### For players
 
@@ -15,6 +15,9 @@ Newest first.
   drops from above on two chains, catches with a jolt and sways to rest. Its numbers
   are painted on it, and RESTART and TITLE are metal tags hanging underneath (the
   keyboard, a gamepad and touch work as before).
+- **It remembers where you went while it was shooting.** While it stood to shoot,
+  stomped or leapt, its brain stopped noting where Lola was, so after she slipped away
+  it remembered the spot where it had stopped walking. Now it keeps track the whole time.
 
 ## 2026-11-04: a quieter health panel, calmer panting, the van on its side
 

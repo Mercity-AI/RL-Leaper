@@ -75,6 +75,19 @@ it shows the pill and the bullet in yellow and in blue.
   (`JUNKYARD_PROP_COLOURS` in `src/world/junkyardSurfaces.js`, applied over the
   baked texture, so it survives a re-bake as long as the part names stay).
 
+## The brain's memory keeps up while it is held (owner, 2026-11-17)
+
+- While the behaviour layer holds the brain (Engage, stomp, leap, stagger) the game sends
+  `sense` previews, which never touched the brain's memory of Lola: the last-seen spot and
+  its clock froze where the hold began. A held hunt's preview now carries `remember`
+  (`JunkyardBrain.update`, only while `heldBy` is set) and `brainSession.sense` updates the
+  memory as a step does (a sighting moves the spot and restarts the clock, else it ages
+  one step). Not the I1 note of round-1 brains (still per /step). The Python server
+  (`pnpm play`) ignores it. Test: `tests/brain-provider.test.js`, "a held brain keeps".
+- Measured the same day (seen, she slips 1.5-4 units behind cover and crouches): the brain
+  still rarely walks round the cover to her; that is the brain, not this. Next step
+  offered: a scripted walk to where it last saw her, like Investigate.
+
 ## The Leaper's aim lock holds a spot (owner, 2026-11-04)
 
 - Firing as it walks, the Leaper moved about 0.5 map units during the 0.2 s lock and its

@@ -115,3 +115,33 @@ test('provider refuses bad requests with the server\'s messages', async () => {
   await assert.rejects(provider.step({ token: frame.token, ...fixture.steps[0].input }), /Session expired/,
     'a disposed provider starts a fresh worker, so old tokens are gone');
 });
+
+// Owner, 2026-11-17: while the behaviour layer holds the brain (standing to shoot, a
+// stomp, a leap), its memory of Lola must keep up: a plain preview leaves it alone, a
+// `remember` preview ages it while she is hidden and restarts it when she is seen.
+test('a held brain keeps its memory of Lola with remember previews', async () => {
+  const provider = new OnnxBrainProvider({ baseUrl: BASE, createWorker: fakeWorker });
+  const frame = await provider.reset(fixture.reset);
+  let last;
+  for (let k = 0; k <= 10; k += 1) last = await provider.step({ token: frame.token, ...fixture.steps[k].input });
+  assert.equal(last.target_visible, true, 'the brain sees her by step 10');
+  assert.equal(last.memory_age, 0);
+  // Lola far out of sight (beyond its range).
+  const away = { target: [60, 60], sight_pose: { eye: fixture.reset.sight_pose.eye,
+    points: [[60, 1.35, 60], [60, 1.05, 60], [60, 0.88, 60]] } };
+  const plain = await provider.sense({ token: frame.token, ...away });
+  assert.equal(plain.memory_age, 0, 'a plain preview does not touch memory');
+  for (let k = 1; k <= 3; k += 1) {
+    const held = await provider.sense({ token: frame.token, ...away, remember: true });
+    assert.equal(held.target_visible, false);
+    assert.equal(held.memory_age, k, `held preview ${k} ages the memory`);
+  }
+  // In view again (step 11 was recorded from this very pose): seen, clock restarts.
+  const seen = await provider.sense({ token: frame.token, ...fixture.steps[11].input, remember: true });
+  assert.equal(seen.target_visible, true);
+  assert.equal(seen.memory_age, 0);
+  // Stepping carries on from there.
+  const next = await provider.step({ token: frame.token, ...fixture.steps[11].input });
+  assert.equal(typeof next.x, 'number');
+  provider.dispose();
+});

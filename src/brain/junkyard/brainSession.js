@@ -165,10 +165,22 @@ export class JunkyardBrainSession {
   // /sense: paused preview; no policy, no movement, no memory update.
   // The server keeps the validated float64 position here (vector() output), so
   // the preview's sight and distance are computed in float64, not float32.
-  sense(target, sightPose = null) {
-    this.env.target = [Number(target[0]), Number(target[1])];
-    this.env.targetIs64 = true;
-    this.env.sightPose = sightPose;
+  // remember (game only, owner 2026-11-17): the brain is held during a hunt (standing
+  // to shoot, a stomp, a leap, a stagger), so its memory of Lola keeps going as on a
+  // step: a sighting moves the last-seen spot to her and restarts the clock, otherwise
+  // the clock ages one step. Lola is stored as float32 then, like /step. Without it a
+  // hold froze the memory at the spot where the hold began.
+  sense(target, sightPose = null, remember = false) {
+    const env = this.env;
+    env.sightPose = sightPose;
+    if (remember) {
+      env.target = [Math.fround(target[0]), Math.fround(target[1])];
+      env.targetIs64 = false;
+      env.updateTargetMemory(true);
+      return this.snapshot();
+    }
+    env.target = [Number(target[0]), Number(target[1])];
+    env.targetIs64 = true;
     return this.snapshot();
   }
 
@@ -259,7 +271,7 @@ export class JunkyardBrainCore {
     const legs = this.disabledLegs(data);
     const pose = session.env.sight ? checkSightPose(data) : null;
     session.env.disabledLegs = new Set(legs);
-    return session.sense(target, pose);
+    return session.sense(target, pose, data.remember === true);
   }
 
   // /sync: { token, position, yaw, target, sight_pose } (see JunkyardBrainSession.sync).
