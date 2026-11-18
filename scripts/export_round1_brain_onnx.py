@@ -158,9 +158,13 @@ OBSERVATION = json.loads((TODAY / "brain.json").read_text())["observation"] + [
 
 def write_manifest(out, onnx_path, model, args, digest, parity, counts, rounds, n_calls, versions):
     from rl.moving_target import MAP_TO_BRAIN, SPRINT_STEP
-    from rl.moving_target_game_exam import BODY_HEIGHTS, EYE, SIGHT_RANGE
+    from rl.moving_target_game_exam import BODY_HEIGHTS, EYE, REAL_HEIGHTS, REAL_HEIGHTS_MAP, SIGHT_RANGE
     from rl.round1_env import NOT_THERE_RADIUS
     from rl.round1_train import RUNS
+    # real_heights runs (2026-11-18) trained with her sight points at fixed map-unit heights.
+    real = bool(RUNS[args.run]["switches"].get("real_heights"))
+    heights = dict(body_heights_map_units=list(REAL_HEIGHTS_MAP), body_heights_at_5_5=REAL_HEIGHTS) if real else \
+        dict(body_height_shares=[0.9, 0.7, 0.53], body_heights_at_5_5=BODY_HEIGHTS)
     today = json.loads((TODAY / "brain.json").read_text())
     steps = int(model.num_timesteps)
     try:
@@ -177,11 +181,11 @@ def write_manifest(out, onnx_path, model, args, digest, parity, counts, rounds, 
             i1_update="once per /step, at the live sight refresh before inference; never on the look "
                       "after the move, /sync or /sense (rl/round1_session.py)",
             i2="computed from the refreshed state; Lola's true position; eye from eye_offset; "
-               "body points at body_height_shares x 1.7 map units x world scale; range = the "
-               "session's sight_range (the game's 50 map units)",
+               + ("body points at body_heights_map_units x world scale" if real else
+                  "body points at body_height_shares x 1.7 map units x world scale")
+               + "; range = the session's sight_range (the game's 50 map units)",
             sprint_step_map_units_per_step=0.64, sprint_step_at_5_5=SPRINT_STEP,
-            not_there_radius=NOT_THERE_RADIUS, body_height_shares=[0.9, 0.7, 0.53],
-            body_heights_at_5_5=BODY_HEIGHTS, eye_offset=EYE, map_to_brain_at_5_5=MAP_TO_BRAIN,
+            not_there_radius=NOT_THERE_RADIUS, **heights, eye_offset=EYE, map_to_brain_at_5_5=MAP_TO_BRAIN,
             sight_range_at_5_5=SIGHT_RANGE),
         # Training swept search coverage (inputs 26-30) at the trained 28 units while seeing Lola
         # out to 50 map units (GameExamEnv overrides only the target sensor); the browser keeps that.

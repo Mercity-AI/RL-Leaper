@@ -44,7 +44,7 @@ def brains(campaign, at):
     return found
 
 
-def yard_job(name, model_path, run, out, deterministic):
+def yard_job(name, model_path, run, out, deterministic, real_heights=False):
     import numpy as np
     import torch
     torch.set_num_threads(1)
@@ -54,6 +54,8 @@ def yard_job(name, model_path, run, out, deterministic):
     from rl.round1_job import headline, load_model
     from rl.round1_train import input_switches
     inputs = {} if run in ("today", "A") else input_switches(run)
+    if real_heights:
+        inputs = dict(inputs, real_heights=True)
     probe = lambda: Round1YardEnv(SEEDS[0], **inputs)   # noqa: E731
     if run == "today":
         from rl.moving_target_brain import load_frozen_predictor
@@ -119,6 +121,8 @@ def main():
     parser.add_argument("--run")
     parser.add_argument("--model")
     parser.add_argument("--out")
+    parser.add_argument("--real-heights", action="store_true",
+                        help="--job: her sight points at 1.25/1.03/0.81 map units (rl/round1_env.py SIGHT), for any brain")
     parser.add_argument("--first-seed", type=int, default=80000,
                         help="300 rounds from this seed (81000: the confirmation set, 2026-11-16)")
     args = parser.parse_args()
@@ -126,7 +130,8 @@ def main():
         global SEEDS
         SEEDS = list(range(args.first_seed, args.first_seed + 300))
         out = Path(args.out)
-        row = yard_job(args.name, None if args.model == "-" else args.model, args.run, out, args.job == "yard")
+        row = yard_job(args.name, None if args.model == "-" else args.model, args.run, out, args.job == "yard",
+                       real_heights=args.real_heights)
         with (out / "results.jsonl").open("a") as stream:
             stream.write(json.dumps(row) + "\n")
         print(json.dumps(row), flush=True)

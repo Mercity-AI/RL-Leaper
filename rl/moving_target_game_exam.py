@@ -35,6 +35,11 @@ START_FACING = False   # 2026-11-16 search drill (rl/round1_env.py drill_share):
 EYE = [0.0, 2.38, 1.156]
 # Lola's head, chest and hips heights: shares of her 1.7 map-unit height, in brain units.
 BODY_HEIGHTS = [h * 1.7 * MAP_TO_BRAIN for h in (0.9, 0.7, 0.53)]
+# real_heights (designer, 2026-11-18): her three sight points at 1.25, 1.03 and 0.81 map units
+# instead of 0.9/0.7/0.53 x 1.7 (1.53, 1.19, 0.90): lower, so low junk hides her as in the game.
+# A per-environment switch (GameExamEnv real_heights=True); off keeps every old number exact.
+REAL_HEIGHTS_MAP = (1.25, 1.03, 0.81)
+REAL_HEIGHTS = [h * MAP_TO_BRAIN for h in REAL_HEIGHTS_MAP]
 LEAPER_CLEARANCE = 3.5   # open-floor margin when picking its start (legs reach 3.24 + 0.24)
 
 _CACHE = {}
@@ -54,14 +59,25 @@ def yard(fast=True):
 
 
 class GameExamEnv(MovingTargetMixin, FastFrontierMixin, JunkyardEnv):
-    def __init__(self, seed, new_inputs=False, kind=None, fast=True):
-        geometry, sight, world, grid = yard(fast)
+    def __init__(self, seed, new_inputs=False, kind=None, fast=True, real_heights=False, site=None):
+        # site (2026-11-18, rl/hide_arena.py build_site): another world built like the yard; None = the yard.
+        if site is None:
+            geometry, sight, world, grid = yard(fast)
+        else:
+            geometry, sight, world, grid = site["geometry"], site["sight"], site["world"], site["grid"]
+        self._site = site
         self.FAST_SIM = fast
+        # Set before JunkyardEnv.__init__, whose first sight test already uses _points.
+        self.real_heights = bool(real_heights)
+        self.body_heights = REAL_HEIGHTS if real_heights else BODY_HEIGHTS
         rng = np.random.default_rng((int(seed), 4112026))
         # Computed once (setdefault would rebuild it, ~8,000 disc tests, every round).
-        if "leaper_open" not in _CACHE:
-            _CACHE["leaper_open"] = self._leaper_spots(geometry, grid)
-        leaper_grid = _CACHE["leaper_open"]
+        if site is not None:
+            leaper_grid = site["leaper_open"]
+        else:
+            if "leaper_open" not in _CACHE:
+                _CACHE["leaper_open"] = self._leaper_spots(geometry, grid)
+            leaper_grid = _CACHE["leaper_open"]
         for _ in range(1000):
             position = leaper_grid[rng.integers(len(leaper_grid))]
             spots = grid.open_centres
@@ -89,9 +105,10 @@ class GameExamEnv(MovingTargetMixin, FastFrontierMixin, JunkyardEnv):
         spots = grid.open_centres
         return spots[[not geometry.disk_blocked(p, LEAPER_CLEARANCE) for p in spots]]
 
-    @staticmethod
-    def _points(target):
-        return [[float(target[0]), h, float(target[1])] for h in BODY_HEIGHTS]
+    def _points(self, target):
+        """Lola's head, chest and hips standing on ``target`` (this environment's heights)."""
+        heights = getattr(self, "body_heights", BODY_HEIGHTS)
+        return [[float(target[0]), h, float(target[1])] for h in heights]
 
     def _target_sensor(self):
         """JunkyardEnv's eye sight, with the game's 50 map-unit range."""

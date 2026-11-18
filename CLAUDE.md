@@ -458,6 +458,24 @@ it shows the pill and the bullet in yellow and in blue.
 
 ## RL lab
 
+**Hide retrain (2026-11-18/19): no new game brain.** Goal (designer): when Lola ducks behind cover close
+by, the Leaper walks to where it last saw her and finds her. Work log with every number:
+`docs/HIDE_RETRAIN_WORKLOG_2026-11-18.md`; plan and pre-registered expectations:
+`docs/HIDE_RETRAIN_PLAN_2026-11-18.md`. Results in the HF bucket, folder `leaper_hide_retrain_20261118/`.
+- Findings: in practice she always came back out, so waiting paid. Every brain, today's included, walks to
+  where she vanished only 2-5% of the time; circling finds her about as fast in the yard. In the designer's
+  case (she ducks behind junk in front of it) today's brain re-finds her within 3 s 83%, the 9M brain 74%.
+- 12 experiments from `run_F7GLSDP4C_try2/model_9003040.zip`, +2M, 2 seeds each: real sight heights, staged
+  hide scenes (yard and random arenas), "she stays until found", and a gated reward that pays strongly for
+  walking toward where she ducked. Best effect: moving away from the spot fell 37% -> 32%; re-finding her
+  and walking to the spot did not improve. Safety checks held everywhere.
+- New switches (off by default, old numbers exact): `real_heights`, `stay_found`, `ducked_*`, hide scenes
+  (`rl/hide_scenes.py`), hide arena (`rl/hide_arena.py`). Exams: `rl/hide_exam.py`, `rl/seek_metrics.py`,
+  `rl/chase_check.py`; table: `python -m rl.hide_report`.
+- Next step offered: deep cover on every duck in ordinary practice (so circling cannot find her) + the x3.3
+  gated pay. Game side, still open: `src/brain/junkyard/round1Inputs.js` has the old sight heights.
+- This container runs on 16 of the server's 32 threads (8 physical cores), fixed from outside.
+
 **New game brains (2026-11-17), all opt-in by address; today's brain stays the default.**
 Full table and work log: `docs/LEAPER_BRAINS_WORKLOG_2026-11-17.md`.
 - `?brain=leaper_r1_7004176` (run `F7GLSDP4C` @7M): try first for the chase. It closes in on her as smoothly as today's brain; stuck 11% (today 19%); best clear shot 78%.

@@ -253,6 +253,9 @@ alone.
 
 ## Current seeker work: read this before acting
 
+**Latest (2026-11-19):** the moving-target / hide retrain line is summarised in `CLAUDE.md` (RL lab) and
+`docs/HIDE_RETRAIN_WORKLOG_2026-11-18.md`; the older seeker material below is history.
+
 Start with [docs/SEEKER_HANDOFF.md](docs/SEEKER_HANDOFF.md) for cross-chat context,
 then [docs/SEEKER_RUN_INDEX.md](docs/SEEKER_RUN_INDEX.md) for the generated run
 ledger and [docs/SEEKER_SCRATCH_RUN_LOG_2026-09-09.md](docs/SEEKER_SCRATCH_RUN_LOG_2026-09-09.md)

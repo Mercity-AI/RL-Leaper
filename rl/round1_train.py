@@ -54,7 +54,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 
 from rl.moving_target_brain import FROZEN_STEPS, HYPER, N_ENVS, ContinuedRate
 from rl.round1_brain import make_round1_copy
-from rl.round1_env import INPUTS, SCORING, Round1ArenaEnv, YardPractice, observation_size
+from rl.round1_env import INPUTS, SCORING, SIGHT, Round1ArenaEnv, YardPractice, observation_size
 
 ROOT = Path(__file__).resolve().parents[1]
 SEEDS = {n: 145032260 + n for n in range(1, 13)}   # tries 1-12 (5+ added 2026-11-16 for F7GLS and back-fill)
@@ -220,6 +220,51 @@ RUNS.update({
 })
 
 
+# 2026-11-18 hide retrain (docs/HIDE_RETRAIN_PLAN_2026-11-18.md): every arm continues F7GLSDP4C try 2 at 9,003,040
+# (both tries from the same file, seeds differ) for +2M steps, with Lola's real sight heights everywhere.
+P4C_AT_9M = "run_F7GLSDP4C_try2/model_9003040.zip"
+_P4C = dict(_SDP, reverse_cost=0.05)
+_P4CR = dict(_P4C, real_heights=True)
+RUNS.update({
+    # Control: the 4C recipe and world mix (12 yard of which 6 drill, 4 plain arena) + real heights, no hide scenes.
+    "F7GLSDP4CR": dict(switches=_P4CR, fusion=False, branch_model=P4C_AT_9M, yard_envs=12, drill_envs=6, leg=40),
+    # The designer's run: 4 plain arena, 4 yard, 2 drills, 4 yard hide scenes, 2 hide-arena worlds.
+    "F7GLSDP4CH": dict(switches=_P4CR, fusion=False, branch_model=P4C_AT_9M, yard_envs=10, drill_envs=2,
+                       hide_envs=4, arena_hide_envs=2, leg=41),
+    # Yard-only hide scenes (no arena): 4 plain arena, 4 yard, 2 drills, 6 yard hide scenes.
+    "F7GLSDP4CHY": dict(switches=_P4CR, fusion=False, branch_model=P4C_AT_9M, yard_envs=12, drill_envs=2,
+                        hide_envs=6, leg=43),
+    # CHY + stay_found (she stays in cover until seen) in its ordinary yard worlds and drills.
+    "F7GLSDP4CHS": dict(switches=dict(_P4CR, stay_found=True), fusion=False, branch_model=P4C_AT_9M, yard_envs=12,
+                        drill_envs=2, hide_envs=6, leg=42),
+    # The control's world mix + stay_found, no hide scenes: the "she always pops back up" fix alone.
+    "F7GLSDP4CS": dict(switches=dict(_P4CR, stay_found=True), fusion=False, branch_model=P4C_AT_9M, yard_envs=12,
+                       drill_envs=6, leg=45),
+    # 2026-11-18 ~01:50 IST, the reward redesign (user: "massively reward moving towards where she was last
+    # seen", use search drills; advisor: gate it): walk-to-the-spot pay x3.3 (0.3 -> 1.0 per unit, cap 40,
+    # from 0.3 s unseen, reach bonus 10) but only for losses where she ducked behind something inside its
+    # view (rl/round1_env.py ducked_*), plus stay_found so waiting for her to reappear no longer pays.
+    "F7GLSDP4CG": dict(switches=dict(_P4CR, stay_found=True, ducked_scale=1.0, ducked_after=3, ducked_reach=10.0,
+                                     ducked_cap=40.0), fusion=False, branch_model=P4C_AT_9M, yard_envs=12,
+                       drill_envs=6, leg=46),
+    # The same at 1.5 per unit (cap 60): brackets the dose.
+    "F7GLSDP4CG15": dict(switches=dict(_P4CR, stay_found=True, ducked_scale=1.5, ducked_after=3, ducked_reach=10.0,
+                                       ducked_cap=60.0), fusion=False, branch_model=P4C_AT_9M, yard_envs=12,
+                         drill_envs=6, leg=47),
+    # CG with more search drills (8 of the 12 yard worlds) and less staged ones (drill_vary).
+    "F7GLSDP4CGD": dict(switches=dict(_P4CR, stay_found=True, ducked_scale=1.0, ducked_after=3, ducked_reach=10.0,
+                                      ducked_cap=40.0, drill_vary=True), fusion=False, branch_model=P4C_AT_9M,
+                        yard_envs=12, drill_envs=8, leg=48),
+    # CG with the designer's hide scenes: 4 drills, 4 yard hide scenes, 4 ordinary yard, 4 plain arena.
+    "F7GLSDP4CGH": dict(switches=dict(_P4CR, stay_found=True, ducked_scale=1.0, ducked_after=3, ducked_reach=10.0,
+                                      ducked_cap=40.0), fusion=False, branch_model=P4C_AT_9M, yard_envs=12,
+                        drill_envs=4, hide_envs=4, leg=49),
+    # CHY at a constant learning rate 6e-5 (twice the schedule's floor): is +2M at the floor too little?
+    "F7GLSDP4CHL": dict(switches=_P4CR, fusion=False, branch_model=P4C_AT_9M, yard_envs=12, drill_envs=2,
+                        hide_envs=6, leg=44, lr=6e-5),
+})
+
+
 class ConstantRate:
     """A fixed learning rate (picklable, so a saved run resumes with it)."""
 
@@ -254,7 +299,8 @@ def aligned(step):
 
 
 def input_switches(run):
-    return {k: v for k, v in RUNS[run]["switches"].items() if k in INPUTS}
+    """The switches every exam of ``run`` plays with: its inputs, and how the eye sees her (SIGHT)."""
+    return {k: v for k, v in RUNS[run]["switches"].items() if k in INPUTS + SIGHT}
 
 
 class LeanInfoVecEnv(DummyVecEnv):
@@ -282,13 +328,31 @@ class LeanInfoVecEnv(DummyVecEnv):
 
 def make_envs(run, seed, leg=0):
     """``leg`` > 0 (a continuation) gives the yard rounds a fresh stream. ``drill_envs``: the first
-    this many yard environments play only search drills (rl/round1_env.py setup_drill)."""
+    this many yard environments play only search drills (rl/round1_env.py setup_drill). ``hide_envs``
+    (2026-11-18): the next this many play only hide scenes (rl/hide_scenes.py HidePractice);
+    ``arena_hide_envs``: that many hide-arena worlds (rl/hide_arena.py) after the yard ones. The rest of
+    the n_envs are today's plain arena."""
     switches = RUNS[run]["switches"]
     yard_envs = RUNS[run].get("yard_envs", YARD_ENVS)
     drills = RUNS[run].get("drill_envs", 0)
-    fns = [lambda i=i: Monitor(YardPractice(seed * 100 + i + 50 * leg, drill=i < drills, **switches))
-           for i in range(yard_envs)]
-    fns += [lambda: Monitor(Round1ArenaEnv(**switches)) for _ in range(RUNS[run].get("n_envs", N_ENVS) - yard_envs)]
+    hides = RUNS[run].get("hide_envs", 0)
+    arenas = RUNS[run].get("arena_hide_envs", 0)
+
+    def yard(i):
+        world_seed = seed * 100 + i + 50 * leg
+        if drills <= i < drills + hides:
+            from rl.hide_scenes import HidePractice
+            return Monitor(HidePractice(world_seed, **switches))
+        return Monitor(YardPractice(world_seed, drill=i < drills, **switches))
+
+    def arena(i):
+        from rl.hide_arena import ArenaHidePractice
+        return Monitor(ArenaHidePractice(seed * 100 + 30 + i + 50 * leg, **switches))
+
+    fns = [lambda i=i: yard(i) for i in range(yard_envs)]
+    fns += [lambda i=i: arena(i) for i in range(arenas)]
+    fns += [lambda: Monitor(Round1ArenaEnv(**switches))
+            for _ in range(RUNS[run].get("n_envs", N_ENVS) - yard_envs - arenas)]
     if SUBPROC:
         from stable_baselines3.common.vec_env import SubprocVecEnv
         env = SubprocVecEnv(fns, start_method="fork")
@@ -436,7 +500,7 @@ def train(run, attempt, total, campaign):
         plan="docs/MOVING_TARGET_RUN_LIST_2026-11-06.md, round 1, cut scope (no box arena, no yard flips, "
              "no R3/R4/B1); exams every ~100k, yard exam at ~250k/500k/750k/end",
         starts_from=f"today's brain, model_7757824 ({FROZEN_STEPS:,} steps), weights and optimizer",
-        switches={k: bool(spec["switches"].get(k, False)) for k in SCORING + INPUTS},
+        switches={k: bool(spec["switches"].get(k, False)) for k in SCORING + INPUTS + SIGHT},
         hider_share=spec["switches"].get("hider_share", 1 / 3),
         fusion=spec["fusion"], window=spec.get("window"), observation_size=observation_size(**input_switches(run)),
         trainable_parameters=sum(p.numel() for p in model.policy.parameters()),

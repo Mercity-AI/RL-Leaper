@@ -96,10 +96,14 @@ def main():
     parser.add_argument("--rounds", type=int, default=100)
     parser.add_argument("--out", required=True)
     parser.add_argument("--deep", action="store_true", help="drill_deep_path: S hidden from the route to V until 6 units from V")
+    parser.add_argument("--real-heights", action="store_true",
+                        help="her sight points at 1.25/1.03/0.81 map units (rl/round1_env.py SIGHT), for any brain")
     parser.add_argument("--vary", action="store_true", help="drill_vary starts: half face a random way, last seen 1-3 s ago")
     args = parser.parse_args()
     from rl.round1_train import input_switches
     inputs = {} if args.today else input_switches(args.run)
+    if args.real_heights:
+        inputs = dict(inputs, real_heights=True)
     if args.today:
         from rl.moving_target_brain import load_frozen_predictor
         model = load_frozen_predictor(lambda: YardPractice(1))

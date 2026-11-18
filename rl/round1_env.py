@@ -86,6 +86,17 @@ Round 2 additions (2026-11-15, owner's "check the hiding spot" problem):
 - ``close_start_share`` (yard practice only): this share of yard rounds start 10-20
   map units apart (the probe's rule) instead of the game's 22-42, so it often watches
   her dive behind cover early. Set per environment, never as a module global.
+- ``stay_found`` (2026-11-18, yard practice only; docs/HIDE_RETRAIN_PLAN_2026-11-18.md): she never comes back
+  out by herself. Every time she goes out of its sight she ducks into eye-hidden cover 1-6 units away
+  (``lose_cover`` at share 1.0), and every cover she takes (ducking, fleeing a shot, a hider's hiding
+  spot) lasts until the Leaper sees her again; then she carries on (a hider slips away, a wanderer
+  wanders). In ordinary practice she always reappeared, so waiting for her paid and looking did not.
+- ``ducked_scale`` / ``ducked_after`` / ``ducked_reach`` / ``ducked_cap`` (2026-11-18, the reward redesign,
+  docs/HIDE_RETRAIN_PLAN_2026-11-18.md): the walk-to-the-spot pay (``look_progress``) with its own, bigger
+  settings, but only for **ducked** losses: at the moment she went out of its sight her real position was
+  inside its 270-degree view (something solid hid her), not in the wedge behind it. Drill and hide-scene
+  starts count as ducked. Scorer only (her real position never reaches the brain), so turning away cannot
+  earn it and a spot behind it is not pushed toward backing up. None = the ordinary settings.
 - ``walk_progress`` (R4): the closer/further points (+-0.2 per unit, capped at
   one step's 0.375 units) on the walking distance around obstacles from the
   Leaper to her (rl/walk_field.py, body radius 1.5) instead of the straight
@@ -118,10 +129,14 @@ SHOT_FLEE_REWARD, SHOT_FLEE_CAP = 10.0, 5
 WALK_EVERY = 3                     # R4: rebuild her distance map at most every 3 steps
 SCORING = ("shot_goal", "hidden_cost", "no_hidden_distance", "look_where", "walk_progress", "shot_flee")
 INPUTS = ("new_inputs", "not_there", "privileged")
+# How the yard's eye sees her (2026-11-18): real_heights puts her three sight points at the
+# designer's 1.25/1.03/0.81 map units (rl/moving_target_game_exam.py REAL_HEIGHTS). It changes
+# what input 0 and I2 report, so a run's exams use it too (rl/round1_train.py input_switches).
+SIGHT = ("real_heights",)
 TRAINING = ("hider_share",)
 
 
-def observation_size(new_inputs=False, not_there=False, privileged=False):
+def observation_size(new_inputs=False, not_there=False, privileged=False, **_):
     return 34 + 3 * bool(new_inputs) + bool(not_there) + PRIVILEGED * bool(privileged)
 
 
@@ -133,7 +148,8 @@ class Round1Mixin:
                  walk_progress=False, shot_flee=False, look_after=0, eye_hide=False, look_scale=None,
                  flee_stay=False, look_reach=False, reach_bonus=0.0, look_progress=False,
                  drill_vary=False, lose_cover=0.0, drill_deep_path=False, progress_cap=None, shot_range=None, walk_scale=None, reverse_cost=0.0,
-                 reverse_window=None, reverse_front=None, flip_cost=0.0, **_):
+                 reverse_window=None, reverse_front=None, flip_cost=0.0, stay_found=False,
+                 ducked_scale=None, ducked_after=None, ducked_reach=None, ducked_cap=None, **_):
         self.shot_goal, self.hidden_cost = shot_goal, hidden_cost
         self.no_hidden_distance, self.not_there = no_hidden_distance, not_there
         self.look_where, self.privileged, self.hider_share = look_where, privileged, hider_share
@@ -168,7 +184,13 @@ class Round1Mixin:
         self._last_dir = 0
         self._since_bump = 99
         self._last_obs = None
-        self.lose_cover = float(lose_cover)
+        self.stay_found = bool(stay_found)
+        self.ducked_scale = None if ducked_scale is None else float(ducked_scale)
+        self.ducked_after = self.look_after if ducked_after is None else int(ducked_after)
+        self.ducked_reach = None if ducked_reach is None else float(ducked_reach)
+        self.ducked_cap = None if ducked_cap is None else float(ducked_cap)
+        self.loss_kind = None
+        self.lose_cover = 1.0 if self.stay_found else float(lose_cover)
         self.lose_covers = 0
         self.look_prev = None
         self.reaches_paid = 0
@@ -192,6 +214,9 @@ class Round1Mixin:
         self.shot_steps = 0
         self.first_shot = None
         self._look_reset()
+        # A drill or hide-scene start is a loss already under way, with her hidden in front of it.
+        self.loss_kind = "ducked" if (self.target_ever_seen and not self.target_visible) else None
+        self.ducked_breaks = self.behind_breaks = 0
         return self._r1_extend(obs)
 
     def _r1_extend(self, obs):
@@ -248,12 +273,25 @@ class Round1Mixin:
         self.look_done = False
         self.look_potential = 0.0
 
+    def _break_kind(self):
+        """She just went out of its sight: 'ducked' if her real position is inside its 270-degree view
+        (something solid hides her), 'behind' if she is in the wedge at its back. Scorer only."""
+        delta = np.asarray(self.target, dtype=np.float64) - np.asarray(self.position, dtype=np.float64)
+        bearing = math.atan2(float(delta[0]), float(delta[1]))
+        relative = abs((bearing - self.yaw + math.pi) % (2 * math.pi) - math.pi)
+        return "ducked" if relative <= self.VISION_FOV / 2 else "behind"
+
     def _look_shaping(self, terminated):
         """gamma * new potential - old potential (R6), plus the reach bonus (not potential-based)."""
         new = 0.0
         bonus = 0.0
+        ducked = self.ducked_scale is not None and self.loss_kind == "ducked"
+        scale = self.ducked_scale if ducked else self.look_scale
+        after = self.ducked_after if ducked else self.look_after
+        reach = self.ducked_reach if (ducked and self.ducked_reach is not None) else self.reach_bonus
+        cap = self.ducked_cap if (ducked and self.ducked_cap is not None) else self.progress_cap
         if (self.target_ever_seen and not self.target_visible and not terminated
-                and getattr(self, "unseen_steps", 0) >= self.look_after):
+                and getattr(self, "unseen_steps", 0) >= after):
             spot = np.asarray(self.last_seen_target, dtype=np.float64)
             if self.look_spot is None or np.linalg.norm(spot - self.look_spot) > 0.5:
                 self.look_spot, self.look_done = spot, False
@@ -262,11 +300,11 @@ class Round1Mixin:
                     np.linalg.norm(np.asarray(self.position, dtype=np.float64) - spot) <= NOT_THERE_RADIUS
                     if self.look_reach else self._spot_check(spot)):
                 self.look_done = True
-                if self.look_reach and self.reach_bonus and self.reaches_paid < REACH_CAP:
-                    bonus = self.reach_bonus
+                if self.look_reach and reach and self.reaches_paid < REACH_CAP:
+                    bonus = reach
                     self.reaches_paid += 1
             if not self.look_done:
-                new = -self.look_scale * self._walker().distance(self.look_field, self.position, spot)
+                new = -scale * self._walker().distance(self.look_field, self.position, spot)
         elif self.target_visible:
             self.look_spot, self.look_done = None, False
         if self.look_progress:
@@ -274,12 +312,12 @@ class Round1Mixin:
             # her, step by step (capped at one step's move), with no jump when the loss starts and no
             # refund when it ends. Walking there earns, wandering earns nothing, walking away costs, so
             # going to where it lost her becomes the preferred behaviour, not just a faster-found one.
-            far = None if new == 0.0 else -new / self.look_scale
+            far = None if new == 0.0 else -new / scale
             paid = 0.0
             if far is not None and self.look_prev is not None and self.look_prev_spot is self.look_spot:
-                paid = self.look_scale * float(np.clip(self.look_prev - far, -self.MOVE_SPEED, self.MOVE_SPEED))
+                paid = scale * float(np.clip(self.look_prev - far, -self.MOVE_SPEED, self.MOVE_SPEED))
                 if paid > 0:   # positive progress capped per round, so losses cannot be farmed
-                    paid = min(paid, max(0.0, self.progress_cap - self.progress_paid))
+                    paid = min(paid, max(0.0, cap - self.progress_paid))
                     self.progress_paid += paid
             self.look_prev, self.look_prev_spot = far, self.look_spot
             self.look_potential = 0.0
@@ -292,6 +330,12 @@ class Round1Mixin:
         was_visible, had_seen = self.target_visible, self.target_ever_seen
         before = np.asarray(self.position, dtype=np.float64).copy()
         obs, reward, terminated, truncated, info = super().step(action)
+        if was_visible and not self.target_visible:
+            self.loss_kind = self._break_kind()
+            if self.loss_kind == "ducked":
+                self.ducked_breaks += 1
+            else:
+                self.behind_breaks += 1
         if self.lose_cover and was_visible and not self.target_visible and not terminated:
             self._take_cover_near()
         terms = info["reward_terms"]
@@ -387,6 +431,7 @@ class Round1Mixin:
             m.state, m.hide_spot = "dash", spot
         m.hidings.append(dict(start=m.steps, arrive=None, spot=spot.tolist(), watched=False, lose_cover=True))
         m.wait = 0
+        m.covering = False      # stay_found: a new dash leaves the old cover
         m._go(spot, SPRINT_STEP, route)
         m.flee_pending = True
         self.lose_covers += 1
@@ -405,6 +450,7 @@ class Round1Mixin:
         elif self.flee_stay:
             m.hidings.append(dict(start=m.steps, arrive=None, spot=spot.tolist(), watched=True, flee=True))
         m.wait = 0
+        m.covering = False      # stay_found: a new dash leaves the old cover
         m._go(spot, SPRINT_STEP, route)
         if self.flee_stay and isinstance(m, EyeHidingTarget):
             m.flee_pending = True
@@ -470,16 +516,17 @@ class Round1ArenaEnv(Round1Mixin, MovingTargetEnv):
 class Round1YardEnv(Round1Mixin, GameExamEnv):
     """The real yard as in the game exam (eye-level sight to 50 map units)."""
 
-    def __init__(self, seed, metrics=True, new_inputs=False, kind=None, **switches):
-        GameExamEnv.__init__(self, seed, new_inputs=new_inputs, kind=kind)
+    def __init__(self, seed, metrics=True, new_inputs=False, kind=None, real_heights=False, site=None, **switches):
+        GameExamEnv.__init__(self, seed, new_inputs=new_inputs, kind=kind, real_heights=real_heights, site=site)
         if not metrics:
             self.lost = None
         self._r1_init(**switches)
 
     def reset(self, *, seed=None, options=None):
         obs, info = GameExamEnv.reset(self, seed=seed, options=options)
-        if (self.eye_hide or self.flee_stay) and self.mover is not None:
-            EyeHidingTarget.adopt(self.mover, self._eye_hidden if self.eye_hide else None)
+        if (self.eye_hide or self.flee_stay or self.stay_found) and self.mover is not None:
+            EyeHidingTarget.adopt(self.mover, self._eye_hidden if (self.eye_hide or self.stay_found) else None)
+            self.mover.stay_found = self.stay_found
         return self._r1_reset(obs), info
 
     def _eye_hidden(self, leaper, spot):
@@ -496,6 +543,12 @@ class Round1YardEnv(Round1Mixin, GameExamEnv):
     _YARD_WALKER = None
 
     def _walker(self):
+        site = getattr(self, "_site", None)
+        if site is not None:          # another world (rl/hide_arena.py): its own walker, built once per site
+            if site.get("walker") is None:
+                from rl.walk_field import LeaperWalk
+                site["walker"] = LeaperWalk(self._world)
+            return site["walker"]
         if Round1YardEnv._YARD_WALKER is None:
             from rl.moving_target_game_exam import yard
             from rl.walk_field import LeaperWalk
@@ -622,19 +675,32 @@ class EyeHidingTarget(MovingTarget):
         mover.eye_hidden = eye_hidden
         mover.flee_pending = False
         mover.pick_cases = dict(eye=0, eye_wide=0, flat=0, none=0, blocked=0)
+        mover.stay_found = False
+        mover.covering = False
         return mover
 
     def advance(self, leaper, spotted):
+        stay_found = getattr(self, "stay_found", False)
+        if stay_found and self.covering and spotted:
+            # stay_found: seen in her cover, she carries on (a hider slips away, a wanderer wanders on).
+            self.covering, self.wait = False, 0
         if self.flee_pending and not self.route:
             # Arrived at her flee spot: stay in cover, whatever her kind.
             self.flee_pending = False
             stay = int(self.rng.integers(self.FLEE_STAY_STEPS[0], self.FLEE_STAY_STEPS[1] + 1))
+            if stay_found:
+                stay, self.covering = STAY_FOUND_STEPS, True
             if self.kind == "hider":
                 self.state = "hide"
             if self.hidings and self.hidings[-1].get("arrive") is None:
                 self.hidings[-1]["arrive"] = self.steps + 1
             self.wait = stay
-        return MovingTarget.advance(self, leaper, spotted)
+        result = MovingTarget.advance(self, leaper, spotted)
+        if (stay_found and self.kind == "hider" and self.state == "hide" and not self.covering
+                and self.wait > 0):
+            # stay_found: her own hiding spot, too, lasts until she is seen.
+            self.wait, self.covering = STAY_FOUND_STEPS, True
+        return result
 
     def _best(self, leaper, spots, watched):
         """The original _pick_hide's choice among ``spots`` (nearest 12, route score)."""
@@ -714,6 +780,7 @@ DRILL_SEEN_AGO = 10              # it last saw her 1 s before the round starts
 DRILL_DEEP = 5.0                 # S also hidden from points this far ahead of and beside the Leaper
 DRILL_VARY_TURN = 0.5            # drill_vary: this share of drills face a random way, the rest V +-0.6 rad
 LOSE_COVER_RANGE = (1.0, 6.0)    # lose_cover: her cover this far from where she vanished
+STAY_FOUND_STEPS = 10**6           # stay_found: her cover lasts until she is seen (longer than any round)
 REVERSE_CLEAR_STEPS = 10           # reverse_cost: no bump in this many steps
 REVERSE_FRONT_OPEN = 6.0           # and straight ahead open beyond this many units
 RAY_RANGE = 28.0                   # the 16 rays report distance / 28

@@ -220,6 +220,8 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--eye-hide", action="store_true",
                         help="Lola hides only where the Leaper's eye cannot see her (rl/round1_env.py eye_hide)")
+    parser.add_argument("--real-heights", action="store_true",
+                        help="her sight points at 1.25/1.03/0.81 map units (rl/round1_env.py SIGHT), for any brain")
     parser.add_argument("--sampled", action="store_true", help="sample the brain's moves (torch seed fixed) instead of the average move")
     args = parser.parse_args()
     if args.sampled:
@@ -227,6 +229,8 @@ def main():
     game_exam.START_APART = (10 * MAP_TO_BRAIN, 20 * MAP_TO_BRAIN)
     from rl.round1_train import input_switches
     inputs = {} if args.today or args.run == "A" else input_switches(args.run)
+    if args.real_heights:
+        inputs = dict(inputs, real_heights=True)
     model = load_brain(args, inputs)
     walk = LeaperWalk(game_exam.yard()[2])
     world = dict(eye_hide=True) if args.eye_hide else None
