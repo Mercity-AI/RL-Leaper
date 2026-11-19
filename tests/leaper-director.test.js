@@ -48,9 +48,9 @@ function chasing() {
 const PLAN = { from: { x: 0, z: 0, yaw: 0 }, to: { x: 0, z: 8, yaw: 0 }, heading: 0, travel: 8, turn: 0 };
 
 test('every state names its locomotion source and whether the eye may fire', () => {
-  assert.deepEqual(Object.keys(LEAPER_STATES), ['dormant', 'search', 'investigate', 'chase', 'engage', 'stomp', 'leap', 'stagger', 'downed', 'dying', 'dead']);
+  assert.deepEqual(Object.keys(LEAPER_STATES), ['dormant', 'search', 'investigate', 'track', 'chase', 'engage', 'stomp', 'leap', 'stagger', 'downed', 'dying', 'dead']);
   assert.deepEqual(Object.entries(LEAPER_STATES).filter(([, s]) => s.locomotion === 'rl').map(([n]) => n), ['search', 'chase']);
-  assert.deepEqual(Object.entries(LEAPER_STATES).filter(([, s]) => s.bolts).map(([n]) => n), ['chase', 'engage', 'downed']);
+  assert.deepEqual(Object.entries(LEAPER_STATES).filter(([, s]) => s.bolts).map(([n]) => n), ['track', 'chase', 'engage', 'downed']);
   assert.equal(stateLabel('downed', 'down', { permanent: true }), 'DOWN FOR GOOD');
   assert.equal(stateLabel('leap', 'windup'), 'POUNCE!');
 });
@@ -105,6 +105,107 @@ test('investigating ends when the eye finds her or after maxTime; a seen shooter
   old.update(DT, sense());
   old.update(DT, sense());
   assert.equal(old.state, 'search', 'a shot from long ago is forgotten');
+});
+
+test('Lola out of sight: it walks to where it last saw her, once per sighting (owner, 2026-11-19)', () => {
+  const seenAt = { x: 4, z: 9 };
+  const d = director();
+  until(d, 'chase', sense({ aware: true, lola: seenAt }));
+  // Gone for less than reactTime (a pole in front of her): no walk.
+  run(d, B.track.reactTime / 2, sense({ remembers: true, lola: { x: 6, z: 9 } }));
+  assert.equal(d.state, 'chase');
+  until(d, 'track', sense({ remembers: true, lola: { x: 6, z: 9 } }), 1);
+  assert.deepEqual(d.goal, seenAt, 'where she was when last seen, not where she is now');
+  assert.equal(d.locomotion, 'scripted', 'the brain is paused');
+  // Not there: the brain looks round for trailWait (no second walk to the same
+  // spot), then it moves on, following her trail to where she is now.
+  d.reachedGoal();
+  d.update(DT, sense({ remembers: true, lola: { x: 6, z: 9 } }));
+  assert.equal(d.state, 'search');
+  run(d, B.track.trailWait - 0.2, sense({ remembers: true, lola: { x: 6, z: 9 } }));
+  assert.equal(d.state, 'chase', 'looking round: the brain carries on from its own memory');
+  until(d, 'track', sense({ remembers: true, lola: { x: 7, z: 9 } }), 0.5);
+  assert.equal(d.reason, 'following her trail');
+  assert.deepEqual(d.goal, { x: 7, z: 9 }, 'where she is now');
+  d.reachedGoal();
+  d.update(DT, sense({ lola: { x: 8, z: 9 } }));
+  until(d, 'track', sense({ lola: { x: 8, z: 9 } }), B.track.trailWait + 0.5);
+  assert.deepEqual(d.goal, { x: 8, z: 9 }, 'and again, until it sees her');
+  // Seen again and lost again: a new walk.
+  d.update(DT, sense({ aware: true, lola: { x: 1, z: 1 } }));
+  until(d, 'track', sense({ lola: { x: 2, z: 1 } }), 1);
+  assert.deepEqual(d.goal, { x: 1, z: 1 });
+  // A glimpse by the brain's sight alone, or the eye seeing her beyond shooting
+  // range, moves the goal (when she moved far enough), and the walk goes on.
+  d.update(DT, sense({ aware: true, lola: { x: 2, z: 1 } }));
+  assert.equal(d.state, 'track');
+  assert.deepEqual(d.goal, { x: 1, z: 1 }, 'about the same spot: same goal');
+  d.update(DT, sense({ aware: true, lola: { x: 10, z: 1 } }));
+  assert.deepEqual(d.goal, { x: 10, z: 1 });
+  d.update(DT, sense({ eyeSees: true, lola: { x: 20, z: 1 } }));
+  assert.equal(d.state, 'track', 'seen far off: it walks on toward her');
+  assert.deepEqual(d.goal, { x: 20, z: 1 });
+  assert.equal(d.boltsAllowed, true, 'firing as it walks');
+  run(d, 1, sense({ lola: { x: 22, z: 1 } }));
+  assert.equal(d.state, 'track', 'those sightings are part of this walk, not a new one');
+  // Found within shooting range: it stands and shoots, and losing her then is a new walk.
+  // (A glimpse shorter than foundTime is no find.)
+  run(d, B.track.foundTime - 0.1, sense({ eyeSees: true, distance: B.engage.exitDistance - 1, lola: { x: 23, z: 1 } }));
+  assert.equal(d.state, 'track', 'a glimpse does not stop the walk');
+  until(d, 'engage', sense({ eyeSees: true, distance: B.engage.exitDistance - 1, lola: { x: 23, z: 1 } }), 0.3);
+  until(d, 'track', sense({ distance: B.engage.exitDistance - 1, lola: { x: 24, z: 1 } }), 2);
+  assert.deepEqual(d.goal, { x: 23, z: 1 });
+});
+
+test('a stand that lost her at once: the next walk goes on past the spot before a sighting stops it (probe, 2026-11-19)', () => {
+  const d = director();
+  const near = (extra = {}) => sense({ distance: B.engage.exitDistance - 4, lola: { x: 9, z: 0 }, ...extra });
+  until(d, 'chase', near({ aware: true }));
+  until(d, 'track', near(), 1);
+  until(d, 'engage', near({ eyeSees: true }), 1);
+  // It turns to face her and the slit closes: she is gone at once.
+  until(d, 'track', near(), B.engage.lostSightTime + 0.5);
+  run(d, B.track.walkPast - 0.2, near({ eyeSees: true }));
+  assert.equal(d.state, 'track', 'it walks on round the cover, firing if it can');
+  until(d, 'engage', near({ eyeSees: true }), 0.5);
+  // A stand that had her a good while: the next walk may stop at once.
+  run(d, B.engage.lostSightTime + 0.2, near({ eyeSees: true }));
+  until(d, 'track', near(), B.engage.lostSightTime + 0.5);
+  until(d, 'engage', near({ eyeSees: true }), B.track.foundTime + 0.1);
+});
+
+test('a walk to the last-seen spot gives up when it cannot get there, gets stuck or takes too long', () => {
+  const lost = () => {
+    const d = director();
+    until(d, 'chase', sense({ aware: true, lola: { x: 4, z: 9 } }));
+    until(d, 'track', sense({ lola: { x: 4, z: 9 } }), 1);
+    return d;
+  };
+  const stuck = lost();
+  stuck.walkFailed();
+  stuck.update(DT, sense({ lola: { x: 4, z: 9 } }));
+  assert.equal(stuck.state, 'search');
+  assert.equal(stuck.reason, 'cannot get there');
+  run(stuck, 1, sense({ lola: { x: 4, z: 9 } }));
+  assert.equal(stuck.state, 'search', 'no second try at the same spot');
+  const slow = lost();
+  slow.walkFor(2);
+  run(slow, 2 + B.track.spareTime - 0.2, sense({ lola: { x: 4, z: 9 } }));
+  assert.equal(slow.state, 'track', 'the time its route should take, and spareTime more');
+  run(slow, 0.3, sense({ lola: { x: 4, z: 9 } }));
+  assert.equal(slow.state, 'search');
+  assert.equal(slow.reason, 'gave up');
+  // From Engage too, once neither the brain nor the eye sees her.
+  const close = director();
+  until(close, 'engage', sense({ aware: true, eyeSees: true, distance: 10, lola: { x: 0, z: 10 } }));
+  run(close, B.engage.lostSightTime - 0.1, sense({ distance: 10, lola: { x: 3, z: 10 } }));
+  assert.equal(close.state, 'engage', 'standing to shoot it waits its own lostSightTime first');
+  until(close, 'track', sense({ distance: 10, lola: { x: 3, z: 10 } }), 1);
+  assert.deepEqual(close.goal, { x: 0, z: 10 });
+  // A shot from out of sight on the way is newer news.
+  close.shotAt({ x: 20, z: 20 });
+  close.update(DT, sense({ distance: 10, lola: { x: 3, z: 10 } }));
+  assert.equal(close.state, 'investigate');
 });
 
 test('Dormant -> Search -> Chase -> Engage and back, following what the brain sees', () => {
@@ -476,4 +577,35 @@ test('with the brain seeing her the hold still ends after maxHoldTime (it keeps 
   run(d, c.maxHoldTime + 0.1, seen);
   assert.equal(d.state, 'chase');
   assert.equal(d.reason, 'reposition');
+});
+
+test('no route gets it closer: the brain searches, and no walk goes back there until she moves on (owner, 2026-11-19)', () => {
+  const d = director();
+  const at = (x, z, extra = {}) => sense({ lola: { x, z }, ...extra });
+  until(d, 'chase', at(4, 9, { aware: true }));
+  until(d, 'track', at(4, 9), 1);
+  d.cannotGetCloser();
+  d.update(DT, at(4, 9));
+  assert.equal(d.state, 'search');
+  assert.equal(d.reason, 'cannot get closer');
+  assert.equal(d.locomotion, 'rl', 'the brain has her again');
+  // Still tucked in there (or a step away): no trail walk back, however long.
+  run(d, B.track.trailWait * 4, at(4 + B.track.unreachableRadius - 1, 9));
+  assert.equal(d.state, 'search');
+  // The brain glimpses her there again and loses her: still no walk.
+  run(d, 0.2, at(4, 9, { aware: true, brainSees: true }));
+  assert.equal(d.state, 'chase');
+  run(d, 1, at(4, 9));
+  assert.notEqual(d.state, 'track');
+  // She moves on somewhere else: it follows her trail again.
+  until(d, 'track', at(4, 9 + B.track.unreachableRadius + 2), B.track.trailWait + 1);
+  assert.equal(d.reason, 'following her trail');
+  // A walk that cannot get there (no route, stuck) blocks its spot the same way.
+  d.walkFailed();
+  d.update(DT, at(4, 15));
+  assert.equal(d.state, 'search');
+  assert.deepEqual(d.unreachable, { x: 4, z: 9 + B.track.unreachableRadius + 2 });
+  // A new fight forgets it.
+  d.reset();
+  assert.equal(d.unreachable, null);
 });

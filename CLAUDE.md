@@ -75,6 +75,76 @@ it shows the pill and the bullet in yellow and in blue.
   (`JUNKYARD_PROP_COLOURS` in `src/world/junkyardSurfaces.js`, applied over the
   baked texture, so it survives a re-bake as long as the part names stay).
 
+## The Leaper walks to where it last saw Lola (owner, 2026-11-19)
+
+- No more retraining for this (owner: "we have wasted too much time on the training").
+  New behaviour-layer state Track (HUD: TRACKING), `LEAPER_BEHAVIOUR.track`: once neither the
+  brain's sight nor the eye has seen her for 0.3 s (Engage: its own 1 s), the brain pauses and
+  the Leaper walks the route (`walkToGoal` in `LeaperActor`, shared with Investigate) to the
+  spot she was last seen, at the brain's walking pace, firing if the eye has her.
+- Ends: eye sees her within `engage.exitDistance` -> Engage (handing back to the brain made it
+  rock); arrived, no route, stuck (no headway 1.5 s) or route time + 5 s -> Search (the brain).
+  One walk per sighting; a glimpse during the walk only moves the goal. Investigate shares the
+  stuck check. A walk's end re-syncs the brain (it used to snap back to where the walk began).
+- Routes are the conservative leg-span grid, so some walks detour far round the junk.
+  Probe: `tmp/leaper-probe/track.mjs`, `track-why.mjs`. Tests: `tests/leaper-director.test.js`,
+  `leaper-actor`.
+- Owner play test the same day ("it shot me once, rotated and stood facing away"; "it stayed
+  rotating where it last saw me"). Fixed: Engage now turns to face her even next to junk (it
+  was not allowed to, and the eye aims only 45 degrees off the body); route points within
+  `skipNear` 1.5 are skipped (it turned round for a step behind it); a walk ends where the eye
+  sees the spot only if that is at most `seeDetour` 8 longer than the nearest spot, but the
+  second walk to the same spot goes round the cover to where it sees it; after a walk that did
+  not find her it looks round `trailWait` 1.5 s, then follows her trail (walks to where she is
+  now), again and again. Left: at the very edge of cover the eye can see her side-on but loses
+  her once it turns to face her (the eye moves with the body), so it can dither there.
+- Out of reach -> the brain (owner, 2026-11-19, same day: WATCHING, a strafing wait at the
+  way out, was "time waste" and is gone, code and all): when no route gets it closer, or the
+  walk fails (no route, stuck), the brain searches, and no walk goes back within
+  `track.unreachableRadius` 4 of that spot until she is seen or followed somewhere else.
+- A walk stops to stand and shoot only once the eye has had her `track.foundTime` 0.4 s
+  without a break, and after a stand that lost her almost at once (eye on her under
+  `engage.lostSightTime` in all) the next walk goes on `track.walkPast` 2 s first: through a
+  slit between the scrap skip and container 06 it stopped, turned, lost her and stopped
+  again on the same spot (`tmp/leaper-probe/corner.mjs 31 -15`).
+- Route grid: walks plan on a grid 0.85 of its width (`ROUTE_WIDTH_SHARE`,
+  `routeNavigation` from the collision worker, used only by `world.leaperRoute`). The full-width
+  grid left it on one-cell islands where the brain had walked it; at 0.85 the brain accepted 60
+  of 60 random poses on the added cells (0.75: 45/60, 0.6: 12/60). Spawns, leaps, the
+  turn check and the brain itself keep the full-width grid.
+
+## Behaviour scorecard (owner asked for a check other than playing, 2026-11-19)
+
+- 80 fixed hiding scenes (`tmp/scorecard/scenes.json`, made by `scenes.mjs`, valid in old and
+  new yards): the Leaper at A sees Lola at B, she ducks to H behind cover 3-9 away and stays
+  there, invulnerable, 30 s. `run.mjs <port> scenes.json 3 30 result-<name>.json` plays them
+  headless (3 pages, about 15 min); `python tmp/scorecard/report.py old mid new` prints the table.
+- Versions: servers `leaper-score-old` / `-mid` / `-new` in `.claude/launch.json` (ports
+  5191-5193, no reload). old = last commit fd12e6d (git worktree `E:/Leaper-scorecard/old`),
+  mid = today's behaviour on the old yard (`E:/Leaper-scorecard/mid`), new = this checkout.
+- First result (2026-11-19, old / mid / new): re-finds her within 30 s 85 / 99 / 99%; within
+  5 units of her 54 / 69 / 76%; never within 10 of her 25 / 8 / 8%; standing or spinning blind
+  2.2 / 0.3 / 0.2 s per scene; scenes with no shot 22 / 6 / 2%; shots 6.0 / 9.7 / 9.8.
+
+## Space for the Leaper by the racks and the east wall (owner, 2026-11-19)
+
+- Two pockets it could not get out of (its full-width fit grid had them as islands): the gap
+  between the two car racks (closed to the south by three loose truck tires) and the
+  north-east corner (closed by container 06, the lamp pole and the scrap by the east wall).
+  Moved in both repo yard files (`tmp/space/move.py`, `move2.py`; map x, z):
+  container 06 with its door spill (salvage 5, split tires 08/09, broken pole 07) 3 west;
+  the tipped skip and its spill 2.5 west; `scrap_skip_long` and its two engine heaps 3 west;
+  truck tires .006/.007/.008 into the north-east corner; the lamp pole turned 90 degrees and
+  stood against the east wall (x 37.6); `scrap_bin_tall` with engine heaps .002-.004 5.2 east
+  and salvage clusters 07/08 3.1 east, against the wall. Now one region: the racks' gap, the
+  corner and a lane down the east wall all join the yard; probes: the brain walks out of both
+  by itself (`tmp/space/escape.mjs`), and her old hiding spot east of container 06 is reached.
+- Then export, map-only compress (`tmp/space/build-map.mjs`, copied into `scripts/assets/` to
+  run), metrics, the brain raster (copied into the three `leaper_r1_*` folders, `brain.json`
+  `rasters` too), `make_junkyard_fixtures.py`, `make_sync_fixture.py` and
+  `make_round1_fixtures.py` (model_10002464). `stepOverProps.js` boxes of moved props shifted
+  to match. Fit maps before/after: `tmp/space/comp-before.png`, `comp-after.png`.
+
 ## The brain's memory keeps up while it is held (owner, 2026-11-17)
 
 - While the behaviour layer holds the brain (Engage, stomp, leap, stagger) the game sends
@@ -443,8 +513,8 @@ it shows the pill and the bullet in yellow and in blue.
   Leaper's health. Not done; ask before changing balance.
 - **Tests:** `pnpm test` (497 on 2026-10-21) has one failure, not from the
   pickups: the brain free-run lockstep check in `tests/brain-parity.test.js`
-  (eye-7.98-chase stays in lockstep 74 steps, below its floor; it came with the
-  rebuilt map and fixtures). If the README controls check fails on line
+  (since the 2026-11-19 yard change eye-5.5-hide-seek: first flip at step 113, floor 150;
+  before it, eye-7.98-chase at 74; rounding drift that comes with each rebuilt map). If the README controls check fails on line
   endings, `node scripts/print-controls.mjs --write` fixes it. Three in-browser pages still stage scenes on the old map layout and
   fail: the weak-point shot in `tests/browser-combat.js`, the stomp set-up in
   `tests/leaper-behaviour.js` (it places Lola from the Leaper's spot before a

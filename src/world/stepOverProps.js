@@ -17,8 +17,8 @@ export const STEP_OVER_PROPS = Object.freeze([
   Object.freeze([-2.59, -1.41, 4.41, 5.59, 0.3]), // Split discarded tire 05
   Object.freeze([-2.63, -1.36, -11.64, -10.37, 0.3]), // Split discarded tire 06
   Object.freeze([-26.72, -25.28, -6.72, -5.35, 0.3]), // Split discarded tire 07
-  Object.freeze([25.35, 26.65, -15.65, -14.35, 0.3]), // Split discarded tire 08
-  Object.freeze([24.36, 25.64, -16.55, -15.36, 0.3]), // Split discarded tire 09
+  Object.freeze([22.35, 23.65, -15.65, -14.35, 0.3]), // Split discarded tire 08 (3 west with container 06, 2026-11-19)
+  Object.freeze([21.36, 22.64, -16.55, -15.36, 0.3]), // Split discarded tire 09 (3 west with container 06, 2026-11-19)
   Object.freeze([-10.1, -8.7, 6.81, 8.11, 0.23]), // Broken hollow pole 00
   Object.freeze([-9.06, -6.74, 8.18, 9.14, 0.26]), // Broken hollow pole 01
   Object.freeze([-7.58, -5.72, 9.09, 10.15, 0.29]), // Broken hollow pole 02
@@ -26,19 +26,19 @@ export const STEP_OVER_PROPS = Object.freeze([
   Object.freeze([-3.05, -0.96, 4.26, 4.98, 0.25]), // Broken hollow pole 04
   Object.freeze([-2.08, 0.25, -11.15, -9.94, 0.3]), // Broken hollow pole 05
   Object.freeze([-26.09, -23.9, -8.74, -6.9, 0.22]), // Broken hollow pole 06
-  Object.freeze([24.93, 27.39, -16.09, -14.86, 0.26]), // Broken hollow pole 07
+  Object.freeze([21.93, 24.39, -16.09, -14.86, 0.26]), // Broken hollow pole 07 (3 west with container 06, 2026-11-19)
   Object.freeze([-2.06, -0.09, 19.32, 20.15, 0.28]), // Broken hollow pole 08
   Object.freeze([1.93, 4.12, 18.88, 20.03, 0.22]), // Broken hollow pole 09
   Object.freeze([-9.19, -8.21, 11.37, 12.43, 0.49]), // Skip loose scrap pile 0
   Object.freeze([-10.06, -8.27, 11.87, 12.65, 0.23]), // Skip spill bent pole 0
-  Object.freeze([14.81, 15.79, -16.63, -15.57, 0.49]), // Skip loose scrap pile 1
-  Object.freeze([13.94, 15.73, -16.13, -15.35, 0.23]), // Skip spill bent pole 1
+  Object.freeze([12.31, 13.29, -16.63, -15.57, 0.49]), // Skip loose scrap pile 1 (2.5 west with its skip, 2026-11-19)
+  Object.freeze([11.44, 13.23, -16.13, -15.35, 0.23]), // Skip spill bent pole 1 (2.5 west with its skip, 2026-11-19)
   Object.freeze([-4.52, -3.48, 5.43, 6.57, 0.52]), // Container spill - recognizable salvage 0
   Object.freeze([-1.02, 0.02, -10.57, -9.43, 0.52]), // Container spill - recognizable salvage 1
   Object.freeze([-4.52, -3.48, 12.43, 13.57, 0.52]), // Container spill - recognizable salvage 2
   Object.freeze([3.48, 4.52, 17.43, 18.57, 0.52]), // Container spill - recognizable salvage 3
   Object.freeze([-21.52, -20.48, -7.57, -6.43, 0.52]), // Container spill - recognizable salvage 4
-  Object.freeze([24.48, 25.52, -15.57, -14.43, 0.52]), // Container spill - recognizable salvage 5
+  Object.freeze([21.48, 22.52, -15.57, -14.43, 0.52]), // Container spill - recognizable salvage 5 (3 west with container 06, 2026-11-19)
   Object.freeze([-32.45, -31.52, 25.23, 26.84, 0.23]), // Added fallen pole 0
   Object.freeze([-31.28, -30.74, 25.79, 27.48, 0.23]), // Added fallen pole 1
   Object.freeze([29.2, 30.87, -7.33, -6.65, 0.23]), // Added fallen pole 2

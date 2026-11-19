@@ -106,14 +106,27 @@ test('Engage turns the body to face Lola by animation, then tells the brain the 
   assert.equal(brain.running, true);
 });
 
-test('no turn in place where the leg span is not clear at every heading (the brain might refuse it)', () => {
+test('Engage turns to face her even next to junk (owner, 2026-11-19: it stood facing away, unable to aim)', () => {
   const { actor, brain, frames, player, combat, simulation } = setup({ blocked: () => true });
   brain.frame = { ...brain.frame, target_visible: true, target_ever_seen: true };
   combat.lolaVisible = true;
   player.mesh.position.set(7, 0, 0);
   frames(1.5);
   assert.equal(actor.director.state, 'engage');
-  assert.equal(simulation.state.yaw, 0, 'it holds its heading; the eye swivels instead');
+  assert.ok(Math.abs(simulation.state.yaw - Math.PI / 2) < 0.15, 'it faces her');
+});
+
+test('a walk skips route points right beside it: no turning round for a step behind', () => {
+  const s = setup({ lola: { x: 0, z: 25 } });
+  const { actor, world, framesUntil } = s;
+  // The route starts a step behind it, then goes on ahead.
+  world.leaperRoute = () => [{ x: 0, z: -0.8 }, { x: 0, z: 10 }];
+  loseLola(s);
+  framesUntil(() => actor.director.state === 'track', 1);
+  let worst = 0;
+  s.frames(1, () => { worst = Math.max(worst, Math.abs(actor.pose.yaw)); });
+  assert.ok(worst < 0.2, `kept facing ahead (turned ${worst.toFixed(2)} rad)`);
+  assert.ok(actor.pose.z > 1, 'walking ahead');
 });
 
 test('the brain\'s replies are played back smoothly, a step or so behind', () => {
@@ -345,4 +358,82 @@ test('legs lost on one side make the body lean that way (the side that lost them
     }
     assert.ok(simulation.state.posture.roll === actor.posture.roll);
   }
+});
+
+// Lola seen, then out of sight of both the brain and the eye (she moved on).
+function loseLola({ actor, brain, combat, player, frames }) {
+  brain.frame = { ...brain.frame, target_visible: true, target_ever_seen: true };
+  combat.lolaVisible = true;
+  frames(0.1);
+  assert.equal(actor.director.state, 'chase');
+  player.mesh.position.set(10, 0, 25);
+  brain.frame = { ...brain.frame, target_visible: false, sight_visible: false };
+  combat.lolaVisible = false;
+}
+
+test('Lola out of sight: it walks the route to where it last saw her, then the brain carries on from there (owner, 2026-11-19)', () => {
+  const s = setup({ lola: { x: 0, z: 25 } });
+  const { actor, brain, world, framesUntil } = s;
+  world.leaperRoute = () => [{ x: 0, z: 5 }, { x: 0, z: 20 }];
+  loseLola(s);
+  framesUntil(() => actor.director.state === 'track', 1);
+  assert.equal(brain.running, false, 'the brain is paused');
+  assert.equal(brain.heldBy, 'TRACKING');
+  assert.deepEqual(actor.director.goal, { x: 0, z: 25 }, 'where she was, not where she went');
+  framesUntil(() => actor.director.state !== 'track', 10);
+  assert.equal(actor.director.reason, 'not there');
+  assert.ok(Math.hypot(actor.pose.x, actor.pose.z - 20) < 0.6, 'at the end of the route');
+  s.frames(0.1);
+  assert.equal(brain.running, true, 'the brain hunts again');
+  assert.ok(Math.abs(brain.syncs.at(-1).z - actor.pose.z) < 0.6, 'told where the walk ended');
+});
+
+test('a last-seen spot it cannot reach, or a walk that makes no headway, hands back to the brain', () => {
+  const none = setup({ lola: { x: 0, z: 25 } });
+  none.world.leaperRoute = () => [];
+  loseLola(none);
+  none.framesUntil(() => none.actor.director.state === 'track', 1);
+  none.frames(0.05);
+  const gaveUp = (heard) => heard.some(([, e]) => e.from === 'track' && e.reason === 'cannot get there');
+  assert.ok(gaveUp(none.heard), 'no route: it gives up at once');
+  assert.equal(none.brain.running, true);
+  const stuck = setup({ lola: { x: 0, z: 25 } });
+  stuck.world.leaperRoute = () => [{ x: 0, z: 20 }];
+  stuck.actor.routeLeft = () => 15;
+  loseLola(stuck);
+  stuck.framesUntil(() => stuck.actor.director.state === 'track', 1);
+  stuck.framesUntil(() => stuck.actor.director.state !== 'track', B.track.stuckTime + 0.5);
+  assert.ok(gaveUp(stuck.heard), 'stuck: it gives up');
+  assert.ok(stuck.actor.director.stateTime < B.track.stuckTime + 0.3);
+});
+
+test('a walk that finds her in range stands and shoots where it stopped: no snap back to where it began', () => {
+  const s = setup({ lola: { x: 0, z: 25 } });
+  const { actor, brain, world, combat, player, frames, framesUntil } = s;
+  world.leaperRoute = () => [{ x: 0, z: 5 }, { x: 0, z: 20 }];
+  loseLola(s);
+  framesUntil(() => actor.director.state === 'track', 1);
+  frames(2);
+  assert.ok(actor.pose.z > 3, 'it walked');
+  player.mesh.position.set(0, 0, actor.pose.z + 10);
+  combat.lolaVisible = true;
+  framesUntil(() => actor.director.state === 'engage', B.track.foundTime + 0.2);
+  const stopped = { x: actor.pose.x, z: actor.pose.z };
+  frames(0.5);
+  assert.ok(Math.hypot(actor.pose.x - stopped.x, actor.pose.z - stopped.z) < 0.2, 'still where the walk stopped');
+  assert.ok(Math.abs(brain.syncs.at(-1).z - stopped.z) < 0.2, 'and the brain was told');
+});
+
+test('no route gets it any closer to her: the brain takes over at once', () => {
+  const s = setup({ lola: { x: 0, z: 25 } });
+  const { actor, brain, world, frames, framesUntil } = s;
+  // The planner's nearest spot is where it stands.
+  world.leaperRoute = () => [{ x: 0, z: 0 }];
+  loseLola(s);
+  framesUntil(() => actor.director.state === 'track', 1);
+  frames(0.05);
+  assert.notEqual(actor.director.state, 'track');
+  assert.ok(s.heard.some(([, e]) => e.from === 'track' && e.to === 'search' && e.reason === 'cannot get closer'));
+  frames(0.1);
+  assert.equal(brain.running, true, 'the brain hunts again');
 });

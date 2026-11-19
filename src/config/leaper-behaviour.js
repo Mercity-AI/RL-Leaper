@@ -39,6 +39,62 @@ export const LEAPER_BEHAVIOUR = Object.freeze({
     walkFacing: 35,
     // A new shot from this much further along changes where it is heading.
     replanDistance: 3,
+    // Stuck (see track): no closer by progress units for stuckTime seconds.
+    stuckTime: 1.5,
+    progress: 0.5,
+    // Route points this close at its start are skipped (see track).
+    skipNear: 1.5,
+  }),
+
+  // ---- Track: walk to where it last saw Lola ----
+  // (owner, 2026-11-19.) Whenever Lola drops out of sight (neither the brain's
+  // sight nor the eye sees her), it pauses the brain and walks straight to the
+  // spot where it last saw her, around the junk, at the brain's own walking pace.
+  // The eye seeing her within shooting range ends it (it stands and shoots);
+  // seen further off, or glimpsed by the brain's sight, it walks on toward her.
+  // If she is not there, or it cannot get there or gets stuck, it looks round
+  // (the brain) for trailWait, then moves on: it follows her trail to where she
+  // is now, again and again until it sees her (owner, 2026-11-19: it span on the
+  // spot where it last saw her).
+  track: Object.freeze({
+    // Out of sight this long first (a pole passing in front of her is no loss).
+    reactTime: 0.3,
+    // Getting no closer than progress world units for stuckTime seconds while it
+    // is trying to walk (not turning on the spot) counts as stuck.
+    stuckTime: 1.5,
+    progress: 0.5,
+    // Gives up and lets the brain search when the walk runs this many seconds
+    // longer than its route should take (a long detour gets the time it needs).
+    spareTime: 5,
+    // A glimpse of her this much further along (world units) during the walk
+    // moves where it is heading.
+    replanDistance: 3,
+    // No route gets it any closer to her (she tucked into a gap narrower than its
+    // legs): the brain searches, and no walk goes back within this many world
+    // units of that spot until she has moved further away (owner, 2026-11-19:
+    // waiting there was a waste of time).
+    unreachableRadius: 4,
+    // The walk stops to stand and shoot once the eye has had her this long without
+    // a break (a glimpse through a slit in the junk is no find).
+    foundTime: 0.4,
+    // A stand that lost her before the eye had her lostSightTime in all: the next
+    // walk goes on this many seconds before a sighting may stop it (it stopped,
+    // turned, lost her and stopped again on the same spot, probe 2026-11-19).
+    walkPast: 2,
+    // After a walk that did not find her, it follows her trail after this long
+    // still without seeing her.
+    trailWait: 1.5,
+    // Route points this close at its start are skipped: no turning round for a
+    // step behind it; all that close and it only turns to face the spot.
+    skipNear: 1.5,
+    // The walk ends where its eye would see the spot only if that route is at most
+    // this much longer (world units) than the one to the nearest spot it fits;
+    // else it goes to the nearest spot and faces hers.
+    seeDetour: 8,
+    // Same pace and turn as the walk to a shot (see investigate); live in the tuning panel.
+    speed: 3.75,
+    turnRate: 90,
+    walkFacing: 35,
   }),
 
   // ---- Engage: stop, turn to face Lola and shoot ----

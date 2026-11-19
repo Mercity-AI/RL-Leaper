@@ -4,7 +4,7 @@ import { STANDING_HEIGHT } from '../../config/robot.js';
 import { contact, leaperReach, severedLegs } from '../../world/playerContact.js';
 import { shortestAngle, turnToward, wrapAngle } from '../../core/angles.js';
 import { LEAPER_STEPS_PER_SECOND } from '../../simulation/JunkyardBrain.js';
-import { LeaperDirector } from './LeaperDirector.js';
+import { LeaperDirector, WALKS } from './LeaperDirector.js';
 import { SnapshotPlayout } from './SnapshotPlayout.js';
 import { leapArc, planLeap } from './leapPlanner.js';
 import { LeaperFeedback } from './LeaperFeedback.js';
@@ -24,6 +24,10 @@ import { LEAPER_EVENTS } from './leaperEvents.js';
 // calls update() each frame between the brain's update and the attacks'.
 
 const ALL_LEGS = Object.freeze([0, 1, 2, 3, 4, 5]);
+const deg = (degrees) => degrees * Math.PI / 180;
+// The length of a route walked from `from`.
+const pathLength = (from, path) => path.reduce((sum, point, i) =>
+  sum + Math.hypot(point.x - (i ? path[i - 1].x : from.x), point.z - (i ? path[i - 1].z : from.z)), 0);
 // The plain walk.
 const STANDING = Object.freeze({ lower: 0, pitch: 0, roll: 0, splay: 0, planted: false, slide: 0 });
 // How fast the body eases into a new pose (1/seconds).
@@ -81,6 +85,7 @@ export class LeaperActor {
   reset() {
     this.director.reset();
     this.flight = null;
+    this.arrivedAt = null;
     this.wasRl = false;
     this.posture = { ...STANDING };
     this.entryPosture = { ...STANDING };
@@ -134,6 +139,7 @@ export class LeaperActor {
       remembers: online && Boolean(frame?.target_ever_seen) && (frame?.memory_age ?? Infinity) < this.config.awareness.memorySteps,
       eyeSees,
       distance,
+      lola: { x: lola.x, z: lola.z },
       inReach: distance < leaperReach(scale) + this.config.stomp.reachMargin,
       planLeap: () => this.planLeap(),
     };
@@ -212,8 +218,8 @@ export class LeaperActor {
       if (this.followsBrain) this.playout.push(frame);
     }
     // 2. Where the body goes this frame.
-    if (director.state === 'investigate') {
-      this.walkToShot(dt);
+    if (director.state === 'investigate' || director.state === 'track') {
+      this.walkToGoal(dt);
     } else if (locomotion === 'scripted' && this.flight) {
       this.flight.time += dt;
       const arc = leapArc(this.flight.plan, this.flight.time, this.config.leap);
@@ -245,40 +251,108 @@ export class LeaperActor {
       dt, null, { alive });
   }
 
-  // Whether the brain's replies move the body (not during a leap or an
-  // investigation, nor once destroyed).
+  // Whether the brain's replies move the body (not during a leap or a scripted
+  // walk, nor once destroyed).
   get followsBrain() {
-    return !['leap', 'investigate', 'dying', 'dead'].includes(this.director.state);
+    return !['leap', ...WALKS, 'dying', 'dead'].includes(this.director.state);
   }
 
-  // Investigate: follow a route to where the shot came from, turning on the
-  // spot first and walking at the brain's own pace. Every point of the route is
-  // a place the brain accepts, so it carries on from wherever this ends.
-  walkToShot(dt) {
+  // Investigate and Track: follow a route to the director's goal (where a shot
+  // came from, where Lola was last seen), turning on the spot first and walking
+  // at the brain's own pace. Every point of the route is a place the brain
+  // accepts, so it carries on from wherever this ends. The route ends as near
+  // the goal as the Leaper fits (a gap too narrow for it ends at the nearest spot
+  // its eye sees the goal from). No route at all, or no headway for a while
+  // (stuck), tells the director the walk failed: the brain takes over.
+  walkToGoal(dt) {
     const director = this.director, goal = director.goal;
     if (!goal) return;
-    const c = this.config.investigate;
+    const c = this.config[director.state];
+    const mobility = Math.max(0.05, this.simulation.rig.mobility ?? 1);
     if (this.trek?.goal !== goal) {
-      this.trek = { goal, path: this.world.leaperRoute?.(this.pose, goal, this.seesFrom(goal)) ?? [], next: 0 };
+      // Back for a spot it already reached without finding her: this time it goes
+      // round the cover to where its eye sees the spot, however far that is.
+      const again = this.arrivedAt && Math.hypot(goal.x - this.arrivedAt.x, goal.z - this.arrivedAt.z) < c.replanDistance;
+      const route = this.planRoute(goal, again ? undefined : c.seeDetour);
+      // A planner that finds no way at all: it cannot get there.
+      if (route && route.length === 0) {
+        this.trek = { goal, path: [], next: 0, best: Infinity, stuck: 0 };
+        director.walkFailed();
+        return;
+      }
+      // Route points right beside it are skipped: turning round for a step behind
+      // it left it facing away from her (owner, 2026-11-19). All of them that close:
+      // it is already as near as it gets, and only turns to face the spot.
+      const path = route ? [...route] : [];
+      while (path.length && Math.hypot(path[0].x - this.pose.x, path[0].z - this.pose.z) < c.skipNear) path.shift();
+      this.trek = { goal, path, next: 0, best: Infinity, stuck: 0 };
+      // No route brings it any closer: the director hands her back to the brain.
+      if (route && !path.length && director.state === 'track') {
+        director.cannotGetCloser();
+        return;
+      }
+      // How long the route should take: a half turn on the spot, then the walk.
+      if (director.state === 'track') director.walkFor(Math.PI / deg(c.turnRate) + this.routeLeft() / (c.speed * mobility));
     }
-    const { path } = this.trek;
-    const speed = c.speed * Math.max(0.05, this.simulation.rig.mobility ?? 1);
-    // The next point of the route (close ones count as passed); at the end, the shot itself.
-    while (this.trek.next < path.length
-      && Math.hypot(path[this.trek.next].x - this.pose.x, path[this.trek.next].z - this.pose.z) < 0.5) this.trek.next += 1;
-    const point = path[this.trek.next] ?? goal;
+    const trek = this.trek, { path } = trek;
+    // The next point of the route (close ones count as passed); at the end, the goal itself.
+    while (trek.next < path.length
+      && Math.hypot(path[trek.next].x - this.pose.x, path[trek.next].z - this.pose.z) < 0.5) trek.next += 1;
+    const point = path[trek.next] ?? goal;
     const heading = Math.atan2(point.x - this.pose.x, point.z - this.pose.z);
-    this.pose.yaw = wrapAngle(turnToward(this.pose.yaw, heading, LEAPER_ANGLES.investigateTurnRate * dt));
+    this.pose.yaw = wrapAngle(turnToward(this.pose.yaw, heading, deg(c.turnRate) * dt));
     const off = Math.abs(shortestAngle(this.pose.yaw, heading));
-    if (this.trek.next >= path.length) {
-      // Route finished: facing the shot is the end of it.
-      if (off < LEAPER_ANGLES.faceTolerance) director.reachedGoal();
+    if (trek.next >= path.length) {
+      // Route finished: facing the goal is the end of it.
+      if (off < LEAPER_ANGLES.faceTolerance) {
+        this.arrivedAt = { x: goal.x, z: goal.z };
+        director.reachedGoal();
+      }
       return;
     }
-    if (off > LEAPER_ANGLES.investigateWalkFacing) return;
-    const step = Math.min(speed * dt, Math.hypot(point.x - this.pose.x, point.z - this.pose.z));
+    const walking = off <= deg(c.walkFacing);
+    // Stuck: no headway along the route while it is trying to walk (turning on
+    // the spot does not count). A crippled Leaper is slower, so it needs less.
+    const left = this.routeLeft();
+    if (left < trek.best - c.progress * Math.min(1, mobility)) {
+      trek.best = left;
+      trek.stuck = 0;
+    } else if (walking) {
+      trek.stuck += dt;
+      if (c.stuckTime && trek.stuck >= c.stuckTime) {
+        director.walkFailed();
+        return;
+      }
+    }
+    if (!walking) return;
+    const step = Math.min(c.speed * mobility * dt, Math.hypot(point.x - this.pose.x, point.z - this.pose.z));
     this.pose.x += Math.sin(heading) * step;
     this.pose.z += Math.cos(heading) * step;
+  }
+
+  // The route toward goal, ending where its eye sees the goal. With seeDetour
+  // (world units), that ending only if its route is at most that much longer than
+  // the one to the nearest spot it fits: with Lola tucked away close by, the spot
+  // that saw her was often far round the junk, and it turned and walked off
+  // (probe, 2026-11-19). Null: no planner in this world.
+  planRoute(goal, seeDetour) {
+    const plan = this.world.leaperRoute;
+    if (!plan) return null;
+    const seeing = plan(this.pose, goal, this.seesFrom(goal));
+    if (seeDetour === undefined) return seeing;
+    const nearest = plan(this.pose, goal);
+    return pathLength(this.pose, seeing) <= pathLength(this.pose, nearest) + seeDetour ? seeing : nearest;
+  }
+
+  // How far along the route is still to walk, from where the Leaper stands.
+  routeLeft() {
+    const { path, next } = this.trek;
+    let left = 0, x = this.pose.x, z = this.pose.z;
+    for (let i = next; i < path.length; i += 1) {
+      left += Math.hypot(path[i].x - x, path[i].z - z);
+      ({ x, z } = path[i]);
+    }
+    return left;
   }
 
   // Could its eye, stood at a point of the yard, see the shooter's spot past the
@@ -293,14 +367,18 @@ export class LeaperActor {
   }
 
   // Hold: turn the body in place toward Lola (Engage) or the leap's direction
-  // (its crouch). Only where the whole leg span is clear at every heading (the
-  // world's conservative test), so the brain will accept the pose afterwards.
+  // (its crouch). The leap's turn only where the whole leg span is clear at every
+  // heading (the world's conservative test), so the brain accepts the pose. Engage
+  // always turns (owner, 2026-11-19): next to junk it stood seeing her but facing
+  // away, unable to aim (the eye aims only 45 degrees off the body's heading). A
+  // heading the brain then refuses costs a snap back when it walks on.
   turnInPlace(dt) {
     const facing = this.director.facing;
     if (!facing) return;
     const lola = this.player.mesh.position;
     const target = facing === 'lola' ? Math.atan2(lola.x - this.pose.x, lola.z - this.pose.z) : this.director.plan?.heading;
-    if (target === undefined || this.world.positionBlocked?.(this.pose.x, this.pose.z)) return;
+    if (target === undefined) return;
+    if (facing !== 'lola' && this.world.positionBlocked?.(this.pose.x, this.pose.z)) return;
     const off = Math.abs(shortestAngle(this.pose.yaw, target));
     if (off > LEAPER_ANGLES.faceTolerance) this.turning = true;
     else if (off < LEAPER_ANGLES.faceTolerance / 6) this.turning = false;
@@ -451,6 +529,19 @@ export class LeaperActor {
         // takes its warning ring with it (after a slam the shockwave cleared it).
         if (from === 'stomp') this.feedback?.clearWarnings();
         if (from === 'downed' && this.combat) this.combat.damageScale = 1;
+        // A scripted walk ended: the playback and the brain start from where it
+        // stopped. (Into a hold, such as Engage, the playback still held the
+        // brain's pose from before the walk and the body snapped back there.)
+        if (WALKS.includes(from) && !WALKS.includes(to)) {
+          this.trek = null;
+          // Found her: a later walk to that spot starts afresh.
+          if (to === 'engage') this.arrivedAt = null;
+          this.playout.reset(this.pose);
+          this.heldTurn = false;
+          // (Into Search or Chase, resumeBrain tells the brain.)
+          if (this.director.locomotion !== 'rl' && this.brain.frame && this.brain.syncPose) this.syncBrain(this.pose);
+          this.lastFrame = this.brain.frame;
+        }
         // A finished stomp or leap: the eye takes a breath before its next bolt.
         if (reason === 'stomp done') this.combat?.tree.interrupt?.(c.stomp.attackRecovery);
         if (reason === 'landed') this.combat?.tree.interrupt?.(c.leap.attackRecovery);

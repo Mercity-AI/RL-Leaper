@@ -30,6 +30,14 @@ export const PLAYER_GRID = Object.freeze({ radius: 0.25, height: 1.9 * ENCOUNTER
 // brain raster's conservative cell edges.
 export const SPAWN_MARGIN = 0.2;
 
+// The Leaper's scripted walks (to where it last saw Lola, to a shot) plan on a
+// grid this share of its full width (owner, 2026-11-19). The full-width disc is
+// far more cautious than the brain's own check (body and each leg at its
+// heading): the brain walked it to spots that grid called blocked, leaving it on
+// one-cell islands with no route anywhere. At 0.85 the brain accepted 60 of 60
+// random poses on the cells it adds (0.75: 45 of 60).
+export const ROUTE_WIDTH_SHARE = 0.85;
+
 // Sizes the OPTIONS slider can ever offer (its step is 0.1).
 export const WIDTH_LIMITS = Object.freeze({ min: 1.2, max: 8, step: 0.1 });
 
@@ -46,14 +54,19 @@ export function buildJunkyardCollision(data, width, report = () => {}) {
   navigation.markSpawnable(SPAWN_MARGIN);
   report(0.8);
   const playerNavigation = new JunkyardNavigation(data, PLAYER_GRID.radius, PLAYER_GRID.height);
-  return { navigation, playerNavigation };
+  report(0.9);
+  const routeNavigation = new JunkyardNavigation(data, leaper.radius * ROUTE_WIDTH_SHARE, leaper.height, undefined, null, steppedOver);
+  routeNavigation.markSpawnable(SPAWN_MARGIN);
+  return { navigation, playerNavigation, routeNavigation };
 }
 
 // Typed-array form for the trip from the worker (moved, not copied).
-export function packJunkyardCollision(data, { navigation, playerNavigation }) {
-  const packed = { triangles: packTriangles(data.triangles), leaper: navigation.pack(), player: playerNavigation.pack() };
+export function packJunkyardCollision(data, { navigation, playerNavigation, routeNavigation = null }) {
+  const packed = { triangles: packTriangles(data.triangles), leaper: navigation.pack(), player: playerNavigation.pack(),
+    route: routeNavigation?.pack() ?? null };
   const transfer = [packed.triangles.buffer,
-    ...JunkyardNavigation.transferables(packed.leaper), ...JunkyardNavigation.transferables(packed.player)];
+    ...JunkyardNavigation.transferables(packed.leaper), ...JunkyardNavigation.transferables(packed.player),
+    ...(packed.route ? JunkyardNavigation.transferables(packed.route) : [])].filter(Boolean);
   return { packed, transfer };
 }
 
@@ -63,5 +76,6 @@ export function unpackJunkyardCollision(packed) {
   return {
     navigation: JunkyardNavigation.fromPacked(packed.leaper, triangles),
     playerNavigation: JunkyardNavigation.fromPacked(packed.player, triangles),
+    routeNavigation: packed.route ? JunkyardNavigation.fromPacked(packed.route, triangles) : null,
   };
 }

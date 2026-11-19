@@ -45,7 +45,7 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
   const scale = junkyardScale(width);
   // The compressed map and, in a worker at the same time, the Leaper's grid (with
   // its connected regions and safe spawn cells) and Lola's.
-  const [gltf, { navigation, playerNavigation: playerGrid, builtBy }] = await Promise.all([
+  const [gltf, { navigation, playerNavigation: playerGrid, routeNavigation, builtBy }] = await Promise.all([
     assets.model(MAP_URL),
     assets.task('collision', (report) => loadJunkyardCollision(COLLISION_URL, width, report), COLLISION_LOAD_WEIGHT),
   ]);
@@ -99,7 +99,8 @@ export async function createJunkyardWorld(scene, { assets = new Assets({ overlay
     positionBlocked: (x, z) => navigation.blocked(x / scale, z / scale),
     // The Leaper's way from one point toward another, around the junk (world
     // units); sees(point), if given, picks where the route ends.
-    leaperRoute: (from, to, sees = null) => navigation.walkRoute({ x: from.x / scale, z: from.z / scale }, { x: to.x / scale, z: to.z / scale },
+    // (On the narrower route grid, ROUTE_WIDTH_SHARE in junkyardCollision.js.)
+    leaperRoute: (from, to, sees = null) => (routeNavigation ?? navigation).walkRoute({ x: from.x / scale, z: from.z / scale }, { x: to.x / scale, z: to.z / scale },
       sees && ((point) => sees({ x: point.x * scale, z: point.z * scale })))
       .map((point) => ({ x: point.x * scale, z: point.z * scale })),
     playerBlocked: (x, z) => playerNavigation.blocked(x / scale, z / scale),

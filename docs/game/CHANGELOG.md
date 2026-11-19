@@ -3,6 +3,19 @@
 The game's history, kept apart from the RL training ledger (`TRAINING.md`).
 Newest first.
 
+## 2026-11-19: the Leaper goes where it last saw Lola; more room by the racks and the east wall
+
+### For players
+
+- **It walks to where it last saw you.** Duck out of sight and the Leaper (HUD: TRACKING)
+  walks to the spot where it lost you, firing if it catches you on the way. Not there?
+  It looks round, then follows your trail. If it cannot get to you at all, it goes back to
+  searching on its own.
+- **More room in the yard.** The gap between the two car racks, the north-east corner and
+  a lane down the east wall are now open to the Leaper: the lying yellow container, two
+  scrap skips, three loose tires, a scrap bin and a crate pile moved, and the lamp pole by
+  the east wall now stands against the wall.
+
 ## 2026-11-17: the Leaper keeps track of Lola while it shoots; scrap signs on the title and the end
 
 ### For players

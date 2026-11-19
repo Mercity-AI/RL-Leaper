@@ -8,6 +8,7 @@ import { COMBAT } from '../../config/tuning/index.js';
 //
 //   Dormant -> Search -> Chase <-> Engage, and from those Stomp and Leap;
 //   Search or Chase -> Investigate (shot from out of sight) -> Search or Chase;
+//   Search, Chase or Engage -> Track (Lola dropped out of sight) -> Search or Chase;
 //   any of them -> Stagger (a big hit) -> Downed (too many legs) -> Dying -> Dead.
 //
 // Each state picks where the Leaper's movement comes from (`locomotion`):
@@ -15,7 +16,8 @@ import { COMBAT } from '../../config/tuning/index.js';
 //   'hold'     the brain is paused; the body only turns in place by animation
 //              (Engage turns to face Lola; a stomp, a stagger, a fall do not);
 //   'scripted' the brain is paused; an animation moves the body (the leap's
-//              flight, the walk to where a shot came from, the collapse and the wreck).
+//              flight, the walk to where a shot came from or to where Lola was last
+//              seen, the collapse and the wreck).
 // The brain itself is only ever paused, resumed or told a new pose (after a
 // leap or a turn in place); it never gets new inputs. LeaperActor carries the
 // decisions out and calls the hooks below.
@@ -31,6 +33,8 @@ import { COMBAT } from '../../config/tuning/index.js';
 //                aware stands in for it)
 //   eyeSees      the eye has a clear line of fire to her (LeaperCombat)
 //   distance     Leaper centre to Lola, world units
+//   lola         Lola's spot { x, z } (optional: without it there is no walk to where
+//                she was last seen)
 //   inReach      Lola is hugging the Leaper (within its reach + stomp.reachMargin)
 //   planLeap()   a landing spot for a pounce at her, or null (asked only when one could happen)
 //
@@ -40,11 +44,16 @@ import { COMBAT } from '../../config/tuning/index.js';
 //   onLeapStart(plan), onLeapLaunch(plan), onLeapLand(plan), onLeapCancel(plan, reason)
 //   onStagger(reason), onDowned({ permanent }), onGetUp(), onDeath()
 
+// The scripted walks: the brain is paused while the behaviour layer moves the body.
+export const WALKS = Object.freeze(['investigate', 'track']);
+
 // Every state: where movement comes from, and whether the eye may fire.
 export const LEAPER_STATES = Object.freeze({
   dormant: Object.freeze({ locomotion: 'hold', bolts: false }),
   search: Object.freeze({ locomotion: 'rl', bolts: false }),
   investigate: Object.freeze({ locomotion: 'scripted', bolts: false }),
+  // (It fires as it walks whenever the eye has her.)
+  track: Object.freeze({ locomotion: 'scripted', bolts: true }),
   chase: Object.freeze({ locomotion: 'rl', bolts: true }),
   engage: Object.freeze({ locomotion: 'hold', bolts: true }),
   stomp: Object.freeze({ locomotion: 'hold', bolts: false }),
@@ -62,7 +71,7 @@ export function stateLabel(state, phase = null, { permanent = false } = {}) {
   if (state === 'downed') return phase === 'rising' ? 'GETTING UP' : permanent ? 'DOWN FOR GOOD' : 'DOWN · VULNERABLE';
   if (state === 'stomp') return phase === 'windup' ? 'STOMP!' : 'STOMPED';
   return {
-    dormant: 'DORMANT', search: 'SEARCHING', investigate: 'INVESTIGATING', chase: 'HUNTING', engage: 'ENGAGING',
+    dormant: 'DORMANT', search: 'SEARCHING', investigate: 'INVESTIGATING', track: 'TRACKING', chase: 'HUNTING', engage: 'ENGAGING',
     stagger: 'STAGGERED', dying: 'DESTROYED', dead: 'WRECK',
   }[state] ?? state.toUpperCase();
 }
@@ -103,6 +112,27 @@ export class LeaperDirector {
     this.alarm = null;
     this.goal = null;
     this.arrived = false;
+    // Where Lola was when it last saw her { x, z, walked }, how long she has been
+    // out of sight since, and whether the walk there failed (LeaperActor: no route,
+    // stuck). walked: this sighting has had its walk already.
+    this.lastSeen = null;
+    this.lostTime = 0;
+    this.failed = false;
+    // How long the walk may take (walkFor), or null while unknown.
+    this.walkLimit = null;
+    // When the last scripted walk ended, and where the next trail walk goes.
+    this.walkEnded = -Infinity;
+    this.trailGoal = null;
+    this.noCloser = false;
+    // A spot no route reached { x, z }: no walk goes back near it (see goalReachable).
+    this.unreachable = null;
+    // How long the eye has had her without a break; how long it had her during
+    // this stand (Engage); whether the next walk goes on past a sighting, and
+    // from when (its state time) a sighting may end it.
+    this.eyeTime = 0;
+    this.engageSeen = 0;
+    this.walkPast = false;
+    this.findAfter = 0;
     this.transitions = 0;
   }
 
@@ -187,6 +217,21 @@ export class LeaperDirector {
     this.arrived = true;
   }
 
+  // The walk to where Lola was last seen cannot go on: no route, or stuck (LeaperActor).
+  walkFailed() {
+    this.failed = true;
+  }
+
+  // No route brings it any closer to the walk's goal (LeaperActor): the brain searches.
+  cannotGetCloser() {
+    this.noCloser = true;
+  }
+
+  // The walk's route, planned just now, should take this many seconds (LeaperActor).
+  walkFor(seconds) {
+    this.walkLimit = this.stateTime + seconds + this.config.track.spareTime;
+  }
+
   // The brain's answer about the leap's landing spot (true = it accepted the pose).
   leapAccepted(ok) {
     if (this.state === 'leap' && this.phase === 'windup' && this.acceptance === 'pending') {
@@ -204,6 +249,7 @@ export class LeaperDirector {
     for (const key of Object.keys(this.cooldowns)) this.cooldowns[key] = Math.max(0, this.cooldowns[key] - dt);
     // (Standing next to a dormant Leaper does not count: no stomp the moment the run starts.)
     this.reachTime = sense.inReach && this.state !== 'dormant' ? this.reachTime + dt : 0;
+    this.noteSighting(dt, sense);
 
     // 2. Interrupts, most important first: death, a fall, a stagger, the run stopping.
     const airborne = this.state === 'leap' && this.phase === 'flight';
@@ -234,6 +280,31 @@ export class LeaperDirector {
     if (['downed', 'dying', 'dead', 'stagger', 'dormant'].includes(this.state)) return false;
     if (this.state === 'leap' && this.phase !== 'windup') return false;
     return this.cooldowns.stagger <= 0;
+  }
+
+  // Remember where Lola was the last time it saw her, by the brain's sight or the
+  // eye's, and for how long she has been out of sight since.
+  noteSighting(dt, sense) {
+    this.eyeTime = sense.eyeSees ? this.eyeTime + dt : 0;
+    if (this.state === 'dormant') {
+      this.lastSeen = null;
+      this.lostTime = 0;
+      this.unreachable = null;
+      return;
+    }
+    if (sense.lola && ((sense.brainSees ?? sense.aware) || sense.eyeSees)) {
+      // Seen during the walk without ending it (see track): this walk covers the
+      // sighting, and heads for her new spot when she is somewhere else.
+      const walking = this.state === 'track' && !this.foundClose(sense);
+      this.lastSeen = { x: sense.lola.x, z: sense.lola.z, walked: walking };
+      this.lostTime = 0;
+      const goal = this.goal;
+      if (walking && goal && Math.hypot(sense.lola.x - goal.x, sense.lola.z - goal.z) >= this.config.track.replanDistance) {
+        this.goal = { x: sense.lola.x, z: sense.lola.z };
+      }
+    } else {
+      this.lostTime += dt;
+    }
   }
 
   // ---- Shared triggers ----
@@ -274,6 +345,35 @@ export class LeaperDirector {
       && this.time - alarm.time <= this.config.investigate.alarmTime;
   }
 
+  // Lola dropped out of sight a moment ago and this sighting has had no walk yet.
+  trackReady() {
+    return Boolean(this.lastSeen) && !this.lastSeen.walked && this.lostTime >= this.config.track.reactTime
+      && this.goalReachable(this.lastSeen);
+  }
+
+  // Not near a spot a walk found no way to (owner, 2026-11-19: if it physically
+  // cannot reach her, the brain searches, rather than trying the same spot again).
+  goalReachable({ x, z }) {
+    const spot = this.unreachable;
+    return !spot || Math.hypot(x - spot.x, z - spot.z) > this.config.track.unreachableRadius;
+  }
+
+  // Moving on (owner, 2026-11-19): the walk to where she was last seen is done and
+  // she is still out of sight; after trailWait of looking round it follows her
+  // trail, a walk to where she is now. Only once it has seen her this hunt.
+  trailReady(sense) {
+    const c = this.config.track;
+    // (A sighting at a spot it cannot reach gets no walk of its own: the trail it is.)
+    const seen = this.lastSeen;
+    return Boolean(sense.lola && seen && (seen.walked || !this.goalReachable(seen))) && this.lostTime >= c.reactTime
+      && this.time - this.walkEnded >= c.trailWait && this.goalReachable(sense.lola);
+  }
+
+  followTrail(sense) {
+    this.trailGoal = { x: sense.lola.x, z: sense.lola.z };
+    return ['track', 'following her trail'];
+  }
+
   // ---- One function per state: returns [next state, reason] or nothing ----
 
   dormant(dt, sense) {
@@ -285,7 +385,35 @@ export class LeaperDirector {
     if (this.stompReady()) return ['stomp', 'Lola under it'];
     if (this.engageReady(sense)) return ['engage', 'eye on Lola'];
     if (this.investigateReady(sense)) return ['investigate', 'shot from out of sight'];
+    if (this.trackReady()) return ['track', 'lost sight of Lola'];
+    if (this.trailReady(sense)) return this.followTrail(sense);
     if (sense.aware || sense.remembers) return ['chase', 'spotted Lola'];
+    return null;
+  }
+
+  // The walk has found her: the eye has had her for foundTime, within shooting
+  // range (and, after a stand that lost her at once, the walk has gone on a while).
+  foundClose(sense) {
+    return Boolean(sense.eyeSees) && sense.distance <= this.config.engage.exitDistance
+      && this.eyeTime >= this.config.track.foundTime && this.stateTime >= this.findAfter;
+  }
+
+  // Walking to where Lola was last seen. A shot from out of sight is newer news.
+  // It ends when the eye sees her within shooting range: it stands and shoots.
+  // Seen further off (by the eye, firing as it walks) or glimpsed by the brain's
+  // flickering sight, it keeps walking, toward her new spot (noteSighting). Handing her
+  // back to the brain sooner made it rock: the brain backed off, lost her within
+  // 0.3 s and the walk brought it back, over and over (probe, 2026-11-19).
+  track(dt, sense) {
+    if (this.stompReady()) return ['stomp', 'Lola under it'];
+    if (this.investigateReady(sense)) return ['investigate', 'shot from out of sight'];
+    if (this.foundClose(sense)) return ['engage', 'found Lola'];
+    if (this.noCloser || this.failed) {
+      this.unreachable = { x: this.goal.x, z: this.goal.z };
+      return ['search', this.noCloser ? 'cannot get closer' : 'cannot get there'];
+    }
+    if (this.arrived) return ['search', 'not there'];
+    if (this.walkLimit !== null && this.stateTime >= this.walkLimit) return ['search', 'gave up'];
     return null;
   }
 
@@ -293,6 +421,7 @@ export class LeaperDirector {
     if (this.stompReady()) return ['stomp', 'Lola under it'];
     if (sense.eyeSees) return ['chase', 'found Lola'];
     if (this.arrived) return ['search', 'nobody there'];
+    if (this.failed) return ['search', 'cannot get there'];
     if (this.stateTime >= this.config.investigate.maxTime) return ['search', 'gave up'];
     return null;
   }
@@ -302,6 +431,8 @@ export class LeaperDirector {
     if (this.leapReady(dt, sense)) return ['leap', 'pounce'];
     if (this.investigateReady(sense)) return ['investigate', 'shot from out of sight'];
     if (this.engageReady(sense)) return ['engage', 'in range'];
+    if (this.trackReady()) return ['track', 'lost sight of Lola'];
+    if (this.trailReady(sense)) return this.followTrail(sense);
     if (!sense.aware && !sense.remembers) return ['search', 'lost Lola'];
     return null;
   }
@@ -311,9 +442,16 @@ export class LeaperDirector {
     if (this.stompReady()) return ['stomp', 'Lola under it'];
     if (this.leapReady(dt, sense)) return ['leap', 'pounce'];
     this.unseenTime = sense.eyeSees ? 0 : this.unseenTime + dt;
+    if (sense.eyeSees) this.engageSeen += dt;
     this.heldTime += dt;
     if (sense.distance > c.exitDistance) return ['chase', 'out of range'];
-    if (this.unseenTime >= c.lostSightTime) return ['chase', 'lost sight'];
+    // Standing to shoot it keeps its own patience (lostSightTime) before it walks: the eye
+    // flickers at the edge of cover, and 0.3 s cut every hold short (probe, 2026-11-19).
+    if (this.unseenTime >= c.lostSightTime) {
+      // Barely had her at all: the next walk goes on past the spot it stood on.
+      this.walkPast = this.engageSeen < c.lostSightTime;
+      return this.trackReady() ? ['track', 'lost sight of Lola'] : ['chase', 'lost sight'];
+    }
     // It walks off only when the brain sees her too: with only the eye on her, the
     // brain would search on the spot (it spun between shots, owner 2026-11-04).
     if (this.heldTime >= c.maxHoldTime && (sense.brainSees ?? sense.aware)) {
@@ -413,13 +551,32 @@ export class LeaperDirector {
     this.stateTime = 0;
     this.transitions += 1;
     this.setPhase({ stomp: 'windup', leap: 'windup', downed: 'falling' }[next] ?? null);
-    if (next === 'engage') this.unseenTime = 0;
+    if (next === 'engage') {
+      this.unseenTime = 0;
+      this.engageSeen = 0;
+    }
+    // A scripted walk ended (its trail is followed trailWait from now).
+    if (WALKS.includes(from) && !WALKS.includes(next)) this.walkEnded = this.time;
     // (A stagger leaves Engage too, but it comes back to finish the same hold.)
     if (from === 'engage' && next === 'chase') this.heldTime = 0;
     if (next === 'investigate') {
       this.goal = { x: this.alarm.x, z: this.alarm.z };
       this.alarm = null;
       this.arrived = false;
+      this.failed = false;
+      // The shot is newer news than where she vanished: no walk back there afterwards.
+      if (this.lastSeen) this.lastSeen.walked = true;
+    } else if (next === 'track') {
+      // Where she was last seen, or (following her trail) where she is now.
+      this.goal = this.trailGoal ?? { x: this.lastSeen.x, z: this.lastSeen.z };
+      this.trailGoal = null;
+      if (this.lastSeen) this.lastSeen.walked = true;
+      this.arrived = false;
+      this.failed = false;
+      this.noCloser = false;
+      this.walkLimit = null;
+      this.findAfter = this.walkPast ? this.config.track.walkPast : 0;
+      this.walkPast = false;
     } else {
       this.goal = null;
     }
